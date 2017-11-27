@@ -8,7 +8,7 @@ class HypercubeSlicer(
     val shares: IndexedSeq[Int],
     val seed: Long = 1234) extends DataSlicer {
 
-  override val degree: Int = shares.product.max(1)
+  override val degree: Int = if (shares.isEmpty) 1 else shares.product
 
   private val seeds: Array[Int] = {
     val random = new Random(seed)
@@ -32,7 +32,7 @@ class HypercubeSlicer(
       if (value.isEmpty)
         unconstrained ::= i
       else
-        sliceIndex += strides(i) * (hash(value.get, seeds(i)) % shares(i))
+        sliceIndex += strides(i) * Math.floorMod(hash(value.get, seeds(i)), shares(i))
     }
 
     val slices = new ArrayBuffer[Int](degree)

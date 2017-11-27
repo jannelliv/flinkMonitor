@@ -21,7 +21,9 @@ case class Atom(relation: String, args: Term*) {
 }
 
 case class Formula(atoms: Set[Atom]) {
-  val freeVariables: Int = atoms.map(a => a.args.collect{case FreeVar(i) => i}.max).max + 1
+  val freeVariables: Int = atoms.map(a =>
+      a.args.collect{case FreeVar(i) => i}.reduceOption(_ max _).getOrElse(-1))
+    .reduceOption(_ max _).getOrElse(-1) + 1
 
   override def toString: String = atoms.mkString("{", ", ", "}")
 }
