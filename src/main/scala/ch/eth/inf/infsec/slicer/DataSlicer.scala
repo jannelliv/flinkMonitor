@@ -1,6 +1,6 @@
 package ch.eth.inf.infsec.slicer
 
-import ch.eth.inf.infsec.DataStream
+import ch.eth.inf.infsec.Stream
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -32,7 +32,7 @@ abstract class DataSlicer extends Slicer {
     slices
   }
 
-  override def apply(source: DataStream[Event]): source.Self[(Int, Event)] =
+  override def apply(source: Stream[Event]): source.Self[(Int, Event)] =
     source.flatMap(e => {
       // TODO(JS): For efficiency, consider transposing the outermost layers of `slices`: relation -> slice id -> structure
       val slices = Array.fill(degree){

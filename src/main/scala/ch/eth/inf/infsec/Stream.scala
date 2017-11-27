@@ -2,8 +2,8 @@ package ch.eth.inf.infsec
 
 import scala.language.higherKinds
 
-trait DataStream[T] {
-  type Self[A] <: DataStream[A]
+trait Stream[T] {
+  type Self[A] <: Stream[A]
 
   def flatMap[U](f: T => TraversableOnce[U]): Self[U]
 }
