@@ -117,6 +117,19 @@ under the License.
 			<artifactId>log4j</artifactId>
 			<version>${log4j.version}</version>
 		</dependency>
+
+		<dependency>
+			<groupId>org.scalatest</groupId>
+			<artifactId>scalatest_2.10</artifactId>
+			<version>3.0.4</version>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.scalacheck</groupId>
+			<artifactId>scalacheck_2.10</artifactId>
+			<version>1.13.5</version>
+			<scope>test</scope>
+		</dependency>
 	</dependencies>
 
 	<profiles>
