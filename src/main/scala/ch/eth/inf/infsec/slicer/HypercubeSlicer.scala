@@ -1,5 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
+import ch.eth.inf.infsec.policy._
+
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Random, hashing}
 
@@ -53,9 +55,9 @@ object HypercubeSlicer {
     var bestCost: Double = Double.PositiveInfinity
     var bestConfig: List[Int] = Nil
 
-    def atomPartitions(atom: Atom, config: List[Int]): Double =
+    def atomPartitions(atom: Pred, config: List[Int]): Double =
       atom.args.toSet.map((t: Term) => t match {
-        case FreeVar(i) => (1 << config(i)).toDouble
+        case Free(i, _) => (1 << config(i)).toDouble
         case _ => 1.0
       }).product
 
@@ -66,7 +68,7 @@ object HypercubeSlicer {
           search(remainingVars - 1, remainingExp - e, e :: config)
       } else {
         // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.
-        val cost = formula.atoms.map((atom: Atom) =>
+        val cost = formula.atoms.map((atom: Pred) =>
           statistics.relationSize(atom.relation) / atomPartitions(atom, config)).sum
         if (cost < bestCost) {
           bestConfig = config
@@ -74,7 +76,7 @@ object HypercubeSlicer {
         }
       }
 
-    search(formula.freeVariables, degreeExp, Nil)
+    search(formula.freeVariables.size, degreeExp, Nil)
     val shares = bestConfig.map(e => 1 << e).toArray
     new HypercubeSlicer(formula, shares)
   }

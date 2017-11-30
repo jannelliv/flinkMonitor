@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.Stream
+import ch.eth.inf.infsec.policy.Formula
 
 trait Slicer {
   val formula: Formula

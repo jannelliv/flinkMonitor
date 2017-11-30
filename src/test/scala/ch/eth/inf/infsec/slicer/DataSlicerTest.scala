@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.SeqStream
+import ch.eth.inf.infsec.policy._
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.collection.TraversableOnce
@@ -8,7 +9,7 @@ import scala.collection.TraversableOnce
 class DataSlicerTest extends FunSuite with Matchers {
 
   class TestDataSlicer extends DataSlicer {
-    override val formula = Formula(Set(Atom("A", BoundVar(0), FreeVar(0)), Atom("B", FreeVar(1), BoundVar(0))))
+    override val formula = All("b", And(Pred("A", Bound(0, "b"), Free(0, "x")), Pred("B", Free(1, "y"), Bound(0, "b"))))
     override val degree = 4
 
     override def slicesOfValuation(valuation: Array[Option[Any]]): TraversableOnce[Int] =

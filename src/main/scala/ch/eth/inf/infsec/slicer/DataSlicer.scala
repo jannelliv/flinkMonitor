@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.Stream
+import ch.eth.inf.infsec.policy._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -14,11 +15,11 @@ abstract class DataSlicer extends Slicer {
     val slices = new ArrayBuffer[Int](degree)
     for (atom <- formula.atoms if atom.relation == relation) {
       var matches = true
-      val valuation: Array[Option[Any]] = Array.fill(formula.freeVariables)(None)
+      val valuation: Array[Option[Any]] = Array.fill(formula.freeVariables.size)(None)
       for ((term, value) <- atom.args.zip(tuple))
         term match {
           case Const(const) if const != value => matches = false
-          case FreeVar(x) =>
+          case Free(x, _) =>
             if (valuation(x).isEmpty)
               valuation(x) = Some(value)
             else if (valuation(x).get != value)
