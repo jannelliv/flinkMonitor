@@ -41,13 +41,20 @@ object Context {
   def empty(): Context = new Context(new ArrayBuffer[String]())
 }
 
-case class Interval(lower: Int, upper: Int) {
+case class Interval(lower: Int, upper: Option[Int]) {
   def check: Either[String, Interval] =
-    if (upper < lower) Left(s"$this is not a valid interval")
+    if (upper.isDefined && upper.get < lower) Left(s"$this is not a valid interval")
     else if (lower < 0) Left(s"interval $this contains negative values")
     else Right(this)
 
-  override def toString = s"$lower,$upper"
+  override def toString: String = upper match {
+    case None => s"[$lower,*)"
+    case Some(u) => s"[$lower,$u)"
+  }
+}
+
+object Interval {
+  val any = Interval(0, None)
 }
 
 sealed trait Formula {
@@ -164,4 +171,12 @@ case class Until(interval: Interval, arg1: Formula, arg2: Formula) extends Formu
     interval.check.right.flatMap(i => arg1.check.right.flatMap(a1 =>
       arg2.check.right.map(a2 => Until(i, a1, a2))))
   override def toString: String = s"($arg1) UNTIL $interval ($arg2)"
+}
+
+object Formula {
+  val True = Not(False())
+
+  def Implies(arg1: Formula, arg2: Formula): Formula = Or(Not(arg1), arg2)
+
+  def Equiv(arg1: Formula, arg2: Formula): Formula = And(Implies(arg1, arg2), Implies(arg2, arg1))
 }

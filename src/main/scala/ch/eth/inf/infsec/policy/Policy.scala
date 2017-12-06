@@ -14,7 +14,8 @@ private object PolicyParsers {
 
     val Letter: P0 = P( CharIn('a' to 'z', 'A' to 'Z') )
     val Digit: P0 = P( CharIn('0' to '9') )
-    val AnyString: P0 = P( (Letter | Digit | CharIn("_-/:\\'\"")).rep )
+    val AnyStringExclQuotes: P0 = P( (Letter | Digit | CharIn("_-/:")).rep )
+    val AnyString: P0 = P( (Letter | Digit | CharIn("_-/:\'\"")).rep )
 
     val Identifier: P[String] = P( ((Letter | Digit | "_") ~ AnyString).! )
 
@@ -23,42 +24,100 @@ private object PolicyParsers {
     val Rational: P[Any] = Fail
     val QuotedString: P[String] = P(
       ("\'[" ~/ AnyString.! ~/ "]\'") | ("\"[" ~/ AnyString.! ~/ "]\"") |
-      ("\'" ~/ AnyString.! ~/ "\'") | ("\"" ~/ AnyString.! ~/ "\"")
+      ("\'" ~/ AnyStringExclQuotes.! ~/ "\'") | ("\"" ~/ AnyStringExclQuotes.! ~/ "\"")
     )
+
+    val Quantity: P[(Int, String)] = P( Digit.rep.!.map(_.toInt) ~/ Letter.?.! )
+
+    val Eventually: P0 = P( "EVENTUALLY" | "SOMETIMES" )
+    val Once: P0 = P( "ONCE" )
+    val Always: P0 = P( "ALWAYS" )
+    val Historically: P0 = P( "PAST_ALWAYS" | "HISTORICALLY" )
   }
 
   private val WhitespaceWrapper = WhitespaceApi.Wrapper(Token.Whitespace)
   import WhitespaceWrapper._
 
-  val Term: P[Term] = P(NoCut(
-    Token.Integer.map(Const) | Token.Rational.map(Const) | Token.QuotedString.map(Const) |
-    Token.Identifier.map(Free(-1, _))
-  ))
+  private def timeUnit(unit: String): Int = unit match {
+    case "d" => 24 * 60 * 60
+    case "h" => 60 * 60
+    case "m" => 60
+    case "s" | "" => 1
+    case _ => throw new RuntimeException(s"unrecognized time unit: $unit")  // TODO(JS): Proper error handling
+  }
 
-  private def quantifier(name: String, mk: (String, Formula) => Formula): P[Formula] =
-    P((name ~ Token.Identifier.rep(min = 1, sep = ",") ~ "." ~ Formula0).map(x =>
-      x._1.tail.foldRight(mk(x._1.head, x._2))(mk))).opaque(name)
+  private def optionalInterval(spec: Option[Interval]): Interval = spec.getOrElse(Interval.any)
 
   private def leftAssoc(op: P0, sub: P[Formula], mk: (Formula, Formula) => Formula): P[Formula] =
-    P(sub.rep(min = 2, sep = op).map(xs => xs.tail.foldLeft(xs.head)(mk)))
+    P(sub.rep(min = 1, sep = op).map(xs => xs.tail.foldLeft(xs.head)(mk)))
+
+  private def rightAssoc(op: P0, sub: P[Formula], mk: (Formula, Formula) => Formula): P[Formula] =
+    P(sub.rep(min = 1, sep = op).map(xs => xs.init.foldRight(xs.last)(mk)))
+
+  private def quantifier(op: P0, sub: P[Formula], mk: (String, Formula) => Formula): P[Formula] =
+    P( (op ~/ Token.Identifier.rep(min = 1, sep = ",") ~ "." ~/ sub).map{ case (vars, phi) =>
+      vars.init.foldRight(mk(vars.last, phi))(mk)} )
+
+  private def unaryTemporal(op: P0, sub: P[Formula], mk: (Interval, Formula) => Formula): P[Formula] =
+    P( (op ~/ TimeInterval.? ~/ sub).map{ case (i, phi) => mk(optionalInterval(i), phi) } )
+
+  // BUG(JS): Does not follow the longest match used by ocamllex. Identifiers such as "5_"
+  // are not parsed correctly.
+  val Term: P[Term] = P(
+    Token.Integer.map(Const) | Token.Rational.map(Const) | Token.QuotedString.map(Const) |
+    Token.Identifier.map(Free(-1, _))
+  )
+
+  val TimeInterval: P[Interval] = P( (("(" | "[").! ~/ Token.Quantity ~/ "," ~/
+    ("*" ~ PassWith(None) | Token.Quantity.map(Some(_))) ~/ (")" | "]").!)
+    .map{ case (lk, (lb, lu), rbo, rk) =>
+      val leftBound = lb * timeUnit(lu) + (if (lk == "(") 1 else 0)
+      val rightBound = rbo.map{ case (rb, ru) => rb * timeUnit(ru) + (if (rk == "]") 1 else 0) }
+      Interval(leftBound, rightBound)
+    }
+  )
 
   val Formula9: P[Formula] = P(
-    ("(" ~ Formula0 ~ ")") | "TRUE" ~ PassWith(Not(False())) | "FALSE" ~ PassWith(False()) |
-    ("NOT" ~ Formula9).map(Not) |
-    (Token.Identifier ~ "(" ~ Term.rep(sep = ",") ~ ")").map(x => Pred(x._1, x._2:_*))
+    ("(" ~/ Formula1 ~/ ")") | "TRUE" ~/ PassWith(Formula.True) | "FALSE" ~/ PassWith(False()) |
+    ("NOT" ~/ Formula9).map(Not) |
+    (Token.Identifier ~/ "(" ~/ Term.rep(sep = ",") ~ ")").map(x => Pred(x._1, x._2:_*))
+  )
+
+  val Formula8: P[Formula] = leftAssoc("AND", Formula9, And)
+
+  val Formula7: P[Formula] = leftAssoc("OR", Formula8, Or)
+
+  val Formula6: P[Formula] = rightAssoc("IMPLIES", Formula7, Formula.Implies)
+
+  val Formula5: P[Formula] = leftAssoc("EQUIV", Formula6, Formula.Equiv)
+
+  val Formula2: P[Formula] = P(
+    quantifier("EXISTS", Formula2, Ex) |
+    quantifier("FORALL", Formula2, All) |
+    unaryTemporal("PREVIOUS", Formula2, Prev) |
+    unaryTemporal("NEXT", Formula2, Next) |
+    unaryTemporal(Token.Eventually, Formula2, Eventually) |
+    unaryTemporal(Token.Once, Formula2, Once) |
+    unaryTemporal(Token.Always, Formula2, Always) |
+    unaryTemporal(Token.Historically, Formula2, Historically) |
+    Formula5
   )
 
   val Formula1: P[Formula] = P(
-    leftAssoc("AND", Formula9, And) | leftAssoc("OR", Formula9, Or) | Formula9
+    (Formula2 ~/ ( StringIn("SINCE", "UNTIL").! ~/ TimeInterval.? ~/ Formula2).rep)
+      .map{ case (phi1, ops) =>
+        ops.foldRight(identity[Formula](_)){ case ((op, i, phi), mkr) => lhs =>
+          val rhs = mkr(phi)
+          val interval = optionalInterval(i)
+          op match {
+            case "SINCE" => Since(interval, lhs, rhs)
+            case "UNTIL" => Until(interval, lhs, rhs)
+          }
+        }(phi1)
+      }
   )
 
-  val Formula0: P[Formula] = P(
-    quantifier("EX", Ex) | quantifier("FA", All) | Formula1
-  )
-
-  // TODO(JS): Parse the remaining operators
-
-  val Policy: P[Formula] = P( Token.Whitespace ~ Formula0 ~ Token.Whitespace ~ End )
+  val Policy: P[Formula] = P( Token.Whitespace ~ Formula1 ~ Token.Whitespace ~ End )
 }
 
 object Policy {
@@ -66,7 +125,7 @@ object Policy {
     case Parsed.Success(formula, _) => Right(formula)
     case Parsed.Failure(_, index, extra) =>
       val input = extra.input
-      Left(s"Syntax error at ${input.repr.prettyIndex(input, index)}")
+      Left(s"syntax error near ${input.repr.prettyIndex(input, index)}")
   }
 
   def read(input: String): Either[String, Formula] =

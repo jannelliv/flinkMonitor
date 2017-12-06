@@ -16,16 +16,16 @@ class FormulaTest extends FunSuite with Matchers {
     And(px, py).atoms should contain only (px, py)
     Ex("b", px).atoms should contain only px
     All("b", px).atoms should contain only px
-    Prev(Interval(0, 1), px).atoms should contain only px
-    Next(Interval(0, 1), px).atoms should contain only px
-    Once(Interval(0, 1), px).atoms should contain only px
-    Eventually(Interval(0, 1), px).atoms should contain only px
-    Historically(Interval(0, 1), px).atoms should contain only px
-    Always(Interval(0, 1), px).atoms should contain only px
-    Since(Interval(0, 1), px, py).atoms should contain only (px, py)
-    Until(Interval(0, 1), px, py).atoms should contain only (px, py)
+    Prev(Interval(0, Some(1)), px).atoms should contain only px
+    Next(Interval(0, Some(1)), px).atoms should contain only px
+    Once(Interval(0, Some(1)), px).atoms should contain only px
+    Eventually(Interval(0, Some(1)), px).atoms should contain only px
+    Historically(Interval(0, Some(1)), px).atoms should contain only px
+    Always(Interval(0, Some(1)), px).atoms should contain only px
+    Since(Interval(0, Some(1)), px, py).atoms should contain only (px, py)
+    Until(Interval(0, Some(1)), px, py).atoms should contain only (px, py)
 
-    And(px, Ex("b", Prev(Interval(0, 0), Or(py, Pred("r", Free(2, "z"), Free(0, "x"))))))
+    And(px, Ex("b", Prev(Interval(0, Some(0)), Or(py, Pred("r", Free(2, "z"), Free(0, "x"))))))
       .atoms should contain only (px, py, Pred("r", Free(2, "z"), Free(0, "x")))
   }
 
@@ -52,16 +52,16 @@ class FormulaTest extends FunSuite with Matchers {
     And(px, py).freeVariables should contain only (x, y)
     Ex("b", px).freeVariables should contain only x
     All("b", px).freeVariables should contain only x
-    Prev(Interval(0, 1), px).freeVariables should contain only x
-    Next(Interval(0, 1), px).freeVariables should contain only x
-    Once(Interval(0, 1), px).freeVariables should contain only x
-    Eventually(Interval(0, 1), px).freeVariables should contain only x
-    Historically(Interval(0, 1), px).freeVariables should contain only x
-    Always(Interval(0, 1), px).freeVariables should contain only x
-    Since(Interval(0, 1), px, py).freeVariables should contain only (x, y)
-    Until(Interval(0, 1), px, py).freeVariables should contain only (x, y)
+    Prev(Interval(0, Some(1)), px).freeVariables should contain only x
+    Next(Interval(0, Some(1)), px).freeVariables should contain only x
+    Once(Interval(0, Some(1)), px).freeVariables should contain only x
+    Eventually(Interval(0, Some(1)), px).freeVariables should contain only x
+    Historically(Interval(0, Some(1)), px).freeVariables should contain only x
+    Always(Interval(0, Some(1)), px).freeVariables should contain only x
+    Since(Interval(0, Some(1)), px, py).freeVariables should contain only (x, y)
+    Until(Interval(0, Some(1)), px, py).freeVariables should contain only (x, y)
 
-    And(px, Ex("b", Prev(Interval(0, 0), Or(py, Pred("r", Free(2, "z"), x)))))
+    And(px, Ex("b", Prev(Interval(0, Some(0)), Or(py, Pred("r", Free(2, "z"), x)))))
       .freeVariables should contain only (x, y, Free(2, "z"))
   }
 
