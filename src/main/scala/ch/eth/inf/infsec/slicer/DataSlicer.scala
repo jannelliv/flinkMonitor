@@ -1,6 +1,6 @@
-package ch.eth.inf.infsec.slicer
+package ch.eth.inf.infsec
+package slicer
 
-import ch.eth.inf.infsec.Stream
 import ch.eth.inf.infsec.policy._
 
 import scala.collection.mutable

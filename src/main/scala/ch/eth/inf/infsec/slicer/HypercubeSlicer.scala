@@ -1,7 +1,6 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
-
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Random, hashing}
 

@@ -6,84 +6,47 @@ import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironm
 import shapeless.{Fin, Nat, Sized}
 
 
-object Types{
-  //Input types
-  type Timestamp = Int
-  abstract class Domain
-  case class SInteger(v:Int) extends Domain
-  case class SString(v:String) extends Domain
-  case class SFloat(v:Float) extends Domain
-
-  //type Relation = Set[Sized[Seq[Domain],Nat]]
-  type Relation = Set[Seq[Domain]]
-
-  type Event = (Timestamp,Set[Relation])
-}
-
-
 object StreamMonitoring {
-  import Types._
+  var hostName:String=""
+  var port:Int=0
+  var processors:Int=0
 
-
-  def parseLine(str: String):Event = ???
-  //def monpoly(ev:) = ???
-
-  def init(params:ParameterTool):DataStream[String] = {
-    val hostName = params.get("hostname","127.0.0.1")
-    val port = params.getInt("port",8000)
-
-    val env = StreamExecutionEnvironment.getExecutionEnvironment
-    env.socketTextStream(hostName, port)
+  def init(params:ParameterTool) {
+    hostName = params.get("hostname","127.0.0.1")
+    port = params.getInt("port",9000)
+    processors = params.getInt("processors",1)
   }
 
   def main(args: Array[String]) {
 
     //TODO: arg validation
     val params = ParameterTool.fromArgs(args)
-    val processors = params.getInt("processors",1)
 
-    val textStream = init(params)
-    //    val textStream = FlinkAdapter.init(args)
+    init(params)
 
-    implicit val typeInfo = TypeInformation.of(classOf[Event])
-    val parsedTrace:DataStream[(Timestamp,Set[Relation])] = textStream.map(parseLine _)
-    val slicedTrace = Slicer(processors).slice(parsedTrace).keyBy(0)
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
+    val textStream = env.socketTextStream(hostName, port)
 
-    //val verdicts = slicedTrace.reduce(monpoly)
+    implicit val type1 = TypeInformation.of(classOf[Option[Event]])
+    implicit val type2 = TypeInformation.of(classOf[Event])
+    val parsedTrace:DataStream[Event] = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
 
-
-
-
-
-    //Type issue example with sized
-//    val r:Relation = Set(Sized(SInteger(1),SString("a")),
-//                         Sized(SInteger(2),SString("b")))
-//    val e:Event = (4,Set(r))
+    parsedTrace.print.setParallelism(1)
 
 
 
-
+    env.execute("Parallel Online Monitor")
   }
 
 }
 
 
-class Slicer(N:Int){
-  import Types._
+//val verdicts = slicedTrace.reduce(monpoly)
 
-  //def slice(input:GenericStream[Event]) = input.flatMap[(Fin[N],Event)](slice)
-  //def algorithm: Event => TraversableOnce[(Fin[N],Event)] = ???
-
-  implicit val typeInfo = TypeInformation.of(classOf[(Set[Int],Event)])
-
-  def slice(input:DataStream[Event]) = input.flatMap[(Set[Int],Event)](algorithm)
-  def algorithm: Event => TraversableOnce[(Set[Int],Event)] = ???
-
-}
-object Slicer{
-  def apply(N:Int): Slicer = new Slicer(N)
-
-}
+//Type issue example with sized
+//    val r:Relation = Set(Sized(SInteger(1),SString("a")),
+//                         Sized(SInteger(2),SString("b")))
+//    val e:Event = (4,Set(r))
 
 
 //trait GenericStream[T] {

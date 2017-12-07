@@ -1,4 +1,5 @@
-package ch.eth.inf.infsec.slicer
+package ch.eth.inf.infsec
+package slicer
 
 import ch.eth.inf.infsec.SeqStream
 import ch.eth.inf.infsec.policy._

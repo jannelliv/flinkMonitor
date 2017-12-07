@@ -18,13 +18,14 @@ import org.apache.flink.api.java.utils.ParameterTool
 //  }
 //
 //}
+
+
 //
+//class FlinkStream[T](private val wrapped:DataStream[T]) extends Stream[T] {
+//  override type Self[A] = DataStream[A]
 //
-//
-//class FlinkStream[T](private val wrapped:DataStream[T]) extends GenericStream[T] {
-//  override def map[P:TypeInformation](f:T => P):GenericStream[P] = new FlinkStream[P](wrapped.map(f))
-//  override def flatMap[P:TypeInformation](f:T => TraversableOnce[P]):GenericStream[P] = new FlinkStream[P](wrapped.flatMap(f))
-//  override def keyBy[K:TypeInformation](f: T => K):GenericKStream[K,T] = new FlinkKStream[K,T](wrapped.keyBy(f))
+//  override def map[U](f: T => U): Self[U] = new Self[U](wrapped.map(f))
+//  override def flatMap[U](f: T => TraversableOnce[U]): Self[U] = new Self[U](wrapped.flatMap(f))
 //}
 //
 //class FlinkKStream[K,T](private val wrapped:KeyedStream[T,K]) extends GenericKStream[K,T]{
