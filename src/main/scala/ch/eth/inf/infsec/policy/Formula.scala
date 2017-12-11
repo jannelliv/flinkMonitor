@@ -30,7 +30,13 @@ case class Context(frees: ArrayBuffer[String], bounds: List[String] = Nil) {
 
   def variable(name: String): Term = {
     val b = bounds.indexOf(name)
-    if (b >= 0) Bound(b, name) else {
+    if (b >= 0)
+      return Bound(b, name)
+
+    val f = frees.indexOf(name)
+    if (f >= 0)
+      Free(f, name)
+    else {
       frees += name
       Free(frees.length - 1, name)
     }
