@@ -55,7 +55,7 @@ object HypercubeSlicer {
     var bestConfig: List[Int] = Nil
 
     def atomPartitions(atom: Pred, config: List[Int]): Double =
-      atom.args.toSet.map((t: Term) => t match {
+      atom.args.distinct.map((t: Term) => t match {
         case Free(i, _) => (1 << config(i)).toDouble
         case _ => 1.0
       }).product
@@ -67,8 +67,9 @@ object HypercubeSlicer {
           search(remainingVars - 1, remainingExp - e, e :: config)
       } else {
         // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.
-        val cost = formula.atoms.map((atom: Pred) =>
+        val cost = formula.atoms.toSeq.map((atom: Pred) =>
           statistics.relationSize(atom.relation) / atomPartitions(atom, config)).sum
+
         if (cost < bestCost) {
           bestConfig = config
           bestCost = cost

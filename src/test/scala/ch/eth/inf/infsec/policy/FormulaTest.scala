@@ -109,4 +109,8 @@ class FormulaTest extends FunSuite with Matchers {
       Or(All("y", And(Pred("p", Bound(0, "y")), Pred("p", x0))), Pred("p", y1))
   }
 
+  test("Checking invalid formulas") {
+    check(Prev(Interval(-1, Some(1)), False())) shouldBe 'Left
+    check(Prev(Interval(5, Some(4)), False())) shouldBe 'Left
+  }
 }
