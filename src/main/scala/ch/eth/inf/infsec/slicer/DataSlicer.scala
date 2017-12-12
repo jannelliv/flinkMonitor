@@ -33,22 +33,23 @@ abstract class DataSlicer extends Slicer {
     slices
   }
 
-  override def apply(source: Stream[Event]): source.Self[(Int, Event)] =
-    source.flatMap(e => {
-      // TODO(JS): For efficiency, consider transposing the outermost layers of `slices`: relation -> slice id -> structure
-      val slices = Array.fill(degree){
-        val slice = new mutable.HashMap[String, ArrayBuffer[Tuple]]()
-        for (relation <- e.structure.keys)
-          slice(relation) = new ArrayBuffer()
-        slice
-      }
+  //override def apply(source: Stream[Event]): source.Self[(Int, Event)] =
+  //  source.flatMap(e => {
+  override def apply(e: Event): TraversableOnce[(Int, Event)] = {
+    // TODO(JS): For efficiency, consider transposing the outermost layers of `slices`: relation -> slice id -> structure
+    val slices = Array.fill(degree){
+      val slice = new mutable.HashMap[String, ArrayBuffer[Tuple]]()
+      for (relation <- e.structure.keys)
+        slice(relation) = new ArrayBuffer()
+      slice
+    }
 
-      for ((relation, data) <- e.structure)
-        for (tuple <- data)
-          for (i <- slicesOfTuple(relation, tuple))
-            slices(i)(relation) += tuple
+    for ((relation, data) <- e.structure)
+      for (tuple <- data)
+        for (i <- slicesOfTuple(relation, tuple))
+          slices(i)(relation) += tuple
 
-      for (i <- slices.indices)
-        yield (i, Event(e.timestamp, slices(i)))
-    })
+    for (i <- slices.indices)
+      yield (i, Event(e.timestamp, slices(i)))
+  }
 }
