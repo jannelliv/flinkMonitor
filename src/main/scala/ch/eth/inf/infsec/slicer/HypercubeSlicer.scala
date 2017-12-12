@@ -9,6 +9,8 @@ class HypercubeSlicer(
     val shares: IndexedSeq[Int],
     val seed: Long = 1234) extends DataSlicer {
 
+  require(formula.freeVariables.size <= shares.size)
+
   override val degree: Int = if (shares.isEmpty) 1 else shares.product
 
   private val seeds: Array[Int] = {

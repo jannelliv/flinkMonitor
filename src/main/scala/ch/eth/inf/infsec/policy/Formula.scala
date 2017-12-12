@@ -16,13 +16,13 @@ case class Const(value: Any) extends Term {
 case class Free(index: Int, name: String) extends Term {
   override def freeVariables: Set[Free] = Set(this)
   override def check(implicit ctxt: Context): Term = ctxt.variable(name)
-  override def toString = s"$name[$index]"
+  override def toString = s"$name@$index"
 }
 
 case class Bound(index: Int, name: String) extends Term {
   override def freeVariables: Set[Free] = Set.empty
   override def check(implicit ctxt: Context): Term = ctxt.variable(name)
-  override def toString = s"$name[b$index]"
+  override def toString = s"$name@b$index"
 }
 
 case class Context(frees: ArrayBuffer[String], bounds: List[String] = Nil) {
