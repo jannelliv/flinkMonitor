@@ -6,28 +6,32 @@ import org.apache.flink.api.scala.extensions._
 import org.apache.flink.api.java.utils.ParameterTool
 
 
-//object FlinkAdapter {
-//
-//  def init(args:Array[String]):GenericStream[String] = {
-//    val params = ParameterTool.fromArgs(args)
-//    val hostName = params.get("hostname","127.0.0.1")
-//    val port = params.getInt("port",8000)
-//
-//    val env = StreamExecutionEnvironment.getExecutionEnvironment
-//    new FlinkStream[String](env.socketTextStream(hostName, port))
-//  }
-//
-//}
+object FlinkAdapter {
 
 
-//
-//class FlinkStream[T](private val wrapped:DataStream[T]) extends Stream[T] {
-//  override type Self[A] = DataStream[A]
-//
-//  override def map[U](f: T => U): Self[U] = new Self[U](wrapped.map(f))
-//  override def flatMap[U](f: T => TraversableOnce[U]): Self[U] = new Self[U](wrapped.flatMap(f))
-//}
-//
-//class FlinkKStream[K,T](private val wrapped:KeyedStream[T,K]) extends GenericKStream[K,T]{
-//  override def reduce[P:TypeInformation](f: (T,T) => T):GenericStream[T] = new FlinkStream[T](wrapped.reduce(f))
-//}
+  val env:StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+  def init(hostName:String, port:Int):Stream[String] = {
+    new FlinkStream[String](env.socketTextStream(hostName, port))
+  }
+  def execute(name:String): Unit ={
+    env.execute(name)
+  }
+
+}
+
+class FlinkTypeInfo[A](val ti:TypeInformation[A]) extends TypeInfo[A]{}
+
+class FlinkStream[T](private val wrapped:DataStream[T]) extends Stream[T] {
+  override type Self[A] = FlinkStream[A]
+
+  override def map[U](f: T => U)(implicit  ev:TypeInfo[U]): Self[U] = {
+    implicit val t = ev.asInstanceOf[FlinkTypeInfo[U]].ti;
+    new Self[U](wrapped.map(f))}
+  override def flatMap[U](f: T => TraversableOnce[U])(implicit  ev:TypeInfo[U]): Self[U] = {
+    implicit val t = ev.asInstanceOf[FlinkTypeInfo[U]].ti;
+    new Self[U](wrapped.flatMap(f))}
+  override def filter(f: T => Boolean): Self[T] = new Self[T](wrapped.filter(f))
+
+  override def print: Self[T] = {wrapped.print().setParallelism(1); this}
+}
+

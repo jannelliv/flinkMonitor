@@ -1,9 +1,9 @@
 package ch.eth.inf.infsec
 
-import org.apache.flink.api.common.typeinfo.TypeInformation
 import org.apache.flink.api.java.utils.ParameterTool
-import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironment}
 import shapeless.{Fin, Nat, Sized}
+
+import scala.reflect.api.TypeTags
 
 
 object StreamMonitoring {
@@ -21,21 +21,19 @@ object StreamMonitoring {
 
     //TODO: arg validation
     val params = ParameterTool.fromArgs(args)
-
     init(params)
 
-    val env = StreamExecutionEnvironment.getExecutionEnvironment
-    val textStream = env.socketTextStream(hostName, port)
+    val textStream = FlinkAdapter.init(hostName,port)
+    //FlinkAdapter.registerTypes(classOf[Option[Event]],classOf[Event])
 
-    implicit val type1 = TypeInformation.of(classOf[Option[Event]])
-    implicit val type2 = TypeInformation.of(classOf[Event])
-    val parsedTrace:DataStream[Event] = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
+    val parsedTrace:Stream[Event] = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
 
-    parsedTrace.print.setParallelism(1)
-
+  val a:TypeTags
+    parsedTrace.print
 
 
-    env.execute("Parallel Online Monitor")
+
+    FlinkAdapter.execute("Parallel Online Monitor")
   }
 
 }
@@ -48,15 +46,5 @@ object StreamMonitoring {
 //                         Sized(SInteger(2),SString("b")))
 //    val e:Event = (4,Set(r))
 
-
-//trait GenericStream[T] {
-//  def map[P:TypeInformation](f:T => P):GenericStream[P]
-//  def flatMap[P:TypeInformation](f:T => TraversableOnce[P]):GenericStream[P]
-//  def keyBy[K:TypeInformation](fun: T => K):GenericKStream[K,T]
-//}
-//
-//trait GenericKStream[K,T]{
-//  def reduce[P:TypeInformation](fun: (T,T) => T):GenericStream[T]
-//}
 
 

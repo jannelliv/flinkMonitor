@@ -33,10 +33,10 @@ abstract class DataSlicer extends Slicer {
     slices
   }
 
-  override def apply(source: Stream[Event]): source.Self[(Int, Event)] =
+  override def apply(source: Stream[Event])(implicit in:TypeInfo[Event], out:TypeInfo[(Int, Event)]): source.Self[(Int, Event)] = {
     source.flatMap(e => {
       // TODO(JS): For efficiency, consider transposing the outermost layers of `slices`: relation -> slice id -> structure
-      val slices = Array.fill(degree){
+      val slices = Array.fill(degree) {
         val slice = new mutable.HashMap[String, ArrayBuffer[Tuple]]()
         for (relation <- e.structure.keys)
           slice(relation) = new ArrayBuffer()
@@ -51,4 +51,5 @@ abstract class DataSlicer extends Slicer {
       for (i <- slices.indices)
         yield (i, Event(e.timestamp, slices(i)))
     })
+  }
 }
