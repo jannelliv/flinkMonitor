@@ -84,7 +84,7 @@ case class Pred(relation: String, args: Term*) extends Formula {
   override val atoms: Set[Pred] = Set(this)
   override lazy val freeVariables: Set[Free] = args.flatMap(t => t.freeVariables).toSet
   override def check(implicit ctxt: Context) = Right(Pred(relation, args.map(t => t.check):_*))
-  override def lift(n: Int, b: Int): Formula = Pred(relation, args.map(_.lift(n, b)))
+  override def lift(n: Int, b: Int): Formula = Pred(relation, args.map(_.lift(n, b)):_*)
   override def toString = s"$relation(${args.map(x => x.toString).mkString(", ")})"
 }
 
