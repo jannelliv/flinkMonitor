@@ -71,12 +71,12 @@ class PolicyTest extends FunSuite with Matchers {
   test("Temporal formulas should be parsed correctly") {
     Policy.parse("PREVIOUS [3,5) P(x)").right.value shouldBe Prev(Interval(3, Some(5)), Px)
     Policy.parse("NEXT [3,5) P(x)").right.value shouldBe Next(Interval(3, Some(5)), Px)
-    Policy.parse("EVENTUALLY [3,5) P(x)").right.value shouldBe Eventually(Interval(3, Some(5)), Px)
-    Policy.parse("SOMETIMES [3,5) P(x)").right.value shouldBe Eventually(Interval(3, Some(5)), Px)
-    Policy.parse("ONCE [3,5) P(x)").right.value shouldBe Once(Interval(3, Some(5)), Px)
-    Policy.parse("ALWAYS [3,5) P(x)").right.value shouldBe Always(Interval(3, Some(5)), Px)
-    Policy.parse("HISTORICALLY [3,5) P(x)").right.value shouldBe Historically(Interval(3, Some(5)), Px)
-    Policy.parse("PAST_ALWAYS [3,5) P(x)").right.value shouldBe Historically(Interval(3, Some(5)), Px)
+    Policy.parse("EVENTUALLY [3,5) P(x)").right.value shouldBe Formula.Eventually(Interval(3, Some(5)), Px)
+    Policy.parse("SOMETIMES [3,5) P(x)").right.value shouldBe Formula.Eventually(Interval(3, Some(5)), Px)
+    Policy.parse("ONCE [3,5) P(x)").right.value shouldBe Formula.Once(Interval(3, Some(5)), Px)
+    Policy.parse("ALWAYS [3,5) P(x)").right.value shouldBe Formula.Always(Interval(3, Some(5)), Px)
+    Policy.parse("HISTORICALLY [3,5) P(x)").right.value shouldBe Formula.Historically(Interval(3, Some(5)), Px)
+    Policy.parse("PAST_ALWAYS [3,5) P(x)").right.value shouldBe Formula.Historically(Interval(3, Some(5)), Px)
     Policy.parse("P(x) SINCE [3,5) P(y)").right.value shouldBe Since(Interval(3, Some(5)), Px, Py)
     Policy.parse("P(x) UNTIL [3,5) P(y)").right.value shouldBe Until(Interval(3, Some(5)), Px, Py)
 

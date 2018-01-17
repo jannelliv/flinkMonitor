@@ -18,12 +18,10 @@ class FormulaTest extends FunSuite with Matchers {
     All("b", px).atoms should contain only px
     Prev(Interval(0, Some(1)), px).atoms should contain only px
     Next(Interval(0, Some(1)), px).atoms should contain only px
-    Once(Interval(0, Some(1)), px).atoms should contain only px
-    Eventually(Interval(0, Some(1)), px).atoms should contain only px
-    Historically(Interval(0, Some(1)), px).atoms should contain only px
-    Always(Interval(0, Some(1)), px).atoms should contain only px
     Since(Interval(0, Some(1)), px, py).atoms should contain only (px, py)
+    Trigger(Interval(0, Some(1)), px, py).atoms should contain only (px, py)
     Until(Interval(0, Some(1)), px, py).atoms should contain only (px, py)
+    Release(Interval(0, Some(1)), px, py).atoms should contain only (px, py)
 
     And(px, Ex("b", Prev(Interval(0, Some(0)), Or(py, Pred("r", Free(2, "z"), Free(0, "x"))))))
       .atoms should contain only (px, py, Pred("r", Free(2, "z"), Free(0, "x")))
@@ -54,12 +52,10 @@ class FormulaTest extends FunSuite with Matchers {
     All("b", px).freeVariables should contain only x
     Prev(Interval(0, Some(1)), px).freeVariables should contain only x
     Next(Interval(0, Some(1)), px).freeVariables should contain only x
-    Once(Interval(0, Some(1)), px).freeVariables should contain only x
-    Eventually(Interval(0, Some(1)), px).freeVariables should contain only x
-    Historically(Interval(0, Some(1)), px).freeVariables should contain only x
-    Always(Interval(0, Some(1)), px).freeVariables should contain only x
     Since(Interval(0, Some(1)), px, py).freeVariables should contain only (x, y)
+    Trigger(Interval(0, Some(1)), px, py).freeVariables should contain only (x, y)
     Until(Interval(0, Some(1)), px, py).freeVariables should contain only (x, y)
+    Release(Interval(0, Some(1)), px, py).freeVariables should contain only (x, y)
 
     And(px, Ex("b", Prev(Interval(0, Some(0)), Or(py, Pred("r", Free(2, "z"), x)))))
       .freeVariables should contain only (x, y, Free(2, "z"))
@@ -88,12 +84,10 @@ class FormulaTest extends FunSuite with Matchers {
     check(All("x", px)).right.value shouldBe All("x", Pred("p", Bound(0, "x")))
     check(Prev(Interval.any, px)).right.value shouldBe Prev(Interval.any, Pred("p", x0))
     check(Next(Interval.any, px)).right.value shouldBe Next(Interval.any, Pred("p", x0))
-    check(Once(Interval.any, px)).right.value shouldBe Once(Interval.any, Pred("p", x0))
-    check(Eventually(Interval.any, px)).right.value shouldBe Eventually(Interval.any, Pred("p", x0))
-    check(Historically(Interval.any, px)).right.value shouldBe Historically(Interval.any, Pred("p", x0))
-    check(Always(Interval.any, px)).right.value shouldBe Always(Interval.any, Pred("p", x0))
     check(Since(Interval.any, px, py)).right.value shouldBe Since(Interval.any, Pred("p", x0), Pred("p", y1))
+    check(Trigger(Interval.any, px, py)).right.value shouldBe Trigger(Interval.any, Pred("p", x0), Pred("p", y1))
     check(Until(Interval.any, px, py)).right.value shouldBe Until(Interval.any, Pred("p", x0), Pred("p", y1))
+    check(Release(Interval.any, px, py)).right.value shouldBe Release(Interval.any, Pred("p", x0), Pred("p", y1))
 
     check(Prev(Interval(1, None), px)).right.value shouldBe Prev(Interval(1, None), Pred("p", x0))
     check(Prev(Interval(0, Some(1)), px)).right.value shouldBe Prev(Interval(0, Some(1)), Pred("p", x0))

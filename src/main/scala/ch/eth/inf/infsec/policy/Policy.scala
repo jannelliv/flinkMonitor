@@ -96,10 +96,10 @@ private object PolicyParsers {
     quantifier("FORALL", Formula2, All) |
     unaryTemporal("PREVIOUS", Formula2, Prev) |
     unaryTemporal("NEXT", Formula2, Next) |
-    unaryTemporal(Token.Eventually, Formula2, Eventually) |
-    unaryTemporal(Token.Once, Formula2, Once) |
-    unaryTemporal(Token.Always, Formula2, Always) |
-    unaryTemporal(Token.Historically, Formula2, Historically) |
+    unaryTemporal(Token.Eventually, Formula2, Formula.Eventually) |
+    unaryTemporal(Token.Once, Formula2, Formula.Once) |
+    unaryTemporal(Token.Always, Formula2, Formula.Always) |
+    unaryTemporal(Token.Historically, Formula2, Formula.Historically) |
     Formula5
   )
 
