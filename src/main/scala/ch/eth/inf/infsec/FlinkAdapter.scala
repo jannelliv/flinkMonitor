@@ -21,7 +21,8 @@ object FlinkAdapter {
 
 class FlinkTypeInfo[A](val ti:TypeInformation[A]) extends TypeInfo[A]{}
 
-class FlinkStream[T](private val wrapped:DataStream[T]) extends Stream[T] {
+//TODO: wrapped is temporary non-private
+class FlinkStream[T]( val wrapped:DataStream[T]) extends Stream[T] {
   override type Self[A] = FlinkStream[A]
 
   override def map[U](f: T => U)(implicit  ev:TypeInfo[U]): Self[U] = {
@@ -33,5 +34,10 @@ class FlinkStream[T](private val wrapped:DataStream[T]) extends Stream[T] {
   override def filter(f: T => Boolean): Self[T] = new Self[T](wrapped.filter(f))
 
   override def print: Self[T] = {wrapped.print().setParallelism(1); this}
+
+  override def partition[U](p: Criteria[U], i: Int): Stream[T] = ???
 }
 
+class FlinkPartitioner[T](private val wrapped: org.apache.flink.api.common.functions.Partitioner[T]) extends Criteria[T]{
+  def partition(key: T, n: Int): Int = wrapped.partition(key,n)
+}

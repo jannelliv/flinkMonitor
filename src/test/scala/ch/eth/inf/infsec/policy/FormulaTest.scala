@@ -73,15 +73,44 @@ class FormulaTest extends FunSuite with Matchers {
     val x0 = Free(0, "x")
     val y = Free(-1, "y")
     val y1 = Free(1, "y")
+    val px = Pred("p", x)
+    val py = Pred("p", y)
 
     check(False()).right.value shouldBe False()
-    check(Not(Pred("p", x))).right.value shouldBe Not(Pred("p", x0))
-    check(Or(False(), Pred("p", x))).right.value shouldBe Or(False(), Pred("p", x0))
+    check(Not(px)).right.value shouldBe Not(Pred("p", x0))
+    check(Or(False(), px)).right.value shouldBe Or(False(), Pred("p", x0))
+    check(Or(px, px)).right.value shouldBe Or(Pred("p", x0), Pred("p", x0))
+    check(Or(px, py)).right.value shouldBe Or(Pred("p", x0), Pred("p", y1))
+    check(And(px, py)).right.value shouldBe And(Pred("p", x0), Pred("p", y1))
+    check(Ex("u", px)).right.value shouldBe Ex("u", Pred("p", x0))
+    check(Ex("x", px)).right.value shouldBe Ex("x", Pred("p", Bound(0, "x")))
+    check(All("u", px)).right.value shouldBe All("u", Pred("p", x0))
+    check(All("x", px)).right.value shouldBe All("x", Pred("p", Bound(0, "x")))
+    check(Prev(Interval.any, px)).right.value shouldBe Prev(Interval.any, Pred("p", x0))
+    check(Next(Interval.any, px)).right.value shouldBe Next(Interval.any, Pred("p", x0))
+    check(Once(Interval.any, px)).right.value shouldBe Once(Interval.any, Pred("p", x0))
+    check(Eventually(Interval.any, px)).right.value shouldBe Eventually(Interval.any, Pred("p", x0))
+    check(Historically(Interval.any, px)).right.value shouldBe Historically(Interval.any, Pred("p", x0))
+    check(Always(Interval.any, px)).right.value shouldBe Always(Interval.any, Pred("p", x0))
+    check(Since(Interval.any, px, py)).right.value shouldBe Since(Interval.any, Pred("p", x0), Pred("p", y1))
+    check(Until(Interval.any, px, py)).right.value shouldBe Until(Interval.any, Pred("p", x0), Pred("p", y1))
 
-    // TODO(JS): More tests
+    check(Prev(Interval(1, None), px)).right.value shouldBe Prev(Interval(1, None), Pred("p", x0))
+    check(Prev(Interval(0, Some(1)), px)).right.value shouldBe Prev(Interval(0, Some(1)), Pred("p", x0))
+    check(Prev(Interval(1, Some(100)), px)).right.value shouldBe Prev(Interval(1, Some(100)), Pred("p", x0))
+
+    check(All("x", Ex("x", px))).right.value shouldBe All("x", Ex("x", Pred("p", Bound(0, "x"))))
+    check(All("x", Ex("y", px))).right.value shouldBe All("x", Ex("y", Pred("p", Bound(1, "x"))))
+    check(All("x", Ex("y", py))).right.value shouldBe All("x", Ex("y", Pred("p", Bound(0, "y"))))
 
     check(And(Pred("p", x), Ex("x", Pred("p", x)))).right.value shouldBe
       And(Pred("p", x0), Ex("x", Pred("p", Bound(0, "x"))))
+    check(Or(All("y", And(py, px)), Pred("p", y))).right.value shouldBe
+      Or(All("y", And(Pred("p", Bound(0, "y")), Pred("p", x0))), Pred("p", y1))
   }
 
+  test("Checking invalid formulas") {
+    check(Prev(Interval(-1, Some(1)), False())) shouldBe 'Left
+    check(Prev(Interval(5, Some(4)), False())) shouldBe 'Left
+  }
 }
