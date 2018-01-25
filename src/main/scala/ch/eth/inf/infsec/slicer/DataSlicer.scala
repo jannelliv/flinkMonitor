@@ -18,11 +18,12 @@ abstract class DataSlicer extends Slicer {
       val valuation: Array[Option[Any]] = Array.fill(formula.freeVariables.size)(None)
       for ((term, value) <- atom.args.zip(tuple))
         term match {
-          case Const(const) if const != value => matches = false
-          case Free(x, _) =>
-            if (valuation(x).isEmpty)
-              valuation(x) = Some(value)
-            else if (valuation(x).get != value)
+          case ConstInteger(const) if const != value => matches = false
+          case ConstString(const) if const != value => matches = false
+          case Var(x) if x.isFree =>
+            if (valuation(x.freeID).isEmpty)
+              valuation(x.freeID) = Some(value)
+            else if (valuation(x.freeID).get != value)
               matches = false
           case _ => ()
         }

@@ -5,19 +5,19 @@ import org.scalatest.EitherValues._
 
 class PolicyTest extends FunSuite with Matchers {
 
-  val Px = Pred("P", Free(-1, "x"))
-  val Py = Pred("P", Free(-1, "y"))
-  val Qxy = Pred("Q", Free(-1, "x"), Free(-1, "y"))
-  val Qll = Pred("Q", Const(7l), Const(-42l))
-  val Qsx = Pred("Q", Const("foo"), Free(-1, "x"))
+  val Px = Pred("P", Var("x"))
+  val Py = Pred("P", Var("y"))
+  val Qxy = Pred("Q", Var("x"), Var("y"))
+  val Qii: GenFormula[String] = Pred("Q", ConstInteger(7), ConstInteger(-42))
+  val Qsx = Pred("Q", ConstString("foo"), Var("x"))
 
   test("Atomic formulas should be parsed correctly") {
-    Policy.parse("TRUE").right.value shouldBe Formula.True
+    Policy.parse("TRUE").right.value shouldBe True()
     Policy.parse("FALSE").right.value shouldBe False()
     Policy.parse("P()").right.value shouldBe Pred("P")
     Policy.parse("P(x)").right.value shouldBe Px
     Policy.parse("Q(x,y)").right.value shouldBe Qxy
-    Policy.parse("Q(7, -42)").right.value shouldBe Qll
+    Policy.parse("Q(7, -42)").right.value shouldBe Qii
     Policy.parse("Q('foo', x)").right.value shouldBe Qsx
     Policy.parse("Q(\"[foo]\", x)").right.value shouldBe Qsx
     Policy.parse("((P(x)) )").right.value shouldBe Px
@@ -33,13 +33,13 @@ class PolicyTest extends FunSuite with Matchers {
     Policy.parse("P(x) AND P(y) OR NOT Q(x, y)").right.value shouldBe Or(And(Px, Py), Not(Qxy))
     Policy.parse("P(x) AND (P(y) OR NOT Q(x, y))").right.value shouldBe And(Px, Or(Py, Not(Qxy)))
     Policy.parse("P(x) IMPLIES P(y) IMPLIES Q(x, y)").right.value shouldBe
-      Formula.Implies(Px, Formula.Implies(Py, Qxy))
+      GenFormula.implies(Px, GenFormula.implies(Py, Qxy))
     Policy.parse("P(x) AND P(y) IMPLIES Q(7,-42) OR FALSE").right.value shouldBe
-      Formula.Implies(And(Px, Py), Or(Qll, False()))
+      GenFormula.implies(And(Px, Py), Or(Qii, False()))
     Policy.parse("P(x) EQUIV P(y) EQUIV Q(x, y)").right.value shouldBe
-      Formula.Equiv(Formula.Equiv(Px, Py), Qxy)
+      GenFormula.equiv(GenFormula.equiv(Px, Py), Qxy)
     Policy.parse("P(x) EQUIV P(y) IMPLIES FALSE").right.value shouldBe
-      Formula.Equiv(Px, Formula.Implies(Py, False()))
+      GenFormula.equiv(Px, GenFormula.implies(Py, False()))
   }
 
   test("First-order formulas should be parsed correctly") {
@@ -50,7 +50,7 @@ class PolicyTest extends FunSuite with Matchers {
     Policy.parse("EXISTS x. EXISTS y. Q(x, y)").right.value shouldBe Ex("x", Ex("y", Qxy))
     Policy.parse("FORALL x. EXISTS y. Q(x, y)").right.value shouldBe All("x", Ex("y", Qxy))
     Policy.parse("EXISTS foo. P(x)").right.value shouldBe Ex("foo", Px)
-    Policy.parse("EXISTS x. P(x) IMPLIES P(y)").right.value shouldBe Ex("x", Formula.Implies(Px, Py))
+    Policy.parse("EXISTS x. P(x) IMPLIES P(y)").right.value shouldBe Ex("x", GenFormula.implies(Px, Py))
     Policy.parse("P(x) AND (FORALL y. P(y))").right.value shouldBe And(Px, All("y", Py))
   }
 
@@ -71,19 +71,18 @@ class PolicyTest extends FunSuite with Matchers {
   test("Temporal formulas should be parsed correctly") {
     Policy.parse("PREVIOUS [3,5) P(x)").right.value shouldBe Prev(Interval(3, Some(5)), Px)
     Policy.parse("NEXT [3,5) P(x)").right.value shouldBe Next(Interval(3, Some(5)), Px)
-    Policy.parse("EVENTUALLY [3,5) P(x)").right.value shouldBe Formula.Eventually(Interval(3, Some(5)), Px)
-    Policy.parse("SOMETIMES [3,5) P(x)").right.value shouldBe Formula.Eventually(Interval(3, Some(5)), Px)
-    Policy.parse("ONCE [3,5) P(x)").right.value shouldBe Formula.Once(Interval(3, Some(5)), Px)
-    Policy.parse("ALWAYS [3,5) P(x)").right.value shouldBe Formula.Always(Interval(3, Some(5)), Px)
-    Policy.parse("HISTORICALLY [3,5) P(x)").right.value shouldBe Formula.Historically(Interval(3, Some(5)), Px)
-    Policy.parse("PAST_ALWAYS [3,5) P(x)").right.value shouldBe Formula.Historically(Interval(3, Some(5)), Px)
+    Policy.parse("EVENTUALLY [3,5) P(x)").right.value shouldBe GenFormula.eventually(Interval(3, Some(5)), Px)
+    Policy.parse("SOMETIMES [3,5) P(x)").right.value shouldBe GenFormula.eventually(Interval(3, Some(5)), Px)
+    Policy.parse("ONCE [3,5) P(x)").right.value shouldBe GenFormula.once(Interval(3, Some(5)), Px)
+    Policy.parse("ALWAYS [3,5) P(x)").right.value shouldBe GenFormula.always(Interval(3, Some(5)), Px)
+    Policy.parse("HISTORICALLY [3,5) P(x)").right.value shouldBe GenFormula.historically(Interval(3, Some(5)), Px)
+    Policy.parse("PAST_ALWAYS [3,5) P(x)").right.value shouldBe GenFormula.historically(Interval(3, Some(5)), Px)
     Policy.parse("P(x) SINCE [3,5) P(y)").right.value shouldBe Since(Interval(3, Some(5)), Px, Py)
     Policy.parse("P(x) UNTIL [3,5) P(y)").right.value shouldBe Until(Interval(3, Some(5)), Px, Py)
 
     Policy.parse("P(x) SINCE [3,5) TRUE SINCE P(y)").right.value shouldBe
-      Since(Interval(3, Some(5)), Px, Since(Interval.any, Formula.True, Py))
+      Since(Interval(3, Some(5)), Px, Since(Interval.any, True(), Py))
     Policy.parse("P(x) AND P(y) UNTIL Q(x, y)").right.value shouldBe Until(Interval.any, And(Px, Py), Qxy)
     Policy.parse("EXISTS x. P(x) SINCE P(y)").right.value shouldBe Since(Interval.any, Ex("x", Px), Py)
   }
-
 }

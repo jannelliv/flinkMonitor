@@ -1,13 +1,14 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
+
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Random, hashing}
 
 class HypercubeSlicer(
-    val formula: Formula,
-    val shares: IndexedSeq[Int],
-    val seed: Long = 1234) extends DataSlicer {
+                       val formula: Formula,
+                       val shares: IndexedSeq[Int],
+                       val seed: Long = 1234) extends DataSlicer {
 
   require(formula.freeVariables.size <= shares.size)
 
@@ -56,11 +57,11 @@ object HypercubeSlicer {
     var bestCost: Double = Double.PositiveInfinity
     var bestConfig: List[Int] = Nil
 
-    def atomPartitions(atom: Pred, config: List[Int]): Double =
-      atom.args.distinct.map((t: Term) => t match {
-        case Free(i, _) => (1 << config(i)).toDouble
+    def atomPartitions(atom: Pred[VariableID], config: List[Int]): Double =
+      atom.args.distinct.map {
+        case Var(x) if x.isFree => (1 << config(x.freeID)).toDouble
         case _ => 1.0
-      }).product
+      }.product
 
     // TODO(JS): Branch-and-bound?
     def search(remainingVars: Int, remainingExp: Int, config: List[Int]): Unit =
@@ -69,7 +70,7 @@ object HypercubeSlicer {
           search(remainingVars - 1, remainingExp - e, e :: config)
       } else {
         // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.
-        val cost = formula.atoms.toSeq.map((atom: Pred) =>
+        val cost = formula.atoms.toSeq.map((atom: Pred[VariableID]) =>
           statistics.relationSize(atom.relation) / atomPartitions(atom, config)).sum
 
         if (cost < bestCost) {

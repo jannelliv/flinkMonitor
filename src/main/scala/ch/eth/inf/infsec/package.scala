@@ -1,5 +1,7 @@
 package ch.eth.inf
 
+import ch.eth.inf.infsec.policy.{GenFormula, VariableID}
+
 import scala.collection.mutable
 
 package object infsec {
