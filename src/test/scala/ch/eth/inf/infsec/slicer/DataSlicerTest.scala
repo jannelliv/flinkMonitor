@@ -36,7 +36,7 @@ class DataSlicerTest extends FunSuite with Matchers {
     implicit val type2 = TypeInfo[(Int,Event)]()
 
     //val slices = slicer(events).seq
-    val slices = slicer(events).seq
+    val slices = events.flatMap(slicer(_)).seq
     slices should contain inOrderOnly (
       (0, Event(101, Map("A" -> Array[Tuple](Array(1, 2)), "B" -> Array[Tuple]()))),
       (1, Event(101, Map("A" -> Array[Tuple](), "B" -> Array[Tuple](Array(3, 4))))),

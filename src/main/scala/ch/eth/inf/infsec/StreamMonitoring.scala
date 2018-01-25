@@ -1,7 +1,5 @@
 package ch.eth.inf.infsec
 
-import org.apache.flink.api.java.utils.ParameterTool
-import shapeless.{Fin, Nat, Sized}
 import scala.reflect.api.TypeTags
 
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
@@ -77,32 +75,28 @@ object StreamMonitoring {
     slicer
   }
 
-  def mkPartitioner():Criteria[Integer] = {
-    new FlinkPartitioner[Integer](new IdPartitioner())
-  }
-
   def main(args: Array[String]) {
     val params = ParameterTool.fromArgs(args)
     init(params)
     val slicer = mkSlicer()
-    val partitioner = mkPartitioner()
     val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate")
 
-    val textStream:Stream[String] = FlinkAdapter.init(hostName, port)
+    //val textStream:Stream[String] = FlinkAdapter.init(hostName, port)
+    val env:StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+    val textStream = env.socketTextStream(hostName, port)
 
-    implicit val type1 = TypeInfo[Option[Event]]()
-    implicit val type2 = TypeInfo[Event]()
-    implicit val type3 = TypeInfo[(Int,Event)]()
+    //implicit val type1 = TypeInfo[Option[Event]]()
+    //implicit val type2 = TypeInfo[Event]()
+    //implicit val type3 = TypeInfo[(Int,Event)]()
 
-
-    val parsedTrace:Stream[Event] = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
-    val slicedTrace:Stream[(Int,Event)] = slicer.apply(parsedTrace).partition(mkPartitioner(), 0)
+    val parsedTrace = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
+    val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner(), 0)
 
     //TODO: temporary broke the abstraction
-    val verdicts = slicedTrace.asInstanceOf[FlinkStream[(Int,Event)]].wrapped.process[String](new MonitorFunction(monitorArgs))
+    val verdicts = slicedTrace.process[String](new MonitorFunction(monitorArgs))
     verdicts.print().setParallelism(1)
 
-    FlinkAdapter.execute("Parallel Online Monitor")
+    env.execute("Parallel Online Monitor")
   }
 
 }

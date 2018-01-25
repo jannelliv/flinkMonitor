@@ -1,7 +1,7 @@
 package ch.eth.inf.infsec.policy
 
 // This is explicitly not a case class, such that each instance represent a fresh variable name.
-class VariableID(val nameHint: String, val freeID: Int = -1) {
+class VariableID(val nameHint: String, val freeID: Int = -1) extends Serializable {
   def isFree: Boolean = freeID >= 0
   override def toString: String = if (isFree) s"$nameHint@$freeID" else "<bound>"
 }
@@ -33,7 +33,7 @@ class VariablePrinter(variables: Map[VariableID, String]) extends VariableMapper
   override def map(variable: VariableID): String = variables(variable)
 }
 
-sealed trait Term[V] {
+sealed trait Term[V] extends Serializable {
   def freeVariables: Set[V]
   def map[W](mapper: VariableMapper[V, W]): Term[W]
 }
@@ -73,7 +73,7 @@ object Interval {
   val any = Interval(0, None)
 }
 
-sealed trait GenFormula[V] {
+sealed trait GenFormula[V] extends Serializable {
   def atoms: Set[Pred[V]]
   def freeVariables: Set[V]
   def map[W](mapper: VariableMapper[V, W]): GenFormula[W]
