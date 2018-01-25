@@ -84,5 +84,7 @@ class PolicyTest extends FunSuite with Matchers {
       Since(Interval(3, Some(5)), Px, Since(Interval.any, True(), Py))
     Policy.parse("P(x) AND P(y) UNTIL Q(x, y)").right.value shouldBe Until(Interval.any, And(Px, Py), Qxy)
     Policy.parse("EXISTS x. P(x) SINCE P(y)").right.value shouldBe Since(Interval.any, Ex("x", Px), Py)
+    Policy.parse("P(x) IMPLIES ONCE Q(x, y)").right.value shouldBe
+      GenFormula.implies(Px, GenFormula.once(Interval.any, Qxy))
   }
 }

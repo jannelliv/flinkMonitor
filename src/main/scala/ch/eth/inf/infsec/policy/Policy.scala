@@ -84,6 +84,12 @@ private object PolicyParsers {
   val Formula9: P[FormulaS] = P(
     ("(" ~/ Formula1 ~/ ")") | "TRUE" ~/ PassWith(True[String]()) | "FALSE" ~/ PassWith(False[String]()) |
     ("NOT" ~/ Formula9).map(Not(_)) |
+    unaryTemporal("PREVIOUS", Formula9, Prev(_, _)) |
+    unaryTemporal("NEXT", Formula9, Next(_, _)) |
+    unaryTemporal(Token.Eventually, Formula9, GenFormula.eventually) |
+    unaryTemporal(Token.Once, Formula9, GenFormula.once) |
+    unaryTemporal(Token.Always, Formula9, GenFormula.always) |
+    unaryTemporal(Token.Historically, Formula9, GenFormula.historically) |
     (Token.Identifier ~/ "(" ~/ Term.rep(sep = ",") ~ ")").map(x => Pred(x._1, x._2:_*))
   )
 
@@ -98,12 +104,6 @@ private object PolicyParsers {
   val Formula2: P[FormulaS] = P(
     quantifier("EXISTS", Formula2, Ex(_, _)) |
     quantifier("FORALL", Formula2, All(_, _)) |
-    unaryTemporal("PREVIOUS", Formula2, Prev(_, _)) |
-    unaryTemporal("NEXT", Formula2, Next(_, _)) |
-    unaryTemporal(Token.Eventually, Formula2, GenFormula.eventually) |
-    unaryTemporal(Token.Once, Formula2, GenFormula.once) |
-    unaryTemporal(Token.Always, Formula2, GenFormula.always) |
-    unaryTemporal(Token.Historically, Formula2, GenFormula.historically) |
     Formula5
   )
 
