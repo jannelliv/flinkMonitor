@@ -46,8 +46,6 @@ package object infsec {
     str.append('@').append(event.timestamp)
     for ((relation, data) <- event.structure) {
       str.append(' ').append(relation)
-      if (data.isEmpty)
-        str.append("()")
       for (tuple <- data) {
         str.append('(')
         if (tuple.nonEmpty) {
