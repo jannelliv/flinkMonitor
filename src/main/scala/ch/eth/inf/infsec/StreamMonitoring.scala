@@ -183,7 +183,7 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
     // Use a timer?
     var moreVerdicts = true
     do {
-      var verdict = outputQueue.peek()
+      val verdict = outputQueue.poll()
       if (verdict == null)
         moreVerdicts = false
       else
