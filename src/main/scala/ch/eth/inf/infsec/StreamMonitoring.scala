@@ -1,5 +1,9 @@
 package ch.eth.inf.infsec
 
+import org.apache.flink.api.java.utils.ParameterTool
+import shapeless.{Fin, Nat, Sized}
+import scala.reflect.api.TypeTags
+
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.LinkedBlockingQueue
@@ -73,31 +77,32 @@ object StreamMonitoring {
     slicer
   }
 
+  def mkPartitioner():Criteria[Integer] = {
+    new FlinkPartitioner[Integer](new IdPartitioner())
+  }
+
   def main(args: Array[String]) {
-
-    //TODO: arg validation
     val params = ParameterTool.fromArgs(args)
-
     init(params)
     val slicer = mkSlicer()
+    val partitioner = mkPartitioner()
     val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate")
 
-    val env = StreamExecutionEnvironment.getExecutionEnvironment
-    val textStream = env.socketTextStream(hostName, port)
+    val textStream:Stream[String] = FlinkAdapter.init(hostName, port)
 
-    val parsedTrace:DataStream[Event] = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
+    implicit val type1 = TypeInfo[Option[Event]]()
+    implicit val type2 = TypeInfo[Event]()
+    implicit val type3 = TypeInfo[(Int,Event)]()
 
-    //parsedTrace.print.setParallelism(1)
 
-    //val slicedTrace = slicer(new FlinkAdapter[Event](parsedTrace)).wrapped
-    //  .partitionCustom(new IdPartitioner, 0)
-    val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner, 0)
+    val parsedTrace:Stream[Event] = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
+    val slicedTrace:Stream[(Int,Event)] = slicer.apply(parsedTrace).partition(mkPartitioner(), 0)
 
-    val verdicts = slicedTrace.process(new MonitorFunction(monitorArgs))
+    //TODO: temporary broke the abstraction
+    val verdicts = slicedTrace.asInstanceOf[FlinkStream[(Int,Event)]].wrapped.process[String](new MonitorFunction(monitorArgs))
     verdicts.print().setParallelism(1)
 
-
-    env.execute("Parallel Online Monitor")
+    FlinkAdapter.execute("Parallel Online Monitor")
   }
 
 }
@@ -200,15 +205,5 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
 //                         Sized(SInteger(2),SString("b")))
 //    val e:Event = (4,Set(r))
 
-
-//trait GenericStream[T] {
-//  def map[P:TypeInformation](f:T => P):GenericStream[P]
-//  def flatMap[P:TypeInformation](f:T => TraversableOnce[P]):GenericStream[P]
-//  def keyBy[K:TypeInformation](fun: T => K):GenericKStream[K,T]
-//}
-//
-//trait GenericKStream[K,T]{
-//  def reduce[P:TypeInformation](fun: (T,T) => T):GenericStream[T]
-//}
 
 
