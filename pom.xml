@@ -418,21 +418,52 @@ under the License.
 					</execution>
 				</executions>
 			</plugin>
+			<!-- Scala testing -->
+			<!--<plugin>-->
+				<!--<groupId>org.scalatest</groupId>-->
+				<!--<artifactId>scalatest-maven-plugin</artifactId>-->
+				<!--<version>1.0</version>-->
+				<!--<configuration>-->
+					<!--<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>-->
+					<!--<junitxml>.</junitxml>-->
+					<!--<filereports>WDF TestSuite.txt</filereports>-->
+					<!--<suffixes>-->
+						<!--Test-->
+					<!--</suffixes>-->
+				<!--</configuration>-->
+				<!--<executions>-->
+					<!--<execution>-->
+						<!--<id>test</id>-->
+						<!--<goals>-->
+							<!--<goal>test</goal>-->
+						<!--</goals>-->
+					<!--</execution>-->
+				<!--</executions>-->
+			<!--</plugin>-->
+			<!-- integration testing -->
 			<plugin>
 				<groupId>org.scalatest</groupId>
 				<artifactId>scalatest-maven-plugin</artifactId>
-				<version>1.0</version>
-				<configuration>
-					<reportsDirectory>${project.build.directory}/surefire-reports</reportsDirectory>
-					<junitxml>.</junitxml>
-					<filereports>WDF TestSuite.txt</filereports>
-				</configuration>
+				<version>2.0.0</version>
 				<executions>
 					<execution>
 						<id>test</id>
 						<goals>
 							<goal>test</goal>
 						</goals>
+						<configuration>
+							<suffixes>Test</suffixes>
+						</configuration>
+					</execution>
+					<execution>
+						<id>integration-test</id>
+						<phase>integration-test</phase>
+						<goals>
+							<goal>test</goal>
+						</goals>
+						<configuration>
+							<suffixes>Integration</suffixes>
+						</configuration>
 					</execution>
 				</executions>
 			</plugin>
