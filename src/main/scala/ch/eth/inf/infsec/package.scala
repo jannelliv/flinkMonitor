@@ -10,7 +10,13 @@ package object infsec {
   type Tuple = IndexedSeq[Any]
 
   case class Event(timestamp: Long, structure: collection.Map[String, Iterable[Tuple]]) {
-    override def toString: String = s"@$timestamp: $structure"
+
+    private def tupleToString(tuple: infsec.Tuple):String = s"(${tuple.mkString(",")})"
+    private def structToString(tuple: (String, Iterable[Tuple])): String = s"${tuple._1}" + tuple._2.map(tupleToString(_)).mkString("ddsada")
+
+    override def toString: String = s"@${timestamp} "+structure.map(structToString _).mkString(" ")
+
+
   }
 
   // TODO(JS): Do we allow empty relations? Is there a difference if the relation is not included in an event?
