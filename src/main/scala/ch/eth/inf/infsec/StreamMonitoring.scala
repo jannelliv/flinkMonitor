@@ -1,16 +1,15 @@
 package ch.eth.inf.infsec
 
 import scala.reflect.api.TypeTags
-
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.LinkedBlockingQueue
 
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Slicer, Statistics}
-import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.configuration.Configuration
+import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.ProcessFunction
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.util.Collector
@@ -81,19 +80,19 @@ object StreamMonitoring {
     val slicer = mkSlicer()
     val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate")
 
-    //val textStream:Stream[String] = FlinkAdapter.init(hostName, port)
     val env:StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
-    val textStream = env.socketTextStream(hostName, port)
+    env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
+    env.setParallelism(1)
 
-    //implicit val type1 = TypeInfo[Option[Event]]()
-    //implicit val type2 = TypeInfo[Event]()
-    //implicit val type3 = TypeInfo[(Int,Event)]()
-
+    //Single node
+    val textStream  = env.socketTextStream(hostName, port)
     val parsedTrace = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
-    val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner(), 0)
+    val slicedTrace = parsedTrace.flatMap(slicer(_)).keyBy(e => e._1)
 
-    //TODO: temporary broke the abstraction
-    val verdicts = slicedTrace.process[String](new MonitorFunction(monitorArgs))
+    //Parallel nodes
+    val verdicts = slicedTrace.process[String](new MonitorFunction(monitorArgs)).setParallelism(processors)
+
+    //Single node
     verdicts.print().setParallelism(1)
 
     env.execute("Parallel Online Monitor")
@@ -131,6 +130,7 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
               case Some(event: Event) =>
                 input.write(printEvent(event))
                 input.flush()
+                println(s"Monitor ${this.hashCode()} - IN: ${event.toString}")
               case None => running = false
             }
           }
@@ -173,22 +173,26 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
     super.close()
   }
 
-  override def processElement(in: (Int, Event),
+
+  //override def process(context: Context, ins: Iterable[(Int, Event)], collector: Collector[String]): Unit =
+    override def processElement(in: (Int, Event),
       context: ProcessFunction[(Int, Event), String]#Context,
       collector: Collector[String]): Unit =
   {
-    inputQueue.put(Some(in._2))
 
-    // FIXME(JS): Verdicts may be delayed for an infinite amount of time if there are no new events to process.
-    // Use a timer?
-    var moreVerdicts = true
-    do {
-      val verdict = outputQueue.poll()
-      if (verdict == null)
-        moreVerdicts = false
-      else
-        collector.collect(verdict)
-    } while (moreVerdicts)
+      inputQueue.put(Some(in._2))
+
+      // FIXME(JS): Verdicts may be delayed for an infinite amount of time if there are no new events to process.
+      // Use a timer?
+      var moreVerdicts = true
+      do {
+        val verdict = outputQueue.poll()
+        if (verdict == null)
+          moreVerdicts = false
+        else
+          collector.collect(verdict)
+      } while (moreVerdicts)
+
   }
 }
 
