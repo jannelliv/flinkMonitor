@@ -36,6 +36,8 @@ class FlinkStream[T]( val wrapped:DataStream[T]) extends Stream[T] {
   override def print: Self[T] = {wrapped.print().setParallelism(1); this}
 
   override def partition[U](p: Criteria[U], i: Int): Stream[T] = ???
+
+  override def mkString(sep: String): String = ???
 }
 
 class FlinkPartitioner[T](private val wrapped: org.apache.flink.api.common.functions.Partitioner[T]) extends Criteria[T]{

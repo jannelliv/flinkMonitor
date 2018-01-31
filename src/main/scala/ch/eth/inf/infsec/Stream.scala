@@ -8,7 +8,8 @@ object TypeInfo{
   def apply[A](): TypeInfo[A] = new TypeInfo[A](){}
 }
 
-trait Stream[T] {
+//TODO:  extend TraversableOnce[T]
+trait Stream[T]{
   type Self[A] <: Stream[A]
 
   def map[U:TypeInfo](f: T => U): Self[U]
@@ -16,6 +17,8 @@ trait Stream[T] {
   def filter(fun: T => Boolean): Self[T]
   def partition[U](p: Criteria[U], n:Int):Stream[T]
   def print:Self[T]
+  def mkString(sep:String):String
+
 }
 
 trait Criteria[T]{

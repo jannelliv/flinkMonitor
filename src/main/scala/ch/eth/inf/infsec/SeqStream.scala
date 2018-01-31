@@ -12,9 +12,14 @@ class SeqStream[T](val seq: Seq[T]) extends Stream[T] {
 
   def partition[U](p: Criteria[U], n:Int):Stream[T] = {new Self(seq)}
 
+  def mkString(sep:String):String = seq.mkString(sep)
+
 
   // SK: Before the merge
 //  override def map[U](f: T => U) = new Self(seq.map(f))
 //  override def flatMap[U](f: T => TraversableOnce[U]) = new Self(seq.flatMap(f))
 
+}
+object SeqStream{
+  def apply[T](seq:Seq[T]) = new SeqStream[T](seq)
 }
