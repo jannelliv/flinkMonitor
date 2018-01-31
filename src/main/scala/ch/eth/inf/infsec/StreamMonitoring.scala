@@ -8,6 +8,7 @@ import java.util.concurrent.LinkedBlockingQueue
 import ch.eth.inf.infsec.StreamMonitoring.logger
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Slicer, Statistics}
+import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.TimeCharacteristic
@@ -37,7 +38,7 @@ object StreamMonitoring {
 
   var formula: Formula = policy.False()
 
-  private def floorLog2(x: Int): Int = {
+  def floorLog2(x: Int): Int = {
     var remaining = x
     var y = -1
     while (remaining > 0) {
@@ -76,6 +77,7 @@ object StreamMonitoring {
     if (processors != requestedProcessors) {
       logger.warn(s"Number of processors is not a power of two, using $processors instead")
     }
+    logger.info(s"Using $processors parallel monitors")
 
     monitorCommand = params.get("monitor", "monpoly")
     signatureFile = params.get("sig")
@@ -119,7 +121,7 @@ object StreamMonitoring {
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
     val parsedTrace = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
-    val slicedTrace = parsedTrace.flatMap(slicer(_)).keyBy(e => e._1)
+    val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner(),0).setParallelism(processors).keyBy(e=>e._1)
 
     //Parallel nodes
     val verdicts = slicedTrace.process[String](new MonitorFunction(monitorArgs)).setParallelism(processors).map(_+"\n")
@@ -154,6 +156,17 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
     process = new ProcessBuilder(JavaConversions.seqAsJavaList(command))
       .redirectError(Redirect.INHERIT)
       .start()
+
+
+    try {
+      val f = process.getClass().getDeclaredField("pid");
+      f.setAccessible(true);
+      val pid = f.getInt(process)
+      println("MONITOR PID: " + pid)
+
+    } catch {
+      case _:Exception =>
+    }
 
     val input = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
     val output = new BufferedReader(new InputStreamReader(process.getInputStream))
