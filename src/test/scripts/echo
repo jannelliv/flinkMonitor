@@ -1,0 +1,6 @@
+#!/usr/local/bin/bash
+
+while read line
+do
+  echo "($BASHPID, $line)"
+done < "${10:-/dev/stdin}"
