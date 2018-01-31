@@ -8,6 +8,10 @@ import scala.collection.mutable.ArrayBuffer
 
 // NOTE(JS): Also performs basic filtering (constants).
 abstract class DataSlicer extends Slicer with Serializable {
+  //NOTE(SK): Since Flink does not allow for custom keying we need
+  //find precisely those keys the do not collide. See docs for ColissionlessKeyGenerator
+  val remapper:PartialFunction[Int,Int]
+
   def slicesOfValuation(valuation: Array[Option[Any]]): TraversableOnce[Int]
 
   def slicesOfTuple(relation: String, tuple: Tuple): ArrayBuffer[Int] = {
@@ -71,6 +75,6 @@ abstract class DataSlicer extends Slicer with Serializable {
           slices(i)(relation) += tuple
 
     for (i <- slices.indices)
-      yield (i, Event(e.timestamp, slices(i)))
+      yield (remapper(i), Event(e.timestamp, slices(i)))
   }
 }

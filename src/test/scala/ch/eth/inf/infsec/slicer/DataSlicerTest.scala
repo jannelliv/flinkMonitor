@@ -9,9 +9,15 @@ import scala.collection.TraversableOnce
 class DataSlicerTest extends FunSuite with Matchers {
 
   class TestDataSlicer extends DataSlicer {
+
     override val formula: Formula = GenFormula.resolve(
       All("b", And(Pred("A", Var("b"), Var("x")), Pred("B", Var("y"), Var("b")))))
     override val degree = 4
+
+    override val remapper: PartialFunction[Int, Int] = new PartialFunction[Int,Int] {
+      override def isDefinedAt(x: Int): Boolean = x<degree
+      override def apply(x: Int): Int = if(x<degree) x else throw new MatchError(x)
+    }
 
     override def slicesOfValuation(valuation: Array[Option[Any]]): TraversableOnce[Int] =
       if (valuation(0).isDefined)

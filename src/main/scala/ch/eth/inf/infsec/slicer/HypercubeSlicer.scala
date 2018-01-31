@@ -13,6 +13,7 @@ class HypercubeSlicer(
   require(formula.freeVariables.size <= shares.size)
 
   override val degree: Int = if (shares.isEmpty) 1 else shares.product
+  override val remapper  = ColissionlessKeyGenerator.getMapping(degree)
 
   private val seeds: Array[Int] = {
     val random = new Random(seed)
