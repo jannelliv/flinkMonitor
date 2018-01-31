@@ -9,7 +9,7 @@ import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.collection.{JavaConversions, mutable}
-import scala.collection.mutable.{HashSet, Set}
+import scala.collection.mutable.{HashSet, ListBuffer, Set}
 import scala.io.Source
 
 
@@ -20,8 +20,8 @@ class FlinkIntegration extends FunSuite with Matchers with BeforeAndAfterAll{
   private var flink:Process = _
   private var monpoly:Process = _
 
-  private val monpolyVerdicts  = new HashSet[String]()
-  private val flinkVerdicts  = new HashSet[String]()
+  private val monpolyVerdicts  = new ListBuffer[String]()
+  private val flinkVerdicts  = new ListBuffer[String]()
   private val READTIMEOUT = 1000
 
 
@@ -64,41 +64,9 @@ class FlinkIntegration extends FunSuite with Matchers with BeforeAndAfterAll{
 
   }
 
-class ReadingThread(output:BufferedReader, verdicts:Set[String],process:Process, timeout:Long) extends Thread{
-    override def run(): Unit = {
-      var tt = new InactivityTimer(process)
-      var timer = new Timer("MyTimer")
-      try {
-        //there is at least one
-        var i=0
-        var line = output.readLine()
-        while (line != null) {
-          if(line.startsWith("@"))
-            verdicts.add(line)
-          timer.schedule(tt,timeout)
-          line = output.readLine()
-          timer.cancel()
-          timer = new Timer("MyTimer")
-          tt = new InactivityTimer(process)
-        }
-      } catch {
-        case _:InterruptedException =>
-      } finally {
-        output.close()
-      }
-
-    }
-  }
-
-  class InactivityTimer(p:Process) extends TimerTask {
-    override def run(): Unit = {
-      p.destroy()
-    }
-  }
-
   test("Flink vs Monpoly") {
 
-
+    //run monpoly
     val inputMonpoly = new BufferedWriter(new OutputStreamWriter(monpoly.getOutputStream))
     val outputMonpoly = new BufferedReader(new InputStreamReader(monpoly.getInputStream))
 
@@ -108,6 +76,7 @@ class ReadingThread(output:BufferedReader, verdicts:Set[String],process:Process,
     t.start()
     t.join()
 
+    //run flink
     val inputFlink = new BufferedWriter(new OutputStreamWriter(ncIN.getOutputStream))
     val outputFlink = new BufferedReader(new InputStreamReader(ncOUT.getInputStream))
 
@@ -119,11 +88,10 @@ class ReadingThread(output:BufferedReader, verdicts:Set[String],process:Process,
     t.start()
     t.join()
 
-    println("VERDICTS: " + monpolyVerdicts.toString)
-    println("VERDICTS: " + flinkVerdicts.toString)
+    monpolyVerdicts.synchronized{println("VERDICTS: " + monpolyVerdicts.toString)}
+    flinkVerdicts.synchronized{println("VERDICTS: " + flinkVerdicts.toString)}
 
-    //TODO: fix the bug that make this fail
-    //Set(flinkVerdicts) shouldEqual Set(monpolyVerdicts)
+    flinkVerdicts.toSet shouldEqual monpolyVerdicts.toSet
   }
 
 
