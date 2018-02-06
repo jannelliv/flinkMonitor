@@ -10,7 +10,7 @@ import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.collection.JavaConversions
-import scala.collection.mutable.{ListBuffer}
+import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
 class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAll{
@@ -78,16 +78,13 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
     val parsedStream = SeqStream(log.split("\n").toSeq).map(parseLine).filter(_.isDefined).map(_.get)
 
     //Slicing the log
-    val statistics = new Statistics {
-      override def relationSize(relation: String): Double = 1000.0
-    }
     val parsedFormula = Policy.read(Source.fromFile(formula).mkString) match {
       case Left(err) =>
         println("Cannot parse the formula: " + err)
         sys.exit(1)
       case Right(phi) => phi
     }
-    val slicer = HypercubeSlicer.optimize(parsedFormula, floorLog2(processors).max(0), statistics)
+    val slicer = HypercubeSlicer.optimize(parsedFormula, floorLog2(processors).max(0), Statistics.constant)
 
     val splitStream = parsedStream.flatMap(slicer(_))
     println("VERDICTS: " + splitStream.mkString(", "))

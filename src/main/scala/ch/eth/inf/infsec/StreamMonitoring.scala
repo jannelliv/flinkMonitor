@@ -1,11 +1,9 @@
 package ch.eth.inf.infsec
 
-import scala.reflect.api.TypeTags
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.LinkedBlockingQueue
 
-import ch.eth.inf.infsec.StreamMonitoring.logger
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Slicer, Statistics}
 import org.apache.flink.api.java.functions.IdPartitioner
@@ -14,7 +12,7 @@ import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.ProcessFunction
 import org.apache.flink.streaming.api.scala._
-import org.apache.flink.streaming.util.serialization.{SerializationSchema, SimpleStringSchema}
+import org.apache.flink.streaming.util.serialization.SimpleStringSchema
 import org.apache.flink.util.Collector
 import org.apache.log4j.Logger
 
@@ -94,11 +92,8 @@ object StreamMonitoring {
 
   def mkSlicer(): Slicer = {
     // TODO(JS): Get statistics from somewhere
-    val statistics = new Statistics {
-      override def relationSize(relation: String): Double = 1000.0
-    }
     logger.info("Optimizing slicer ...")
-    val slicer = HypercubeSlicer.optimize(formula, processorExp, statistics)
+    val slicer = HypercubeSlicer.optimize(formula, processorExp, Statistics.constant)
     logger.info(s"Selected shares: ${slicer.shares.mkString(", ")}")
     slicer
   }
