@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec
 package slicer
 
+import ch.eth.inf.infsec.trace.Event
 import ch.eth.inf.infsec.policy.Formula
 
 trait Slicer {

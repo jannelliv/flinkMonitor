@@ -7,6 +7,7 @@ import java.lang.ProcessBuilder.Redirect
 import ch.eth.inf.infsec.StreamMonitoring.floorLog2
 import ch.eth.inf.infsec.policy.Policy
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
+import ch.eth.inf.infsec.trace.{Event, MonpolyFormat}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.collection.JavaConversions
@@ -75,7 +76,7 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
     implicit val type1 = TypeInfo[Event]()
     implicit val type2 = TypeInfo[Option[Event]]()
     implicit val type3 = TypeInfo[(Int,Event)]()
-    val parsedStream = SeqStream(log.split("\n").toSeq).map(parseLine).filter(_.isDefined).map(_.get)
+    val parsedStream = SeqStream(log.split("\n").toSeq).map(MonpolyFormat.parseLine).filter(_.isDefined).map(_.get)
 
     //Slicing the log
     val parsedFormula = Policy.read(Source.fromFile(formula).mkString) match {

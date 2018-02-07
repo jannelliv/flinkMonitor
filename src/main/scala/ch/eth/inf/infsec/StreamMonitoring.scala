@@ -4,6 +4,7 @@ import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamW
 import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.LinkedBlockingQueue
 
+import ch.eth.inf.infsec.trace.{Event, MonpolyFormat}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Slicer, Statistics}
 import org.apache.flink.api.java.functions.IdPartitioner
@@ -115,7 +116,7 @@ object StreamMonitoring {
       case Some(Right(f)) =>  env.readTextFile(f)
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
-    val parsedTrace = textStream.map(parseLine _).filter(_.isDefined).map(_.get)
+    val parsedTrace = textStream.map(MonpolyFormat.parseLine _).filter(_.isDefined).map(_.get)
     val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner(),0).setParallelism(processors).keyBy(e=>e._1)
 
     //Parallel nodes
@@ -176,7 +177,7 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
           while (running) {
             inputQueue.take() match {
               case Some(event: Event) =>
-                input.write(printEvent(event))
+                input.write(MonpolyFormat.printEvent(event))
                 input.flush()
                 logger.debug(s"Monitor ${this.hashCode()} - IN: ${event.toString}")
               case None => running = false

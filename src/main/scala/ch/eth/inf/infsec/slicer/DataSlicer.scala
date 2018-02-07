@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec
 package slicer
 
+import ch.eth.inf.infsec.trace.{Event, Tuple}
 import ch.eth.inf.infsec.policy._
 
 import scala.collection.mutable

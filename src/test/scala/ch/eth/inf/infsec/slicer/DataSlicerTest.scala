@@ -2,6 +2,7 @@ package ch.eth.inf.infsec
 package slicer
 
 import ch.eth.inf.infsec.policy._
+import ch.eth.inf.infsec.trace.{Event, Tuple}
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.collection.TraversableOnce

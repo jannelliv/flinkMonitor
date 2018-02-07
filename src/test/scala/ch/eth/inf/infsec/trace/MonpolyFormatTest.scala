@@ -1,12 +1,13 @@
 package ch.eth.inf.infsec
-package eventstream
+package trace
 
 import org.scalatest.{FunSuite,Matchers}
 import org.scalatest.OptionValues._
 
+class MonpolyFormatTest extends FunSuite with Matchers {
+  import MonpolyFormat._
 
-class EventStreamTest extends FunSuite with Matchers {
-  test("Stream parse") {
+  test("Parsing") {
     val invalid = "this is not an event"
     val event = "@1307532861 approve (2,4)(5,6)(2,6) publish (4)(5)"
 
@@ -15,7 +16,6 @@ class EventStreamTest extends FunSuite with Matchers {
     parseLine(event).value.structure.size shouldBe 2
     parseLine(event).value.structure("approve").size shouldBe 3
     parseLine(event).value.structure("publish").size shouldBe 2
-
   }
 
   test("Print/parse round-trip") {
