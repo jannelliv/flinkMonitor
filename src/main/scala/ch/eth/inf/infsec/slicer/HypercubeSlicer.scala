@@ -76,6 +76,9 @@ class HypercubeSlicer(
 }
 
 object HypercubeSlicer {
+  // TODO(JS): This is a temporary workaround until we properly support rigid/built-in predicates.
+  private def isRigidRelation(relation: String): Boolean = relation.startsWith("__")
+
   def optimizeSingleSet(
       formula: Formula,
       degreeExp: Int,
@@ -102,7 +105,7 @@ object HypercubeSlicer {
           search(remainingVars - 1, remainingExp - e, e :: config)
       } else {
         // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.
-        val cost = formula.atoms.toSeq.map((atom: Pred[VariableID]) =>
+        val cost = formula.atoms.toSeq.filterNot(p => isRigidRelation(p.relation)).map((atom: Pred[VariableID]) =>
           statistics.relationSize(atom.relation) / atomPartitions(atom, config)).sum
 
         if (cost < bestCost) {
