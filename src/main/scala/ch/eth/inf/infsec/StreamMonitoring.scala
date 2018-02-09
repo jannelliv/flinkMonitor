@@ -4,9 +4,9 @@ import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamW
 import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.LinkedBlockingQueue
 
-import ch.eth.inf.infsec.trace.{Event, MonpolyFormat}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Slicer, Statistics}
+import ch.eth.inf.infsec.trace.{Event, MonpolyFormat, MonpolyParser}
 import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.configuration.Configuration
@@ -116,7 +116,7 @@ object StreamMonitoring {
       case Some(Right(f)) =>  env.readTextFile(f)
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
-    val parsedTrace = textStream.map(MonpolyFormat.parseLine _).filter(_.isDefined).map(_.get)
+    val parsedTrace = textStream.map(MonpolyParser.parseLine _).filter(_.isDefined).map(_.get)
     val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner(),0).setParallelism(processors).keyBy(e=>e._1)
 
     //Parallel nodes

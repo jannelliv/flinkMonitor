@@ -1,11 +1,15 @@
 package ch.eth.inf.infsec.trace
 
-import ch.eth.inf.infsec.CloseableIterable
-
 import scala.collection.mutable
-import scala.io.Source
 
-object MonpolyFormat extends LogReader {
+class MonpolyParser extends LineBasedEventParser {
+  // TODO(JS): This skips over unreadable lines. Should we add a strict mode?
+  override def processLine(line: String): Unit = buffer ++= MonpolyParser.parseLine(line)
+
+  override def processEnd(): Unit = ()
+}
+
+object MonpolyParser {
   // TODO(JS): Do we allow empty relations? Is there a difference if the relation is not included in an event?
   // What if the relation is just a proposition?
 
@@ -27,16 +31,9 @@ object MonpolyFormat extends LogReader {
       case _:Exception => None
     }
   }
+}
 
-  override def readFile(fileName: String): CloseableIterable[Event] = new CloseableIterable[Event] {
-    private val source = Source.fromFile(fileName)
-
-    override def close(): Unit = source.close()
-
-    // TODO(JS): This skips over unreadable lines. Should we add a strict mode?
-    override def iterator: Iterator[Event] = source.getLines().flatMap(parseLine)
-  }
-
+object MonpolyFormat extends TraceFormat {
   def printEvent(event: Event): String = {
     def appendValue(builder: mutable.StringBuilder, value: Any): Unit = value match {
       case s: String => builder.append('"').append(s).append('"')
@@ -60,4 +57,6 @@ object MonpolyFormat extends LogReader {
     str.append('\n')
     str.mkString
   }
+
+  override def createParser(): LineBasedEventParser = new MonpolyParser()
 }

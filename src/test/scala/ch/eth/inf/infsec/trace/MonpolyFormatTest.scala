@@ -5,7 +5,8 @@ import org.scalatest.{FunSuite,Matchers}
 import org.scalatest.OptionValues._
 
 class MonpolyFormatTest extends FunSuite with Matchers {
-  import MonpolyFormat._
+  import MonpolyParser.parseLine
+  import MonpolyFormat.printEvent
 
   test("Parsing") {
     val invalid = "this is not an event"
