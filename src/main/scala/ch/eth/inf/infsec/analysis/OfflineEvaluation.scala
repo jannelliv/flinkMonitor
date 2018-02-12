@@ -56,7 +56,10 @@ object OfflineEvaluation {
       case None =>
         logger.info("Collecting trace statistics with window size {}", windowSize)
         TraceStatistics.analyzeRelations(eventStream, windowSize, 1, degree)
-          .map(s => s"${s.relation},${s.rates.events},${s.rates.tuples};${s.heavyHitters.map(_.mkString(",")).mkString(";")}")
+          .mapWith { case (startTime, relation, stats) =>
+            val heavyHitters = stats.heavyHitters(degree).map(_.mkString(",")).mkString(";")
+            s"$startTime,$relation,${stats.rates.events},${stats.rates.tuples};$heavyHitters"
+          }
 
       case Some(theFormulaName) =>
         logger.info("Reading formula file {}", theFormulaName)
@@ -80,8 +83,8 @@ object OfflineEvaluation {
         logger.info("Collecting slice statistics with window size {}", windowSize)
         val slicedStream = eventStream.flatMap(dataSlicer(_))
         TraceStatistics.analyzeSlices(slicedStream, windowSize, 1)
-          .mapWith { case ((slice, relation), info) =>
-            s"$slice,$relation,${info.events},${info.tuples}"
+          .mapWith { case (startTime, (slice, relation), stats) =>
+            s"$startTime,$slice,$relation,${stats.events},${stats.tuples}"
           }
     }
 
