@@ -79,6 +79,13 @@ object HypercubeSlicer {
   // TODO(JS): This is a temporary workaround until we properly support rigid/built-in predicates.
   private def isRigidRelation(relation: String): Boolean = relation.startsWith("__")
 
+  def fromSimpleShares(formula: Formula, shares: Map[VariableID, Int]): HypercubeSlicer = {
+    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])}
+    val sharesById: Map[Int, Int] = shares.map { case (v, e) => (v.freeID, e) }.withDefaultValue(1)
+    val simpleShares = Array.tabulate(formula.freeVariables.size)(sharesById(_))
+    new HypercubeSlicer(formula, heavy, Array[IndexedSeq[Int]](simpleShares))
+  }
+
   def optimizeSingleSet(
       formula: Formula,
       degreeExp: Int,
