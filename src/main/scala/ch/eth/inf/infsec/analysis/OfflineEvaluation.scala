@@ -75,7 +75,7 @@ object OfflineEvaluation {
     }
 
     val heavyName = Option(parameters.get("heavy"))
-    val heavyHitters = new mutable.HashMap[(String, Int), mutable.HashSet[Any]]()
+    val heavyHittersMap = new mutable.HashMap[(String, Int), mutable.HashSet[Any]]()
       .withDefaultValue(new mutable.HashSet[Any]())
     for (theHeavyName <- heavyName) {
       logger.info("Reading heavy hitters from file {}", theHeavyName)
@@ -83,7 +83,7 @@ object OfflineEvaluation {
       try {
         for (line <- heavySource.getLines()) {
           val fields = line.split(",", 3)
-          val these = heavyHitters.getOrElseUpdate((fields(0), fields(1).toInt), new mutable.HashSet[Any]())
+          val these = heavyHittersMap.getOrElseUpdate((fields(0), fields(1).toInt), new mutable.HashSet[Any]())
           these += fields(2)
         }
       } finally {
@@ -106,7 +106,8 @@ object OfflineEvaluation {
         monitoringFormula.get, StreamMonitoring.floorLog2(degree), new slicer.Statistics {
           override def relationSize(relation: String): Double = rates(relation)
 
-          override def heavyHitters(relation: String, attribute: Int): Set[Any] = heavyHitters(relation, attribute)
+          override def heavyHitters(relation: String, attribute: Int): Set[Any] =
+            heavyHittersMap((relation, attribute)).toSet
         })
       logger.info("Slicing with optimized shares")
       logger.info("Number of configurations: {}", dataSlicer.shares.length)
