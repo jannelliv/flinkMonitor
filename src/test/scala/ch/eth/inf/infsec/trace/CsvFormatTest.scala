@@ -19,6 +19,15 @@ class CsvFormatTest extends FunSuite with Matchers {
     Inside.inside(CsvParser.parseLine("rel1,tp =0,ts=0,  a=-1\n")) { case (0, 0, "rel1", tuple) =>
       tuple should contain only -1
     }
+    Inside.inside(CsvParser.parseLine("rel1 , tp=0,ts=  +1\t\n")) { case (0, 1, "rel1", tuple) =>
+      tuple shouldBe empty
+    }
+    Inside.inside(CsvParser.parseLine("rel1 , tp=0,ts=  12 , a=\n")) { case (0, 12, "rel1", tuple) =>
+      tuple should contain only ""
+    }
+    Inside.inside(CsvParser.parseLine("rel1 , tp=0,ts=  12 , a= , b =abc\n")) { case (0, 12, "rel1", tuple) =>
+      tuple should contain inOrderOnly ("", "abc")
+    }
   }
 
   test("Parsing events with multiple tuples") {
