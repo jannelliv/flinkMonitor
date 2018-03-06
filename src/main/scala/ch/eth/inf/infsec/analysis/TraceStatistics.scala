@@ -29,7 +29,7 @@ class AggregateRatesFunction[K] extends AggregateFunction[(K, Iterable[Tuple]), 
 // TODO(JS): Implement proper sketching
 case class Statistics(rates: Rates, counts: Array[immutable.HashMap[Any, Int]]) {
   def heavyHitters(degree: Int): IndexedSeq[Set[Any]] =
-    counts.map(_.filter { case (_, c) => c >= rates.tuples / degree }.keySet)
+    counts.map(_.filter { case (_, c) => c >= rates.tuples.toDouble / degree }.keySet)
 }
 
 class AggregateStatisticsFunction[K] extends AggregateFunction[(K, Iterable[Tuple]), Statistics, Statistics] {
