@@ -6,7 +6,7 @@ import java.util.concurrent.LinkedBlockingQueue
 
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Slicer, Statistics}
-import ch.eth.inf.infsec.trace.{Event, MonpolyFormat, MonpolyParser}
+import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.configuration.Configuration
@@ -27,6 +27,7 @@ object StreamMonitoring {
 
   var in:Option[Either[(String,Int),String]] = _
   var out:Option[Either[(String,Int),String]] = _
+  var inputFormat: TraceFormat = _
 
   var processorExp: Int = 0
   var processors:Int=0
@@ -69,6 +70,14 @@ object StreamMonitoring {
 
     in = parseArgs(params.get("in","127.0.0.1:9000"))
     out = parseArgs(params.get("out",""))
+
+    inputFormat = params.get("format", "monpoly") match {
+      case "monpoly" => MonpolyFormat
+      case "csv" => CsvFormat
+      case format =>
+        logger.error("Unknown trace format " + format)
+        sys.exit(1)
+    }
 
     val requestedProcessors = params.getInt("processors",1)
     processorExp = floorLog2(requestedProcessors).max(0)
@@ -116,7 +125,7 @@ object StreamMonitoring {
       case Some(Right(f)) =>  env.readTextFile(f)
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
-    val parsedTrace = textStream.map(MonpolyParser.parseLine _).filter(_.isDefined).map(_.get)
+    val parsedTrace = textStream.flatMap(new ParseTraceFunction(inputFormat))
     val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner(),0).setParallelism(processors).keyBy(e=>e._1)
 
     //Parallel nodes
