@@ -4,29 +4,28 @@ import org.scalatest.{FunSuite, Inside, Matchers}
 
 class CsvFormatTest extends FunSuite with Matchers {
   test("Parsing individual lines") {
-    Inside.inside(CsvParser.parseLine("rel1, tp = 123, ts = 456, a = 10")) { case (123, 456, "rel1", tuple) =>
-      tuple should contain only 10
-    }
+    CsvParser.parseLine("rel1, tp = 123, ts = 456, a = 10") shouldBe (123, 456, "rel1", Tuple(10))
+    // TODO(JS): Rewrite these
     Inside.inside(CsvParser.parseLine("rel1, tp = 0, ts = 0, a = -1")) { case (0, 0, "rel1", tuple) =>
-      tuple should contain only -1
+      tuple shouldBe Tuple(-1)
     }
     Inside.inside(CsvParser.parseLine("rel1, tp = 0, ts = 0, a = 10x")) { case (0, 0, "rel1", tuple) =>
-      tuple should contain only "10x"
+      tuple shouldBe Tuple("10x")
     }
     Inside.inside(CsvParser.parseLine("rel1, tp = 123, ts = 456, a = 12, c = 10, b = 11")) {
-      case (123, 456, "rel1", tuple) => tuple should contain inOrderOnly(12, 10, 11)
+      case (123, 456, "rel1", tuple) => tuple shouldBe Tuple(12, 10, 11)
     }
     Inside.inside(CsvParser.parseLine("rel1,tp =0,ts=0,  a=-1\n")) { case (0, 0, "rel1", tuple) =>
-      tuple should contain only -1
+      tuple shouldBe Tuple(-1)
     }
     Inside.inside(CsvParser.parseLine("rel1 , tp=0,ts=  +1\t\n")) { case (0, 1, "rel1", tuple) =>
-      tuple shouldBe empty
+      tuple shouldBe Tuple()
     }
     Inside.inside(CsvParser.parseLine("rel1 , tp=0,ts=  12 , a=\n")) { case (0, 12, "rel1", tuple) =>
-      tuple should contain only ""
+      tuple shouldBe Tuple("")
     }
     Inside.inside(CsvParser.parseLine("rel1 , tp=0,ts=  12 , a= , b =abc\n")) { case (0, 12, "rel1", tuple) =>
-      tuple should contain inOrderOnly ("", "abc")
+      tuple shouldBe Tuple("", "abc")
     }
   }
 
@@ -37,12 +36,18 @@ class CsvFormatTest extends FunSuite with Matchers {
       "login, tp = 0, ts = 1, u = u321" ::
       "withdraw, tp = 0, ts = 1, u = u105, a = 21" :: Nil
 
-    CsvFormat.createParser().parseLines(List(input1)) should contain only
-      Event(1, Map("withdraw" -> Seq(IndexedSeq("u183", 42))))
-    CsvFormat.createParser().parseLines(input2) should contain only
-      Event(1, Map("login" -> Seq(IndexedSeq("u321")), "withdraw" -> Seq(
-        IndexedSeq("u183", 42), IndexedSeq("u440", 1), IndexedSeq("u105", 21)
-      )))
+    CsvFormat.createParser().processAll(List(input1)) should contain theSameElementsInOrderAs List(
+      Record(1, "withdraw", Tuple("u183", 42)),
+      Record.markEnd(1)
+    )
+
+    CsvFormat.createParser().processAll(input2) should contain theSameElementsInOrderAs List(
+      Record(1, "withdraw", Tuple("u183", 42)),
+      Record(1, "withdraw", Tuple("u440", 1)),
+      Record(1, "login", Tuple("u321")),
+      Record(1, "withdraw", Tuple("u105", 21)),
+      Record.markEnd(1)
+    )
   }
 
   test("Parsing multiple events") {
@@ -53,11 +58,16 @@ class CsvFormatTest extends FunSuite with Matchers {
       "withdraw, tp = 2, ts = 3, u = u285, a = 60\n" +
       "withdraw, tp = 2, ts = 3, u = u383, a = 67\n"
 
-    CsvFormat.createParser().parseLines(input.split("\n")) should contain inOrderOnly (
-      Event(1, Map("withdraw" -> Seq(IndexedSeq("u109", 32), IndexedSeq("u438", 55)))),
-      Event(1, Map("withdraw" -> Seq(IndexedSeq("u642", 58)))),
-      Event(3, Map("login" -> Seq(IndexedSeq("u321")),
-        "withdraw" -> Seq(IndexedSeq("u285", 60), IndexedSeq("u383", 67))))
+    CsvFormat.createParser().processAll(input.split("\n")) should contain theSameElementsInOrderAs List(
+      Record(1, "withdraw", Tuple("u109", 32)),
+      Record(1, "withdraw", Tuple("u438", 55)),
+      Record.markEnd(1),
+      Record(1, "withdraw", Tuple("u642", 58)),
+      Record.markEnd(1),
+      Record(3, "login", Tuple("u321")),
+      Record(3, "withdraw", Tuple("u285", 60)),
+      Record(3, "withdraw", Tuple("u383", 67)),
+      Record.markEnd(3)
     )
   }
 }

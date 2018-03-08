@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec.trace
 
-import scala.collection.mutable
+import ch.eth.inf.infsec.Processor
+
 import scala.collection.mutable.ArrayBuffer
 
 /**
@@ -9,39 +10,51 @@ import scala.collection.mutable.ArrayBuffer
   * E. Bartocci et al., “First international Competition on Runtime Verification: rules, benchmarks, tools,
   * and final results of CRV 2014,” Int J Softw Tools Technol Transfer, pp. 1–40, Apr. 2017.
   */
-class CsvParser extends LineBasedEventParser {
+class CsvParser extends Processor[String, Record] with Serializable {
   // NOTE(JS): We assume that timepoints are non-negative.
   protected var currentTimepoint: Long = -1
   protected var currentTimestamp: Long = 0
-  protected val currentStructure = new mutable.HashMap[String, ArrayBuffer[Tuple]]()
 
-  override def processLine(line: String): Unit = {
+  override type State = (Timestamp, Timestamp)
+
+  override def getState: (Timestamp, Timestamp) = (currentTimestamp, currentTimepoint)
+
+  override def restoreState(state: Option[(Timestamp, Timestamp)]): Unit = state match {
+    case Some((ts, tp)) =>
+      currentTimestamp = ts
+      currentTimepoint = tp
+    case None =>
+      currentTimestamp = -1
+      currentTimepoint = 0
+  }
+
+  override def process(line: String, f: Record => Unit) {
     val (timepoint, timestamp, relation, tuple) = CsvParser.parseLine(line)
     if (timepoint != currentTimepoint) {
-      processEnd()
+      terminate(f)
       currentTimepoint = timepoint
       currentTimestamp = timestamp
     }
-    currentStructure.getOrElseUpdate(relation, { new ArrayBuffer[Tuple]() }) += tuple
+    f(Record(timestamp, relation, tuple))
   }
 
-  override def processEnd(): Unit =
+  override def terminate(f: Record => Unit) {
     if (currentTimepoint >= 0) {
-      buffer += Event(currentTimestamp, currentStructure.toMap)
+      f(Record.markEnd(currentTimestamp))
       currentTimepoint = -1
-      currentStructure.clear()
     }
+  }
 }
 
 object CsvParser {
   // TODO(JS): Handle attribute types other than Long and String.
-  def parseValue(value: String): Any = {
+  def parseValue(value: String): Domain = {
     // We first check whether the value is a number before attempting to convert it.
     // Dispatching the type by catching the exception thrown by toLong is much slower!
     // TODO(JS): We could use a signature which states the type explicitly.
     // However, parse failures might be expected in real-world scenarios? They shouldn't slow us down.
     if (value.isEmpty)
-      return value
+      return ""
     var char = value.charAt(0)
     var isLong = (char >= '0' && char <= '9') || char == '-' || char == '+'
     var i = 1
@@ -57,7 +70,7 @@ object CsvParser {
       value
   }
 
-  def parseLine(line: String): (Long, Long, String, IndexedSeq[Any]) = {
+  def parseLine(line: String): (Long, Long, String, Tuple) = {
     // Beware, slightly optimized and thus ugly code ahead.
     // TODO(JS): Compare with an implementation based on parser combinators.
     // TODO(JS): Test all the corner cases.
@@ -65,7 +78,7 @@ object CsvParser {
     var relation: String = null
     var timepoint = 0L
     var timestamp = 0L
-    val tuple = new ArrayBuffer[Any](8)
+    val tuple = new ArrayBuffer[Domain](8)
 
     var startIndex = -1
     var currentIndex = 0
@@ -111,5 +124,5 @@ object CsvParser {
 }
 
 object CsvFormat extends TraceFormat {
-  override def createParser(): LineBasedEventParser = new CsvParser()
+  override def createParser(): CsvParser = new CsvParser()
 }

@@ -7,7 +7,7 @@ import java.lang.ProcessBuilder.Redirect
 import ch.eth.inf.infsec.StreamMonitoring.floorLog2
 import ch.eth.inf.infsec.policy.Policy
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
-import ch.eth.inf.infsec.trace.{Event, MonpolyParser}
+import ch.eth.inf.infsec.trace.{MonpolyFormat, Record}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
 import scala.collection.JavaConversions
@@ -73,10 +73,10 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
     flinkSliceInputs.synchronized{println("VERDICTS: " + flinkSliceInputs.toString)}
 
     //Parsing the log
-    implicit val type1 = TypeInfo[Event]()
-    implicit val type2 = TypeInfo[Option[Event]]()
-    implicit val type3 = TypeInfo[(Int,Event)]()
-    val parsedStream = SeqStream(log.split("\n").toSeq).map(MonpolyParser.parseLine).filter(_.isDefined).map(_.get)
+    implicit val type1 = TypeInfo[Record]()
+    implicit val type2 = TypeInfo[Option[Record]]()
+    implicit val type3 = TypeInfo[(Int,Record)]()
+    val parsedLog = MonpolyFormat.createParser().processAll(log.split("\n"))
 
     //Slicing the log
     val parsedFormula = Policy.read(Source.fromFile(formula).mkString) match {
@@ -87,10 +87,10 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
     }
     val slicer = HypercubeSlicer.optimize(parsedFormula, floorLog2(processors).max(0), Statistics.constant)
 
-    val splitStream = parsedStream.flatMap(slicer(_))
-    println("VERDICTS: " + splitStream.mkString(", "))
+    val splitLog = slicer.processAll(parsedLog)
+    println("VERDICTS: " + splitLog.mkString(", "))
 
-    //TODO: verify the splitting flinkSliceInputs vs splitStream
+    //TODO: verify the splitting flinkSliceInputs vs splitLog
 
   }
 

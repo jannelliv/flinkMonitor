@@ -1,22 +1,23 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
+import ch.eth.inf.infsec.trace.Domain
 
 import scala.collection.mutable.ArrayBuffer
 import scala.util.{Random, hashing}
 
 class HypercubeSlicer(
                        val formula: Formula,
-                       val heavy: IndexedSeq[(Int, Set[Any])],
+                       val heavy: IndexedSeq[(Int, Set[Domain])],
                        val shares: IndexedSeq[IndexedSeq[Int]],
-                       val seed: Long = 1234) extends DataSlicer {
+                       val seed: Long = 1234) extends DataSlicer with Serializable {
 
   // The number of variables with heavy hitters is limited to 30 because of the internal encoding
   // of variable sets as bit masks. A higher limit is probably unreasonable.
   require(heavy.count(x => x._1 >= 0) <= 30)
   require(heavy.forall{case (k, _) => k < 30})
   require(shares.length == (1 << heavy.count(x => x._1 >= 0)))
-  require(shares.zipWithIndex.forall{case (s, h) => s.length == formula.freeVariables.size})
+  require(shares.zipWithIndex.forall{case (s, _) => s.length == formula.freeVariables.size})
 
   val dimensions: Int = formula.freeVariables.size
 
@@ -41,10 +42,10 @@ class HypercubeSlicer(
   }
 
   // TODO(JS): Use a proper hash function.
-  private def hash(value: Any, seed: Int): Int = hashing.byteswap32(value.## ^ seed)
+  private def hash(value: Domain, seed: Int): Int = hashing.byteswap32(value.## ^ seed)
 
   // TODO(JS): Profile and optimize
-  override def slicesOfValuation(valuation: Array[Option[Any]]): Iterable[Int] = {
+  override def slicesOfValuation(valuation: Array[Option[Domain]]): Iterable[Int] = {
     var heavySet = 0
     for ((value, i) <- valuation.zipWithIndex if heavy(i)._1 >= 0) {
       val heavyMap = heavy(i)
@@ -80,7 +81,7 @@ object HypercubeSlicer {
   private def isRigidRelation(relation: String): Boolean = relation.startsWith("__")
 
   def fromSimpleShares(formula: Formula, shares: Map[VariableID, Int]): HypercubeSlicer = {
-    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])}
+    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])}
     val sharesById: Map[Int, Int] = shares.map { case (v, e) => (v.freeID, e) }.withDefaultValue(1)
     val simpleShares = Array.tabulate(formula.freeVariables.size)(sharesById(_))
     new HypercubeSlicer(formula, heavy, Array[IndexedSeq[Int]](simpleShares))
@@ -126,7 +127,7 @@ object HypercubeSlicer {
   }
 
   def optimize(formula: Formula, degreeExp: Int, statistics: Statistics): HypercubeSlicer = {
-    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])}
+    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])}
     var heavyIndex = 0
     for (atom <- formula.atoms) {
       for ((Var(v), i) <- atom.args.zipWithIndex if v.isFree) {

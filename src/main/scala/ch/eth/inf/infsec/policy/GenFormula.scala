@@ -1,5 +1,7 @@
 package ch.eth.inf.infsec.policy
 
+import ch.eth.inf.infsec.trace.Domain
+
 // This is explicitly not a case class, such that each instance represent a fresh variable name.
 class VariableID(val nameHint: String, val freeID: Int = -1) extends Serializable {
   def isFree: Boolean = freeID >= 0
@@ -38,16 +40,10 @@ sealed trait Term[V] extends Serializable {
   def map[W](mapper: VariableMapper[V, W]): Term[W]
 }
 
-case class ConstInteger[V](value: Long) extends Term[V] {
+case class Const[V](value: Domain) extends Term[V] {
   override val freeVariables: Set[V] = Set.empty
-  override def map[W](mapper: VariableMapper[V, W]): ConstInteger[W] = ConstInteger(value)
+  override def map[W](mapper: VariableMapper[V, W]): Const[W] = Const(value)
   override def toString: String = value.toString
-}
-
-case class ConstString[V](value: String) extends Term[V] {
-  override val freeVariables: Set[V] = Set.empty
-  override def map[W](mapper: VariableMapper[V, W]): ConstString[W] = ConstString(value)
-  override def toString: String = "\"" + value + "\""
 }
 
 case class Var[V](variable: V) extends Term[V] {

@@ -1,31 +1,29 @@
 package ch.eth.inf.infsec.benchmark
 
-import ch.eth.inf.infsec.trace.{CsvFormat, Event, LineBasedEventParser}
+import ch.eth.inf.infsec.trace.{CsvFormat, Record}
+import ch.eth.inf.infsec.{Processor, StatelessProcessor}
 
 import scala.io.Source
 
-class ParsingBenchmark(input: Iterator[String], parser: LineBasedEventParser) {
-  def step(): (List[Event], Long) = {
+class ParsingBenchmark(input: Iterator[String], parser: Processor[String, Record]) {
+  def step(): (List[Record], Long) = {
     if (input.hasNext) {
       val line = input.next()
-      parser.processLine(line)
-      var events: List[Event] = Nil
-      for (event <- parser.bufferedEvents)
-        events ::= event
-      parser.clearBuffer()
-      (events, line.length)  // NOTE(JS): Ideally we would like return the number of bytes, but this is close enough
+      var records: List[Record] = Nil
+      parser.process(line, records ::= _)
+      (records, line.length)  // NOTE(JS): Ideally we would like return the number of bytes, but this is close enough
     } else (null, 0)
   }
 }
 
-class NullParser extends LineBasedEventParser {
-  override def processLine(line: String): Unit = buffer += Event(line.length, Map.empty)
+class NullParser extends StatelessProcessor[String, Record] {
+  override def process(in: String, f: Record => Unit): Unit = f(Record.markEnd(in.length))
 
-  override def processEnd(): Unit = ()
+  override def terminate(f: Record => Unit) { }
 }
 
 object ParsingBenchmark {
-  def main(args: Array[String]): Unit = {
+  def main(args: Array[String]) {
     val batchSize = 100
     val reportInterval = 1000
     val warmupTime = 3000

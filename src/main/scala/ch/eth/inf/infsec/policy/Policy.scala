@@ -1,5 +1,6 @@
 package ch.eth.inf.infsec.policy
 
+import ch.eth.inf.infsec.trace.{IntegralValue, StringValue}
 import fastparse.WhitespaceApi
 import fastparse.noApi._
 
@@ -68,8 +69,8 @@ private object PolicyParsers {
   // BUG(JS): Does not follow the longest match used by ocamllex. Identifiers such as "5_"
   // are not parsed correctly.
   val Term: P[Term[String]] = P(
-    Token.Integer.map(ConstInteger[String]) /*| Token.Rational.map(Const)*/ |
-    Token.QuotedString.map(ConstString[String]) | Token.Identifier.map(Var(_))
+    Token.Integer.map(Const[String](_)) /*| Token.Rational.map(Const)*/ |
+    Token.QuotedString.map(Const[String](_)) | Token.Identifier.map(Var(_))
   )
 
   val TimeInterval: P[Interval] = P( (("(" | "[").! ~/ Token.Quantity ~/ "," ~/

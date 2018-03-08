@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
+import ch.eth.inf.infsec.trace.Domain
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, Matchers}
 
@@ -9,17 +10,17 @@ import scala.util.Random
 
 class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
   def mkSimpleSlicer(formula: Formula, shares: IndexedSeq[Int], seed: Long = 1234): HypercubeSlicer =
-    new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
+    new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])},
       IndexedSeq(shares), seed)
 
   test("The number of dimensions should equal the number of free variables") {
-    mkSimpleSlicer(GenFormula.resolve(Pred("p", ConstInteger(0))), Array[Int]()).dimensions shouldBe 0
+    mkSimpleSlicer(GenFormula.resolve(Pred("p", Const(0))), Array[Int]()).dimensions shouldBe 0
     mkSimpleSlicer(GenFormula.resolve(Pred("p", Var("x"))), Array(3)).dimensions shouldBe 1
     mkSimpleSlicer(GenFormula.resolve(Pred("p", Var("x"), Var("y"))), Array(5, 7)).dimensions shouldBe 2
   }
 
   test("The slicing degree should equal the product of the shares") {
-    mkSimpleSlicer(GenFormula.resolve(Pred("p", ConstInteger(0))), Array[Int]()).degree shouldBe 1
+    mkSimpleSlicer(GenFormula.resolve(Pred("p", Const(0))), Array[Int]()).degree shouldBe 1
     mkSimpleSlicer(GenFormula.resolve(Pred("p", Var("x"))), Array(3)).degree shouldBe 3
     mkSimpleSlicer(GenFormula.resolve(Pred("p", Var("x"), Var("y"))), Array(5, 7)).degree shouldBe 35
   }
@@ -32,7 +33,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
         slicer1.slicesOfValuation(Array(Some(x), Some(y)))
     }
 
-    val slicer2 = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Any]), (-1, Set.empty: Set[Any])),
+    val slicer2 = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Domain]), (-1, Set.empty: Set[Domain])),
       Array(IndexedSeq(256, 1), IndexedSeq(128, 1)), 314159)
     forAll { (x: Int, y: Int) =>
       slicer2.slicesOfValuation(Array(Some(x), None)) should contain theSameElementsAs
@@ -49,7 +50,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
       slices should contain (slicer1.slicesOfValuation(Array(Some(x), Some(y))).head)
     }
 
-    val slicer2 = new HypercubeSlicer(formula, Array((-1, Set.empty: Set[Any]), (0, Set(-1, 0, 2): Set[Any])),
+    val slicer2 = new HypercubeSlicer(formula, Array((-1, Set.empty: Set[Domain]), (0, Set(-1, 0, 2): Set[Domain])),
       Array(IndexedSeq(8, 256), IndexedSeq(64, 1)), 314159)
     forAll { (x: Int, y: Int) =>
       val slices = slicer2.slicesOfValuation(Array(None, Some(y)))
@@ -62,7 +63,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     def check(slicer: DataSlicer, maxZ: Int = Int.MaxValue): Unit = {
       val random = new Random(314159 + 1)
       var seenSlices = new mutable.HashSet[Int]()
-      for (i <- 1 to 1000) {
+      for (_ <- 1 to 1000) {
         val slices = slicer.slicesOfValuation(
           Array(Some(random.nextInt()), Some(random.nextInt()), Some(random.nextInt(maxZ))))
         seenSlices ++= slices
@@ -72,15 +73,16 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     }
 
     val formula = GenFormula.resolve(Pred("p", Var("x"), Var("y"), Var("z")))
+    val heavyZ = Set[Domain](0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
     check(mkSimpleSlicer(formula, Array(2, 1, 4), 314159))
     check(new HypercubeSlicer(formula,
-      Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, (0 until 10).toSet: Set[Any])),
+      Array((-1, Set.empty: Set[Domain]), (-1, Set.empty: Set[Domain]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159))
     check(new HypercubeSlicer(formula,
-      Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, (0 until 10).toSet: Set[Any])),
+      Array((-1, Set.empty: Set[Domain]), (-1, Set.empty: Set[Domain]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159), 1)
     check(new HypercubeSlicer(formula,
-      Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, (0 until 10).toSet: Set[Any])),
+      Array((-1, Set.empty: Set[Domain]), (-1, Set.empty: Set[Domain]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159), 10)
   }
 
@@ -131,7 +133,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     val slicer1 = HypercubeSlicer.optimize(formula, 10, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
-      override def heavyHitters(relation: String, attribute: Int): Set[Any] = (relation, attribute) match {
+      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
         case ("p", 0) => Set(0)
         case _ => Set.empty
       }
@@ -143,7 +145,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     val slicer2 = HypercubeSlicer.optimize(formula, 10, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
-      override def heavyHitters(relation: String, attribute: Int): Set[Any] = (relation, attribute) match {
+      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
         case ("p", 0) => Set(0)
         case ("p", 1) => Set(1, 2, 3)
         case _ => Set.empty

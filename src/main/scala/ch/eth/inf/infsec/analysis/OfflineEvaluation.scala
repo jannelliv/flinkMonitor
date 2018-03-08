@@ -3,7 +3,7 @@ package ch.eth.inf.infsec.analysis
 import ch.eth.inf.infsec.policy.{Formula, GenFormula, Policy}
 import ch.eth.inf.infsec.slicer.{DataSlicer, HypercubeSlicer}
 import ch.eth.inf.infsec.trace._
-import ch.eth.inf.infsec.{StreamMonitoring, policy, slicer}
+import ch.eth.inf.infsec.{ProcessorFunction, StreamMonitoring, policy, slicer}
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala._
@@ -75,15 +75,15 @@ object OfflineEvaluation {
     }
 
     val heavyName = Option(parameters.get("heavy"))
-    val heavyHittersMap = new mutable.HashMap[(String, Int), mutable.HashSet[Any]]()
-      .withDefaultValue(new mutable.HashSet[Any]())
+    val heavyHittersMap = new mutable.HashMap[(String, Int), mutable.HashSet[Domain]]()
+      .withDefaultValue(new mutable.HashSet[Domain]())
     for (theHeavyName <- heavyName) {
       logger.info("Reading heavy hitters from file {}", theHeavyName)
       val heavySource = Source.fromFile(theHeavyName)
       try {
         for (line <- heavySource.getLines()) {
           val fields = line.split(",", 3)
-          val these = heavyHittersMap.getOrElseUpdate((fields(0), fields(1).toInt), new mutable.HashSet[Any]())
+          val these = heavyHittersMap.getOrElseUpdate((fields(0), fields(1).toInt), new mutable.HashSet[Domain]())
           these += fields(2)
         }
       } finally {
@@ -97,7 +97,7 @@ object OfflineEvaluation {
 
     // TODO(JS): This skips the last event, because we have to flush the parser once the end of the file is reached.
     val eventStream = env.readTextFile(logFileName)
-      .flatMap(new ParseTraceFunction(format))
+      .flatMap(new ProcessorFunction(format.createParser()))
       .assignAscendingTimestamps(_.timestamp * 1000)
 
     val resultStream = if (ratesSpec.nonEmpty) {
@@ -106,17 +106,17 @@ object OfflineEvaluation {
         monitoringFormula.get, StreamMonitoring.floorLog2(degree), new slicer.Statistics {
           override def relationSize(relation: String): Double = rates(relation)
 
-          override def heavyHitters(relation: String, attribute: Int): Set[Any] =
+          override def heavyHitters(relation: String, attribute: Int): Set[Domain] =
             heavyHittersMap((relation, attribute)).toSet
         })
       logger.info("Slicing with optimized shares")
       logger.info("Number of configurations: {}", dataSlicer.shares.length)
       logger.info("Shares assuming no heavy hitters: {}", dataSlicer.shares(0).mkString(", "))
 
-      val slicedStream = eventStream.flatMap(dataSlicer(_))
+      val slicedStream = eventStream.flatMap(new ProcessorFunction(dataSlicer))
       TraceStatistics.analyzeSlices(slicedStream, windowSize, 1)
-        .mapWith { case (startTime, (slice, relation), stats) =>
-          s"${startTime / 1000},$slice,$relation,${stats.events},${stats.tuples}"
+        .mapWith { case (startTime, (slice, relation), count) =>
+          s"${startTime / 1000},$slice,$relation,$count"
         }
     } else if (sharesSpec.nonEmpty) {
       val resolvedShares = shares.map { case (k, e) =>
@@ -125,33 +125,33 @@ object OfflineEvaluation {
       logger.info("Slicing with fixed shares: {}", resolvedShares.mkString(", "))
       val dataSlicer = HypercubeSlicer.fromSimpleShares(monitoringFormula.get, resolvedShares)
 
-      val slicedStream = eventStream.flatMap(dataSlicer(_))
+      val slicedStream = eventStream.flatMap(new ProcessorFunction(dataSlicer))
       TraceStatistics.analyzeSlices(slicedStream, windowSize, 1)
-        .mapWith { case (startTime, (slice, relation), stats) =>
-          s"${startTime / 1000},$slice,$relation,${stats.events},${stats.tuples}"
+        .mapWith { case (startTime, (slice, relation), count) =>
+          s"${startTime / 1000},$slice,$relation,$count"
         }
     } else if (monitoringFormula.nonEmpty) {
       logger.info("Collecting trace statistics with filtering")
-      val dataSlicer = new DataSlicer {
-        override def slicesOfValuation(valuation: Array[Option[Any]]): TraversableOnce[Int] = Some(0)
+      val dataSlicer = new DataSlicer with Serializable {
+        override def slicesOfValuation(valuation: Array[Option[Domain]]): TraversableOnce[Int] = Some(0)
 
         override val remapper: PartialFunction[Int, Int] = PartialFunction(identity)
         override val degree: Int = 1
         override val formula: Formula = monitoringFormula.get
       }
 
-      val filteredStream = eventStream.flatMap(dataSlicer(_)).map(_._2)
+      val filteredStream = eventStream.flatMap(new ProcessorFunction(dataSlicer)).map(_._2)
       TraceStatistics.analyzeRelations(filteredStream, windowSize, 1, degree)
         .mapWith { case (startTime, relation, stats) =>
           val heavyHitters = stats.heavyHitters(degree).map(_.mkString(",")).mkString(";")
-          s"${startTime / 1000},$relation,${stats.rates.events},${stats.rates.tuples};$heavyHitters"
+          s"${startTime / 1000},$relation,${stats.records};$heavyHitters"
         }
     } else {
       logger.info("Collecting trace statistics without filtering")
       TraceStatistics.analyzeRelations(eventStream, windowSize, 1, degree)
         .mapWith { case (startTime, relation, stats) =>
           val heavyHitters = stats.heavyHitters(degree).map(_.mkString(",")).mkString(";")
-          s"${startTime / 1000},$relation,${stats.rates.events},${stats.rates.tuples};$heavyHitters"
+          s"${startTime / 1000},$relation,${stats.records};$heavyHitters"
         }
     }
 

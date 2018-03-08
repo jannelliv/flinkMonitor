@@ -1,10 +1,11 @@
 package ch.eth.inf.infsec
 package slicer
 
-import ch.eth.inf.infsec.trace.Event
+import ch.eth.inf.infsec.trace.Record
 import ch.eth.inf.infsec.policy.Formula
 
-trait Slicer {
+// TODO(JS): Remove?
+trait Slicer extends Processor[Record, (Int, Record)] {
   val formula: Formula
   val degree: Int
 
@@ -12,6 +13,4 @@ trait Slicer {
   //def apply(source: Stream[Event])(implicit in:TypeInfo[Event], out:TypeInfo[(Int, Event)]): source.Self[(Int, Event)]
 
   //def apply(source: Stream[Event]): source.Self[(Int, Event)]
-  def apply(event: Event): TraversableOnce[(Int, Event)]
-
 }

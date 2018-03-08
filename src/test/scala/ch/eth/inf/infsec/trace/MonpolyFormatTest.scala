@@ -1,33 +1,58 @@
-package ch.eth.inf.infsec
-package trace
+package ch.eth.inf.infsec.trace
 
-import org.scalatest.{FunSuite,Matchers}
-import org.scalatest.OptionValues._
+import org.scalatest.{FunSuite, Matchers}
 
 class MonpolyFormatTest extends FunSuite with Matchers {
-  import MonpolyParser.parseLine
-  import MonpolyFormat.printEvent
+  import MonpolyFormat.createParser
 
-  test("Parsing") {
+  test("Parsing an invalid line") {
     val invalid = "this is not an event"
-    val event = "@1307532861 approve (2,4)(5,6)(2,6) publish (4)(5)"
+    createParser().processAll(List(invalid)) shouldBe empty
+  }
 
-    parseLine(invalid) shouldBe None
-    parseLine(event).value.timestamp shouldBe 1307532861
-    parseLine(event).value.structure.size shouldBe 2
-    parseLine(event).value.structure("approve").size shouldBe 3
-    parseLine(event).value.structure("publish").size shouldBe 2
+  test("Parsing a single event") {
+    val event = "@1307532861 approve (2,4)(5,6)(2,6) publish (4)(5)"
+    val timestamp = 1307532861L
+
+    createParser().processAll(List(event)) should contain theSameElementsAs List(
+      Record(timestamp, "approve", Tuple(2, 4)),
+      Record(timestamp, "approve", Tuple(5, 6)),
+      Record(timestamp, "approve", Tuple(2, 6)),
+      Record(timestamp, "publish", Tuple(4)),
+      Record(timestamp, "publish", Tuple(5)),
+      Record.markEnd(timestamp)
+    )
+  }
+
+  test("Parsing multiple events") {
+    val events = List("@123 P(4)", "invalid!", "@456 Q(7)")
+    createParser().processAll(events) should contain theSameElementsAs List(
+      Record(123, "P", Tuple(4)),
+      Record.markEnd(123),
+      Record(456, "Q", Tuple(7)),
+      Record.markEnd(456)
+    )
   }
 
   test("Print/parse round-trip") {
-    val empty1 = Event(1, Map())
-    parseLine(printEvent(empty1)).value shouldEqual empty1
+    def roundTrip(records: Seq[Record]): Seq[Record] =
+      createParser().processAll((new MonpolyPrinter).processAll(records))
 
-    val empty2 = Event(22, Map("p" -> Set[Tuple](Vector()), "q" -> Set[Tuple](Vector())))
-    parseLine(printEvent(empty2)).value shouldEqual empty2
+    val empty1 = List(Record.markEnd(1))
+    roundTrip(empty1) should contain theSameElementsAs empty1
 
-    val single = Event(333, Map("p" -> Set[Tuple](Vector(42))))
-    parseLine(printEvent(single)).value shouldEqual single
+    val empty2 = List(
+      Record(22, "p", Tuple()),
+      Record(22, "q", Tuple()),
+      Record.markEnd(22)
+    )
+    roundTrip(empty2) should contain theSameElementsAs empty2
+
+    val single = List(
+      Record(333, "p", Tuple(42)),
+      Record.markEnd(333)
+    )
+    roundTrip(single) should contain theSameElementsAs single
 
     //val many = Event(444, Map(
     //  "Foo" -> Set[Tuple](Vector(-101, "AbC", 1234), Vector(-102, "dEf", 4321)),

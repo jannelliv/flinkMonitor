@@ -5,7 +5,7 @@ import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.LinkedBlockingQueue
 
 import ch.eth.inf.infsec.policy.{Formula, Policy}
-import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Slicer, Statistics}
+import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.utils.ParameterTool
@@ -100,7 +100,7 @@ object StreamMonitoring {
     }
   }
 
-  def mkSlicer(): Slicer = {
+  def mkSlicer(): HypercubeSlicer = {
     // TODO(JS): Get statistics from somewhere
     logger.info("Optimizing slicer ...")
     val slicer = HypercubeSlicer.optimize(formula, processorExp, Statistics.constant)
@@ -116,6 +116,12 @@ object StreamMonitoring {
     val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate")
 
     val env:StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+
+    // Performance tuning
+    env.getConfig.enableObjectReuse()
+    env.registerType(classOf[StringValue])
+    env.registerType(classOf[IntegralValue])
+
     env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
     env.setParallelism(1)
 
@@ -125,8 +131,11 @@ object StreamMonitoring {
       case Some(Right(f)) =>  env.readTextFile(f)
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
-    val parsedTrace = textStream.flatMap(new ParseTraceFunction(inputFormat))
-    val slicedTrace = parsedTrace.flatMap(slicer(_)).partitionCustom(new IdPartitioner(),0).setParallelism(processors).keyBy(e=>e._1)
+    val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))
+    val slicedTrace = parsedTrace.flatMap(new ProcessorFunction(slicer))
+      .partitionCustom(new IdPartitioner(),0)
+      .setParallelism(processors)
+      .keyBy(e=>e._1)
 
     //Parallel nodes
     val verdicts = slicedTrace.process[String](new MonitorFunction(monitorArgs)).setParallelism(processors).map(_+"\n")
@@ -144,9 +153,9 @@ object StreamMonitoring {
 }
 
 // FIXME(JS): This doesn't work, because all Flink operators must have serializable state.
-class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Event), String] {
+class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Record), String] {
 
-  private val inputQueue = new LinkedBlockingQueue[Option[Event]]()
+  private val inputQueue = new LinkedBlockingQueue[Option[Record]]()
   private val outputQueue = new LinkedBlockingQueue[String]()
 
   private var process: Process = _
@@ -179,16 +188,17 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
     inputWorker = new Thread {
 
       val logger = Logger.getLogger(this.getClass)
+      val printer = new MonpolyPrinter()
 
       override def run(): Unit = {
         try {
           var running = true
           while (running) {
             inputQueue.take() match {
-              case Some(event: Event) =>
-                input.write(MonpolyFormat.printEvent(event))
+              case Some(record: Record) =>
+                printer.process(record, input.write(_))
                 input.flush()
-                logger.debug(s"Monitor ${this.hashCode()} - IN: ${event.toString}")
+                logger.debug(s"Monitor ${this.hashCode()} - IN: ${record.toString}")
               case None => running = false
             }
           }
@@ -233,8 +243,8 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
   }
 
 
-    override def processElement(in: (Int, Event),
-      context: ProcessFunction[(Int, Event), String]#Context,
+    override def processElement(in: (Int, Record),
+      context: ProcessFunction[(Int, Record), String]#Context,
       collector: Collector[String]): Unit =
   {
 
@@ -256,7 +266,7 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Ev
 
   }
 
-  override def onTimer(timestamp: Long, ctx: ProcessFunction[(Int, Event), String]#OnTimerContext, collector: Collector[String]): Unit = {
+  override def onTimer(timestamp: Long, ctx: ProcessFunction[(Int, Record), String]#OnTimerContext, collector: Collector[String]): Unit = {
     var moreVerdicts = true
     do {
       val verdict = outputQueue.poll()

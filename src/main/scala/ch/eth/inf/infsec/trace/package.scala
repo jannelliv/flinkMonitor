@@ -1,50 +1,45 @@
 package ch.eth.inf.infsec
 
-import org.apache.flink.api.common.functions.FlatMapFunction
-import org.apache.flink.util.Collector
-
-import scala.collection.mutable.ArrayBuffer
+import scala.language.implicitConversions
 
 package object trace {
-  // TODO(JS): Type of data domain?
-  // TODO(JS): Consider using a more specialized container type, e.g. Array.
-  type Tuple = IndexedSeq[Any]
 
-  case class Event(timestamp: Long, structure: collection.Map[String, Iterable[Tuple]]) {
-    override def toString: String = MonpolyFormat.printEvent(this)
+  trait Domain extends Serializable
+
+  case class StringValue(value: String) extends Domain {
+    override def toString: String = "\"" + value + "\""
   }
 
-  abstract class LineBasedEventParser extends Serializable {
-    protected var buffer = new ArrayBuffer[Event]()
+  case class IntegralValue(value: Long) extends Domain {
+    override def toString: String = value.toString
+  }
 
-    def processLine(line: String)
-    def processEnd()
+  implicit def stringToDomain(value: String): StringValue = StringValue(value)
 
-    def bufferedEvents: Seq[Event] = buffer
-    def clearBuffer(): Unit = buffer.clear()
+  implicit def longToDomain(value: Long): IntegralValue = IntegralValue(value)
 
-    def parseLines(lines: TraversableOnce[String]): Seq[Event] = {
-      lines.foreach(processLine)
-      processEnd()
-      val buffered = buffer
-      buffer = new ArrayBuffer[Event]()
-      buffered
-    }
+  implicit def intToDomain(value: Int): IntegralValue = IntegralValue(value)
+
+  type Tuple = IndexedSeq[Domain]
+  val emptyTuple: Tuple = Vector.empty
+
+  def Tuple(xs: Domain*) = Vector(xs: _*)
+
+  type Timestamp = Long
+
+  case class Record(timestamp: Timestamp, label: String, data: Tuple) extends Serializable {
+    def isEndMarker: Boolean = label.isEmpty
+
+    override def toString: String =
+      if (isEndMarker) s"@$timestamp <end>" else s"@$timestamp $label(${data.mkString(", ")})"
+  }
+
+  object Record {
+    def markEnd(timestamp: Timestamp): Record = Record(timestamp, "", emptyTuple)
   }
 
   trait TraceFormat {
-    def createParser(): LineBasedEventParser
+    def createParser(): Processor[String, Record] with Serializable
   }
 
-  // TODO(JS): Call parser.processEnd() if the stream has ended
-  class ParseTraceFunction(format: TraceFormat) extends FlatMapFunction[String, Event] with Serializable {
-    private val parser = format.createParser()
-
-    override def flatMap(line: String, collector: Collector[Event]): Unit = {
-      parser.processLine(line)
-      for (event <- parser.bufferedEvents)
-        collector.collect(event)
-      parser.clearBuffer()
-    }
-  }
 }

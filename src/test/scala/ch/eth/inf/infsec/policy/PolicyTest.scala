@@ -8,8 +8,8 @@ class PolicyTest extends FunSuite with Matchers {
   val Px = Pred("P", Var("x"))
   val Py = Pred("P", Var("y"))
   val Qxy = Pred("Q", Var("x"), Var("y"))
-  val Qii: GenFormula[String] = Pred("Q", ConstInteger(7), ConstInteger(-42))
-  val Qsx = Pred("Q", ConstString("foo"), Var("x"))
+  val Qii: GenFormula[String] = Pred("Q", Const(7), Const(-42))
+  val Qsx = Pred("Q", Const("foo"), Var("x"))
 
   test("Atomic formulas should be parsed correctly") {
     Policy.parse("TRUE").right.value shouldBe True()

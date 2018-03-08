@@ -2,7 +2,7 @@ package ch.eth.inf.infsec
 package slicer
 
 import ch.eth.inf.infsec.policy._
-import ch.eth.inf.infsec.trace.{Event, Tuple}
+import ch.eth.inf.infsec.trace.{Domain, IntegralValue, Record, Tuple}
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.collection.TraversableOnce
@@ -20,52 +20,66 @@ class DataSlicerTest extends FunSuite with Matchers {
       override def apply(x: Int): Int = if(x<degree) x else throw new MatchError(x)
     }
 
-    override def slicesOfValuation(valuation: Array[Option[Any]]): TraversableOnce[Int] =
+    override def slicesOfValuation(valuation: Array[Option[Domain]]): TraversableOnce[Int] =
       if (valuation(0).isDefined)
-        Array(0, valuation(0).get.asInstanceOf[Int])
+        Array(0, valuation(0).get.asInstanceOf[IntegralValue].value.toInt)
       else
-        Array(1, valuation(1).get.asInstanceOf[Int])
+        Array(1, valuation(1).get.asInstanceOf[IntegralValue].value.toInt)
   }
 
   test("apply") {
-    val events = new SeqStream[Event](Array(
-      Event(101, Map(
-        "A" -> Array[Tuple](Array(1, 2)),
-        "B" -> Array[Tuple](Array(3, 4)))),
-      Event(102, Map("B" -> Array[Tuple]())),
-      Event(103, Map(
-        "A" -> Array[Tuple](Array(1, 2), Array(2, 3)),
-        "B" -> Array[Tuple](Array(2, 1), Array(2, 3)))),
-      Event(104, Map())
-    ))
+    val records = List(
+      Record(101, "A", Tuple(1, 2)),
+      Record(101, "B", Tuple(3, 4)),
+      Record.markEnd(101),
+      Record.markEnd(102),
+      Record(103, "A", Tuple(1, 2)),
+      Record(103, "B", Tuple(2, 1)),
+      Record(103, "A", Tuple(2, 3)),
+      Record(103, "B", Tuple(2, 3)),
+      Record.markEnd(103),
+      Record.markEnd(104)
+    )
+
     val slicer = new TestDataSlicer()
-    implicit val type1 = TypeInfo[Event]()
-    implicit val type2 = TypeInfo[(Int,Event)]()
+    implicit val type1 = TypeInfo[Record]()
+    implicit val type2 = TypeInfo[(Int, Record)]()
 
     //val slices = slicer(events).seq
-    val slices = events.flatMap(slicer(_)).seq
-    slices should contain inOrderOnly (
-      (0, Event(101, Map("A" -> Array[Tuple](Array(1, 2)), "B" -> Array[Tuple]()))),
-      (1, Event(101, Map("A" -> Array[Tuple](), "B" -> Array[Tuple](Array(3, 4))))),
-      (2, Event(101, Map("A" -> Array[Tuple](Array(1, 2)), "B" -> Array[Tuple]()))),
-      (3, Event(101, Map("A" -> Array[Tuple](), "B" -> Array[Tuple](Array(3, 4))))),
+    val slices = slicer.processAll(records)
+    slices should contain theSameElementsInOrderAs List(
+      (0, Record(101, "A", Tuple(1, 2))),
+      (2, Record(101, "A", Tuple(1, 2))),
+      (1, Record(101, "B", Tuple(3, 4))),
+      (3, Record(101, "B", Tuple(3, 4))),
+      (0, Record.markEnd(101)),
+      (1, Record.markEnd(101)),
+      (2, Record.markEnd(101)),
+      (3, Record.markEnd(101)),
 
-      (0, Event(102, Map("B" -> Array[Tuple]()))),
-      (1, Event(102, Map("B" -> Array[Tuple]()))),
-      (2, Event(102, Map("B" -> Array[Tuple]()))),
-      (3, Event(102, Map("B" -> Array[Tuple]()))),
+      (0, Record.markEnd(102)),
+      (1, Record.markEnd(102)),
+      (2, Record.markEnd(102)),
+      (3, Record.markEnd(102)),
 
-      (0, Event(103, Map("A" -> Array[Tuple](Array(1, 2), Array(2, 3)), "B" -> Array[Tuple]()))),
-      (1, Event(103, Map("A" -> Array[Tuple](), "B" -> Array[Tuple](Array(2, 1), Array(2, 3))))),
-      (2, Event(103, Map("A" -> Array[Tuple](Array(1, 2)), "B" -> Array[Tuple](Array(2, 1), Array(2, 3))))),
-      (3, Event(103, Map("A" -> Array[Tuple](Array(2, 3)), "B" -> Array[Tuple]()))),
+      (0, Record(103, "A", Tuple(1, 2))),
+      (2, Record(103, "A", Tuple(1, 2))),
+      (1, Record(103, "B", Tuple(2, 1))),
+      (2, Record(103, "B", Tuple(2, 1))),
+      (0, Record(103, "A", Tuple(2, 3))),
+      (3, Record(103, "A", Tuple(2, 3))),
+      (1, Record(103, "B", Tuple(2, 3))),
+      (2, Record(103, "B", Tuple(2, 3))),
+      (0, Record.markEnd(103)),
+      (1, Record.markEnd(103)),
+      (2, Record.markEnd(103)),
+      (3, Record.markEnd(103)),
 
-      (0, Event(104, Map())),
-      (1, Event(104, Map())),
-      (2, Event(104, Map())),
-      (3, Event(104, Map()))
+      (0, Record.markEnd(104)),
+      (1, Record.markEnd(104)),
+      (2, Record.markEnd(104)),
+      (3, Record.markEnd(104))
     )
-    // TODO(JS): Check order w.r.t. input events
   }
 
 }

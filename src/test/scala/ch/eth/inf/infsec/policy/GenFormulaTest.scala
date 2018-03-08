@@ -31,14 +31,14 @@ class GenFormulaTest extends FunSuite with Matchers {
   }
 
   test("Set of free variables") {
-    ConstInteger(42).freeVariables shouldBe empty
-    ConstString("foo").freeVariables shouldBe empty
+    Const(42).freeVariables shouldBe empty
+    Const("foo").freeVariables shouldBe empty
     Var("x").freeVariables should contain only "x"
 
     True().freeVariables shouldBe empty
     False().freeVariables shouldBe empty
     Pred("p").freeVariables shouldBe empty
-    Pred("p", Var("x"), Var("x"), ConstInteger(2), Var("y")).freeVariables should contain only ("x", "y")
+    Pred("p", Var("x"), Var("x"), Const(2), Var("y")).freeVariables should contain only ("x", "y")
 
     val x = Var("x")
     val y = Var("y")
