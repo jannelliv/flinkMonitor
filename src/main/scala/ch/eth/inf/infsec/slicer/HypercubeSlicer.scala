@@ -3,7 +3,7 @@ package ch.eth.inf.infsec.slicer
 import ch.eth.inf.infsec.policy._
 import ch.eth.inf.infsec.trace.Domain
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable
 import scala.util.{Random, hashing}
 
 class HypercubeSlicer(
@@ -44,35 +44,43 @@ class HypercubeSlicer(
   // TODO(JS): Use a proper hash function.
   private def hash(value: Domain, seed: Int): Int = hashing.byteswap32(value.## ^ seed)
 
-  // TODO(JS): Profile and optimize
-  override def slicesOfValuation(valuation: Array[Option[Domain]]): Iterable[Int] = {
+  override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]) {
+    // Compute which variables hold heavy hitters. This determines the shares to use.
     var heavySet = 0
-    for ((value, i) <- valuation.zipWithIndex if heavy(i)._1 >= 0) {
+    var i = 0
+    while (i < valuation.length) {
       val heavyMap = heavy(i)
-      if (value.isDefined && (heavyMap._2 contains value.get))
-        heavySet += (1 << heavyMap._1)
+      if (heavyMap._1 >= 0) {
+        val value = valuation(i)
+        if (value != null && (heavyMap._2 contains value))
+          heavySet += (1 << heavyMap._1)
+      }
+      i += 1
     }
+
     val theSeeds = seeds(heavySet)
     val theStrides = strides(heavySet)
     val theShares = shares(heavySet)
 
-    var unconstrained: List[Int] = Nil
+    // Select the coordinates for variables whose value is determined by the tuple.
     var sliceIndex = 0
-    for ((value, i) <- valuation.zipWithIndex) {
-      if (value.isEmpty)
-        unconstrained ::= i
+    i = 0
+    while (i < valuation.length) {
+      val value = valuation(i)
+      if (value != null)
+        sliceIndex += theStrides(i) * Math.floorMod(hash(value, theSeeds(i)), theShares(i))
+      i += 1
+    }
+
+    // All other other variables are broadcast in their dimension.
+    def broadcast(i: Int, k: Int): Unit = if (i < 0) slices += k else {
+      val value = valuation(i)
+      if (value == null)
+        for (j <- 0 until theShares(i)) broadcast(i - 1, k + theStrides(i) * j)
       else
-        sliceIndex += theStrides(i) * Math.floorMod(hash(value.get, theSeeds(i)), theShares(i))
+        broadcast(i - 1, k)
     }
-
-    val slices = new ArrayBuffer[Int](degree)
-    def broadcast(us: List[Int], k: Int): Unit = us match {
-      case Nil => slices += k
-      case u :: ust => for (j <- 0 until theShares(u)) broadcast(ust, k + theStrides(u) * j)
-    }
-    broadcast(unconstrained, sliceIndex)
-
-    slices
+    broadcast(valuation.length - 1, sliceIndex)
   }
 }
 

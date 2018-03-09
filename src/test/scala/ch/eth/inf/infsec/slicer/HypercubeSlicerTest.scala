@@ -1,7 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
-import ch.eth.inf.infsec.trace.Domain
+import ch.eth.inf.infsec.trace.{Domain, IntegralValue}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, Matchers}
 
@@ -29,15 +29,15 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("x"), Var("y"))))
     val slicer1 = mkSimpleSlicer(formula, Array(256, 1), 314159)
     forAll { (x: Int, y: Int) =>
-      slicer1.slicesOfValuation(Array(Some(x), None)) should contain theSameElementsAs
-        slicer1.slicesOfValuation(Array(Some(x), Some(y)))
+      slicer1.slicesOfValuation(Array(IntegralValue(x), null)) should contain theSameElementsAs
+        slicer1.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y)))
     }
 
     val slicer2 = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Domain]), (-1, Set.empty: Set[Domain])),
       Array(IndexedSeq(256, 1), IndexedSeq(128, 1)), 314159)
     forAll { (x: Int, y: Int) =>
-      slicer2.slicesOfValuation(Array(Some(x), None)) should contain theSameElementsAs
-        slicer2.slicesOfValuation(Array(Some(x), Some(y)))
+      slicer2.slicesOfValuation(Array(IntegralValue(x), null)) should contain theSameElementsAs
+        slicer2.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y)))
     }
   }
 
@@ -45,17 +45,17 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     val formula = GenFormula.resolve(And(Pred("p", Var("y")), Pred("q", Var("x"), Var("y"))))
     val slicer1 = mkSimpleSlicer(formula, Array(8, 256), 314159)
     forAll { (x: Int, y: Int) =>
-      val slices = slicer1.slicesOfValuation(Array(None, Some(y)))
+      val slices = slicer1.slicesOfValuation(Array(null, IntegralValue(y)))
       slices should have size 8
-      slices should contain (slicer1.slicesOfValuation(Array(Some(x), Some(y))).head)
+      slices should contain (slicer1.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y))).head)
     }
 
     val slicer2 = new HypercubeSlicer(formula, Array((-1, Set.empty: Set[Domain]), (0, Set(-1, 0, 2): Set[Domain])),
       Array(IndexedSeq(8, 256), IndexedSeq(64, 1)), 314159)
     forAll { (x: Int, y: Int) =>
-      val slices = slicer2.slicesOfValuation(Array(None, Some(y)))
+      val slices = slicer2.slicesOfValuation(Array(null, IntegralValue(y)))
       slices should (have size 8 or have size 64)
-      slices should contain (slicer2.slicesOfValuation(Array(Some(x), Some(y))).head)
+      slices should contain (slicer2.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y))).head)
     }
   }
 
@@ -65,7 +65,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
       var seenSlices = new mutable.HashSet[Int]()
       for (_ <- 1 to 1000) {
         val slices = slicer.slicesOfValuation(
-          Array(Some(random.nextInt()), Some(random.nextInt()), Some(random.nextInt(maxZ))))
+          Array(IntegralValue(random.nextInt()), IntegralValue(random.nextInt()), IntegralValue(random.nextInt(maxZ))))
         seenSlices ++= slices
       }
 

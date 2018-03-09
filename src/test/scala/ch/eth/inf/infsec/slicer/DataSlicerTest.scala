@@ -5,7 +5,7 @@ import ch.eth.inf.infsec.policy._
 import ch.eth.inf.infsec.trace.{Domain, IntegralValue, Record, Tuple}
 import org.scalatest.{FunSuite, Matchers}
 
-import scala.collection.TraversableOnce
+import scala.collection.{TraversableOnce, mutable}
 
 class DataSlicerTest extends FunSuite with Matchers {
 
@@ -20,11 +20,11 @@ class DataSlicerTest extends FunSuite with Matchers {
       override def apply(x: Int): Int = if(x<degree) x else throw new MatchError(x)
     }
 
-    override def slicesOfValuation(valuation: Array[Option[Domain]]): TraversableOnce[Int] =
-      if (valuation(0).isDefined)
-        Array(0, valuation(0).get.asInstanceOf[IntegralValue].value.toInt)
+    override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]): Unit =
+      if (valuation(0) != null)
+        slices ++= List(0, valuation(0).asInstanceOf[IntegralValue].value.toInt)
       else
-        Array(1, valuation(1).get.asInstanceOf[IntegralValue].value.toInt)
+        slices ++= List(1, valuation(1).asInstanceOf[IntegralValue].value.toInt)
   }
 
   test("apply") {
