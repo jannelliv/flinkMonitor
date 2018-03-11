@@ -104,6 +104,7 @@ object HypercubeSlicer {
     require(degreeExp >= 0 && degreeExp < 31)
 
     var bestCost: Double = Double.PositiveInfinity
+    var bestMaxExp: Int = degreeExp
     var bestConfig: List[Int] = Nil
 
     def atomPartitions(atom: Pred[VariableID], config: List[Int]): Double =
@@ -112,6 +113,8 @@ object HypercubeSlicer {
         case _ => 1.0
       }.product
 
+    // This is essentially Algorithm 1 from S. Chu, M. Balazinska and D. Suciu (2015), "From Theory to Practice:
+    // Efficient Join Query Evaluation in a Parallel Database System", SIGMOD'15.
     // TODO(JS): Branch-and-bound?
     def search(remainingVars: Int, remainingExp: Int, config: List[Int]): Unit =
       if (remainingVars >= 1) {
@@ -123,10 +126,12 @@ object HypercubeSlicer {
         // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.
         val cost = formula.atoms.toSeq.filterNot(p => isRigidRelation(p.relation)).map((atom: Pred[VariableID]) =>
           statistics.relationSize(atom.relation) / atomPartitions(atom, config)).sum
+        val maxExp = config.max
 
-        if (cost < bestCost) {
+        if (cost < bestCost || (cost == bestCost && maxExp < bestMaxExp)) {
           bestConfig = config
           bestCost = cost
+          bestMaxExp = maxExp
         }
       }
 
