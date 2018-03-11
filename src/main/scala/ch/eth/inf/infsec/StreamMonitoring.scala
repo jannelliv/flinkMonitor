@@ -198,7 +198,7 @@ class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Re
               case Some(record: Record) =>
                 printer.process(record, input.write(_))
                 input.flush()
-                logger.debug(s"Monitor ${this.hashCode()} - IN: ${record.toString}")
+                //logger.debug(s"Monitor ${this.hashCode()} - IN: ${record.toString}")
               case None => running = false
             }
           }
