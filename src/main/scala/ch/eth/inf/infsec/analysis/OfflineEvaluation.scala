@@ -1,5 +1,7 @@
 package ch.eth.inf.infsec.analysis
 
+import java.io.PrintWriter
+
 import ch.eth.inf.infsec.policy.{Formula, GenFormula, Policy}
 import ch.eth.inf.infsec.slicer.{DataSlicer, HypercubeSlicer}
 import ch.eth.inf.infsec.trace._
@@ -91,6 +93,8 @@ object OfflineEvaluation {
       }
     }
 
+    val dumpShares = parameters.getBoolean("dump-shares", false)
+
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
     env.setParallelism(1)
@@ -112,6 +116,34 @@ object OfflineEvaluation {
       logger.info("Slicing with optimized shares")
       logger.info("Number of configurations: {}", dataSlicer.shares.length)
       logger.info("Shares assuming no heavy hitters: {}", dataSlicer.shares(0).mkString(", "))
+
+      if (dumpShares) {
+        val variables: Map[Int, String] =
+          monitoringFormula.get.freeVariables.map(v => (v.freeID, v.nameHint))(collection.breakOut)
+
+        logger.info("Dumping configuration to", outputFileName)
+        val dump = new PrintWriter(outputFileName)
+        try {
+          def enumerate(i: Int, mask: Int, heavy: List[String]): Unit = if (i < variables.size) {
+            val bit = dataSlicer.heavy(i)._1
+            enumerate(i + 1, mask, heavy)
+            if (bit >= 0)
+              enumerate(i + 1, mask | (1 << bit), variables(i) :: heavy)
+          } else {
+            dump.println("Heavy hitters: " + (if (heavy.isEmpty) "(none)" else heavy.reverse.mkString(", ")))
+            val shares = dataSlicer.shares(mask)
+            for (v <- 0 until variables.size)
+              dump.println(variables(v) + " = " + shares(v))
+            dump.println()
+          }
+
+          enumerate(0, 0, Nil)
+        } finally {
+          dump.close()
+        }
+
+        return
+      }
 
       val slicedStream = eventStream.flatMap(new ProcessorFunction(dataSlicer))
       TraceStatistics.analyzeSlices(slicedStream, windowSize, 1)
