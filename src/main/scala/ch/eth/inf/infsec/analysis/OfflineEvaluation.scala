@@ -86,7 +86,11 @@ object OfflineEvaluation {
         for (line <- heavySource.getLines()) {
           val fields = line.split(",", 3)
           val these = heavyHittersMap.getOrElseUpdate((fields(0), fields(1).toInt), new mutable.HashSet[Domain]())
-          these += fields(2)
+          val value: Domain = if (fields(2).startsWith("\""))
+            StringValue(fields(2).stripPrefix("\"").stripSuffix("\""))
+          else
+            IntegralValue(fields(2).toLong)
+          these += value
         }
       } finally {
         heavySource.close()
