@@ -2,6 +2,7 @@ package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
 import ch.eth.inf.infsec.trace.{Domain, IntegralValue}
+import org.scalacheck.{Arbitrary, Gen}
 import org.scalatest.prop.PropertyChecks
 import org.scalatest.{FunSuite, Matchers}
 
@@ -9,6 +10,13 @@ import scala.collection.mutable
 import scala.util.Random
 
 class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
+  val withHeavy: Gen[Int] = Gen.frequency(
+    1 -> -1,
+    1 -> 0,
+    1 -> 2,
+    3 -> Arbitrary.arbInt.arbitrary
+  )
+
   def mkSimpleSlicer(formula: Formula, shares: IndexedSeq[Int], seed: Long = 1234): HypercubeSlicer =
     new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])},
       IndexedSeq(shares), seed)
@@ -35,7 +43,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
 
     val slicer2 = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Domain]), (-1, Set.empty: Set[Domain])),
       Array(IndexedSeq(256, 1), IndexedSeq(128, 1)), 314159)
-    forAll { (x: Int, y: Int) =>
+    forAll (withHeavy, Arbitrary.arbInt.arbitrary) { (x: Int, y: Int) =>
       slicer2.slicesOfValuation(Array(IntegralValue(x), null)) should contain theSameElementsAs
         slicer2.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y)))
     }
@@ -52,7 +60,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
 
     val slicer2 = new HypercubeSlicer(formula, Array((-1, Set.empty: Set[Domain]), (0, Set(-1, 0, 2): Set[Domain])),
       Array(IndexedSeq(8, 256), IndexedSeq(64, 1)), 314159)
-    forAll { (x: Int, y: Int) =>
+    forAll (Arbitrary.arbInt.arbitrary, withHeavy) { (x: Int, y: Int) =>
       val slices = slicer2.slicesOfValuation(Array(null, IntegralValue(y)))
       slices should (have size 8 or have size 64)
       slices should contain (slicer2.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y))).head)
