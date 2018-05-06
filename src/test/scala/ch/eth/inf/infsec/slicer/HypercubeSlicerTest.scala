@@ -67,6 +67,17 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     }
   }
 
+  test("Records should be sent according to all relevant heavy-hitter configurations") {
+    val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("y"))))
+    val slicer = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Domain]), (-1, Set.empty: Set[Domain])),
+      Array(IndexedSeq(32, 32), IndexedSeq(1, 2)), 314159)
+    forAll (withHeavy, Arbitrary.arbInt.arbitrary) { (x: Int, y: Int) =>
+      val pSlices = slicer.slicesOfValuation(Array(IntegralValue(x), null))
+      val qSlices = slicer.slicesOfValuation(Array(null, IntegralValue(y)))
+      pSlices.intersect(qSlices) should not be empty
+    }
+  }
+
   test("All slices should be used in expectation") {
     def check(slicer: DataSlicer, maxZ: Int = Int.MaxValue): Unit = {
       val random = new Random(314159 + 1)

@@ -46,41 +46,61 @@ class HypercubeSlicer(
 
   override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]) {
     // Compute which variables hold heavy hitters. This determines the shares to use.
+    // Additionally, we have to consider all combinations of variables that are not constrained by the valuation,
+    // but that can take on heavy hitters in other valuations.
     var heavySet = 0
+    var unconstrainedSet = 0
     var i = 0
     while (i < valuation.length) {
       val heavyMap = heavy(i)
       if (heavyMap._1 >= 0) {
         val value = valuation(i)
-        if (value != null && (heavyMap._2 contains value))
+        if (value == null)
+          unconstrainedSet += (1 << heavyMap._1)
+        else if (heavyMap._2 contains value)
           heavySet += (1 << heavyMap._1)
       }
       i += 1
     }
 
-    val theSeeds = seeds(heavySet)
-    val theStrides = strides(heavySet)
-    val theShares = shares(heavySet)
+    def addSlicesForHeavySet(heavySet: Int) {
+      val theSeeds = seeds(heavySet)
+      val theStrides = strides(heavySet)
+      val theShares = shares(heavySet)
 
-    // Select the coordinates for variables whose value is determined by the tuple.
-    var sliceIndex = 0
-    i = 0
-    while (i < valuation.length) {
-      val value = valuation(i)
-      if (value != null)
-        sliceIndex += theStrides(i) * Math.floorMod(hash(value, theSeeds(i)), theShares(i))
-      i += 1
+      // Select the coordinates for variables whose value is determined by the tuple.
+      var sliceIndex = 0
+      i = 0
+      while (i < valuation.length) {
+        val value = valuation(i)
+        if (value != null)
+          sliceIndex += theStrides(i) * Math.floorMod(hash(value, theSeeds(i)), theShares(i))
+        i += 1
+      }
+
+      // All other other variables are broadcast in their dimension.
+      def broadcast(i: Int, k: Int): Unit = if (i < 0) slices += k else {
+        val value = valuation(i)
+        if (value == null)
+          for (j <- 0 until theShares(i)) broadcast(i - 1, k + theStrides(i) * j)
+        else
+          broadcast(i - 1, k)
+      }
+
+      broadcast(valuation.length - 1, sliceIndex)
     }
 
-    // All other other variables are broadcast in their dimension.
-    def broadcast(i: Int, k: Int): Unit = if (i < 0) slices += k else {
-      val value = valuation(i)
-      if (value == null)
-        for (j <- 0 until theShares(i)) broadcast(i - 1, k + theStrides(i) * j)
-      else
-        broadcast(i - 1, k)
+    // Iterate over all combinations of the unconstrained variables.
+    def coverUnconstrained(m: Int, h: Int): Unit = if (m == 0) addSlicesForHeavySet(h) else {
+      if ((unconstrainedSet & m) != 0)
+        coverUnconstrained(m >> 1, h | m)
+      coverUnconstrained(m >> 1, h)
     }
-    broadcast(valuation.length - 1, sliceIndex)
+
+    if (valuation.isEmpty)
+      addSlicesForHeavySet(heavySet)
+    else
+      coverUnconstrained(1 << (valuation.length - 1), heavySet)
   }
 }
 
