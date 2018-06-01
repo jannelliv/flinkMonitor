@@ -1,23 +1,17 @@
 package ch.eth.inf.infsec
 
-import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
-import java.lang.ProcessBuilder.Redirect
-import java.util.concurrent.LinkedBlockingQueue
+import java.util.concurrent.TimeUnit
 
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
 import ch.eth.inf.infsec.trace._
+import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.utils.ParameterTool
-import org.apache.flink.configuration.Configuration
 import org.apache.flink.streaming.api.TimeCharacteristic
-import org.apache.flink.streaming.api.functions.ProcessFunction
 import org.apache.flink.streaming.api.scala._
-import org.apache.flink.streaming.util.serialization.SimpleStringSchema
-import org.apache.flink.util.Collector
 import org.apache.log4j.Logger
 
-import scala.collection.JavaConversions
 import scala.io.Source
 
 
@@ -133,17 +127,21 @@ object StreamMonitoring {
     }
     val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))
     val slicedTrace = parsedTrace.flatMap(new ProcessorFunction(slicer))
-      .partitionCustom(new IdPartitioner(),0)
-      .setParallelism(processors)
-      .keyBy(e=>e._1)
+      .partitionCustom(new IdPartitioner(),0).setParallelism(processors)
+      .map(e=>e._2).setParallelism(processors)
+      .flatMap(new ProcessorFunction(new MonpolyPrinter)).setParallelism(processors)
 
     //Parallel nodes
-    val verdicts = slicedTrace.process[String](new MonitorFunction(monitorArgs)).setParallelism(processors).map(_+"\n")
+    // TODO(JS): Timeout? Capacity?
+    val verdicts = MonitorFunction.orderedWait(slicedTrace, monitorArgs, 1, TimeUnit.SECONDS, 1000)
+      .setParallelism(processors)
 
     //Single node
 
     out match {
-      case Some(Left((h,p))) =>  verdicts.writeToSocket(h,p,new SimpleStringSchema()).setParallelism(1)
+      case Some(Left((h,p))) =>  verdicts
+        .map(v => v + "\n").setParallelism(1)
+        .writeToSocket(h,p,new SimpleStringSchema()).setParallelism(1)
       case Some(Right(f)) =>  verdicts.writeAsText(f).setParallelism(1)
       case _ => verdicts.print().setParallelism(1)
     }
@@ -152,131 +150,7 @@ object StreamMonitoring {
 
 }
 
-// FIXME(JS): This doesn't work, because all Flink operators must have serializable state.
-class MonitorFunction(val command: Seq[String]) extends ProcessFunction[(Int, Record), String] {
 
-  private val inputQueue = new LinkedBlockingQueue[Option[Record]]()
-  private val outputQueue = new LinkedBlockingQueue[String]()
-
-  private var process: Process = _
-  private var inputWorker: Thread = _
-  private var outputWorker: Thread = _
-
-  private val TIMEOUT = 500
-  // TODO(JS): Logging, error handling, clean-up etc.
-  override def open(parameters: Configuration): Unit = {
-    super.open(parameters)
-
-    process = new ProcessBuilder(JavaConversions.seqAsJavaList(command))
-      .redirectError(Redirect.INHERIT)
-      .start()
-
-
-    try {
-      val f = process.getClass().getDeclaredField("pid");
-      f.setAccessible(true);
-      val pid = f.getInt(process)
-      println("MONITOR PID: " + pid)
-
-    } catch {
-      case _:Exception =>
-    }
-
-    val input = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
-    val output = new BufferedReader(new InputStreamReader(process.getInputStream))
-
-    inputWorker = new Thread {
-
-      val logger = Logger.getLogger(this.getClass)
-      val printer = new MonpolyPrinter()
-
-      override def run(): Unit = {
-        try {
-          var running = true
-          while (running) {
-            inputQueue.take() match {
-              case Some(record: Record) =>
-                printer.process(record, input.write(_))
-                input.flush()
-                //logger.debug(s"Monitor ${this.hashCode()} - IN: ${record.toString}")
-              case None => running = false
-            }
-          }
-        } finally {
-          input.close()
-        }
-      }
-    }
-    inputWorker.start()
-
-    outputWorker = new Thread {
-      override def run(): Unit = {
-        try {
-          var running = true
-          do {
-            val line = output.readLine()
-            if (line == null)
-              running = false
-            else {
-              outputQueue.put(line)
-            }
-          } while (running)
-        } finally {
-          output.close()
-        }
-      }
-    }
-    outputWorker.start()
-  }
-
-  override def close(): Unit = {
-    if (inputWorker != null) {
-      inputQueue.add(None)
-      inputWorker.join()
-    }
-    if (outputWorker != null)
-      outputWorker.join()
-    if (process != null)
-      process.waitFor()
-
-    super.close()
-  }
-
-
-    override def processElement(in: (Int, Record),
-      context: ProcessFunction[(Int, Record), String]#Context,
-      collector: Collector[String]): Unit =
-  {
-
-
-      context.timerService().registerProcessingTimeTimer(context.timerService().currentProcessingTime()+TIMEOUT)
-
-      inputQueue.put(Some(in._2))
-
-      // FIXME(JS): Verdicts may be delayed for an infinite amount of time if there are no new events to process.
-      // Use a timer?
-      var moreVerdicts = true
-      do {
-        val verdict = outputQueue.poll()
-        if (verdict == null)
-          moreVerdicts = false
-        else
-          collector.collect(verdict)
-      } while (moreVerdicts)
-
-  }
-
-  override def onTimer(timestamp: Long, ctx: ProcessFunction[(Int, Record), String]#OnTimerContext, collector: Collector[String]): Unit = {
-    var moreVerdicts = true
-    do {
-      val verdict = outputQueue.poll()
-      if (verdict == null)
-        moreVerdicts = false
-      else
-        collector.collect(verdict)
-    } while (moreVerdicts)
-  }
-}
 
 //val verdicts = slicedTrace.reduce(monpoly)
 
