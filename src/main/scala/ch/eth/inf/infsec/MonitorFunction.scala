@@ -12,11 +12,11 @@ import org.apache.flink.streaming.api.functions.async.{ResultFuture, RichAsyncFu
 import org.apache.flink.streaming.api.scala._
 
 import scala.collection.JavaConversions
+import scala.collection.mutable.ArrayBuffer
 import scala.concurrent.duration.TimeUnit
 
-// TODO(JS): Force monitor to always output something after processing each event
 // TODO(JS): Checkpointing
-class MonitorFunction(val command: Seq[String]) extends RichAsyncFunction[String, String] {
+class MonitorFunction(val command: Seq[String], isMonpoly: Boolean) extends RichAsyncFunction[String, String] {
 
   @transient private var outputQueue: LinkedBlockingQueue[Option[String]] = _
   @transient private var pendingQueue: ConcurrentLinkedQueue[ResultFuture[String]] = _
@@ -24,6 +24,9 @@ class MonitorFunction(val command: Seq[String]) extends RichAsyncFunction[String
   @transient private var process: Process = _
   @transient private var writerThread: Thread = _
   @transient private var readerThread: Thread = _
+
+  private val GET_INDEX_COMMAND = ">get_pos<\n"
+  private val GET_INDEX_PREFIX = "Current index: "
 
   // TODO(JS): Logging, error handling, clean-up etc.
   override def open(parameters: Configuration): Unit = {
@@ -58,8 +61,9 @@ class MonitorFunction(val command: Seq[String]) extends RichAsyncFunction[String
           while (running) {
             outputQueue.take() match {
               case Some(request: String) =>
-                println(s"DEBUG [monitor $pid]: ${request.stripLineEnd}")
                 writer.write(request)
+                if (isMonpoly)
+                  writer.write(GET_INDEX_COMMAND)
                 // TODO(JS): Do not flush if there are more requests in the queue
                 writer.flush()
               //logger.debug(s"Monitor ${this.hashCode()} - IN: ${record.toString}")
@@ -77,12 +81,23 @@ class MonitorFunction(val command: Seq[String]) extends RichAsyncFunction[String
       override def run(): Unit = {
         try {
           var running = true
+          var buffer = new ArrayBuffer[String]()
           do {
             val line = reader.readLine()
-            if (line == null)
+            if (line == null) {
               running = false
-            else {
-              // TODO(JS): Check that the line is a proper response
+            } else if (isMonpoly) {
+              if (line.startsWith(GET_INDEX_PREFIX)) {
+                val resultFuture = pendingQueue.poll()
+                resultFuture.complete(JavaConversions.asJavaCollection(buffer))
+                // The buffer is stored as the future's result and will be processed by another thread.
+                // Therefore, we cannot just clear the buffer, but we have to create a new buffer instead.
+                buffer = new ArrayBuffer[String]()
+              } else {
+                // TODO(JS): Check that line is a verdict before adding to the buffer.
+                buffer += line
+              }
+            } else {
               val resultFuture = pendingQueue.poll()
               resultFuture.complete(Collections.singleton(line))
             }
@@ -118,6 +133,7 @@ object MonitorFunction {
   def orderedWait(
       input: DataStream[String],
       command: Seq[String],
+      isMonpoly: Boolean,
       timeout: Long,
       timeUnit: TimeUnit,
       capacity: Int): DataStream[String] = {
@@ -125,7 +141,7 @@ object MonitorFunction {
     val outType: TypeInformation[String] = implicitly[TypeInformation[String]]
 
     new DataStream[String](JavaAsyncDataStream.orderedWait(
-      input.javaStream, new MonitorFunction(command), timeout, timeUnit, capacity
+      input.javaStream, new MonitorFunction(command, isMonpoly), timeout, timeUnit, capacity
     ).returns(outType))
   }
 }

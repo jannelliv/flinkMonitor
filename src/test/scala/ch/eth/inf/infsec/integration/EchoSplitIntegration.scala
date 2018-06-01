@@ -51,7 +51,8 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
             s" --sig ${sig}" +
             s" --formula ${formula}" +
             " --out 127.0.0.1:9001" +
-            s" --monitor ${monitor}"
+            s" --monitor ${monitor}" +
+            " --monpoly false"
         )))
       .redirectError(Redirect.INHERIT)
       .start()

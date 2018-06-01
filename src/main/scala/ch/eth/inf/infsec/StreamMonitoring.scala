@@ -27,6 +27,7 @@ object StreamMonitoring {
   var processors:Int=0
 
   var monitorCommand: String = ""
+  var isMonpoly: Boolean = true
   var formulaFile: String = ""
   var signatureFile: String = ""
 
@@ -82,6 +83,7 @@ object StreamMonitoring {
     logger.info(s"Using $processors parallel monitors")
 
     monitorCommand = params.get("monitor", "monpoly")
+    isMonpoly = params.getBoolean("monpoly", true)
     signatureFile = params.get("sig")
 
     formulaFile = params.get("formula")
@@ -133,7 +135,7 @@ object StreamMonitoring {
 
     //Parallel nodes
     // TODO(JS): Timeout? Capacity?
-    val verdicts = MonitorFunction.orderedWait(slicedTrace, monitorArgs, 1, TimeUnit.SECONDS, 1000)
+    val verdicts = MonitorFunction.orderedWait(slicedTrace, monitorArgs, isMonpoly, 1, TimeUnit.SECONDS, 1000)
       .setParallelism(processors)
 
     //Single node
