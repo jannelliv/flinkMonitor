@@ -26,8 +26,6 @@ class HypercubeSlicer(
     if (simpleShares.isEmpty) 1 else simpleShares.product
   }
 
-  override val remapper: PartialFunction[Int, Int] = ColissionlessKeyGenerator.getMapping(degree)
-
   private val seeds: Array[Array[Int]] = {
     val random = new Random(seed)
     Array.fill(shares.length){Array.fill(dimensions){random.nextInt()}}

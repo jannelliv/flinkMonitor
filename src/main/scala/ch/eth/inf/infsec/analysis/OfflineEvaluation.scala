@@ -171,7 +171,6 @@ object OfflineEvaluation {
       val dataSlicer = new DataSlicer with Serializable {
         override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]): Unit = slices += 0
 
-        override val remapper: PartialFunction[Int, Int] = PartialFunction(identity)
         override val degree: Int = 1
         override val formula: Formula = monitoringFormula.get
       }

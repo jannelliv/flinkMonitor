@@ -11,11 +11,6 @@ abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
   val formula: Formula
   val degree: Int
 
-  //NOTE(SK): Since Flink does not allow for custom keying we need
-  //find precisely those keys the do not collide. See docs for ColissionlessKeyGenerator
-  // TODO(JS): Move out of slicing logic.
-  val remapper:PartialFunction[Int,Int]
-
   def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int])
 
   def slicesOfValuation(valuation: Array[Domain]): collection.Set[Int] = {
@@ -26,13 +21,11 @@ abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
 
   // These arrays are reused in process() for performance.
   // We have to initialize them lazily, because they depend on properties provided by the implementing subclass.
-  private var remapped: Array[Int] = _
   private var atoms: Array[Pred[VariableID]] = _
   private var valuation: Array[Domain] = _
 
   override def process(record: Record, f: ((Int, Record)) => Unit) {
-    if (remapped == null) {
-      remapped = Array.tabulate(degree)(remapper(_))
+    if (atoms == null) {
       atoms = formula.atoms.toArray
       valuation = Array.fill(formula.freeVariables.size)(null)
     }
@@ -41,7 +34,7 @@ abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
     if (record.isEndMarker) {
       var i = 0
       while (i < degree) {
-        f((remapped(i), record))
+        f((i, record))
         i += 1
       }
       return
@@ -84,7 +77,7 @@ abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
       i += 1
     }
 
-    slices.foreach(s => f(remapped(s), record))
+    slices.foreach(s => f(s, record))
   }
 
   override def terminate(f: ((Int, Record)) => Unit) { }
