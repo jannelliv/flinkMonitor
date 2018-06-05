@@ -37,7 +37,7 @@ package object infsec {
     override def restoreState(state: Option[Unit]) {}
   }
 
-  // TODO(JS): Call Processor#terminate if the stream has ended.
+  // TODO(JS): Call Processor#terminate if the stream has ended (via RichFlatMapFunction#close).
   // TODO(JS): Not sure whether this state management logic is sound ...
   class ProcessorFunction[I, O](processor: Processor[I, O] with Serializable)
     extends FlatMapFunction[I, O] with CheckpointedFunction {

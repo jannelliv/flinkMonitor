@@ -1,0 +1,439 @@
+package ch.eth.inf.infsec.monitor
+
+import java.util
+import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
+
+import org.apache.flink.api.common.state.{ListState, ListStateDescriptor, ValueState, ValueStateDescriptor}
+import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.typeutils.TypeSerializer
+import org.apache.flink.runtime.state.{KeyGroupRangeAssignment, StateInitializationContext, StateSnapshotContext}
+import org.apache.flink.streaming.api.graph.StreamConfig
+import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator, Output}
+import org.apache.flink.streaming.api.scala._
+import org.apache.flink.streaming.api.watermark.Watermark
+import org.apache.flink.streaming.runtime.streamrecord.{StreamElement, StreamElementSerializer, StreamRecord}
+import org.apache.flink.streaming.runtime.tasks.StreamTask
+import org.apache.flink.util.ExceptionUtils
+
+import scala.collection.JavaConversions._
+
+private trait PendingRequest
+
+private trait PendingResult
+
+private case class InputItem[IN](input: StreamRecord[IN]) extends PendingRequest
+
+private case class OutputItem[OUT](output: StreamRecord[OUT]) extends PendingResult
+
+private case class WatermarkItem(mark: Watermark) extends PendingRequest with PendingResult
+
+private case class SnapshotRequestItem() extends PendingRequest
+
+private case class SnapshotResultItem(snapshot: Array[Byte]) extends PendingResult
+
+private case class RestoreItem(snapshot: Array[Byte]) extends PendingRequest
+
+private case class ShutdownItem() extends PendingRequest with PendingResult
+
+
+class ExternalProcessOperator[IN, OUT](
+  partitionMapping: Int => Int,
+  process: ExternalProcess[IN, OUT],
+  timeout: Long,
+  capacity: Int)
+  extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
+
+  require(capacity > 0)
+
+  private val RESULT_STATE_NAME = "_external_process_operator_result_state_"
+  private val PROCESS_STATE_NAME = "_external_process_operator_process_state_"
+
+  @transient private var taskLock: AnyRef = _
+
+  @transient private var requestQueue: LinkedBlockingQueue[PendingRequest] = _
+  @transient private var processingQueue: LinkedBlockingQueue[PendingRequest] = _
+  @transient private var resultLock: Object = _
+  @transient private var resultQueue: util.ArrayDeque[PendingResult] = _
+
+  @transient private var snapshotReady: Semaphore = _
+
+  @transient private var outSerializer: StreamElementSerializer[OUT] = _
+  @transient private var stateSerializer: TypeSerializer[Array[Byte]] = _
+
+  @transient private var recoveredResults: ListState[StreamElement] = _
+  @transient private var recoveredState: ValueState[Array[Byte]] = _
+
+  @transient private var pendingCount: Int = 0
+
+  @transient private var waitingRequest: PendingRequest = _
+
+  @transient private var writerThread: ServiceThread = _
+  @transient private var readerThread: ServiceThread = _
+  @transient private var emitterThread: ServiceThread = _
+
+  override def setup(
+    containingTask: StreamTask[_, _],
+    config: StreamConfig,
+    output: Output[StreamRecord[OUT]]): Unit = {
+
+    super.setup(containingTask, config, output)
+    taskLock = getContainingTask.getCheckpointLock
+    requestQueue = new LinkedBlockingQueue[PendingRequest]()
+    processingQueue = new LinkedBlockingQueue[PendingRequest]()
+    resultLock = new Object
+    resultQueue = new util.ArrayDeque[PendingResult]()
+    snapshotReady = new Semaphore(0)
+    outSerializer = new StreamElementSerializer[OUT](getOperatorConfig.getTypeSerializerOut(getUserCodeClassloader))
+
+    val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
+    stateSerializer = stateType.createSerializer(getExecutionConfig)
+
+//    println("DEBUG [setup] complete")
+  }
+
+  override def open(): Unit = {
+    super.open()
+
+    pendingCount = 0
+    waitingRequest = null
+
+    process.start()
+//    println("DEBUG [open] process started")
+
+    writerThread = new ServiceThread {
+      override def handle(): Unit = {
+        val request = requestQueue.take()
+        processingQueue.put(request)
+//        println("DEBUG [writerThread] request = " + request.getClass)
+        request match {
+          case InputItem(record) => process.writeRequest(record.asRecord[IN]().getValue)
+          case WatermarkItem(_) => ()
+          case SnapshotRequestItem() => process.initSnapshot()
+          case RestoreItem(state) => process.initRestore(state)
+          case ShutdownItem() =>
+            process.shutdown()
+            running = false
+        }
+      }
+    }
+    writerThread.start()
+
+    readerThread = new ServiceThread {
+      override def handle(): Unit = {
+        val request = processingQueue.take()
+//        println("DEBUG [readerThread] request = " + request.getClass)
+
+        resultLock.synchronized {
+          request match {
+            case InputItem(record) =>
+              for (result <- process.readResults())
+                resultQueue.add(OutputItem(outputRecord(record.asRecord(), result)))
+              resultQueue.add(OutputItem(null))
+            case mark@WatermarkItem(_) => resultQueue.add(mark)
+            case SnapshotRequestItem() =>
+              resultQueue.add(SnapshotResultItem(process.readSnapshot()))
+              snapshotReady.release()
+            case RestoreItem(_) => process.restored()
+            case shutdown@ShutdownItem() =>
+              process.join()
+              resultQueue.add(shutdown)
+          }
+          resultLock.notifyAll()
+        }
+      }
+    }
+    readerThread.start()
+
+    emitterThread = new ServiceThread {
+      override def handle(): Unit = {
+        resultLock.synchronized {
+          while (resultQueue.isEmpty)
+            resultLock.wait()
+        }
+
+//        println("DEBUG [emitterThread] queue non-empty")
+
+        if (!running)
+          return
+
+        taskLock.synchronized {
+          var result: PendingResult = null
+          resultLock.synchronized {
+            result = resultQueue.removeFirst()
+          }
+
+//          println("DEBUG [emitterThread] result = " + result.getClass)
+
+          // TODO(JS): In AsyncWaitOperator, a TimestampedCollector is used, which recycles a single record object.
+          // Do we want to do the same here?
+          result match {
+            case OutputItem(record) =>
+              if (record == null)
+                pendingCount -= 1
+              else
+                output.collect(record.asRecord())
+            case WatermarkItem(mark) =>
+              output.emitWatermark(mark)
+              pendingCount = -1
+            case SnapshotResultItem(state) => ()
+            case ShutdownItem() => running = false
+          }
+
+          taskLock.notifyAll()
+        }
+      }
+    }
+    emitterThread.start()
+
+//    println("DEBUG [open] service threads started")
+
+    if (recoveredResults != null) {
+//      println("DEBUG [open] recovering state")
+      assert(recoveredState != null)
+
+      setKeyForPartition()
+
+      resultLock.synchronized {
+        for (element: StreamElement <- recoveredResults.get) {
+          if (element.isRecord)
+            resultQueue.add(OutputItem(element.asRecord()))
+          else if (element.isWatermark)
+            resultQueue.add(WatermarkItem(element.asWatermark()))
+          else
+            throw new IllegalStateException("Unknown stream element type " + element.getClass +
+              " encountered while opening the operator.")
+        }
+
+        resultLock.notifyAll()
+      }
+
+      requestQueue.put(RestoreItem(recoveredState.value()))
+
+      recoveredResults = null
+      recoveredState = null
+//      println("DEBUG [open] state recovered")
+    }
+  }
+
+  override def close(): Unit = {
+//    println("DEBUG [close] closing")
+    requestQueue.put(ShutdownItem())
+
+    try {
+      writerThread.join()
+      readerThread.join()
+
+      if (Thread.holdsLock(taskLock)) {
+        while (emitterThread.isAlive)
+          taskLock.wait()
+      }
+      emitterThread.join()
+    } catch {
+      // TODO(JS): Not sure whether this correct.
+      case _: InterruptedException => Thread.currentThread().interrupt()
+    }
+
+    super.close()
+//    println("DEBUG [close] complete")
+  }
+
+  override def dispose(): Unit = {
+//    println("DEBUG [dispose] disposing")
+    writerThread.interruptAndStop()
+    readerThread.interruptAndStop()
+    emitterThread.interruptAndStop()
+//    println("DEBUG [dispose] service threads stopped")
+
+    var exception: Exception = null
+
+    try {
+      process.destroy()
+    } catch {
+      case e: InterruptedException =>
+        exception = e
+        Thread.currentThread().interrupt()
+      case e: Exception => exception = e
+    }
+
+//    println("DEBUG [dispose] process destroyed")
+    if (exception != null) {
+//      println("DEBUG [dispose] process.destroy() failed")
+    }
+
+    try {
+      super.dispose()
+    } catch {
+      case e: InterruptedException =>
+        exception = ExceptionUtils.firstOrSuppressed(e, exception)
+        Thread.currentThread().interrupt()
+      case e: Exception => exception = ExceptionUtils.firstOrSuppressed(e, exception)
+    }
+
+    if (exception != null)
+      throw exception
+
+//    println("DEBUG [dispose] complete")
+  }
+
+  override def snapshotState(context: StateSnapshotContext): Unit = {
+    super.snapshotState(context)
+    assert(Thread.holdsLock(taskLock))
+
+//    println("DEBUG [snapshotState] snapshot initiated")
+
+    // TODO(JS): Ideally, all of this would happen in the asynchronous part of the snapshot.
+
+    // We trigger the snapshot request immediately, even if the number of pending requests/results is at capacity.
+    // In particular, we _must not_ release the checkpointing lock, which would allow the emitter thread to
+    // send pending results downstream. Since the barrier has already been sent to downstream operators at
+    // this point, this would result in inconsistent snapshots.
+
+    if (waitingRequest != null) {
+      requestQueue.put(waitingRequest)
+      pendingCount += 1
+      waitingRequest = null
+    }
+    requestQueue.put(SnapshotRequestItem())
+
+    // Wait until the process snapshot has been created.
+    snapshotReady.acquire()
+    assert(snapshotReady.availablePermits() == 0)
+    assert(requestQueue.isEmpty)
+
+//    println("DEBUG [snapshotState] process state acquired")
+
+    setKeyForPartition()
+
+    // Store the complete state: pending results and the process snapshot.
+    val resultState = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
+      RESULT_STATE_NAME,
+      outSerializer))
+    val processState = getKeyedStateStore.getState(new ValueStateDescriptor[Array[Byte]](
+      PROCESS_STATE_NAME,
+      stateSerializer))
+
+    resultState.clear()
+
+    try {
+      var gotSnapshot = false
+
+      resultLock.synchronized {
+        for (result: PendingResult <- resultQueue) {
+          assert(!gotSnapshot)
+          result match {
+            case OutputItem(record) => resultState.add(record)
+            case WatermarkItem(mark) => resultState.add(mark)
+            case SnapshotResultItem(state) =>
+              processState.update(state)
+              gotSnapshot = true
+            case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
+          }
+        }
+      }
+      assert(gotSnapshot)
+    } catch {
+      case e: Exception =>
+        resultState.clear()
+        processState.clear()
+        throw new Exception(
+          "Could not add pending results to operator state backend of operator" +
+            getOperatorName + ".", e)
+    }
+
+//    println("DEBUG [snapshotState] snapshot completed")
+  }
+
+  override def initializeState(context: StateInitializationContext): Unit = {
+    super.initializeState(context)
+
+    if (context.isRestored) {
+      recoveredResults = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
+        RESULT_STATE_NAME,
+        outSerializer))
+      recoveredState = getKeyedStateStore.getState(new ValueStateDescriptor[Array[Byte]](
+        PROCESS_STATE_NAME,
+        stateSerializer))
+    }
+  }
+
+  override def processWatermark(mark: Watermark): Unit = {
+    enqueueRequest(WatermarkItem(mark))
+  }
+
+  override def processElement(streamRecord: StreamRecord[IN]): Unit = {
+    // TODO(JS): Implement timeout
+//    println("DEBUG [processElement]")
+    enqueueRequest(InputItem(streamRecord))
+  }
+
+  def failOperator(throwable: Throwable): Unit = {
+    getContainingTask.getEnvironment.failExternally(throwable)
+  }
+
+  private def enqueueRequest(request: PendingRequest): Unit = {
+    assert(Thread.holdsLock(taskLock))
+    waitingRequest = request
+    while (waitingRequest != null && pendingCount >= capacity)
+      taskLock.wait()
+    if (waitingRequest != null) {
+      requestQueue.put(waitingRequest)
+      pendingCount += 1
+      waitingRequest = null
+    }
+  }
+
+  private def outputRecord(input: StreamRecord[IN], value: OUT): StreamRecord[OUT] =
+    if (input.hasTimestamp)
+      new StreamRecord[OUT](value, input.getTimestamp)
+    else
+      new StreamRecord[OUT](value)
+
+  private def setKeyForPartition(): Unit = {
+    val subtaskIndex = getContainingTask.getEnvironment.getTaskInfo.getIndexOfThisSubtask
+    val key = partitionMapping(subtaskIndex)
+    assert(KeyGroupRangeAssignment.assignKeyToParallelOperator(
+      key,
+      getContainingTask.getEnvironment.getTaskInfo.getMaxNumberOfParallelSubtasks,
+      getContainingTask.getEnvironment.getTaskInfo.getNumberOfParallelSubtasks
+    ) == subtaskIndex)
+
+    setCurrentKey(key)
+  }
+
+  abstract private class ServiceThread extends Thread {
+    @volatile var running = true
+
+    def handle(): Unit
+
+    override def run(): Unit = {
+      try {
+        while (running)
+          handle()
+      } catch {
+        case e: InterruptedException =>
+          if (running)
+            failOperator(e)
+        case e: Throwable =>
+          failOperator(e)
+      }
+    }
+
+    def interruptAndStop(): Unit = {
+      running = false
+      interrupt()
+    }
+  }
+
+}
+
+object ExternalProcessOperator {
+  // TODO(JS): Do we need to "clean" the process?
+  def transform[IN, K, OUT: TypeInformation](
+      partitionMapping: Int => Int,
+      in: KeyedStream[IN, K],
+      process: ExternalProcess[IN, OUT],
+      capacity: Int): DataStream[OUT] =
+    in.transform(
+      "external process operator",
+      new ExternalProcessOperator[IN, OUT](partitionMapping, process, 0, capacity))
+}

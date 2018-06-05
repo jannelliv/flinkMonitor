@@ -2,8 +2,9 @@ package ch.eth.inf.infsec
 
 import java.util.concurrent.TimeUnit
 
+import ch.eth.inf.infsec.monitor.{ExternalProcessOperator, MonpolyProcess}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
-import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
+import ch.eth.inf.infsec.slicer.{ColissionlessKeyGenerator, HypercubeSlicer, Statistics}
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.IdPartitioner
@@ -19,12 +20,12 @@ object StreamMonitoring {
 
   val logger = Logger.getLogger(this.getClass)
 
-  var in:Option[Either[(String,Int),String]] = _
-  var out:Option[Either[(String,Int),String]] = _
+  var in: Option[Either[(String, Int), String]] = _
+  var out: Option[Either[(String, Int), String]] = _
   var inputFormat: TraceFormat = _
 
   var processorExp: Int = 0
-  var processors:Int=0
+  var processors: Int = 0
 
   var monitorCommand: String = ""
   var isMonpoly: Boolean = true
@@ -43,7 +44,7 @@ object StreamMonitoring {
     y
   }
 
-  def parseArgs(ss:String): Option[Either[(String,Int),String]] = {
+  def parseArgs(ss: String): Option[Either[(String, Int), String]] = {
     try {
       if (ss.isEmpty) None
       else {
@@ -61,10 +62,10 @@ object StreamMonitoring {
     }
   }
 
-  def init(params:ParameterTool) {
+  def init(params: ParameterTool) {
 
-    in = parseArgs(params.get("in","127.0.0.1:9000"))
-    out = parseArgs(params.get("out",""))
+    in = parseArgs(params.get("in", "127.0.0.1:9000"))
+    out = parseArgs(params.get("out", ""))
 
     inputFormat = params.get("format", "monpoly") match {
       case "monpoly" => MonpolyFormat
@@ -74,7 +75,7 @@ object StreamMonitoring {
         sys.exit(1)
     }
 
-    val requestedProcessors = params.getInt("processors",1)
+    val requestedProcessors = params.getInt("processors", 1)
     processorExp = floorLog2(requestedProcessors).max(0)
     processors = 1 << processorExp
     if (processors != requestedProcessors) {
@@ -111,7 +112,7 @@ object StreamMonitoring {
     val slicer = mkSlicer()
     val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate")
 
-    val env:StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+    val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
     // Performance tuning
     env.getConfig.enableObjectReuse()
@@ -122,36 +123,42 @@ object StreamMonitoring {
     env.setParallelism(1)
 
     //Single node
-    val textStream  = in match {
-      case Some(Left((h,p))) =>  env.socketTextStream(h, p)
-      case Some(Right(f)) =>  env.readTextFile(f)
+    val textStream = in match {
+      case Some(Left((h, p))) => env.socketTextStream(h, p)
+      case Some(Right(f)) => env.readTextFile(f)
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
     val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))
+
     val slicedTrace = parsedTrace.flatMap(new ProcessorFunction(slicer))
-      .partitionCustom(new IdPartitioner(),0).setParallelism(processors)
-      .map(e=>e._2).setParallelism(processors)
-      .flatMap(new ProcessorFunction(new MonpolyPrinter)).setParallelism(processors)
 
     //Parallel nodes
+    val sliceMapping = ColissionlessKeyGenerator.getMapping(processors)
+    val keyedTrace = slicedTrace.partitionCustom(new IdPartitioner(), 0).setParallelism(processors)
+      .flatMap(new ProcessorFunction(new KeyBypassMonpolyPrinter[Int])).setParallelism(processors)
+      .map(x => (sliceMapping(x._1), x._2)).setParallelism(processors)
+      .keyBy(x => x._1)
+
     // TODO(JS): Timeout? Capacity?
-    val verdicts = MonitorFunction.orderedWait(slicedTrace, monitorArgs, isMonpoly, 1, TimeUnit.SECONDS, 1000)
-      .setParallelism(processors)
+    val verdicts = ExternalProcessOperator.transform(
+      sliceMapping,
+      keyedTrace,
+      new MonpolyProcess(monitorArgs, isMonpoly),
+      100).setParallelism(processors)
 
     //Single node
 
     out match {
-      case Some(Left((h,p))) =>  verdicts
+      case Some(Left((h, p))) => verdicts
         .map(v => v + "\n").setParallelism(1)
-        .writeToSocket(h,p,new SimpleStringSchema()).setParallelism(1)
-      case Some(Right(f)) =>  verdicts.writeAsText(f).setParallelism(1)
+        .writeToSocket(h, p, new SimpleStringSchema()).setParallelism(1)
+      case Some(Right(f)) => verdicts.writeAsText(f).setParallelism(1)
       case _ => verdicts.print().setParallelism(1)
     }
     env.execute("Parallel Online Monitor")
   }
 
 }
-
 
 
 //val verdicts = slicedTrace.reduce(monpoly)
