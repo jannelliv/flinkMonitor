@@ -3,12 +3,12 @@ package ch.eth.inf.infsec.monitor
 import scala.collection.mutable.ArrayBuffer
 
 // TODO(JS): Split into two classes (Monpoly/echo)
-class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) extends AbstractExternalProcess[(Int, String), String] {
+class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) extends AbstractExternalProcess[String, String] {
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current index: "
 
-  override def writeRequest(in: (Int, String)): Unit = {
-    writer.write(in._2)
+  override def writeRequest(in: String): Unit = {
+    writer.write(in)
     if (isActuallyMonpoly)
       writer.write(GET_INDEX_COMMAND)
     // TODO(JS): Do not flush if there are more requests in the queue

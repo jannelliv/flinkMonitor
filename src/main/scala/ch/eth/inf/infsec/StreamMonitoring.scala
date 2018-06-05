@@ -122,6 +122,8 @@ object StreamMonitoring {
     env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
     env.setParallelism(1)
 
+    val sliceMapping = ColissionlessKeyGenerator.getMapping(processors)
+
     //Single node
     val textStream = in match {
       case Some(Left((h, p))) => env.socketTextStream(h, p)
@@ -130,19 +132,17 @@ object StreamMonitoring {
     }
     val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))
 
-    val slicedTrace = parsedTrace.flatMap(new ProcessorFunction(slicer))
-
-    //Parallel nodes
-    val sliceMapping = ColissionlessKeyGenerator.getMapping(processors)
-    val keyedTrace = slicedTrace.partitionCustom(new IdPartitioner(), 0).setParallelism(processors)
-      .flatMap(new ProcessorFunction(new KeyBypassMonpolyPrinter[Int])).setParallelism(processors)
-      .map(x => (sliceMapping(x._1), x._2)).setParallelism(processors)
+    val slicedTrace = parsedTrace
+      .flatMap(new ProcessorFunction(slicer))
+      .map(x => (sliceMapping(x._1), x._2))
       .keyBy(x => x._1)
 
+    // Parallel node
     // TODO(JS): Timeout? Capacity?
-    val verdicts = ExternalProcessOperator.transform(
+    val verdicts = ExternalProcessOperator.transform[(Int, Record), Int, String, String](
       sliceMapping,
-      keyedTrace,
+      slicedTrace,
+      new KeyedMonpolyPrinter[Int],
       new MonpolyProcess(monitorArgs, isMonpoly),
       100).setParallelism(processors)
 

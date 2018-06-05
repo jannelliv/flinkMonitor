@@ -38,7 +38,7 @@ package object infsec {
   }
 
   // TODO(JS): Call Processor#terminate if the stream has ended (via RichFlatMapFunction#close).
-  // TODO(JS): Not sure whether this state management logic is sound ...
+  // FIXME(JS): We need to use keyed state if the processor is applied to a partitioned stream!
   class ProcessorFunction[I, O](processor: Processor[I, O] with Serializable)
     extends FlatMapFunction[I, O] with CheckpointedFunction {
 

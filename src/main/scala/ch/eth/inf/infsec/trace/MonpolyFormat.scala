@@ -88,10 +88,8 @@ class MonpolyPrinter extends Processor[Record, String] with Serializable {
   }
 }
 
-// TODO(JS): Replace this hack with something better.
-class KeyBypassMonpolyPrinter[K] extends Processor[(K, Record), (K, String)] with Serializable {
+class KeyedMonpolyPrinter[K] extends Processor[(K, Record), String] with Serializable {
   private val internalPrinter = new MonpolyPrinter
-  private var key: Option[K] = None
 
   override type State = MonpolyPrinter#State
 
@@ -99,17 +97,9 @@ class KeyBypassMonpolyPrinter[K] extends Processor[(K, Record), (K, String)] wit
 
   override def restoreState(state: Option[MonpolyPrinter#State]): Unit = internalPrinter.restoreState(state)
 
-  override def process(in: (K, Record), f: ((K, String)) => Unit): Unit = {
-    key match {
-      case None => key = Some(in._1)
-      case Some(k) => assert(k == in._1)
-    }
-    internalPrinter.process(in._2, lift(f))
-  }
+  override def process(in: (K, Record), f: String => Unit): Unit = internalPrinter.process(in._2, f)
 
-  override def terminate(f: ((K, String)) => Unit): Unit = internalPrinter.terminate(lift(f))
-
-  private def lift(f: ((K, String)) => Unit)(out: String): Unit = f((key.get, out))
+  override def terminate(f: String => Unit): Unit = internalPrinter.terminate(f)
 }
 
 object MonpolyFormat extends TraceFormat {

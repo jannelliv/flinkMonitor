@@ -3,8 +3,9 @@ package ch.eth.inf.infsec.monitor
 import java.util
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
+import ch.eth.inf.infsec.Processor
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor, ValueState, ValueStateDescriptor}
-import org.apache.flink.api.common.typeinfo.TypeInformation
+import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
 import org.apache.flink.runtime.state.{KeyGroupRangeAssignment, StateInitializationContext, StateSnapshotContext}
 import org.apache.flink.streaming.api.graph.StreamConfig
@@ -36,15 +37,17 @@ private case class RestoreItem(snapshot: Array[Byte]) extends PendingRequest
 private case class ShutdownItem() extends PendingRequest with PendingResult
 
 
-class ExternalProcessOperator[IN, OUT](
+class ExternalProcessOperator[IN, PIN, OUT](
   partitionMapping: Int => Int,
-  process: ExternalProcess[IN, OUT],
+  preprocessing: Processor[IN, PIN],
+  process: ExternalProcess[PIN, OUT],
   timeout: Long,
   capacity: Int)
   extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
 
   require(capacity > 0)
 
+  private val PREPROCESSING_STATE_NAME = "_external_process_operator_preprocessing_state_"
   private val RESULT_STATE_NAME = "_external_process_operator_result_state_"
   private val PROCESS_STATE_NAME = "_external_process_operator_process_state_"
 
@@ -57,10 +60,12 @@ class ExternalProcessOperator[IN, OUT](
 
   @transient private var snapshotReady: Semaphore = _
 
+  @transient private var preprocessingSerializer: TypeSerializer[preprocessing.State] = _
   @transient private var outSerializer: StreamElementSerializer[OUT] = _
   @transient private var stateSerializer: TypeSerializer[Array[Byte]] = _
 
   @transient private var recoveredResults: ListState[StreamElement] = _
+  @transient private var recoveredPreprocessing: ValueState[preprocessing.State] = _
   @transient private var recoveredState: ValueState[Array[Byte]] = _
 
   @transient private var pendingCount: Int = 0
@@ -85,6 +90,9 @@ class ExternalProcessOperator[IN, OUT](
     snapshotReady = new Semaphore(0)
     outSerializer = new StreamElementSerializer[OUT](getOperatorConfig.getTypeSerializerOut(getUserCodeClassloader))
 
+    val preprocessingType = TypeInformation.of(new TypeHint[preprocessing.State]() {})
+    preprocessingSerializer = preprocessingType.createSerializer(getExecutionConfig)
+
     val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
     stateSerializer = stateType.createSerializer(getExecutionConfig)
 
@@ -97,6 +105,8 @@ class ExternalProcessOperator[IN, OUT](
     pendingCount = 0
     waitingRequest = null
 
+    preprocessing.restoreState(None)
+
     process.start()
 //    println("DEBUG [open] process started")
 
@@ -106,7 +116,7 @@ class ExternalProcessOperator[IN, OUT](
         processingQueue.put(request)
 //        println("DEBUG [writerThread] request = " + request.getClass)
         request match {
-          case InputItem(record) => process.writeRequest(record.asRecord[IN]().getValue)
+          case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
           case SnapshotRequestItem() => process.initSnapshot()
           case RestoreItem(state) => process.initRestore(state)
@@ -189,9 +199,12 @@ class ExternalProcessOperator[IN, OUT](
 
     if (recoveredResults != null) {
 //      println("DEBUG [open] recovering state")
+      assert(recoveredPreprocessing != null)
       assert(recoveredState != null)
 
       setKeyForPartition()
+
+      preprocessing.restoreState(Some(recoveredPreprocessing.value()))
 
       resultLock.synchronized {
         for (element: StreamElement <- recoveredResults.get) {
@@ -209,6 +222,7 @@ class ExternalProcessOperator[IN, OUT](
 
       requestQueue.put(RestoreItem(recoveredState.value()))
 
+      recoveredPreprocessing = null
       recoveredResults = null
       recoveredState = null
 //      println("DEBUG [open] state recovered")
@@ -217,6 +231,8 @@ class ExternalProcessOperator[IN, OUT](
 
   override def close(): Unit = {
 //    println("DEBUG [close] closing")
+    preprocessing.terminate(x => enqueueRequest(InputItem(new StreamRecord[PIN](x))))
+
     requestQueue.put(ShutdownItem())
 
     try {
@@ -305,12 +321,17 @@ class ExternalProcessOperator[IN, OUT](
     setKeyForPartition()
 
     // Store the complete state: pending results and the process snapshot.
+    val preprocessingState = getKeyedStateStore.getState(new ValueStateDescriptor[preprocessing.State](
+      PREPROCESSING_STATE_NAME,
+      preprocessingSerializer))
     val resultState = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
       RESULT_STATE_NAME,
       outSerializer))
     val processState = getKeyedStateStore.getState(new ValueStateDescriptor[Array[Byte]](
       PROCESS_STATE_NAME,
       stateSerializer))
+
+    preprocessingState.update(preprocessing.getState)
 
     resultState.clear()
 
@@ -347,6 +368,9 @@ class ExternalProcessOperator[IN, OUT](
     super.initializeState(context)
 
     if (context.isRestored) {
+      recoveredPreprocessing = getKeyedStateStore.getState(new ValueStateDescriptor[preprocessing.State](
+        PREPROCESSING_STATE_NAME,
+        preprocessingSerializer))
       recoveredResults = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
         RESULT_STATE_NAME,
         outSerializer))
@@ -363,7 +387,8 @@ class ExternalProcessOperator[IN, OUT](
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
     // TODO(JS): Implement timeout
 //    println("DEBUG [processElement]")
-    enqueueRequest(InputItem(streamRecord))
+    preprocessing.process(streamRecord.getValue, x =>
+      enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))) )
   }
 
   def failOperator(throwable: Throwable): Unit = {
@@ -427,13 +452,14 @@ class ExternalProcessOperator[IN, OUT](
 }
 
 object ExternalProcessOperator {
-  // TODO(JS): Do we need to "clean" the process?
-  def transform[IN, K, OUT: TypeInformation](
+  // TODO(JS): Do we need to "clean" the process/preprocessing?
+  def transform[IN, K, PIN, OUT: TypeInformation](
       partitionMapping: Int => Int,
       in: KeyedStream[IN, K],
-      process: ExternalProcess[IN, OUT],
+      preprocessing: Processor[IN, PIN],
+      process: ExternalProcess[PIN, OUT],
       capacity: Int): DataStream[OUT] =
     in.transform(
-      "external process operator",
-      new ExternalProcessOperator[IN, OUT](partitionMapping, process, 0, capacity))
+      "External Process",
+      new ExternalProcessOperator[IN, PIN, OUT](partitionMapping, preprocessing, process, 0, capacity))
 }
