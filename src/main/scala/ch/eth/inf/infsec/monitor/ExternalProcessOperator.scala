@@ -241,7 +241,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
 
       if (Thread.holdsLock(taskLock)) {
         while (emitterThread.isAlive)
-          taskLock.wait()
+          taskLock.wait(100L)
       }
       emitterThread.join()
     } catch {
