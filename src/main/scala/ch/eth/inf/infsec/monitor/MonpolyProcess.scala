@@ -4,8 +4,7 @@ import java.nio.file.{Files, Path}
 
 import scala.collection.mutable.ArrayBuffer
 
-// TODO(JS): Split into two classes (Monpoly/echo)
-class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) extends AbstractExternalProcess[String, String] {
+class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[String, String] {
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current index: "
 
@@ -36,8 +35,7 @@ class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) e
 
   override def writeRequest(in: String): Unit = {
     writer.write(in)
-    if (isActuallyMonpoly)
-      writer.write(GET_INDEX_COMMAND)
+    writer.write(GET_INDEX_COMMAND)
     // TODO(JS): Do not flush if there are more requests in the queue
     writer.flush()
   }
@@ -62,16 +60,11 @@ class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) e
     do {
       val line = reader.readLine()
       if (line != null) {
-        if (isActuallyMonpoly) {
-          if (line.startsWith(GET_INDEX_PREFIX)) {
-            more = false
-          } else {
-            // TODO(JS): Check that line is a verdict before adding it to the buffer.
-            resultBuffer += line
-          }
-        } else {
-          resultBuffer += line
+        if (line.startsWith(GET_INDEX_PREFIX)) {
           more = false
+        } else {
+          // TODO(JS): Check that line is a verdict before adding it to the buffer.
+          resultBuffer += line
         }
       }
     } while (more)

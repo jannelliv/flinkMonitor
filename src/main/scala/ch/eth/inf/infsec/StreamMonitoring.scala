@@ -1,6 +1,6 @@
 package ch.eth.inf.infsec
 
-import ch.eth.inf.infsec.monitor.{ExternalProcessOperator, MonpolyProcess}
+import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{ColissionlessKeyGenerator, HypercubeSlicer, Statistics}
 import ch.eth.inf.infsec.trace._
@@ -119,6 +119,7 @@ object StreamMonitoring {
     val slicer = mkSlicer()
     // TODO(JS): Do we want to keep the nofilterrel and nofilteremptytp flags? There should be a parameter for this.
     val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate", "-nofilterrel", "-nofilteremptytp")
+    val process = if (isMonpoly) new MonpolyProcess(monitorArgs) else new EchoProcess(monitorArgs)
 
     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
@@ -158,7 +159,7 @@ object StreamMonitoring {
       sliceMapping,
       slicedTrace,
       new KeyedMonpolyPrinter[Int],
-      new MonpolyProcess(monitorArgs, isMonpoly),
+      process,
       100).setParallelism(processors)
 
     //Single node
