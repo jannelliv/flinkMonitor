@@ -45,13 +45,16 @@ object MonpolyParser {
 class MonpolyPrinter extends Processor[Record, String] with Serializable {
   protected var buffer = new ArrayBuffer[Record]()
 
-  override type State = ArrayBuffer[Record]
+  override type State = Vector[Record]
 
-  override def getState: ArrayBuffer[Record] = buffer
+  override def getState: Vector[Record] = buffer.toVector
 
-  override def restoreState(state: Option[ArrayBuffer[Record]]): Unit = state match {
-    case Some(b) => buffer = b
-    case None => buffer.clear()
+  override def restoreState(state: Option[Vector[Record]]): Unit = {
+    buffer.clear()
+    state match {
+      case Some(b) => buffer ++= b
+      case None => ()
+    }
   }
 
   protected def appendValue(builder: mutable.StringBuilder, value: Domain): Unit = value match {

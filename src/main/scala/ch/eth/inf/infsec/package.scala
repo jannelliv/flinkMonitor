@@ -15,6 +15,12 @@ package object infsec {
     type State
 
     def isStateful: Boolean = true
+
+    /**
+      * Obtain a view on the current state of this processor. The returned value must not be modified anymore!
+      *
+      * @return the current state of this processor
+      */
     def getState: State
     def restoreState(state: Option[State])
 
