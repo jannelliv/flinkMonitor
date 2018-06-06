@@ -143,6 +143,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
             case shutdown@ShutdownItem() =>
               process.join()
               resultQueue.add(shutdown)
+              running = false
           }
           resultLock.notifyAll()
         }
