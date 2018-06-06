@@ -1,6 +1,10 @@
 package ch.eth.inf.infsec.monitor
 
+import java.nio.file.Path
+
 trait ExternalProcess[IN, OUT] extends Serializable {
+  def setTempFile(path: Path): Unit = ()
+
   def start(): Unit
 
   // Input functions

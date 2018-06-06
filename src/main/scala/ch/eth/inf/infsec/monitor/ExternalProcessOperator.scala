@@ -1,5 +1,6 @@
 package ch.eth.inf.infsec.monitor
 
+import java.nio.file.{Files, Path}
 import java.util
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
@@ -58,6 +59,10 @@ class ExternalProcessOperator[IN, PIN, OUT](
   @transient private var resultLock: Object = _
   @transient private var resultQueue: util.ArrayDeque[PendingResult] = _
 
+  // TODO(JS): Move temporary file handling to MonpolyProcess
+  @transient private var tempDirectory: Path = _
+  @transient private var tempStateFile: Path = _
+
   @transient private var snapshotReady: Semaphore = _
 
   @transient private var preprocessingSerializer: TypeSerializer[preprocessing.State] = _
@@ -76,6 +81,9 @@ class ExternalProcessOperator[IN, PIN, OUT](
   @transient private var readerThread: ServiceThread = _
   @transient private var emitterThread: ServiceThread = _
 
+  @transient private var lastSeenRecord: PIN = _
+  @transient @volatile private var printRestoredRecords: Int = _
+
   override def setup(
     containingTask: StreamTask[_, _],
     config: StreamConfig,
@@ -87,6 +95,10 @@ class ExternalProcessOperator[IN, PIN, OUT](
     processingQueue = new LinkedBlockingQueue[PendingRequest]()
     resultLock = new Object
     resultQueue = new util.ArrayDeque[PendingResult]()
+    tempDirectory = Files.createTempDirectory("monitor-process")
+    tempDirectory.toFile.deleteOnExit()
+    tempStateFile = tempDirectory.resolve("state")
+    tempStateFile.toFile.deleteOnExit()
     snapshotReady = new Semaphore(0)
     outSerializer = new StreamElementSerializer[OUT](getOperatorConfig.getTypeSerializerOut(getUserCodeClassloader))
 
@@ -96,6 +108,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
     val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
     stateSerializer = stateType.createSerializer(getExecutionConfig)
 
+    process.setTempFile(tempStateFile)
 //    println("DEBUG [setup] complete")
   }
 
@@ -116,9 +129,19 @@ class ExternalProcessOperator[IN, PIN, OUT](
         processingQueue.put(request)
 //        println("DEBUG [writerThread] request = " + request.getClass)
         request match {
-          case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
+          case InputItem(record) =>
+            lastSeenRecord = record.asRecord[PIN]().getValue
+            if (printRestoredRecords > 0) {
+              println("DEBUG [writerThread] first record after restoring: " + lastSeenRecord.toString)
+            }
+            printRestoredRecords -= 1
+            process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
-          case SnapshotRequestItem() => process.initSnapshot()
+          case SnapshotRequestItem() =>
+            if (lastSeenRecord != null) {
+              println("DEBUG [writerThread] record immediately before snapshot: " + lastSeenRecord.toString)
+            }
+            process.initSnapshot()
           case RestoreItem(state) => process.initRestore(state)
           case ShutdownItem() =>
             process.shutdown()
@@ -133,6 +156,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
         val request = processingQueue.take()
 //        println("DEBUG [readerThread] request = " + request.getClass)
 
+        // FIXME(JS): Do more fine-grained locking; some of the calls below might be blocking!
         resultLock.synchronized {
           request match {
             case InputItem(record) =>
@@ -142,6 +166,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
             case mark@WatermarkItem(_) => resultQueue.add(mark)
             case SnapshotRequestItem() =>
               resultQueue.add(SnapshotResultItem(process.readSnapshot()))
+              println("DEBUG [readerThread] snapshot added to resultQueue, releasing semaphore")
               snapshotReady.release()
             case RestoreItem(_) => process.restored()
             case shutdown@ShutdownItem() =>
@@ -185,7 +210,8 @@ class ExternalProcessOperator[IN, PIN, OUT](
             case WatermarkItem(mark) =>
               output.emitWatermark(mark)
               pendingCount = -1
-            case SnapshotResultItem(state) => ()
+            case SnapshotResultItem(state) =>
+              println("DEBUG [emitterThread] snapshot completed")
             case ShutdownItem() => running = false
           }
 
@@ -197,8 +223,12 @@ class ExternalProcessOperator[IN, PIN, OUT](
 
 //    println("DEBUG [open] service threads started")
 
+    printRestoredRecords = 0
     if (recoveredResults != null) {
-//      println("DEBUG [open] recovering state")
+      printRestoredRecords = 10
+
+      println("DEBUG [ExternalProcessOperator] recovering state")
+      assert(Thread.holdsLock(taskLock))
       assert(recoveredPreprocessing != null)
       assert(recoveredState != null)
 
@@ -225,17 +255,19 @@ class ExternalProcessOperator[IN, PIN, OUT](
       recoveredPreprocessing = null
       recoveredResults = null
       recoveredState = null
-//      println("DEBUG [open] state recovered")
+      println("DEBUG [ExternalProcessOperator] state recovered")
     }
+
+    println("DEBUG external process operator is ready")
   }
 
   override def close(): Unit = {
 //    println("DEBUG [close] closing")
-    preprocessing.terminate(x => enqueueRequest(InputItem(new StreamRecord[PIN](x))))
-
-    requestQueue.put(ShutdownItem())
-
     try {
+      preprocessing.terminate(x => enqueueRequest(InputItem(new StreamRecord[PIN](x))))
+
+      requestQueue.put(ShutdownItem())
+
       writerThread.join()
       readerThread.join()
 
@@ -250,20 +282,24 @@ class ExternalProcessOperator[IN, PIN, OUT](
     }
 
     super.close()
-//    println("DEBUG [close] complete")
+    println("DEBUG external process operator closed")
   }
 
   override def dispose(): Unit = {
 //    println("DEBUG [dispose] disposing")
-    writerThread.interruptAndStop()
-    readerThread.interruptAndStop()
-    emitterThread.interruptAndStop()
+    if (writerThread != null)
+      writerThread.interruptAndStop()
+    if (readerThread != null)
+      readerThread.interruptAndStop()
+    if (emitterThread != null)
+      emitterThread.interruptAndStop()
 //    println("DEBUG [dispose] service threads stopped")
 
     var exception: Exception = null
 
     try {
-      process.destroy()
+      if (process != null)
+        process.destroy()
     } catch {
       case e: InterruptedException =>
         exception = e
@@ -272,8 +308,20 @@ class ExternalProcessOperator[IN, PIN, OUT](
     }
 
 //    println("DEBUG [dispose] process destroyed")
-    if (exception != null) {
+//    if (exception != null) {
 //      println("DEBUG [dispose] process.destroy() failed")
+//    }
+
+    try {
+      if (tempDirectory != null) {
+        Files.deleteIfExists(tempStateFile)
+        Files.deleteIfExists(tempDirectory)
+      }
+    } catch {
+      case e: InterruptedException =>
+        exception = ExceptionUtils.firstOrSuppressed(e, exception)
+        Thread.currentThread().interrupt()
+      case e: Exception => exception = ExceptionUtils.firstOrSuppressed(e, exception)
     }
 
     try {
@@ -288,14 +336,14 @@ class ExternalProcessOperator[IN, PIN, OUT](
     if (exception != null)
       throw exception
 
-//    println("DEBUG [dispose] complete")
+    println("DEBUG external process operator disposed")
   }
 
   override def snapshotState(context: StateSnapshotContext): Unit = {
     super.snapshotState(context)
     assert(Thread.holdsLock(taskLock))
 
-//    println("DEBUG [snapshotState] snapshot initiated")
+    println("DEBUG [snapshotState] snapshot initiated")
 
     // TODO(JS): Ideally, all of this would happen in the asynchronous part of the snapshot.
 
@@ -316,7 +364,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
     assert(snapshotReady.availablePermits() == 0)
     assert(requestQueue.isEmpty)
 
-//    println("DEBUG [snapshotState] process state acquired")
+    println("DEBUG [snapshotState] process state acquired")
 
     setKeyForPartition()
 
@@ -361,7 +409,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
             getOperatorName + ".", e)
     }
 
-//    println("DEBUG [snapshotState] snapshot completed")
+    println("DEBUG [snapshotState] snapshot completed")
   }
 
   override def initializeState(context: StateInitializationContext): Unit = {
@@ -395,6 +443,8 @@ class ExternalProcessOperator[IN, PIN, OUT](
     getContainingTask.getEnvironment.failExternally(throwable)
   }
 
+  // FIXME(JS): If the process dies, we might get stuck in taskLock.wait(), even though Flink is trying to cancel
+  // the task.
   private def enqueueRequest(request: PendingRequest): Unit = {
     assert(Thread.holdsLock(taskLock))
     waitingRequest = request

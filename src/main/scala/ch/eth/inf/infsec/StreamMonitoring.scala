@@ -1,15 +1,16 @@
 package ch.eth.inf.infsec
 
-import java.util.concurrent.TimeUnit
-
 import ch.eth.inf.infsec.monitor.{ExternalProcessOperator, MonpolyProcess}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{ColissionlessKeyGenerator, HypercubeSlicer, Statistics}
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.serialization.SimpleStringSchema
-import org.apache.flink.api.java.functions.IdPartitioner
+import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.api.java.utils.ParameterTool
+import org.apache.flink.core.fs.Path
+import org.apache.flink.runtime.state.filesystem.FsStateBackend
 import org.apache.flink.streaming.api.TimeCharacteristic
+import org.apache.flink.streaming.api.functions.source.FileProcessingMode
 import org.apache.flink.streaming.api.scala._
 import org.apache.log4j.Logger
 
@@ -20,9 +21,12 @@ object StreamMonitoring {
 
   val logger = Logger.getLogger(this.getClass)
 
+  var checkpointUri: String = ""
+
   var in: Option[Either[(String, Int), String]] = _
   var out: Option[Either[(String, Int), String]] = _
   var inputFormat: TraceFormat = _
+  var watchInput: Boolean = false
 
   var processorExp: Int = 0
   var processors: Int = 0
@@ -63,6 +67,7 @@ object StreamMonitoring {
   }
 
   def init(params: ParameterTool) {
+    checkpointUri = params.get("checkpoints", "")
 
     in = parseArgs(params.get("in", "127.0.0.1:9000"))
     out = parseArgs(params.get("out", ""))
@@ -74,6 +79,8 @@ object StreamMonitoring {
         logger.error("Unknown trace format " + format)
         sys.exit(1)
     }
+
+    watchInput = params.getBoolean("watch", false)
 
     val requestedProcessors = params.getInt("processors", 1)
     processorExp = floorLog2(requestedProcessors).max(0)
@@ -110,9 +117,13 @@ object StreamMonitoring {
     val params = ParameterTool.fromArgs(args)
     init(params)
     val slicer = mkSlicer()
-    val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate")
+    // TODO(JS): Do we want to keep the nofilterrel and nofilteremptytp flags? There should be a parameter for this.
+    val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate", "-nofilterrel", "-nofilteremptytp")
 
     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+
+    if (!checkpointUri.isEmpty)
+      env.setStateBackend(new FsStateBackend(checkpointUri))
 
     // Performance tuning
     env.getConfig.enableObjectReuse()
@@ -127,7 +138,11 @@ object StreamMonitoring {
     //Single node
     val textStream = in match {
       case Some(Left((h, p))) => env.socketTextStream(h, p)
-      case Some(Right(f)) => env.readTextFile(f)
+      case Some(Right(f)) =>
+        if (watchInput)
+          env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
+        else
+          env.readTextFile(f)
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
     val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))

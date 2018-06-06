@@ -1,11 +1,17 @@
 package ch.eth.inf.infsec.monitor
 
+import java.nio.file.{Files, Path}
+
 import scala.collection.mutable.ArrayBuffer
 
 // TODO(JS): Split into two classes (Monpoly/echo)
 class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) extends AbstractExternalProcess[String, String] {
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current index: "
+
+  @transient private var tempFile: Path = _
+
+  override def setTempFile(path: Path): Unit = tempFile = path
 
   override def writeRequest(in: String): Unit = {
     writer.write(in)
@@ -15,12 +21,22 @@ class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) e
     writer.flush()
   }
 
-  // TODO(JS)
-  override def initSnapshot(): Unit = ()
+  override def initSnapshot(): Unit = {
+    println("DEBUG [MonpolyProcess] initSnapshot")
+    writer.write(">get_pos<\n")
+    writer.write(">save_state \"" + tempFile + "\"<\n")
+    writer.flush()
+  }
 
-  // TODO(JS)
-  override def initRestore(snapshot: Array[Byte]): Unit =
-    println("DEBUG [MonpolyProcess#initRestore] snapshot = " + snapshot.mkString(","))
+  override def initRestore(snapshot: Array[Byte]): Unit = {
+    println("DEBUG [MonpolyProcess] initRestore: writing to file")
+    Files.write(tempFile, snapshot)
+    println("DEBUG [MonpolyProcess] initRestore: sending command")
+    writer.write(">get_pos<\n")
+    writer.write(">restore_state \"" + tempFile + "\"<\n")
+    writer.write(">get_pos<\n")
+    writer.flush()
+  }
 
   // TODO(JS): Move the reusable buffer to KeyedExternalProcessOperator.
   private var resultBuffer = new ArrayBuffer[String]()
@@ -47,9 +63,32 @@ class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) e
     resultBuffer
   }
 
-  // TODO(JS)
-  override def readSnapshot(): Array[Byte] = Array(0xde.toByte, 0xad.toByte, 0xbe.toByte, 0xef.toByte)
+  override def readSnapshot(): Array[Byte] = {
+    var line0 = reader.readLine()
+    println("DEBUG [MonpolyProcess] at snapshot: " + line0)
 
-  // TODO(JS)
-  override def restored(): Unit = ()
+    println("DEBUG [MonpolyProcess] readSnapshot: reading reply")
+    val line = reader.readLine()
+    println("DEBUG [MonpolyProcess] readSnapshot: reply = " + line)
+    if (line != "save_state OK")
+      throw new Exception("Monitor process failed to save state.")
+    val state = Files.readAllBytes(tempFile)
+    println("DEBUG [MonpolyProcess] readSnapshot: state has been read")
+    Files.deleteIfExists(tempFile)
+    state
+  }
+
+  override def restored(): Unit = {
+    var line0 = reader.readLine()
+    println("DEBUG [MonpolyProcess] before restore: " + line0)
+
+    println("DEBUG [MonpolyProcess] restored: reading reply")
+    val line = reader.readLine()
+    println("DEBUG [MonpolyProcess] restored: reply = " + line)
+    if (line != "restore_state OK")
+      throw new Exception("Monitor process failed to restore state.")
+
+    var line1 = reader.readLine()
+    println("DEBUG [MonpolyProcess] after restore: " + line1)
+  }
 }
