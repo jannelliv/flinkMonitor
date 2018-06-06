@@ -1,6 +1,5 @@
 package ch.eth.inf.infsec.monitor
 
-import java.nio.file.{Files, Path}
 import java.util
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
@@ -59,10 +58,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
   @transient private var resultLock: Object = _
   @transient private var resultQueue: util.ArrayDeque[PendingResult] = _
 
-  // TODO(JS): Move temporary file handling to MonpolyProcess
-  @transient private var tempDirectory: Path = _
-  @transient private var tempStateFile: Path = _
-
   @transient private var snapshotReady: Semaphore = _
 
   @transient private var preprocessingSerializer: TypeSerializer[preprocessing.State] = _
@@ -95,10 +90,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
     processingQueue = new LinkedBlockingQueue[PendingRequest]()
     resultLock = new Object
     resultQueue = new util.ArrayDeque[PendingResult]()
-    tempDirectory = Files.createTempDirectory("monitor-process")
-    tempDirectory.toFile.deleteOnExit()
-    tempStateFile = tempDirectory.resolve("state")
-    tempStateFile.toFile.deleteOnExit()
     snapshotReady = new Semaphore(0)
     outSerializer = new StreamElementSerializer[OUT](getOperatorConfig.getTypeSerializerOut(getUserCodeClassloader))
 
@@ -108,7 +99,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
     val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
     stateSerializer = stateType.createSerializer(getExecutionConfig)
 
-    process.setTempFile(tempStateFile)
 //    println("DEBUG [setup] complete")
   }
 
@@ -311,18 +301,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
 //    if (exception != null) {
 //      println("DEBUG [dispose] process.destroy() failed")
 //    }
-
-    try {
-      if (tempDirectory != null) {
-        Files.deleteIfExists(tempStateFile)
-        Files.deleteIfExists(tempDirectory)
-      }
-    } catch {
-      case e: InterruptedException =>
-        exception = ExceptionUtils.firstOrSuppressed(e, exception)
-        Thread.currentThread().interrupt()
-      case e: Exception => exception = ExceptionUtils.firstOrSuppressed(e, exception)
-    }
 
     try {
       super.dispose()

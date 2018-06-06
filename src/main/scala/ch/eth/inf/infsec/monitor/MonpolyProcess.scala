@@ -9,9 +9,24 @@ class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) e
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current index: "
 
-  @transient private var tempFile: Path = _
+  @transient private var tempDirectory: Path = _
+  @transient private var tempStateFile: Path = _
 
-  override def setTempFile(path: Path): Unit = tempFile = path
+  override def start(): Unit = {
+    super.start()
+    tempDirectory = Files.createTempDirectory("monpoly-state")
+    tempDirectory.toFile.deleteOnExit()
+    tempStateFile = tempDirectory.resolve("state.bin")
+    tempStateFile.toFile.deleteOnExit()
+  }
+
+  override def destroy(): Unit = {
+    super.destroy()
+    if (tempDirectory != null)
+      Files.deleteIfExists(tempStateFile)
+    if (tempStateFile != null)
+      Files.deleteIfExists(tempDirectory)
+  }
 
   override def writeRequest(in: String): Unit = {
     writer.write(in)
@@ -24,16 +39,16 @@ class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) e
   override def initSnapshot(): Unit = {
     println("DEBUG [MonpolyProcess] initSnapshot")
     writer.write(">get_pos<\n")
-    writer.write(">save_state \"" + tempFile + "\"<\n")
+    writer.write(">save_state \"" + tempStateFile + "\"<\n")
     writer.flush()
   }
 
   override def initRestore(snapshot: Array[Byte]): Unit = {
     println("DEBUG [MonpolyProcess] initRestore: writing to file")
-    Files.write(tempFile, snapshot)
+    Files.write(tempStateFile, snapshot)
     println("DEBUG [MonpolyProcess] initRestore: sending command")
     writer.write(">get_pos<\n")
-    writer.write(">restore_state \"" + tempFile + "\"<\n")
+    writer.write(">restore_state \"" + tempStateFile + "\"<\n")
     writer.write(">get_pos<\n")
     writer.flush()
   }
@@ -72,9 +87,9 @@ class MonpolyProcess(val command: Seq[String], val isActuallyMonpoly: Boolean) e
     println("DEBUG [MonpolyProcess] readSnapshot: reply = " + line)
     if (line != "save_state OK")
       throw new Exception("Monitor process failed to save state.")
-    val state = Files.readAllBytes(tempFile)
+    val state = Files.readAllBytes(tempStateFile)
     println("DEBUG [MonpolyProcess] readSnapshot: state has been read")
-    Files.deleteIfExists(tempFile)
+    Files.deleteIfExists(tempStateFile)
     state
   }
 
