@@ -76,9 +76,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
   @transient private var readerThread: ServiceThread = _
   @transient private var emitterThread: ServiceThread = _
 
-  @transient private var lastSeenRecord: PIN = _
-  @transient @volatile private var printRestoredRecords: Int = _
-
   override def setup(
     containingTask: StreamTask[_, _],
     config: StreamConfig,
@@ -98,12 +95,11 @@ class ExternalProcessOperator[IN, PIN, OUT](
 
     val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
     stateSerializer = stateType.createSerializer(getExecutionConfig)
-
-//    println("DEBUG [setup] complete")
   }
 
   override def open(): Unit = {
     super.open()
+    assert(Thread.holdsLock(taskLock))
 
     pendingCount = 0
     waitingRequest = null
@@ -111,27 +107,15 @@ class ExternalProcessOperator[IN, PIN, OUT](
     preprocessing.restoreState(None)
 
     process.start()
-//    println("DEBUG [open] process started")
 
     writerThread = new ServiceThread {
       override def handle(): Unit = {
         val request = requestQueue.take()
         processingQueue.put(request)
-//        println("DEBUG [writerThread] request = " + request.getClass)
         request match {
-          case InputItem(record) =>
-            lastSeenRecord = record.asRecord[PIN]().getValue
-            if (printRestoredRecords > 0) {
-              println("DEBUG [writerThread] first record after restoring: " + lastSeenRecord.toString)
-            }
-            printRestoredRecords -= 1
-            process.writeRequest(record.asRecord[PIN]().getValue)
+          case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
-          case SnapshotRequestItem() =>
-            if (lastSeenRecord != null) {
-              println("DEBUG [writerThread] record immediately before snapshot: " + lastSeenRecord.toString)
-            }
-            process.initSnapshot()
+          case SnapshotRequestItem() => process.initSnapshot()
           case RestoreItem(state) => process.initRestore(state)
           case ShutdownItem() =>
             process.shutdown()
@@ -144,8 +128,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
     readerThread = new ServiceThread {
       override def handle(): Unit = {
         val request = processingQueue.take()
-//        println("DEBUG [readerThread] request = " + request.getClass)
-
         // FIXME(JS): Do more fine-grained locking; some of the calls below might be blocking!
         resultLock.synchronized {
           request match {
@@ -156,7 +138,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
             case mark@WatermarkItem(_) => resultQueue.add(mark)
             case SnapshotRequestItem() =>
               resultQueue.add(SnapshotResultItem(process.readSnapshot()))
-              println("DEBUG [readerThread] snapshot added to resultQueue, releasing semaphore")
               snapshotReady.release()
             case RestoreItem(_) => process.restored()
             case shutdown@ShutdownItem() =>
@@ -176,8 +157,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
             resultLock.wait()
         }
 
-//        println("DEBUG [emitterThread] queue non-empty")
-
         if (!running)
           return
 
@@ -186,8 +165,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
           resultLock.synchronized {
             result = resultQueue.removeFirst()
           }
-
-//          println("DEBUG [emitterThread] result = " + result.getClass)
 
           // TODO(JS): In AsyncWaitOperator, a TimestampedCollector is used, which recycles a single record object.
           // Do we want to do the same here?
@@ -200,8 +177,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
             case WatermarkItem(mark) =>
               output.emitWatermark(mark)
               pendingCount = -1
-            case SnapshotResultItem(state) =>
-              println("DEBUG [emitterThread] snapshot completed")
+            case SnapshotResultItem(state) => ()
             case ShutdownItem() => running = false
           }
 
@@ -211,14 +187,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
     }
     emitterThread.start()
 
-//    println("DEBUG [open] service threads started")
-
-    printRestoredRecords = 0
     if (recoveredResults != null) {
-      printRestoredRecords = 10
-
-      println("DEBUG [ExternalProcessOperator] recovering state")
-      assert(Thread.holdsLock(taskLock))
       assert(recoveredPreprocessing != null)
       assert(recoveredState != null)
 
@@ -245,14 +214,10 @@ class ExternalProcessOperator[IN, PIN, OUT](
       recoveredPreprocessing = null
       recoveredResults = null
       recoveredState = null
-      println("DEBUG [ExternalProcessOperator] state recovered")
     }
-
-    println("DEBUG external process operator is ready")
   }
 
   override def close(): Unit = {
-//    println("DEBUG [close] closing")
     try {
       preprocessing.terminate(x => enqueueRequest(InputItem(new StreamRecord[PIN](x))))
 
@@ -272,18 +237,15 @@ class ExternalProcessOperator[IN, PIN, OUT](
     }
 
     super.close()
-    println("DEBUG external process operator closed")
   }
 
   override def dispose(): Unit = {
-//    println("DEBUG [dispose] disposing")
     if (writerThread != null)
       writerThread.interruptAndStop()
     if (readerThread != null)
       readerThread.interruptAndStop()
     if (emitterThread != null)
       emitterThread.interruptAndStop()
-//    println("DEBUG [dispose] service threads stopped")
 
     var exception: Exception = null
 
@@ -297,11 +259,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
       case e: Exception => exception = e
     }
 
-//    println("DEBUG [dispose] process destroyed")
-//    if (exception != null) {
-//      println("DEBUG [dispose] process.destroy() failed")
-//    }
-
     try {
       super.dispose()
     } catch {
@@ -313,15 +270,11 @@ class ExternalProcessOperator[IN, PIN, OUT](
 
     if (exception != null)
       throw exception
-
-    println("DEBUG external process operator disposed")
   }
 
   override def snapshotState(context: StateSnapshotContext): Unit = {
     super.snapshotState(context)
     assert(Thread.holdsLock(taskLock))
-
-    println("DEBUG [snapshotState] snapshot initiated")
 
     // TODO(JS): Ideally, all of this would happen in the asynchronous part of the snapshot.
 
@@ -341,8 +294,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
     snapshotReady.acquire()
     assert(snapshotReady.availablePermits() == 0)
     assert(requestQueue.isEmpty)
-
-    println("DEBUG [snapshotState] process state acquired")
 
     setKeyForPartition()
 
@@ -386,8 +337,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
           "Could not add pending results to operator state backend of operator" +
             getOperatorName + ".", e)
     }
-
-    println("DEBUG [snapshotState] snapshot completed")
   }
 
   override def initializeState(context: StateInitializationContext): Unit = {
@@ -412,7 +361,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
 
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
     // TODO(JS): Implement timeout
-//    println("DEBUG [processElement]")
     preprocessing.process(streamRecord.getValue, x =>
       enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))) )
   }
