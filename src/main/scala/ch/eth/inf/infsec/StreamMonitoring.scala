@@ -104,19 +104,13 @@ object StreamMonitoring {
     }
   }
 
-  def mkSlicer(): HypercubeSlicer = {
-    // TODO(JS): Get statistics from somewhere
-    logger.info("Optimizing slicer ...")
-    val slicer = HypercubeSlicer.optimize(formula, processorExp, Statistics.constant)
-    logger.info(s"Selected shares: ${slicer.shares.mkString(", ")}")
-    slicer
-  }
-
   def main(args: Array[String]) {
 
     val params = ParameterTool.fromArgs(args)
     init(params)
-    val slicer = mkSlicer()
+
+    val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
+
     // TODO(JS): Do we want to keep the nofilterrel and nofilteremptytp flags? There should be a parameter for this.
     val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate", "-nofilterrel", "-nofilteremptytp")
     val process = if (isMonpoly) new MonpolyProcess(monitorArgs) else new EchoProcess(monitorArgs)

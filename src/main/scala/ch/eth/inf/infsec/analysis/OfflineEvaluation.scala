@@ -5,7 +5,7 @@ import java.io.PrintWriter
 import ch.eth.inf.infsec.policy.{Formula, GenFormula, Policy}
 import ch.eth.inf.infsec.slicer.{DataSlicer, HypercubeSlicer}
 import ch.eth.inf.infsec.trace._
-import ch.eth.inf.infsec.{ProcessorFunction, StreamMonitoring, policy, slicer}
+import ch.eth.inf.infsec._
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala._
@@ -16,12 +16,6 @@ import scala.collection.mutable
 import scala.io.Source
 
 object OfflineEvaluation {
-  def parseKeyValueParameter[T](arg: String, parseValue: String => T): Map[String, T] =
-    arg.split(',').filter(_.nonEmpty).map { x =>
-      val xs = x.split("=", 2)
-      (xs(0), parseValue(xs(1)))
-    }(collection.breakOut)
-
   def main(args: Array[String]): Unit = {
     val logger = LoggerFactory.getLogger(getClass)
     val parameters = ParameterTool.fromArgs(args)
@@ -61,8 +55,9 @@ object OfflineEvaluation {
       monitoringFormula
     }
 
+    // TODO(JS): Use SlicingSpecification
     val sharesSpec = parameters.get("shares", "")
-    val shares = parseKeyValueParameter(sharesSpec, _.toInt)
+    val shares = SlicingSpecification.parseKeyValueParameter(sharesSpec, _.toInt)
     if (sharesSpec.nonEmpty) {
       if (monitoringFormula.isEmpty) throw new IllegalArgumentException("Formula required for slicing")
       val totalShares = shares.values.product
@@ -70,7 +65,7 @@ object OfflineEvaluation {
     }
 
     val ratesSpec = parameters.get("rates", "")
-    val rates = parseKeyValueParameter(ratesSpec, _.toLong)
+    val rates = SlicingSpecification.parseKeyValueParameter(ratesSpec, _.toLong)
     if (ratesSpec.nonEmpty) {
       if (monitoringFormula.isEmpty) throw new IllegalArgumentException("Formula required for slicing")
       if (sharesSpec.nonEmpty) throw new IllegalArgumentException("At most one of shares and rates may be given")
