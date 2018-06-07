@@ -123,8 +123,10 @@ object StreamMonitoring {
 
     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
-    if (!checkpointUri.isEmpty)
+    if (!checkpointUri.isEmpty) {
       env.setStateBackend(new FsStateBackend(checkpointUri))
+      env.enableCheckpointing(10000)
+    }
 
     // Performance tuning
     env.getConfig.enableObjectReuse()
