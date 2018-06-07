@@ -6,14 +6,12 @@ import java.lang.ProcessBuilder.Redirect
 import scala.collection.JavaConversions
 
 abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT] {
-  val command: Seq[String]
-
   private var process: Process = _
 
   protected var writer: BufferedWriter = _
   protected var reader: BufferedReader = _
 
-  override def start(): Unit = {
+  def open(command: Seq[String]): Unit = {
     require(process == null)
 
     process = new ProcessBuilder(JavaConversions.seqAsJavaList(command))
@@ -27,7 +25,7 @@ abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT]
 
   override def join(): Unit = process.waitFor()
 
-  override def destroy(): Unit = {
+  override def dispose(): Unit = {
     try {
       process.destroy()
     } finally {

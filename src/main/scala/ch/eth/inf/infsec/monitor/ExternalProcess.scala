@@ -1,19 +1,20 @@
 package ch.eth.inf.infsec.monitor
 
+import scala.collection.mutable
+
 trait ExternalProcess[IN, OUT] extends Serializable {
-  def start(): Unit
+  def open(): Unit
+  def open(initialState: Array[Byte]): Unit
 
   // Input functions
   def writeRequest(in: IN): Unit
   def initSnapshot(): Unit
-  def initRestore(snapshot: Array[Byte]): Unit
   def shutdown(): Unit
 
   // Output functions
-  def readResults(): Seq[OUT]
+  def readResults(buffer: mutable.Buffer[OUT]): Unit
   def readSnapshot(): Array[Byte]
-  def restored(): Unit
   def join(): Unit
 
-  def destroy(): Unit
+  def dispose(): Unit
 }

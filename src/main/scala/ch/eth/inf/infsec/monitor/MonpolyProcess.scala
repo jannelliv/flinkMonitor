@@ -2,35 +2,39 @@ package ch.eth.inf.infsec.monitor
 
 import java.nio.file.{Files, Path}
 
-import scala.collection.mutable.ArrayBuffer
+import scala.collection.mutable
 
 class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[String, String] {
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current index: "
 
-  private val SAVE_STATE_COMMAND = ">save_state \"%s\"<\n"
-  private val SAVE_STATE_OK = "save_state OK"
+  private val LOAD_STATE_OK = "Loaded state"
 
-  private val RESTORE_STATE_CMD = ">restore_state \"%s\"<\n"
-  private val RESTORE_STATE_OK = "restore_state OK"
+  // TODO(JS): We could pass the filename for saving as an argument, too.
+  private val SAVE_STATE_COMMAND = ">save_state \"%s\"<\n"
+  private val SAVE_STATE_OK = "Saved state"
 
   @transient private var tempDirectory: Path = _
   @transient private var tempStateFile: Path = _
 
-  override def start(): Unit = {
-    super.start()
-    tempDirectory = Files.createTempDirectory("monpoly-state")
-    tempDirectory.toFile.deleteOnExit()
-    tempStateFile = tempDirectory.resolve("state.bin")
-    tempStateFile.toFile.deleteOnExit()
+  override def open(): Unit = {
+    createTempFile()
+    open(command)
   }
 
-  override def destroy(): Unit = {
-    super.destroy()
-    if (tempDirectory != null)
-      Files.deleteIfExists(tempStateFile)
-    if (tempStateFile != null)
-      Files.deleteIfExists(tempDirectory)
+  override def open(initialState: Array[Byte]): Unit = {
+    createTempFile()
+    Files.write(tempStateFile, initialState)
+
+    val loadCommand = command ++ List("-load", tempStateFile.toString)
+    try {
+      open(loadCommand)
+      val reply = reader.readLine()
+      if (reply != LOAD_STATE_OK)
+        throw new Exception("Monitor process failed to load state.")
+    } finally {
+      Files.delete(tempStateFile)
+    }
   }
 
   override def writeRequest(in: String): Unit = {
@@ -45,17 +49,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     writer.flush()
   }
 
-  override def initRestore(snapshot: Array[Byte]): Unit = {
-    Files.write(tempStateFile, snapshot)
-    writer.write(RESTORE_STATE_CMD.format(tempStateFile.toString))
-    writer.flush()
-  }
-
-  // TODO(JS): Move the reusable buffer to ExternalProcessOperator.
-  private var resultBuffer = new ArrayBuffer[String]()
-
-  override def readResults(): Seq[String] = {
-    resultBuffer.clear()
+  override def readResults(buffer: mutable.Buffer[String]): Unit = {
     var more = true
     do {
       val line = reader.readLine()
@@ -64,11 +58,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
           more = false
         } else {
           // TODO(JS): Check that line is a verdict before adding it to the buffer.
-          resultBuffer += line
+          buffer += line
         }
       }
     } while (more)
-    resultBuffer
   }
 
   override def readSnapshot(): Array[Byte] = {
@@ -80,9 +73,18 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     state
   }
 
-  override def restored(): Unit = {
-    val line = reader.readLine()
-    if (line != RESTORE_STATE_OK)
-      throw new Exception("Monitor process failed to restore state.")
+  override def dispose(): Unit = {
+    super.dispose()
+    if (tempDirectory != null)
+      Files.deleteIfExists(tempStateFile)
+    if (tempStateFile != null)
+      Files.deleteIfExists(tempDirectory)
+  }
+
+  private def createTempFile(): Unit = {
+    tempDirectory = Files.createTempDirectory("monpoly-state")
+    tempDirectory.toFile.deleteOnExit()
+    tempStateFile = tempDirectory.resolve("state.bin")
+    tempStateFile.toFile.deleteOnExit()
   }
 }

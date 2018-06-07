@@ -17,6 +17,7 @@ import org.apache.flink.streaming.runtime.tasks.StreamTask
 import org.apache.flink.util.ExceptionUtils
 
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ArrayBuffer
 
 private trait PendingRequest
 
@@ -31,8 +32,6 @@ private case class WatermarkItem(mark: Watermark) extends PendingRequest with Pe
 private case class SnapshotRequestItem() extends PendingRequest
 
 private case class SnapshotResultItem(snapshot: Array[Byte]) extends PendingResult
-
-private case class RestoreItem(snapshot: Array[Byte]) extends PendingRequest
 
 private case class ShutdownItem() extends PendingRequest with PendingResult
 
@@ -104,9 +103,33 @@ class ExternalProcessOperator[IN, PIN, OUT](
     pendingCount = 0
     waitingRequest = null
 
-    preprocessing.restoreState(None)
+    if (recoveredResults == null) {
+      preprocessing.restoreState(None)
+      process.open()
+    } else {
+      assert(recoveredPreprocessing != null)
+      assert(recoveredState != null)
 
-    process.start()
+      setKeyForPartition()
+
+      preprocessing.restoreState(Some(recoveredPreprocessing.value()))
+
+      for (element: StreamElement <- recoveredResults.get) {
+        if (element.isRecord)
+          resultQueue.add(OutputItem(element.asRecord()))
+        else if (element.isWatermark)
+          resultQueue.add(WatermarkItem(element.asWatermark()))
+        else
+          throw new IllegalStateException("Unknown stream element type " + element.getClass +
+            " encountered while opening the operator.")
+      }
+
+      process.open(recoveredState.value())
+
+      recoveredPreprocessing = null
+      recoveredResults = null
+      recoveredState = null
+    }
 
     writerThread = new ServiceThread {
       override def handle(): Unit = {
@@ -116,7 +139,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
           case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
           case SnapshotRequestItem() => process.initSnapshot()
-          case RestoreItem(state) => process.initRestore(state)
           case ShutdownItem() =>
             process.shutdown()
             running = false
@@ -126,20 +148,26 @@ class ExternalProcessOperator[IN, PIN, OUT](
     writerThread.start()
 
     readerThread = new ServiceThread {
+      private var buffer = new ArrayBuffer[OUT]()
+
       override def handle(): Unit = {
         val request = processingQueue.take()
         // FIXME(JS): Do more fine-grained locking; some of the calls below might be blocking!
         resultLock.synchronized {
           request match {
             case InputItem(record) =>
-              for (result <- process.readResults())
-                resultQueue.add(OutputItem(outputRecord(record.asRecord(), result)))
-              resultQueue.add(OutputItem(null))
+              try {
+                process.readResults(buffer)
+                for (result <- buffer)
+                  resultQueue.add(OutputItem(outputRecord(record.asRecord(), result)))
+                resultQueue.add(OutputItem(null))
+              } finally {
+                buffer.clear()
+              }
             case mark@WatermarkItem(_) => resultQueue.add(mark)
             case SnapshotRequestItem() =>
               resultQueue.add(SnapshotResultItem(process.readSnapshot()))
               snapshotReady.release()
-            case RestoreItem(_) => process.restored()
             case shutdown@ShutdownItem() =>
               process.join()
               resultQueue.add(shutdown)
@@ -188,34 +216,6 @@ class ExternalProcessOperator[IN, PIN, OUT](
     }
     emitterThread.start()
 
-    if (recoveredResults != null) {
-      assert(recoveredPreprocessing != null)
-      assert(recoveredState != null)
-
-      setKeyForPartition()
-
-      preprocessing.restoreState(Some(recoveredPreprocessing.value()))
-
-      resultLock.synchronized {
-        for (element: StreamElement <- recoveredResults.get) {
-          if (element.isRecord)
-            resultQueue.add(OutputItem(element.asRecord()))
-          else if (element.isWatermark)
-            resultQueue.add(WatermarkItem(element.asWatermark()))
-          else
-            throw new IllegalStateException("Unknown stream element type " + element.getClass +
-              " encountered while opening the operator.")
-        }
-
-        resultLock.notifyAll()
-      }
-
-      requestQueue.put(RestoreItem(recoveredState.value()))
-
-      recoveredPreprocessing = null
-      recoveredResults = null
-      recoveredState = null
-    }
   }
 
   override def close(): Unit = {
@@ -252,7 +252,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
 
     try {
       if (process != null)
-        process.destroy()
+        process.dispose()
     } catch {
       case e: InterruptedException =>
         exception = e

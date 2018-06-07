@@ -1,6 +1,12 @@
 package ch.eth.inf.infsec.monitor
 
+import scala.collection.mutable
+
 class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[String, String] {
+  override def open(): Unit = open(command)
+
+  override def open(initialState: Array[Byte]): Unit = open()
+
   override def writeRequest(in: String): Unit = {
     writer.write(in)
     writer.flush()
@@ -8,17 +14,11 @@ class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[Stri
 
   override def initSnapshot(): Unit = ()
 
-  override def initRestore(snapshot: Array[Byte]): Unit = ()
-
-  override def readResults(): Seq[String] = {
+  override def readResults(buffer: mutable.Buffer[String]): Unit = {
     val line = reader.readLine()
-    if (line == null)
-      Seq.empty
-    else
-      Seq(line)
+    if (line != null)
+      buffer += line
   }
 
   override def readSnapshot(): Array[Byte] = Array.emptyByteArray
-
-  override def restored(): Unit = ()
 }
