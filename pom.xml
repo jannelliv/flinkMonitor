@@ -32,10 +32,10 @@ under the License.
 	<properties>
 		<monitoring.mainClass>ch.eth.inf.infsec.StreamMonitoring</monitoring.mainClass>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-		<flink.version>1.4.2</flink.version>
+		<flink.version>1.5.0</flink.version>
 		<slf4j.version>1.7.7</slf4j.version>
 		<log4j.version>1.2.17</log4j.version>
-		<scala.version>2.11.11</scala.version>
+		<scala.version>2.11.12</scala.version>
 		<scala.binary.version>2.11</scala.binary.version>
 	</properties>
 
@@ -94,7 +94,7 @@ under the License.
 		<dependency>
 			<groupId>org.scalacheck</groupId>
 			<artifactId>scalacheck_${scala.binary.version}</artifactId>
-			<version>1.13.5</version>
+			<version>1.14.0</version>
 			<scope>test</scope>
 		</dependency>
 	</dependencies>
