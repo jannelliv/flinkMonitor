@@ -1,51 +1,77 @@
 package ch.eth.inf.infsec.trace
 
 import ch.eth.inf.infsec.{Processor, StatelessProcessor}
+import fastparse.WhitespaceApi
+import fastparse.noApi._
 
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.util.matching.Regex
 
+// TODO(JS): Should use a signature to determine the types of values.
+
+// NOTE(JS): Our parser is stricter than Monpoly's: We expect exactly one timepoint per line.
+
+object MonpolyParsers {
+
+  private object Token {
+    import fastparse.all._
+
+    val LineComment: P0 = P( "#" ~/ CharsWhile(c => c != '\n' && c != '\r'))
+    val Whitespace: P0 = P( NoTrace((CharsWhileIn(" \t\n\r") | LineComment).rep) )
+
+    val Letter: P0 = P( CharIn('a' to 'z', 'A' to 'Z') )
+    val Digit: P0 = P( CharIn('0' to '9') )
+
+    // NOTE(JS): The current Log_parser of Monpoly does not support negative integers.
+    val Integer: P[Long] = P( ("-".? ~ Digit.rep(min = 1)).!.map(_.toLong) )
+    // TODO(JS): Floating-point timestamps?
+    val IntegerDot: P[Long] = P( Integer ~ ".".? )
+    val String: P[String] = P(
+      "\"" ~/ CharsWhile(_ != '"').! ~/ "\"" |
+      (Letter | Digit | CharIn("_[]/:-.!")).rep(min = 1).!
+    )
+
+    val Value: P[Domain] = P( Integer.map(IntegralValue) | String.map(StringValue) )
+  }
+
+  private val WhitespaceWrapper = WhitespaceApi.Wrapper(Token.Whitespace)
+  import WhitespaceWrapper._
+
+  private val Relation: P[Seq[Tuple]] = P( ("(" ~/ Token.Value.rep(sep = ",").map(_.toIndexedSeq) ~/ ")").rep )
+
+  private val Database: P[Seq[(String, Seq[Tuple])]] = P( (Token.String ~/ Relation).rep )
+
+  val Event: P[(Long, Seq[Record])] = P(
+    (Token.Whitespace ~/ "@" ~/ Token.IntegerDot ~/ Database ~/ Token.Whitespace ~/ End).map { case (ts, db) =>
+      (ts, db.flatMap { case (rel, data) =>
+        data.map(t => Record(ts, rel, t))
+      })
+  })
+
+  val Verdict: P[(Long, Long, Seq[Tuple])] = P(
+    Token.Whitespace ~/ "@" ~/ Token.IntegerDot ~/ "(time point" ~/ Token.Integer ~/ "):" ~/
+      ("true" ~ PassWith(Seq(Tuple())) | Relation) ~ Token.Whitespace ~ End
+  )
+}
+
 class MonpolyParser extends StatelessProcessor[String, Record] with Serializable {
   // TODO(JS): Do we allow empty relations? Is there a difference if the relation is not included in an event?
   // What if the relation is just a proposition?
 
-  protected val event: Regex = """(?s)@(\d+)(.*)""".r
-  protected val structure: Regex = """\s*?([A-Za-z]\w*)\s*((\s*\(\s*?\)|\s*\(\s*?-?\d+(\s*?\,\s*?-?\d+)*\s*?\))*)""".r
-
-  protected val buffer = new ArrayBuffer[Record]()
-
   // TODO(JS): This skips over unreadable lines. Should we add a strict mode?
-  override def process(line: String, f: Record => Unit) {
-    try {
-      val event(ts, db) = line
-      val timestamp = ts.toLong
-      for (m <- structure.findAllMatchIn(db))
-        for (data <- MonpolyParser.parseRelation(m.group(2)))
-          buffer += Record(timestamp, m.group(1), data)
-      buffer += Record.markEnd(timestamp)
-      buffer.foreach(f)
-    } catch {
-      // TODO(JS): Be more precise with the exceptions that we want to ignore.
-      case _: Exception => ()
-    }
-    buffer.clear()
+  override def process(line: String, f: Record => Unit): Unit = MonpolyParsers.Event.parse(line) match {
+    case Parsed.Success((timestamp, records), _) =>
+      records.foreach(f)
+      f(Record.markEnd(timestamp))
+    case _ => ()
   }
 
-  override def terminate(f: Record => Unit) { }
+  override def terminate(f: Record => Unit): Unit = ()
 }
 
-object MonpolyParser {
-  // TODO(JS): Proper parsing of all value types. The nonEmpty filter is a kludge for propositional events.
-  def parseRelation(str:String):Set[Tuple] =
-    str.trim.tail.init.split("""\)\s*\(""").map(_.split(',').filter(_.nonEmpty)
-      .map(x => IntegralValue(x.trim.toLong)).toIndexedSeq)
-      .toSet
-}
-
-class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean) extends StatelessProcessor[String, String] with Serializable {
-  protected val verdict: Regex = """(?s)(@\d+\.\s*\(time point \d+\):)(.*)""".r
-  protected val relation: Regex = """\s*(true|(\s*\(\s*-?\d+(\s*,\s*-?\d+)*\s*\))*)\s*""".r
+class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean)
+    extends StatelessProcessor[String, String] with Serializable {
 
   private var pred: Tuple => Boolean = mkFilter(0)
 
@@ -53,22 +79,23 @@ class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean) extends StatelessP
     pred = mkFilter(instance)
   }
 
-  override def process(in: String, f: String => Unit): Unit = {
-    try {
-      val verdict(prefix, rel) = in
-      val relation(body, _*) = rel
+  override def process(in: String, f: String => Unit): Unit = MonpolyParsers.Verdict.parse(in) match {
+    case Parsed.Success((timestamp, timepoint, rel), _) =>
+      val out = new mutable.StringBuilder("@")
+      out.append(timestamp)
+      out.append(". (time point ")
+      out.append(timepoint)
+      out.append("):")
 
-      val out = new mutable.StringBuilder(prefix)
       var nonEmpty = false
-
-      if (body == "true") {
-        out.append(rel)
+      if (rel.size == 1 && rel.head.isEmpty) {
+        out.append(" true")
         nonEmpty = true
       } else {
-        for (data <- MonpolyParser.parseRelation(rel) if pred(data)) {
+        for (tuple <- rel if pred(tuple)) {
           out.append(" (")
-          MonpolyPrinter.appendValue(out, data.head)
-          for (value <- data.tail)
+          MonpolyPrinter.appendValue(out, tuple.head)
+          for (value <- tuple.tail)
             MonpolyPrinter.appendValue(out.append(','), value)
           out.append(')')
           nonEmpty = true
@@ -77,10 +104,8 @@ class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean) extends StatelessP
 
       if (nonEmpty)
         f(out.toString())
-    } catch {
-      // TODO(JS): Be more precise with the exceptions that we want to ignore.
-      case _: Exception => ()
-    }
+
+    case _ => ()
   }
 
   override def terminate(f: String => Unit): Unit = ()
@@ -131,8 +156,13 @@ class MonpolyPrinter extends Processor[Record, String] with Serializable {
 }
 
 object MonpolyPrinter {
+  private val PlainString: Regex = """[a-zA-Z0-9_\[\]/:\-.!]*""".r
+
   def appendValue(builder: mutable.StringBuilder, value: Domain): Unit = value match {
-    case StringValue(s) => builder.append('"').append(s).append('"')
+    case StringValue(s) => s match {
+      case PlainString() => builder.append(s)
+      case _ => builder.append('"').append(s).append('"')
+    }
     case IntegralValue(x) => builder.append(x)
   }
 }
