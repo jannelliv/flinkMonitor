@@ -12,14 +12,14 @@ import org.apache.flink.runtime.state.filesystem.FsStateBackend
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode
 import org.apache.flink.streaming.api.scala._
-import org.apache.log4j.Logger
+import org.slf4j.LoggerFactory
 
 import scala.io.Source
 
 
 object StreamMonitoring {
 
-  val logger = Logger.getLogger(this.getClass)
+  private val logger = LoggerFactory.getLogger(StreamMonitoring.getClass)
 
   var checkpointUri: String = ""
 
