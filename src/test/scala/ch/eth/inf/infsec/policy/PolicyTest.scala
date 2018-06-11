@@ -10,6 +10,8 @@ class PolicyTest extends FunSuite with Matchers {
   val Qxy = Pred("Q", Var("x"), Var("y"))
   val Qii: GenFormula[String] = Pred("Q", Const(7), Const(-42))
   val Qsx = Pred("Q", Const("foo"), Var("x"))
+  val Eqxy = Pred("__eq", Var("x"), Var("y"))
+  val Eqix = Pred("__eq", Const(-42), Var("x"))
 
   test("Atomic formulas should be parsed correctly") {
     Policy.parse("TRUE").right.value shouldBe True()
@@ -22,6 +24,8 @@ class PolicyTest extends FunSuite with Matchers {
     Policy.parse("Q(\"[foo]\", x)").right.value shouldBe Qsx
     Policy.parse("((P(x)) )").right.value shouldBe Px
     Policy.parse("   P(\nx \t\r) ").right.value shouldBe Px
+    Policy.parse("x=y").right.value shouldBe Eqxy
+    Policy.parse("-42 = x").right.value shouldBe Eqix
   }
 
   test("Propositional formulas should be parsed correctly") {
@@ -40,6 +44,9 @@ class PolicyTest extends FunSuite with Matchers {
       GenFormula.equiv(GenFormula.equiv(Px, Py), Qxy)
     Policy.parse("P(x) EQUIV P(y) IMPLIES FALSE").right.value shouldBe
       GenFormula.equiv(Px, GenFormula.implies(Py, False()))
+    Policy.parse("P(x) AND NOT x = y").right.value shouldBe And(Px, Not(Eqxy))
+    Policy.parse("-42 = x IMPLIES -42 = x").right.value shouldBe
+      GenFormula.implies(Eqix, Eqix)
   }
 
   test("First-order formulas should be parsed correctly") {

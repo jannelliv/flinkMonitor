@@ -91,7 +91,8 @@ private object PolicyParsers {
     unaryTemporal(Token.Once, Formula9, GenFormula.once) |
     unaryTemporal(Token.Always, Formula9, GenFormula.always) |
     unaryTemporal(Token.Historically, Formula9, GenFormula.historically) |
-    (Token.Identifier ~/ "(" ~/ Term.rep(sep = ",") ~ ")").map(x => Pred(x._1, x._2:_*))
+    (Token.Identifier ~ "(" ~/ Term.rep(sep = ",") ~ ")").map(x => Pred(x._1, x._2:_*)) |
+    (Term ~/ "=" ~/ Term).map(x => Pred("__eq", x._1, x._2))
   )
 
   val Formula8: P[FormulaS] = leftAssoc("AND", Formula9, And(_, _))
