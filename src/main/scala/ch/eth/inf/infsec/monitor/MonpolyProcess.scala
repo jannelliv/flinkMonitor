@@ -31,7 +31,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
       open(loadCommand)
       val reply = reader.readLine()
       if (reply != LOAD_STATE_OK)
-        throw new Exception("Monitor process failed to load state.")
+        throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
       Files.delete(tempStateFile)
     }
@@ -67,7 +67,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   override def readSnapshot(): Array[Byte] = {
     val line = reader.readLine()
     if (line != SAVE_STATE_OK)
-      throw new Exception("Monitor process failed to save state.")
+      throw new Exception("Monitor process failed to save state. Reply: " + line)
     val state = Files.readAllBytes(tempStateFile)
     Files.delete(tempStateFile)
     state

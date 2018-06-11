@@ -55,8 +55,8 @@ package object infsec {
     }
   }
 
-  // TODO(JS): Call Processor#terminate if the stream has ended (via RichFlatMapFunction#close).
-  // FIXME(JS): We need to use keyed state if the processor is applied to a partitioned stream!
+  // TODO(JS): We would like to call processor.terminate(...) if the stream has ended, but where do we
+  // get the collector from?
   class ProcessorFunction[I, O](processor: Processor[I, O] with Serializable)
     extends RichFlatMapFunction[I, O] with CheckpointedFunction {
 
@@ -65,7 +65,10 @@ package object infsec {
 
     override def open(parameters: Configuration): Unit = {
       super.open(parameters)
-      processor.setParallelInstanceIndex(getRuntimeContext.getIndexOfThisSubtask)
+      val index = getRuntimeContext.getIndexOfThisSubtask
+      if (index > 0 && processor.isStateful)
+        throw new Exception("Stateful processors cannot be used in parallel.")
+      processor.setParallelInstanceIndex(index)
     }
 
     override def flatMap(t: I, collector: Collector[O]): Unit = processor.process(t, collector.collect)
