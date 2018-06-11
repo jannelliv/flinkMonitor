@@ -2,7 +2,7 @@ package ch.eth.inf.infsec
 
 import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
-import ch.eth.inf.infsec.slicer.{ColissionlessKeyGenerator, HypercubeSlicer, Statistics}
+import ch.eth.inf.infsec.slicer.ColissionlessKeyGenerator
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.io.TextInputFormat
@@ -151,11 +151,12 @@ object StreamMonitoring {
 
     // Parallel node
     // TODO(JS): Timeout? Capacity?
-    val verdicts = ExternalProcessOperator.transform[(Int, Record), Int, String, String](
+    val verdicts = ExternalProcessOperator.transform[(Int, Record), Int, String, String, String](
       sliceMapping,
       slicedTrace,
       new KeyedMonpolyPrinter[Int],
       process,
+      if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
       100).setParallelism(processors)
 
     //Single node

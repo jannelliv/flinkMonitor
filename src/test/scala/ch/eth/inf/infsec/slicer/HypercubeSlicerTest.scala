@@ -176,4 +176,28 @@ class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
     slicer2.shares(2) should contain theSameElementsInOrderAs List(1024, 1)
     slicer2.shares(3) should contain theSameElementsInOrderAs List(1, 1)
   }
+
+  test("Verdicts should filtered if and only if they do not belong to the slice") {
+    val formula = GenFormula.resolve(Pred("p", Var("y"), Var("x")))
+
+    val slicer = HypercubeSlicer.optimize(formula, 10, new Statistics {
+      override def relationSize(relation: String): Double = 100.0
+
+      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
+        case ("p", 0) => Set(2)
+        case _ => Set.empty
+      }
+    })
+
+    forAll (Arbitrary.arbInt.arbitrary, withHeavy) { (x: Int, y: Int) =>
+      val valuation = Array(IntegralValue(x): Domain, IntegralValue(y))
+      val verdict = Array(IntegralValue(y): Domain, IntegralValue(x))
+
+      val slices = slicer.slicesOfValuation(valuation)
+      slices should have size 1
+
+      slicer.mkVerdictFilter(slices.head)(verdict) shouldBe true
+      (0 until 1024).count(i => slicer.mkVerdictFilter(i)(verdict)) shouldBe 1
+    }
+  }
 }

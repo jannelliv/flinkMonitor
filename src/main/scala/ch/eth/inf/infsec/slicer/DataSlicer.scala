@@ -2,7 +2,7 @@ package ch.eth.inf.infsec
 package slicer
 
 import ch.eth.inf.infsec.policy._
-import ch.eth.inf.infsec.trace.{Domain, Record}
+import ch.eth.inf.infsec.trace.{Domain, Record, Tuple}
 
 import scala.collection.mutable
 
@@ -101,4 +101,6 @@ abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
 //        yield (i, Event(e.timestamp, slices(i)))
 //    })
 //  }
+
+  def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean
 }

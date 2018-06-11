@@ -2,10 +2,10 @@ package ch.eth.inf.infsec.analysis
 
 import java.io.PrintWriter
 
+import ch.eth.inf.infsec._
 import ch.eth.inf.infsec.policy.{Formula, GenFormula, Policy}
 import ch.eth.inf.infsec.slicer.{DataSlicer, HypercubeSlicer}
 import ch.eth.inf.infsec.trace._
-import ch.eth.inf.infsec._
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala._
@@ -168,6 +168,8 @@ object OfflineEvaluation {
 
         override val degree: Int = 1
         override val formula: Formula = monitoringFormula.get
+
+        override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
       }
 
       val filteredStream = eventStream.flatMap(new ProcessorFunction(dataSlicer)).map(_._2)

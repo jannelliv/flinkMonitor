@@ -36,10 +36,12 @@ private case class SnapshotResultItem(snapshot: Array[Byte]) extends PendingResu
 private case class ShutdownItem() extends PendingRequest with PendingResult
 
 
-class ExternalProcessOperator[IN, PIN, OUT](
+// TODO(JS): Limit the capacity of the resultQueue for backpressure towards the external process.
+class ExternalProcessOperator[IN, PIN, POUT, OUT](
   partitionMapping: Int => Int,
   preprocessing: Processor[IN, PIN],
-  process: ExternalProcess[PIN, OUT],
+  process: ExternalProcess[PIN, POUT],
+  postprocessing: Processor[POUT, OUT],
   timeout: Long,
   capacity: Int)
   extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
@@ -47,6 +49,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
   require(capacity > 0)
 
   private val PREPROCESSING_STATE_NAME = "_external_process_operator_preprocessing_state_"
+  private val POSTPROCESSING_STATE_NAME = "_external_process_operator_postprocessing_state_"
   private val RESULT_STATE_NAME = "_external_process_operator_result_state_"
   private val PROCESS_STATE_NAME = "_external_process_operator_process_state_"
 
@@ -60,11 +63,13 @@ class ExternalProcessOperator[IN, PIN, OUT](
   @transient private var snapshotReady: Semaphore = _
 
   @transient private var preprocessingSerializer: TypeSerializer[preprocessing.State] = _
+  @transient private var postprocessingSerializer: TypeSerializer[postprocessing.State] = _
   @transient private var outSerializer: StreamElementSerializer[OUT] = _
   @transient private var stateSerializer: TypeSerializer[Array[Byte]] = _
 
   @transient private var recoveredResults: ListState[StreamElement] = _
   @transient private var recoveredPreprocessing: ValueState[preprocessing.State] = _
+  @transient private var recoveredPostprocessing: ValueState[postprocessing.State] = _
   @transient private var recoveredState: ValueState[Array[Byte]] = _
 
   @transient private var pendingCount: Int = 0
@@ -92,6 +97,9 @@ class ExternalProcessOperator[IN, PIN, OUT](
     val preprocessingType = TypeInformation.of(new TypeHint[preprocessing.State]() {})
     preprocessingSerializer = preprocessingType.createSerializer(getExecutionConfig)
 
+    val postprocessingType = TypeInformation.of(new TypeHint[postprocessing.State]() {})
+    postprocessingSerializer = postprocessingType.createSerializer(getExecutionConfig)
+
     val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
     stateSerializer = stateType.createSerializer(getExecutionConfig)
   }
@@ -103,16 +111,22 @@ class ExternalProcessOperator[IN, PIN, OUT](
     pendingCount = 0
     waitingRequest = null
 
+    preprocessing.setParallelInstanceIndex(getRuntimeContext.getIndexOfThisSubtask)
+    postprocessing.setParallelInstanceIndex(getRuntimeContext.getIndexOfThisSubtask)
+
     if (recoveredResults == null) {
       preprocessing.restoreState(None)
+      postprocessing.restoreState(None)
       process.open()
     } else {
       assert(recoveredPreprocessing != null)
+      assert(recoveredPostprocessing != null)
       assert(recoveredState != null)
 
       setKeyForPartition()
 
       preprocessing.restoreState(Some(recoveredPreprocessing.value()))
+      postprocessing.restoreState(Some(recoveredPostprocessing.value()))
 
       for (element: StreamElement <- recoveredResults.get) {
         if (element.isRecord)
@@ -148,7 +162,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
     writerThread.start()
 
     readerThread = new ServiceThread {
-      private var buffer = new ArrayBuffer[OUT]()
+      private var buffer = new ArrayBuffer[POUT]()
 
       override def handle(): Unit = {
         val request = processingQueue.take()
@@ -159,7 +173,8 @@ class ExternalProcessOperator[IN, PIN, OUT](
               try {
                 process.readResults(buffer)
                 for (result <- buffer)
-                  resultQueue.add(OutputItem(outputRecord(record.asRecord(), result)))
+                  postprocessing.process(result, r =>
+                    resultQueue.add(OutputItem(outputRecord(record.asRecord(), r))))
                 resultQueue.add(OutputItem(null))
               } finally {
                 buffer.clear()
@@ -169,6 +184,8 @@ class ExternalProcessOperator[IN, PIN, OUT](
               resultQueue.add(SnapshotResultItem(process.readSnapshot()))
               snapshotReady.release()
             case shutdown@ShutdownItem() =>
+              postprocessing.terminate(r =>
+                resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
               process.join()
               resultQueue.add(shutdown)
               running = false
@@ -302,6 +319,9 @@ class ExternalProcessOperator[IN, PIN, OUT](
     val preprocessingState = getKeyedStateStore.getState(new ValueStateDescriptor[preprocessing.State](
       PREPROCESSING_STATE_NAME,
       preprocessingSerializer))
+    val postprocessingState = getKeyedStateStore.getState(new ValueStateDescriptor[postprocessing.State](
+      POSTPROCESSING_STATE_NAME,
+      postprocessingSerializer))
     val resultState = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
       RESULT_STATE_NAME,
       outSerializer))
@@ -310,6 +330,7 @@ class ExternalProcessOperator[IN, PIN, OUT](
       stateSerializer))
 
     preprocessingState.update(preprocessing.getState)
+    postprocessingState.update(postprocessing.getState)
 
     resultState.clear()
 
@@ -347,6 +368,9 @@ class ExternalProcessOperator[IN, PIN, OUT](
       recoveredPreprocessing = getKeyedStateStore.getState(new ValueStateDescriptor[preprocessing.State](
         PREPROCESSING_STATE_NAME,
         preprocessingSerializer))
+      recoveredPostprocessing = getKeyedStateStore.getState(new ValueStateDescriptor[postprocessing.State](
+        POSTPROCESSING_STATE_NAME,
+        postprocessingSerializer))
       recoveredResults = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
         RESULT_STATE_NAME,
         outSerializer))
@@ -430,13 +454,14 @@ class ExternalProcessOperator[IN, PIN, OUT](
 
 object ExternalProcessOperator {
   // TODO(JS): Do we need to "clean" the process/preprocessing?
-  def transform[IN, K, PIN, OUT: TypeInformation](
+  def transform[IN, K, PIN, POUT, OUT: TypeInformation](
       partitionMapping: Int => Int,
       in: KeyedStream[IN, K],
       preprocessing: Processor[IN, PIN],
-      process: ExternalProcess[PIN, OUT],
+      process: ExternalProcess[PIN, POUT],
+      postprocessing: Processor[POUT, OUT],
       capacity: Int): DataStream[OUT] =
     in.transform(
       "External Process",
-      new ExternalProcessOperator[IN, PIN, OUT](partitionMapping, preprocessing, process, 0, capacity))
+      new ExternalProcessOperator[IN, PIN, POUT, OUT](partitionMapping, preprocessing, process, postprocessing,0, capacity))
 }

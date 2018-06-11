@@ -5,7 +5,7 @@ import ch.eth.inf.infsec.policy._
 import ch.eth.inf.infsec.trace.{Domain, IntegralValue, Record, Tuple}
 import org.scalatest.{FunSuite, Matchers}
 
-import scala.collection.{TraversableOnce, mutable}
+import scala.collection.mutable
 
 class DataSlicerTest extends FunSuite with Matchers {
 
@@ -20,6 +20,8 @@ class DataSlicerTest extends FunSuite with Matchers {
         slices ++= List(0, valuation(0).asInstanceOf[IntegralValue].value.toInt)
       else
         slices ++= List(1, valuation(1).asInstanceOf[IntegralValue].value.toInt)
+
+    override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
   }
 
   test("apply") {

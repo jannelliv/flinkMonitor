@@ -11,7 +11,7 @@ class MonpolyFormatTest extends FunSuite with Matchers {
   }
 
   test("Parsing a single event") {
-    val event = "@1307532861 approve (2,4)(5,6)(2,6) publish (4)(5)"
+    val event = "@1307532861 approve (2,4)(5,6) (2, 6 ) publish (4)(5)"
     val timestamp = 1307532861L
 
     createParser().processAll(List(event)) should contain theSameElementsAs List(
@@ -59,5 +59,23 @@ class MonpolyFormatTest extends FunSuite with Matchers {
     //  "Bar" -> Set[Tuple](Vector("1", 2))
     //))
     //parseLine(printEvent(many)).value shouldEqual many
+  }
+
+  test("Filtering verdicts") {
+    val filter = new MonpolyVerdictFilter(_ => t => t(0) match {
+      case IntegralValue(i) => i > 0
+      case _ => false
+    })
+
+    filter.processAll(List(
+      "@0. (time point 0): true",
+      "@12. (time point 34): (101)(0)(102)",
+      "This is not a verdict.",
+      "@34. (time point 567): (101,102) (104, 105) (-1,103)"
+    )) should contain theSameElementsInOrderAs List(
+      "@0. (time point 0): true",
+      "@12. (time point 34): (101) (102)",
+      "@34. (time point 567): (101,102) (104,105)"
+    )
   }
 }

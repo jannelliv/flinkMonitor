@@ -11,7 +11,7 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
   // What if the relation is just a proposition?
 
   protected val event: Regex = """(?s)@(\d+)(.*)""".r
-  protected val structure: Regex = """\s*?([A-Za-z]\w*)\s*((\(\s*?\)|\(\s*?\w+(\s*?\,\s*?\w+)*\s*?\))*)""".r
+  protected val structure: Regex = """\s*?([A-Za-z]\w*)\s*((\s*\(\s*?\)|\s*\(\s*?-?\d+(\s*?\,\s*?-?\d+)*\s*?\))*)""".r
 
   protected val buffer = new ArrayBuffer[Record]()
 
@@ -21,11 +21,12 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
       val event(ts, db) = line
       val timestamp = ts.toLong
       for (m <- structure.findAllMatchIn(db))
-        for (data <- MonpolyParser.parseTuple(m.group(2)))
+        for (data <- MonpolyParser.parseRelation(m.group(2)))
           buffer += Record(timestamp, m.group(1), data)
       buffer += Record.markEnd(timestamp)
       buffer.foreach(f)
     } catch {
+      // TODO(JS): Be more precise with the exceptions that we want to ignore.
       case _: Exception => ()
     }
     buffer.clear()
@@ -36,10 +37,53 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
 
 object MonpolyParser {
   // TODO(JS): Proper parsing of all value types. The nonEmpty filter is a kludge for propositional events.
-  def parseTuple(str:String):Set[Tuple] =
+  def parseRelation(str:String):Set[Tuple] =
     str.trim.tail.init.split("""\)\s*\(""").map(_.split(',').filter(_.nonEmpty)
       .map(x => IntegralValue(x.trim.toLong)).toIndexedSeq)
       .toSet
+}
+
+class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean) extends StatelessProcessor[String, String] with Serializable {
+  protected val verdict: Regex = """(?s)(@\d+\.\s*\(time point \d+\):)(.*)""".r
+  protected val relation: Regex = """\s*(true|(\s*\(\s*-?\d+(\s*,\s*-?\d+)*\s*\))*)\s*""".r
+
+  private var pred: Tuple => Boolean = mkFilter(0)
+
+  override def setParallelInstanceIndex(instance: Int): Unit = {
+    pred = mkFilter(instance)
+  }
+
+  override def process(in: String, f: String => Unit): Unit = {
+    try {
+      val verdict(prefix, rel) = in
+      val relation(body, _*) = rel
+
+      val out = new mutable.StringBuilder(prefix)
+      var nonEmpty = false
+
+      if (body == "true") {
+        out.append(rel)
+        nonEmpty = true
+      } else {
+        for (data <- MonpolyParser.parseRelation(rel) if pred(data)) {
+          out.append(" (")
+          MonpolyPrinter.appendValue(out, data.head)
+          for (value <- data.tail)
+            MonpolyPrinter.appendValue(out.append(','), value)
+          out.append(')')
+          nonEmpty = true
+        }
+      }
+
+      if (nonEmpty)
+        f(out.toString())
+    } catch {
+      // TODO(JS): Be more precise with the exceptions that we want to ignore.
+      case _: Exception => ()
+    }
+  }
+
+  override def terminate(f: String => Unit): Unit = ()
 }
 
 class MonpolyPrinter extends Processor[Record, String] with Serializable {
@@ -57,11 +101,6 @@ class MonpolyPrinter extends Processor[Record, String] with Serializable {
     }
   }
 
-  protected def appendValue(builder: mutable.StringBuilder, value: Domain): Unit = value match {
-    case StringValue(s) => builder.append('"').append(s).append('"')
-    case IntegralValue(x) => builder.append(x)
-  }
-
   override def process(record: Record, f: String => Unit) {
     buffer += record
     if (record.isEndMarker)
@@ -77,9 +116,9 @@ class MonpolyPrinter extends Processor[Record, String] with Serializable {
         for (record <- records) {
           str.append('(')
           if (record.data.nonEmpty) {
-            appendValue(str, record.data.head)
+            MonpolyPrinter.appendValue(str, record.data.head)
             for (value <- record.data.tail)
-              appendValue(str.append(','), value)
+              MonpolyPrinter.appendValue(str.append(','), value)
           }
           str.append(')')
         }
@@ -88,6 +127,13 @@ class MonpolyPrinter extends Processor[Record, String] with Serializable {
       f(str.toString())
       buffer.clear()
     }
+  }
+}
+
+object MonpolyPrinter {
+  def appendValue(builder: mutable.StringBuilder, value: Domain): Unit = value match {
+    case StringValue(s) => builder.append('"').append(s).append('"')
+    case IntegralValue(x) => builder.append(x)
   }
 }
 

@@ -1,7 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
-import ch.eth.inf.infsec.trace.Domain
+import ch.eth.inf.infsec.trace.{Domain, Tuple}
 
 import scala.collection.mutable
 import scala.util.{Random, hashing}
@@ -99,6 +99,38 @@ class HypercubeSlicer(
       addSlicesForHeavySet(heavySet)
     else
       coverUnconstrained(1 << (valuation.length - 1), heavySet)
+  }
+
+  // TODO(JS): Verify whether Monpoly enumerates free variable in DFS order.
+  private val variablesInOrder = formula.freeVariablesInOrder.distinct
+
+  override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = {
+    var heavySet = 0
+    // Note: Variables are in a different order here, so i is not the index into "heavy"!
+    var i = 0
+    while (i < variablesInOrder.length) {
+      val variableID = variablesInOrder(i).freeID
+      val value = verdict(i)
+      val heavyMap = heavy(variableID)
+      if (heavyMap._1 >= 0 && (heavyMap._2 contains value))
+        heavySet += (1 << heavyMap._1)
+      i += 1
+    }
+
+    val theSeeds = seeds(heavySet)
+    val theStrides = strides(heavySet)
+    val theShares = shares(heavySet)
+
+    var expectedSlice = 0
+    i = 0
+    while (i < variablesInOrder.length) {
+      val variableID = variablesInOrder(i).freeID
+      val value = verdict(i)
+      expectedSlice += theStrides(variableID) * Math.floorMod(hash(value, theSeeds(variableID)), theShares(variableID))
+      i += 1
+    }
+
+    slice == expectedSlice
   }
 }
 

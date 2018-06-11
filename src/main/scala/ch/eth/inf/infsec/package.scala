@@ -1,8 +1,9 @@
 package ch.eth.inf
 
-import org.apache.flink.api.common.functions.FlatMapFunction
+import org.apache.flink.api.common.functions.RichFlatMapFunction
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
+import org.apache.flink.configuration.Configuration
 import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext}
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.util.Collector
@@ -33,6 +34,9 @@ package object infsec {
       terminate(buffer.append(_))
       buffer
     }
+
+    // TODO(JS): Leaky abstraction
+    def setParallelInstanceIndex(instance: Int): Unit = ()
   }
 
   trait StatelessProcessor[I, O] extends Processor[I, O] {
@@ -43,13 +47,26 @@ package object infsec {
     override def restoreState(state: Option[Unit]) {}
   }
 
+  object StatelessProcessor {
+    def identity[T]: StatelessProcessor[T, T] = new StatelessProcessor[T, T] with Serializable {
+      override def process(in: T, f: T => Unit): Unit = f(in)
+
+      override def terminate(f: T => Unit): Unit = ()
+    }
+  }
+
   // TODO(JS): Call Processor#terminate if the stream has ended (via RichFlatMapFunction#close).
   // FIXME(JS): We need to use keyed state if the processor is applied to a partitioned stream!
   class ProcessorFunction[I, O](processor: Processor[I, O] with Serializable)
-    extends FlatMapFunction[I, O] with CheckpointedFunction {
+    extends RichFlatMapFunction[I, O] with CheckpointedFunction {
 
     @transient
     private var checkpointedState: ListState[processor.State] = _
+
+    override def open(parameters: Configuration): Unit = {
+      super.open(parameters)
+      processor.setParallelInstanceIndex(getRuntimeContext.getIndexOfThisSubtask)
+    }
 
     override def flatMap(t: I, collector: Collector[O]): Unit = processor.process(t, collector.collect)
 
