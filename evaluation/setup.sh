@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Assumption: the setup script is in the <git repo>/experiments
-# togeather with other important files
+# together with other important files. 
 SCRIPT_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 TARGET_DIR=`pwd`
 
