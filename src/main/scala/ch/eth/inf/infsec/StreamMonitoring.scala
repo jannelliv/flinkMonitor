@@ -122,6 +122,8 @@ object StreamMonitoring {
       env.enableCheckpointing(10000)
     }
 
+    env.getConfig.setLatencyTrackingInterval(1000)
+
     // Performance tuning
     env.getConfig.enableObjectReuse()
     env.registerType(classOf[StringValue])

@@ -12,7 +12,7 @@ import org.apache.flink.streaming.api.graph.StreamConfig
 import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator, Output}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.watermark.Watermark
-import org.apache.flink.streaming.runtime.streamrecord.{StreamElement, StreamElementSerializer, StreamRecord}
+import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamElement, StreamElementSerializer, StreamRecord}
 import org.apache.flink.streaming.runtime.tasks.StreamTask
 import org.apache.flink.util.ExceptionUtils
 
@@ -28,6 +28,8 @@ private case class InputItem[IN](input: StreamRecord[IN]) extends PendingRequest
 private case class OutputItem[OUT](output: StreamRecord[OUT]) extends PendingResult
 
 private case class WatermarkItem(mark: Watermark) extends PendingRequest with PendingResult
+
+private case class LatencyMarkerItem(marker: LatencyMarker) extends PendingRequest with PendingResult
 
 private case class SnapshotRequestItem() extends PendingRequest
 
@@ -133,6 +135,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           resultQueue.add(OutputItem(element.asRecord()))
         else if (element.isWatermark)
           resultQueue.add(WatermarkItem(element.asWatermark()))
+        else if (element.isLatencyMarker)
+          resultQueue.add(LatencyMarkerItem(element.asLatencyMarker()))
         else
           throw new IllegalStateException("Unknown stream element type " + element.getClass +
             " encountered while opening the operator.")
@@ -152,6 +156,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
         request match {
           case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
+          case LatencyMarkerItem(_) => ()
           case SnapshotRequestItem() => process.initSnapshot()
           case ShutdownItem() =>
             process.shutdown()
@@ -180,6 +185,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
                 buffer.clear()
               }
             case mark@WatermarkItem(_) => resultQueue.add(mark)
+            case marker@LatencyMarkerItem(_) => resultQueue.add(marker)
             case SnapshotRequestItem() =>
               resultQueue.add(SnapshotResultItem(process.readSnapshot()))
               snapshotReady.release()
@@ -222,6 +228,10 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
                 output.collect(record.asRecord())
             case WatermarkItem(mark) =>
               output.emitWatermark(mark)
+              pendingCount = -1
+            case LatencyMarkerItem(marker) =>
+              latencyStats.reportLatency(marker)
+              output.emitLatencyMarker(marker)
               pendingCount = -1
             case SnapshotResultItem(state) => ()
             case ShutdownItem() => running = false
@@ -382,6 +392,10 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   override def processWatermark(mark: Watermark): Unit = {
     enqueueRequest(WatermarkItem(mark))
+  }
+
+  override def processLatencyMarker(marker: LatencyMarker): Unit = {
+    enqueueRequest(LatencyMarkerItem(marker))
   }
 
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
