@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-SCRIPT_DIR=`cd "${BASH_SOURCE%/*}"; pwd`
+SCRIPT_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 TARGET_DIR=`pwd`
 
 read -p "Install the evaluation components to $TARGET_DIR? (Y/n) " -s -n 1 choice
