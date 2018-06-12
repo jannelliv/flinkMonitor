@@ -4,6 +4,7 @@ import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyP
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.ColissionlessKeyGenerator
 import ch.eth.inf.infsec.trace._
+import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.api.java.utils.ParameterTool
@@ -121,6 +122,9 @@ object StreamMonitoring {
       env.setStateBackend(new RocksDBStateBackend(checkpointUri))
       env.enableCheckpointing(10000)
     }
+    env.setRestartStrategy(RestartStrategies.noRestart())
+
+    env.getConfig.setLatencyTrackingInterval(1000)
 
     // Performance tuning
     env.getConfig.enableObjectReuse()

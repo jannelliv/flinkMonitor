@@ -1,4 +1,4 @@
-[[ -n $WORK_DIR ]] || WORK_DIR=`cd "${BASH_SOURCE%/*}"; pwd`
+[[ -n $WORK_DIR ]] || WORK_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 
 export JAVA_HOME="$WORK_DIR/jdk1.8.0_172"
 
