@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Assumption: the setup script is in the <git repo>/experiments
+# togeather with other important files
 SCRIPT_DIR=`cd "${BASH_SOURCE%/*}"; pwd`
 TARGET_DIR=`pwd`
 
@@ -109,15 +111,44 @@ MONPOLY_BIN="monpoly"
 MISSING_FILE=0
 
 if [[ ! -f $DRIVER_JAR ]]; then
+    DRIVER_INSTALL="fail"
     echo "[WARNING] $DRIVER_JAR does not exist."
-    echo "Please copy the parallel online monitor into the current directory."
-    MISSING_FILE=1
+    if [[ ! -z $(which mvn) ]]; then
+        `cd "${SCRIPT_DIR}"; cd ..; mvn package`
+        if [[ $? -eq 0 ]]; then
+            if  cp ${SCRIPT_DIR}/../target/parallel-online-monitoring-1.0-SNAPSHOT.jar .; then
+                DRIVER_INSTALL="success"
+            fi
+        fi
+    fi
+    if [[ $DRIVER_INSTALL = "fail" ]]; then
+            echo "Cannot build jar locally. Please copy the parallel online monitor jar into the current directory."
+            MISSING_FILE=1
+    fi
 fi
 
+MONPOLY_DIR="mt-monpoly"
 if [[ ! -x $MONPOLY_BIN ]]; then
+    MONPOLY_INSTALL="fail"
     echo "[WARNING] $MONPOLY_BIN does not exist or is not executable."
-    echo "Please copy the Monpoly binary into the current directory."
-    MISSING_FILE=1
+    if [[ ! -d $MONPOLY_DIR ]]; then
+        if [[ ! -z $(which git) ]]; then
+            git clone -b slicer-integration https://bitbucket.org/FreddiB/mt-monpoly/
+            if [[ ! -z $(which opam) ]]; then
+                `cd $MONPOLY_DIR; make`
+                if [[ $? -eq 0 ]]; then
+                    if  cp ${MONPOLY_DIR}/monpoly .; then
+                        MONPOLY_INSTALL="success"
+                    fi
+                fi
+            fi
+        fi
+    fi
+
+    if [[ $MONPOLY_INSTALL = "fail" ]]; then
+        echo "Please copy the Monpoly binary into the current directory."
+        MISSING_FILE=1
+    fi
 fi
 
 [[ $MISSING_FILE = 0 ]] || exit 1
