@@ -12,7 +12,7 @@ import org.apache.flink.streaming.api.graph.StreamConfig
 import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator, Output}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.watermark.Watermark
-import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamElement, StreamElementSerializer, StreamRecord}
+import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRecord}
 import org.apache.flink.streaming.runtime.tasks.StreamTask
 import org.apache.flink.util.ExceptionUtils
 
@@ -26,6 +26,8 @@ private trait PendingResult
 private case class InputItem[IN](input: StreamRecord[IN]) extends PendingRequest
 
 private case class OutputItem[OUT](output: StreamRecord[OUT]) extends PendingResult
+
+private case class OutputSeparatorItem() extends PendingResult
 
 private case class WatermarkItem(mark: Watermark) extends PendingRequest with PendingResult
 
@@ -66,10 +68,10 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   @transient private var preprocessingSerializer: TypeSerializer[preprocessing.State] = _
   @transient private var postprocessingSerializer: TypeSerializer[postprocessing.State] = _
-  @transient private var outSerializer: StreamElementSerializer[OUT] = _
+  @transient private var resultSerializer: TypeSerializer[PendingResult] = _
   @transient private var stateSerializer: TypeSerializer[Array[Byte]] = _
 
-  @transient private var recoveredResults: ListState[StreamElement] = _
+  @transient private var recoveredResults: ListState[PendingResult] = _
   @transient private var recoveredPreprocessing: ValueState[preprocessing.State] = _
   @transient private var recoveredPostprocessing: ValueState[postprocessing.State] = _
   @transient private var recoveredState: ValueState[Array[Byte]] = _
@@ -94,13 +96,15 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     resultLock = new Object
     resultQueue = new util.ArrayDeque[PendingResult]()
     snapshotReady = new Semaphore(0)
-    outSerializer = new StreamElementSerializer[OUT](getOperatorConfig.getTypeSerializerOut(getUserCodeClassloader))
 
     val preprocessingType = TypeInformation.of(new TypeHint[preprocessing.State]() {})
     preprocessingSerializer = preprocessingType.createSerializer(getExecutionConfig)
 
     val postprocessingType = TypeInformation.of(new TypeHint[postprocessing.State]() {})
     postprocessingSerializer = postprocessingType.createSerializer(getExecutionConfig)
+
+    val pendingResultType = TypeInformation.of(new TypeHint[PendingResult]() {})
+    resultSerializer = pendingResultType.createSerializer(getExecutionConfig)
 
     val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
     stateSerializer = stateType.createSerializer(getExecutionConfig)
@@ -130,17 +134,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       preprocessing.restoreState(Some(recoveredPreprocessing.value()))
       postprocessing.restoreState(Some(recoveredPostprocessing.value()))
 
-      for (element: StreamElement <- recoveredResults.get) {
-        if (element.isRecord)
-          resultQueue.add(OutputItem(element.asRecord()))
-        else if (element.isWatermark)
-          resultQueue.add(WatermarkItem(element.asWatermark()))
-        else if (element.isLatencyMarker)
-          resultQueue.add(LatencyMarkerItem(element.asLatencyMarker()))
-        else
-          throw new IllegalStateException("Unknown stream element type " + element.getClass +
-            " encountered while opening the operator.")
-      }
+      for (item <- recoveredResults.get)
+        resultQueue.add(item)
 
       process.open(recoveredState.value())
 
@@ -180,7 +175,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
                 for (result <- buffer)
                   postprocessing.process(result, r =>
                     resultQueue.add(OutputItem(outputRecord(record.asRecord(), r))))
-                resultQueue.add(OutputItem(null))
+                resultQueue.add(OutputSeparatorItem())
               } finally {
                 buffer.clear()
               }
@@ -192,6 +187,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
             case shutdown@ShutdownItem() =>
               postprocessing.terminate(r =>
                 resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
+              resultQueue.add(OutputSeparatorItem())
               process.join()
               resultQueue.add(shutdown)
               running = false
@@ -221,11 +217,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           // TODO(JS): In AsyncWaitOperator, a TimestampedCollector is used, which recycles a single record object.
           // Do we want to do the same here?
           result match {
-            case OutputItem(record) =>
-              if (record == null)
-                pendingCount -= 1
-              else
-                output.collect(record.asRecord())
+            case OutputItem(record) => output.collect(record.asRecord())
+            case OutputSeparatorItem() => pendingCount -= 1
             case WatermarkItem(mark) =>
               output.emitWatermark(mark)
               pendingCount = -1
@@ -332,9 +325,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     val postprocessingState = getKeyedStateStore.getState(new ValueStateDescriptor[postprocessing.State](
       POSTPROCESSING_STATE_NAME,
       postprocessingSerializer))
-    val resultState = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
+    val resultState = getKeyedStateStore.getListState(new ListStateDescriptor[PendingResult](
       RESULT_STATE_NAME,
-      outSerializer))
+      resultSerializer))
     val processState = getKeyedStateStore.getState(new ValueStateDescriptor[Array[Byte]](
       PROCESS_STATE_NAME,
       stateSerializer))
@@ -351,8 +344,10 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
         for (result: PendingResult <- resultQueue) {
           assert(!gotSnapshot)
           result match {
-            case OutputItem(record) => resultState.add(record)
-            case WatermarkItem(mark) => resultState.add(mark)
+            case OutputItem(_) => resultState.add(result)
+            case OutputSeparatorItem() => resultState.add(result)
+            case WatermarkItem(_) => resultState.add(result)
+            case LatencyMarkerItem(_) => resultState.add(result)
             case SnapshotResultItem(state) =>
               processState.update(state)
               gotSnapshot = true
@@ -381,9 +376,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       recoveredPostprocessing = getKeyedStateStore.getState(new ValueStateDescriptor[postprocessing.State](
         POSTPROCESSING_STATE_NAME,
         postprocessingSerializer))
-      recoveredResults = getKeyedStateStore.getListState(new ListStateDescriptor[StreamElement](
+      recoveredResults = getKeyedStateStore.getListState(new ListStateDescriptor[PendingResult](
         RESULT_STATE_NAME,
-        outSerializer))
+        resultSerializer))
       recoveredState = getKeyedStateStore.getState(new ValueStateDescriptor[Array[Byte]](
         PROCESS_STATE_NAME,
         stateSerializer))
