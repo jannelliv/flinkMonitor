@@ -112,12 +112,13 @@ MISSING_FILE=0
 
 if [[ ! -f $DRIVER_JAR ]]; then
     DRIVER_INSTALL="fail"
-    echo "[WARNING] $DRIVER_JAR does not exist."
+    echo "[WARNING] $DRIVER_JAR does not exist. Building..."
     if [[ ! -z $(which mvn) ]]; then
-        `cd "${SCRIPT_DIR}"; cd ..; mvn package`
+        `cd "${SCRIPT_DIR}"; cd ..; mvn package 2> /dev/null > /dev/null`
         if [[ $? -eq 0 ]]; then
             if  cp ${SCRIPT_DIR}/../target/parallel-online-monitoring-1.0-SNAPSHOT.jar .; then
                 DRIVER_INSTALL="success"
+                echo "$DRIVER_JAR installed from source"
             fi
         fi
     fi
@@ -130,17 +131,18 @@ fi
 MONPOLY_DIR="mt-monpoly"
 if [[ ! -x $MONPOLY_BIN ]]; then
     MONPOLY_INSTALL="fail"
-    echo "[WARNING] $MONPOLY_BIN does not exist or is not executable."
+    echo "[WARNING] $MONPOLY_BIN does not exist or is not executable. Compiling..."
     if [[ ! -d $MONPOLY_DIR ]]; then
         if [[ ! -z $(which git) ]]; then
             git clone -b slicer-integration https://bitbucket.org/FreddiB/mt-monpoly/
-            if [[ ! -z $(which opam) ]]; then
-                `cd $MONPOLY_DIR; make`
-                if [[ $? -eq 0 ]]; then
-                    if  cp ${MONPOLY_DIR}/monpoly .; then
-                        MONPOLY_INSTALL="success"
-                    fi
-                fi
+        fi
+    fi
+    if [[ ! -z $(which opam) ]]; then
+        `cd "${MONPOLY_DIR}"; make 2> /dev/null > /dev/null`
+        if [[ $? -eq 0 ]]; then
+            if  cp ${MONPOLY_DIR}/monpoly .; then
+                MONPOLY_INSTALL="success"
+                echo "$MONPOLY_BIN installed from source"
             fi
         fi
     fi
