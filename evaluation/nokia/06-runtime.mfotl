@@ -1,0 +1,2 @@
+(script_start(script) IMPLIES NOT script_end(script)) AND
+(script_start(script) IMPLIES EVENTUALLY[1,36000) script_end(script))

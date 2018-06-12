@@ -1,0 +1,1 @@
+(script_svn(script, status, url, y, rev) AND ONCE(0,*] commit(url, revc)) AND (rev < revc)
