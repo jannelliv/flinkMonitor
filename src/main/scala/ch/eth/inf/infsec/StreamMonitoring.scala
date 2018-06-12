@@ -7,8 +7,8 @@ import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.api.java.utils.ParameterTool
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
 import org.apache.flink.core.fs.Path
-import org.apache.flink.runtime.state.filesystem.FsStateBackend
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.source.FileProcessingMode
 import org.apache.flink.streaming.api.scala._
@@ -118,7 +118,7 @@ object StreamMonitoring {
     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
     if (!checkpointUri.isEmpty) {
-      env.setStateBackend(new FsStateBackend(checkpointUri))
+      env.setStateBackend(new RocksDBStateBackend(checkpointUri))
       env.enableCheckpointing(10000)
     }
 
@@ -157,7 +157,7 @@ object StreamMonitoring {
       new KeyedMonpolyPrinter[Int],
       process,
       if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
-      100).setParallelism(processors)
+      256).setParallelism(processors)
 
     //Single node
 
