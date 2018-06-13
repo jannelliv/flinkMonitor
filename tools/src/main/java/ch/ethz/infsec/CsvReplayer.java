@@ -11,6 +11,7 @@ public class CsvReplayer {
     static final class EventBuffer {
         final StringBuilder builder = new StringBuilder();
         final long emissionTime;
+        int numberOfRecords = 0;
         boolean isLast = false;
 
         EventBuffer(long emissionTime) {
@@ -114,31 +115,75 @@ public class CsvReplayer {
                     .append(", ")
                     .append(data)
                     .append('\n');
+            ++eventBuffer.numberOfRecords;
         }
     }
 
     static class OutputWorker implements Runnable {
         private final BufferedWriter output;
+        private final boolean doReports;
         private final LinkedBlockingQueue<EventBuffer> queue;
+
+        private int underruns = 0;
+        private int totalRecords = 0;
+        private int maxRecords = 0;
+        private int events = 0;
+        private long maxSkew = 0;
+        private long lastReport = 0;
 
         private boolean successful = false;
 
-        OutputWorker(BufferedWriter output, LinkedBlockingQueue<EventBuffer> queue) {
+        OutputWorker(BufferedWriter output, boolean doReports, LinkedBlockingQueue<EventBuffer> queue) {
             this.output = output;
+            this.doReports = doReports;
             this.queue = queue;
+        }
+
+        private void printReport(long elapsedMillis, long skew) {
+            System.err.printf(
+                   "%6.1fs: %9d events, %9d records, %9d max. records, %6.3fs skew, %6.3fs max. skew, %6d underruns\n",
+                    (double)elapsedMillis / 1000.0,
+                    events,
+                    totalRecords,
+                    maxRecords,
+                    (double)skew / 1000.0,
+                    (double)maxSkew / 1000.0,
+                    underruns
+            );
         }
 
         public void run() {
             final long startTime = System.nanoTime();
 
             try {
+                boolean isFirst = true;
                 EventBuffer eventBuffer;
                 do {
-                    eventBuffer = queue.take();
+                    eventBuffer = queue.poll();
+                    if (eventBuffer == null) {
+                        if (!isFirst) {
+                            ++underruns;
+                        }
+                        eventBuffer = queue.take();
+                    }
+                    isFirst = false;
+
+                    totalRecords += eventBuffer.numberOfRecords;
+                    maxRecords = Math.max(maxRecords, eventBuffer.numberOfRecords);
+                    ++events;
 
                     long now = System.nanoTime();
                     long elapsedMillis = (now - startTime) / 1000000L;
                     long waitMillis = eventBuffer.emissionTime - elapsedMillis;
+                    long skew = Math.max(0, -waitMillis);
+
+                    maxSkew = Math.max(maxSkew, skew);
+
+                    if (doReports && elapsedMillis - lastReport > 1000) {
+                        lastReport = elapsedMillis;
+                        printReport(elapsedMillis, skew);
+                    }
+
                     if (waitMillis > 1L) {
                         Thread.sleep(waitMillis);
                     }
@@ -162,7 +207,7 @@ public class CsvReplayer {
 
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-w <window size>] [-r <event rate>] [-o host:port] <file>\n");
+                "Usage: [-v] [-w <window size>] [-r <event rate>] [-q <buffer>] [-o host:port] <file>\n");
         System.exit(2);
     }
 
@@ -172,9 +217,14 @@ public class CsvReplayer {
         double eventRate = 1.0;
         String outputHost = null;
         int outputPort = 0;
+        boolean doReport = false;
+        int queueCapacity = 8;
 
         for (int i = 0; i < args.length; ++i) {
             switch (args[i]) {
+                case "-v":
+                    doReport = true;
+                    break;
                 case "-w":
                     if (++i == args.length) {
                         invalidArgument();
@@ -186,6 +236,12 @@ public class CsvReplayer {
                         invalidArgument();
                     }
                     eventRate = Double.parseDouble(args[i]);
+                    break;
+                case "-q":
+                    if (++i == args.length) {
+                        invalidArgument();
+                    }
+                    queueCapacity = Integer.parseInt(args[i]);
                     break;
                 case "-o":
                     if (++i == args.length) {
@@ -235,9 +291,9 @@ public class CsvReplayer {
            }
         }
 
-        LinkedBlockingQueue<EventBuffer> queue = new LinkedBlockingQueue<>(64);
+        LinkedBlockingQueue<EventBuffer> queue = new LinkedBlockingQueue<>(queueCapacity);
         InputWorker inputWorker = new InputWorker(inputReader, windowSize, eventRate, queue);
-        OutputWorker outputWorker = new OutputWorker(outputWriter, queue);
+        OutputWorker outputWorker = new OutputWorker(outputWriter, doReport, queue);
 
         Thread inputThread = new Thread(inputWorker);
         inputThread.start();
@@ -246,6 +302,9 @@ public class CsvReplayer {
 
         try {
             inputThread.join();
+            if (!inputWorker.isSuccessful()) {
+                outputThread.interrupt();
+            }
             outputThread.join();
         } catch (InterruptedException ignored) { }
 
