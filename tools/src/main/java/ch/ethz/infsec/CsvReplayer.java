@@ -2,16 +2,15 @@ package ch.ethz.infsec;
 
 import java.io.*;
 import java.net.Socket;
-import java.util.Random;
+import java.util.ArrayList;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class CsvReplayer {
     static final class EventBuffer {
-        final StringBuilder builder = new StringBuilder();
+        final ArrayList<String> records = new ArrayList<>();
         final long emissionTime;
-        int numberOfRecords = 0;
         boolean isLast = false;
 
         EventBuffer(long emissionTime) {
@@ -21,26 +20,21 @@ public class CsvReplayer {
 
     static class InputWorker implements Runnable {
         private static final Pattern recordPattern =
-                Pattern.compile("(.+?), tp = \\d+, ts = (\\d+), (.*)");
+                Pattern.compile(".+?, tp = (\\d+), ts = (\\d+), .*");
 
         private final BufferedReader input;
-        private final long windowSize;
-        private final double eventRate;
+        private final double timeMultiplier;
         private final LinkedBlockingQueue<EventBuffer> queue;
-
-        private final Random random = new Random(314159265359L);
 
         private boolean successful = false;
 
         private EventBuffer eventBuffer = null;
-        private long windowStart;
+        private long firstTimestamp;
         private long currentTimepoint;
-        private long currentTimestamp;
 
-        InputWorker(BufferedReader input, long windowSize, double eventRate, LinkedBlockingQueue<EventBuffer> queue) {
+        InputWorker(BufferedReader input, double timeMultiplier, LinkedBlockingQueue<EventBuffer> queue) {
             this.input = input;
-            this.windowSize = windowSize;
-            this.eventRate = eventRate;
+            this.timeMultiplier = timeMultiplier;
             this.queue = queue;
         }
 
@@ -50,10 +44,9 @@ public class CsvReplayer {
                 while ((line = input.readLine()) != null) {
                     Matcher matcher = recordPattern.matcher(line);
                     if (matcher.matches()) {
-                        String relation = matcher.group(1);
+                        long timepoint = Long.parseLong(matcher.group(1), 10);
                         long timestamp = Long.parseLong(matcher.group(2), 10);
-                        String data = matcher.group(3);
-                        processRecord(relation, timestamp, data);
+                        processRecord(line, timepoint, timestamp);
                     }
                 }
 
@@ -75,47 +68,22 @@ public class CsvReplayer {
             return successful;
         }
 
-        private long getNextEmission(long previous) {
-            double u = random.nextDouble();
-            double delta = -Math.log(1.0 - u) / eventRate;
-            return previous + Math.round(delta * 1000.0);
-        }
-
-        private void processRecord(String relation, long timestamp, String data)
+        private void processRecord(String record, long timepoint, long timestamp)
                 throws InterruptedException {
-            if (eventBuffer != null && timestamp < windowStart) {
-                System.err.printf("Error: Timestamp %d is less than previous timestamp %d.\n",
-                        timestamp, windowStart);
-                throw new RuntimeException("Non-increasing timestamps detected");
-            }
 
             if (eventBuffer == null) {
                 eventBuffer = new EventBuffer(0);
-                currentTimepoint = 0;
-                currentTimestamp = 0;
-
-                windowStart = timestamp;
-            } else if (timestamp - windowStart >= windowSize) {
+                firstTimestamp = timestamp;
+                currentTimepoint = timepoint;
+            } else if (timepoint != currentTimepoint) {
                 queue.put(eventBuffer);
 
-                long nextEmission = getNextEmission(eventBuffer.emissionTime);
+                long nextEmission = Math.round((double)(timestamp - firstTimestamp) / timeMultiplier * 1000.0);
                 eventBuffer = new EventBuffer(nextEmission);
-                ++currentTimepoint;
-                currentTimestamp = nextEmission / 1000;
-
-                windowStart = timestamp;
+                currentTimepoint = timepoint;
             }
 
-            eventBuffer.builder
-                    .append(relation)
-                    .append(", tp = ")
-                    .append(currentTimepoint)
-                    .append(", ts = ")
-                    .append(currentTimestamp)
-                    .append(", ")
-                    .append(data)
-                    .append('\n');
-            ++eventBuffer.numberOfRecords;
+            eventBuffer.records.add(record);
         }
     }
 
@@ -168,8 +136,9 @@ public class CsvReplayer {
                     }
                     isFirst = false;
 
-                    totalRecords += eventBuffer.numberOfRecords;
-                    maxRecords = Math.max(maxRecords, eventBuffer.numberOfRecords);
+                    int numberOfRecords = eventBuffer.records.size();
+                    totalRecords += numberOfRecords;
+                    maxRecords = Math.max(maxRecords, numberOfRecords);
                     ++events;
 
                     long now = System.nanoTime();
@@ -188,7 +157,10 @@ public class CsvReplayer {
                         Thread.sleep(waitMillis);
                     }
 
-                    output.write(eventBuffer.builder.toString());
+                    for (String record : eventBuffer.records) {
+                        output.write(record);
+                        output.write('\n');
+                    }
                     output.flush();
                 } while (!eventBuffer.isLast);
 
@@ -207,35 +179,28 @@ public class CsvReplayer {
 
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-v] [-w <window size>] [-r <event rate>] [-q <buffer>] [-o host:port] <file>\n");
+                "Usage: [-v] [-a <acceleration>] [-q <buffer size>] [-o host:port] <file>\n");
         System.exit(2);
     }
 
     public static void main(String[] args) {
         String inputFilename = null;
-        long windowSize = 1;
-        double eventRate = 1.0;
+        double timeMultiplier = 1.0;
         String outputHost = null;
         int outputPort = 0;
         boolean doReport = false;
-        int queueCapacity = 8;
+        int queueCapacity = 64;
 
         for (int i = 0; i < args.length; ++i) {
             switch (args[i]) {
                 case "-v":
                     doReport = true;
                     break;
-                case "-w":
+                case "-a":
                     if (++i == args.length) {
                         invalidArgument();
                     }
-                    windowSize = Long.parseLong(args[i]);
-                    break;
-                case "-r":
-                    if (++i == args.length) {
-                        invalidArgument();
-                    }
-                    eventRate = Double.parseDouble(args[i]);
+                    timeMultiplier = Double.parseDouble(args[i]);
                     break;
                 case "-q":
                     if (++i == args.length) {
@@ -292,7 +257,7 @@ public class CsvReplayer {
         }
 
         LinkedBlockingQueue<EventBuffer> queue = new LinkedBlockingQueue<>(queueCapacity);
-        InputWorker inputWorker = new InputWorker(inputReader, windowSize, eventRate, queue);
+        InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, queue);
         OutputWorker outputWorker = new OutputWorker(outputWriter, doReport, queue);
 
         Thread inputThread = new Thread(inputWorker);
