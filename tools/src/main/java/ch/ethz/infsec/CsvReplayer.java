@@ -4,36 +4,129 @@ import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
+import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class CsvReplayer {
-    static final class EventBuffer {
-        final long timestamp;
-        final HashMap<String, StringBuilder> relations = new HashMap<>();
+    static abstract class EventBuffer {
         final long emissionTime;
-        int numberOfRecords = 0;
         boolean isLast = false;
 
-        EventBuffer(long timestamp, long emissionTime) {
-            this.timestamp = timestamp;
+        EventBuffer(long emissionTime) {
             this.emissionTime = emissionTime;
         }
 
-        String toMonpoly() {
-            StringBuilder builder = new StringBuilder();
-            builder.append('@').append(timestamp);
-            for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
-                builder.append(' ').append(entry.getKey()).append(entry.getValue());
+        abstract void addRecord(String line, String relation, int indexBeforeData);
+
+        abstract int getNumberOfRecords();
+
+        abstract void write(Writer writer) throws IOException;
+    }
+
+    static final class MonpolyEventBuffer extends EventBuffer {
+        private final long timestamp;
+        private final Map<String, StringBuilder> relations = new HashMap<>();
+        private int numberOfRecords = 0;
+
+        MonpolyEventBuffer(long timestamp, long emissionTime) {
+            super(emissionTime);
+            this.timestamp = timestamp;
+        }
+
+        @Override
+        void addRecord(String line, String relation, int indexBeforeData) {
+            ++numberOfRecords;
+
+            StringBuilder builder = relations.get(relation);
+            if (builder == null) {
+                builder = new StringBuilder();
+                relations.put(relation, builder);
             }
-            builder.append('\n');
-            return builder.toString();
+
+            builder.append('(');
+            int currentIndex = indexBeforeData;
+            while (currentIndex < line.length()) {
+                currentIndex = line.indexOf('=', currentIndex);
+                if (currentIndex >= 0) {
+                    currentIndex += 1;
+                    while (currentIndex < line.length() && Character.isSpaceChar(line.charAt(currentIndex)))
+                        currentIndex += 1;
+                    int startIndex = currentIndex;
+                    currentIndex = line.indexOf(',', startIndex);
+                    boolean hasMore = currentIndex >= 0;
+                    if (!hasMore)
+                        currentIndex = line.length();
+                    builder.append(line.substring(startIndex, currentIndex).trim());
+                    if (hasMore)
+                        builder.append(',');
+                    currentIndex += 1;
+                }
+            }
+            builder.append(')');
+        }
+
+        @Override
+        int getNumberOfRecords() {
+            return numberOfRecords;
+        }
+
+        @Override
+        void write(Writer writer) throws IOException {
+            writer.append('@').append(Long.toString(timestamp));
+            for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
+                writer.append(' ').append(entry.getKey()).append(entry.getValue());
+            }
+            writer.append('\n');
+        }
+    }
+
+    static final class CsvEventBuffer extends EventBuffer {
+        private final ArrayList<String> lines = new ArrayList<>();
+
+        CsvEventBuffer(long emissionTime) {
+            super(emissionTime);
+        }
+
+        @Override
+        void addRecord(String line, String relation, int indexBeforeData) {
+            lines.add(line);
+        }
+
+        @Override
+        int getNumberOfRecords() {
+            return lines.size();
+        }
+
+        @Override
+        void write(Writer writer) throws IOException {
+            for (String line : lines) {
+                writer.append(line).append('\n');
+            }
+        }
+    }
+
+    interface EventBufferFactory {
+        EventBuffer createEventBuffer(long timestamp, long emissionTime);
+    }
+
+    static final class MonpolyEventBufferFactory implements EventBufferFactory {
+        @Override
+        public EventBuffer createEventBuffer(long timestamp, long emissionTime) {
+            return new MonpolyEventBuffer(timestamp, emissionTime);
+        }
+    }
+
+    static final class CsvEventBufferFactory implements EventBufferFactory {
+        @Override
+        public EventBuffer createEventBuffer(long timestamp, long emissionTime) {
+            return new CsvEventBuffer(emissionTime);
         }
     }
 
     static class InputWorker implements Runnable {
         private final BufferedReader input;
         private final double timeMultiplier;
+        private final EventBufferFactory factory;
         private final LinkedBlockingQueue<EventBuffer> queue;
 
         private boolean successful = false;
@@ -42,9 +135,10 @@ public class CsvReplayer {
         private long firstTimestamp;
         private long currentTimepoint;
 
-        InputWorker(BufferedReader input, double timeMultiplier, LinkedBlockingQueue<EventBuffer> queue) {
+        InputWorker(BufferedReader input, double timeMultiplier, EventBufferFactory factory, LinkedBlockingQueue<EventBuffer> queue) {
             this.input = input;
             this.timeMultiplier = timeMultiplier;
+            this.factory = factory;
             this.queue = queue;
         }
 
@@ -56,7 +150,7 @@ public class CsvReplayer {
                 }
 
                 if (eventBuffer == null) {
-                    eventBuffer = new EventBuffer(0, -1);
+                    eventBuffer = factory.createEventBuffer(0, -1);
                 }
                 eventBuffer.isLast = true;
                 queue.put(eventBuffer);
@@ -74,12 +168,11 @@ public class CsvReplayer {
         }
 
         private void processRecord(String line) throws InterruptedException {
-            String relation = null;
-            long timepoint = 0L;
-            long timestamp = 0L;
-            List<Serializable> tuple = new ArrayList<>(8);
+            String relation;
+            long timepoint;
+            long timestamp;
 
-            int startIndex = -1;
+            int startIndex;
             int currentIndex = 0;
 
             while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
@@ -105,42 +198,18 @@ public class CsvReplayer {
             currentIndex += 1;
 
             if (eventBuffer == null) {
-                eventBuffer = new EventBuffer(timestamp, 0);
+                eventBuffer = factory.createEventBuffer(timestamp, 0);
                 firstTimestamp = timestamp;
                 currentTimepoint = timepoint;
             } else if (timepoint != currentTimepoint) {
                 queue.put(eventBuffer);
 
-                long nextEmission = Math.round((double)(timestamp - firstTimestamp) / timeMultiplier * 1000.0);
-                eventBuffer = new EventBuffer(timestamp, nextEmission);
+                long nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+                eventBuffer = factory.createEventBuffer(timestamp, nextEmission);
                 currentTimepoint = timepoint;
             }
 
-            ++eventBuffer.numberOfRecords;
-            StringBuilder builder = eventBuffer.relations.get(relation);
-            if (builder == null) {
-                builder = new StringBuilder();
-                eventBuffer.relations.put(relation, builder);
-            }
-
-            builder.append('(');
-            while (currentIndex < line.length()) {
-                currentIndex = line.indexOf('=', currentIndex);
-                if (currentIndex >= 0) {
-                    currentIndex += 1;
-                    while (currentIndex < line.length() && Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-                    startIndex = currentIndex;
-                    currentIndex = line.indexOf(',', startIndex);
-                    boolean hasMore = currentIndex >= 0;
-                    if (currentIndex < 0)
-                        currentIndex = line.length();
-                    builder.append(line.substring(startIndex, currentIndex).trim());
-                    if (hasMore)
-                        builder.append(',');
-                    currentIndex += 1;
-                }
-            }
-            builder.append(')');
+            eventBuffer.addRecord(line, relation, currentIndex);
         }
     }
 
@@ -166,13 +235,13 @@ public class CsvReplayer {
 
         private void printReport(long elapsedMillis, long skew) {
             System.err.printf(
-                   "%6.1fs: %9d events, %9d records, %9d max. records, %6.3fs skew, %6.3fs max. skew, %6d underruns\n",
-                    (double)elapsedMillis / 1000.0,
+                    "%6.1fs: %9d events, %9d records, %9d max. records, %6.3fs skew, %6.3fs max. skew, %6d underruns\n",
+                    (double) elapsedMillis / 1000.0,
                     events,
                     totalRecords,
                     maxRecords,
-                    (double)skew / 1000.0,
-                    (double)maxSkew / 1000.0,
+                    (double) skew / 1000.0,
+                    (double) maxSkew / 1000.0,
                     underruns
             );
         }
@@ -193,7 +262,7 @@ public class CsvReplayer {
                     }
                     isFirst = false;
 
-                    int numberOfRecords = eventBuffer.numberOfRecords;
+                    int numberOfRecords = eventBuffer.getNumberOfRecords();
                     totalRecords += numberOfRecords;
                     maxRecords = Math.max(maxRecords, numberOfRecords);
                     ++events;
@@ -214,7 +283,7 @@ public class CsvReplayer {
                         Thread.sleep(waitMillis);
                     }
 
-                    output.write(eventBuffer.toMonpoly());
+                    eventBuffer.write(output);
                     output.flush();
                 } while (!eventBuffer.isLast);
 
@@ -233,13 +302,14 @@ public class CsvReplayer {
 
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-v] [-a <acceleration>] [-q <buffer size>] [-o host:port] <file>\n");
+                "Usage: [-v] [-a <acceleration>] [-q <buffer size>] [-m] [-o <host>:<port>] <file>\n");
         System.exit(2);
     }
 
     public static void main(String[] args) {
         String inputFilename = null;
         double timeMultiplier = 1.0;
+        EventBufferFactory eventBufferFactory = new CsvEventBufferFactory();
         String outputHost = null;
         int outputPort = 0;
         boolean doReport = false;
@@ -261,6 +331,9 @@ public class CsvReplayer {
                         invalidArgument();
                     }
                     queueCapacity = Integer.parseInt(args[i]);
+                    break;
+                case "-m":
+                    eventBufferFactory = new MonpolyEventBufferFactory();
                     break;
                 case "-o":
                     if (++i == args.length) {
@@ -300,18 +373,18 @@ public class CsvReplayer {
         if (outputHost == null) {
             outputWriter = new BufferedWriter(new OutputStreamWriter(System.out));
         } else {
-           try {
-               outputSocket = new Socket(outputHost, outputPort);
-               outputWriter = new BufferedWriter(new OutputStreamWriter(outputSocket.getOutputStream()));
-           } catch (IOException e) {
-               System.err.print("Error: " + e.getMessage() + "\n");
-               System.exit(1);
-               return;
-           }
+            try {
+                outputSocket = new Socket(outputHost, outputPort);
+                outputWriter = new BufferedWriter(new OutputStreamWriter(outputSocket.getOutputStream()));
+            } catch (IOException e) {
+                System.err.print("Error: " + e.getMessage() + "\n");
+                System.exit(1);
+                return;
+            }
         }
 
         LinkedBlockingQueue<EventBuffer> queue = new LinkedBlockingQueue<>(queueCapacity);
-        InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, queue);
+        InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, eventBufferFactory, queue);
         OutputWorker outputWorker = new OutputWorker(outputWriter, doReport, queue);
 
         Thread inputThread = new Thread(inputWorker);
@@ -325,7 +398,8 @@ public class CsvReplayer {
                 outputThread.interrupt();
             }
             outputThread.join();
-        } catch (InterruptedException ignored) { }
+        } catch (InterruptedException ignored) {
+        }
 
         if (!(inputWorker.isSuccessful() && outputWorker.isSuccessful())) {
             System.exit(1);
