@@ -3,30 +3,33 @@ package ch.ethz.infsec;
 import java.util.Random;
 
 abstract class AbstractEventGenerator {
-    protected final Random random;
-    protected final int load;
-    protected final int loadPerEvent;
-    protected final long timeIncrement;
+    final Random random;
+    final int eventRate;
+    final int eventsPerIndex;
 
-    private long currentTimepoint = -1;
+    private final long timeIncrement;
+
+    private long currentIndex = -1;
     private long currentEmissionTime = -1;
     private long currentTimestamp = 0;
 
-    protected AbstractEventGenerator(Random random, int load, int eventRate) {
-        if (load < eventRate || eventRate < 1) {
+    AbstractEventGenerator(Random random, int eventRate, int indexRate) {
+        if (eventRate < indexRate || indexRate < 1) {
            throw new IllegalArgumentException();
         }
 
         this.random = random;
-        this.load = load;
-        this.loadPerEvent = load / eventRate;
-        this.timeIncrement = 1000000000L / eventRate;
+        this.eventRate = eventRate;
+        this.eventsPerIndex = eventRate / indexRate;
+        this.timeIncrement = 1000000000L / indexRate;
     }
 
-    abstract void appendNextRecord(StringBuilder builder, long timestamp);
+    abstract void initializeIndex(long timestamp);
 
-    String nextEvent() {
-        ++currentTimepoint;
+    abstract void appendNextEvent(StringBuilder builder, long timestamp);
+
+    String nextDatabase() {
+        ++currentIndex;
         if (currentEmissionTime < 0) {
             currentEmissionTime = 0;
         } else {
@@ -34,11 +37,11 @@ abstract class AbstractEventGenerator {
             currentTimestamp = currentEmissionTime / 1000000000L;
         }
 
-        initializeEvent(currentTimestamp);
+        initializeIndex(currentTimestamp);
 
         StringBuilder builder = new StringBuilder();
-        for (int i = 0; i < loadPerEvent; ++i) {
-            appendNextRecord(builder, currentTimestamp);
+        for (int i = 0; i < eventsPerIndex; ++i) {
+            appendNextEvent(builder, currentTimestamp);
             builder.append('\n');
         }
 
@@ -49,26 +52,16 @@ abstract class AbstractEventGenerator {
         return currentEmissionTime;
     }
 
-    protected void initializeEvent(long timestamp) {
-    }
-
-    protected void appendRecordPrefix(StringBuilder builder, String relation, long timestamp) {
+    void appendEventStart(StringBuilder builder, String relation, long timestamp) {
         builder
                 .append(relation)
                 .append(", tp=")
-                .append(currentTimepoint)
+                .append(currentIndex)
                 .append(", ts=")
                 .append(timestamp);
     }
 
-    protected void appendAttribute(StringBuilder builder, String name, int value) {
-        builder
-                .append(", ")
-                .append(name)
-                .append('=')
-                .append(value);
-    }
-    protected void appendAttribute(StringBuilder builder, String name, String value) {
+    void appendAttribute(StringBuilder builder, String name, int value) {
         builder
                 .append(", ")
                 .append(name)

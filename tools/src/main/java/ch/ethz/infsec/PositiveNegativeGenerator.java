@@ -21,13 +21,13 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
     private int negativeWindow = 100;
     private boolean isTriangle = false;
 
-    private static final class ScheduledRecord implements Comparable<ScheduledRecord> {
+    private static final class ScheduledEvent implements Comparable<ScheduledEvent> {
         final String relation;
         final long timestamp;
         final int value0;
         final int value1;
 
-        ScheduledRecord(String relation, long timestamp, int value0, int value1) {
+        ScheduledEvent(String relation, long timestamp, int value0, int value1) {
             this.relation = relation;
             this.timestamp = timestamp;
             this.value0 = value0;
@@ -35,22 +35,22 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
         }
 
         @Override
-        public int compareTo(ScheduledRecord other) {
+        public int compareTo(ScheduledEvent other) {
             return Long.compare(timestamp, other.timestamp);
         }
     }
 
-    private final PriorityQueue<ScheduledRecord> positiveQueue = new PriorityQueue<>();
+    private final PriorityQueue<ScheduledEvent> positiveQueue = new PriorityQueue<>();
     private int positiveQueueCapacity;
 
-    private final PriorityQueue<ScheduledRecord> negativeQueue = new PriorityQueue<>();
+    private final PriorityQueue<ScheduledEvent> negativeQueue = new PriorityQueue<>();
     private int negativeQueueCapacity;
 
-    private int positiveInCurrentEvent;
-    private int negativeInCurrentEvent;
+    private int positiveAtCurrentIndex;
+    private int negativeAtCurrentIndex;
 
-    PositiveNegativeGenerator(Random random, int load, int eventRate) {
-        super(random, load, eventRate);
+    PositiveNegativeGenerator(Random random, int eventRate, int indexRate) {
+        super(random, eventRate, indexRate);
         computeQueueCapacities();
     }
 
@@ -82,31 +82,31 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
     }
 
     private void computeQueueCapacities() {
-        positiveQueueCapacity = (int)Math.ceil((float)positiveWindow * (float)load * positiveRatio);
-        negativeQueueCapacity = (int)Math.ceil((float)negativeWindow * (float)load * negativeRatio);
+        positiveQueueCapacity = (int) Math.ceil((float) positiveWindow * (float) eventRate * positiveRatio);
+        negativeQueueCapacity = (int) Math.ceil((float) negativeWindow * (float) eventRate * negativeRatio);
     }
 
     @Override
-    protected void initializeEvent(long timestamp) {
-        positiveInCurrentEvent = 0;
-        negativeInCurrentEvent = 0;
+    protected void initializeIndex(long timestamp) {
+        positiveAtCurrentIndex = 0;
+        negativeAtCurrentIndex = 0;
     }
 
-    private boolean appendScheduledRecord(PriorityQueue<ScheduledRecord> queue, StringBuilder builder, long timestamp) {
-        ScheduledRecord scheduledRecord = queue.peek();
-        if (scheduledRecord != null && scheduledRecord.timestamp <= timestamp) {
+    private boolean appendScheduledEvent(PriorityQueue<ScheduledEvent> queue, StringBuilder builder, long timestamp) {
+        ScheduledEvent scheduledEvent = queue.peek();
+        if (scheduledEvent != null && scheduledEvent.timestamp <= timestamp) {
             queue.remove();
-            appendRecordPrefix(builder, scheduledRecord.relation, timestamp);
-            appendAttribute(builder, ATTRIBUTE_0, scheduledRecord.value0);
-            appendAttribute(builder, ATTRIBUTE_1, scheduledRecord.value1);
+            appendEventStart(builder, scheduledEvent.relation, timestamp);
+            appendAttribute(builder, ATTRIBUTE_0, scheduledEvent.value0);
+            appendAttribute(builder, ATTRIBUTE_1, scheduledEvent.value1);
             return true;
         } else {
             return false;
         }
     }
 
-    private void appendRecord(StringBuilder builder, String relation, long timestamp, int value0, int value1) {
-        appendRecordPrefix(builder, relation, timestamp);
+    private void appendEvent(StringBuilder builder, String relation, long timestamp, int value0, int value1) {
+        appendEventStart(builder, relation, timestamp);
         appendAttribute(builder, ATTRIBUTE_0, value0);
         appendAttribute(builder, ATTRIBUTE_1, value1);
     }
@@ -140,13 +140,13 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
     }
 
     @Override
-    void appendNextRecord(StringBuilder builder, long timestamp) {
-        if (appendScheduledRecord(negativeQueue, builder, timestamp)) {
-            ++negativeInCurrentEvent;
+    void appendNextEvent(StringBuilder builder, long timestamp) {
+        if (appendScheduledEvent(negativeQueue, builder, timestamp)) {
+            ++negativeAtCurrentIndex;
             return;
         }
-        if (appendScheduledRecord(positiveQueue, builder, timestamp)) {
-            ++positiveInCurrentEvent;
+        if (appendScheduledEvent(positiveQueue, builder, timestamp)) {
+            ++positiveAtCurrentIndex;
             return;
         }
 
@@ -159,38 +159,38 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
             long negativeTimestamp = positiveTimestamp + random.nextInt(negativeWindow);
 
-            appendRecord(builder, BASE_RELATION, timestamp, value0, value1);
-            positiveQueue.add(new ScheduledRecord(POSITIVE_RELATION, positiveTimestamp, value1, value2));
-            negativeQueue.add(new ScheduledRecord(NEGATIVE_RELATION, negativeTimestamp, value2, value3));
+            appendEvent(builder, BASE_RELATION, timestamp, value0, value1);
+            positiveQueue.add(new ScheduledEvent(POSITIVE_RELATION, positiveTimestamp, value1, value2));
+            negativeQueue.add(new ScheduledEvent(NEGATIVE_RELATION, negativeTimestamp, value2, value3));
 
             return;
         }
 
-        float positiveAdjusted = positiveRatio - (float)positiveInCurrentEvent / (float)loadPerEvent;
+        float positiveAdjusted = positiveRatio - (float) positiveAtCurrentIndex / (float) eventsPerIndex;
         if (flipCoin(positiveAdjusted)) {
             int value1 = nextValue1();
             int value2 = nextValue2();
-            appendRecord(builder, POSITIVE_RELATION, timestamp, value1, value2);
+            appendEvent(builder, POSITIVE_RELATION, timestamp, value1, value2);
             return;
         }
 
-        float negativeAdjusted = negativeRatio - (float)negativeInCurrentEvent / (float)loadPerEvent;
+        float negativeAdjusted = negativeRatio - (float) negativeAtCurrentIndex / (float) eventsPerIndex;
         if (flipCoin(negativeAdjusted)) {
             int value2 = nextValue2();
             int value3 = nextValue3();
-            appendRecord(builder, NEGATIVE_RELATION, timestamp, value2, value3);
+            appendEvent(builder, NEGATIVE_RELATION, timestamp, value2, value3);
             return;
         }
 
         int value0 = nextValue0();
         int value1 = nextValue1();
-        appendRecord(builder, BASE_RELATION, timestamp, value0, value1);
+        appendEvent(builder, BASE_RELATION, timestamp, value0, value1);
 
         if (flipCoin(inclusionProbability) && canSchedulePositive()) {
             int value2 = nextValue2();
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
 
-            positiveQueue.add(new ScheduledRecord(POSITIVE_RELATION, positiveTimestamp, value1, value2));
+            positiveQueue.add(new ScheduledEvent(POSITIVE_RELATION, positiveTimestamp, value1, value2));
         }
     }
 }
