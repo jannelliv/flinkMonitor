@@ -1,6 +1,8 @@
 package ch.ethz.infsec;
 
 import java.io.*;
+import java.net.InetAddress;
+import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -217,6 +219,7 @@ public class CsvReplayer {
         private final BufferedWriter output;
         private final boolean doReports;
         private final LinkedBlockingQueue<EventBuffer> queue;
+        private final Thread inputThread;
 
         private int underruns = 0;
         private int totalRecords = 0;
@@ -227,10 +230,11 @@ public class CsvReplayer {
 
         private boolean successful = false;
 
-        OutputWorker(BufferedWriter output, boolean doReports, LinkedBlockingQueue<EventBuffer> queue) {
+        OutputWorker(BufferedWriter output, boolean doReports, LinkedBlockingQueue<EventBuffer> queue, Thread inputThread) {
             this.output = output;
             this.doReports = doReports;
             this.queue = queue;
+            this.inputThread = inputThread;
         }
 
         private void printReport(long elapsedMillis, long skew) {
@@ -292,6 +296,9 @@ public class CsvReplayer {
                 e.printStackTrace(System.err);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            }
+            if (!successful) {
+                inputThread.interrupt();
             }
         }
 
@@ -368,13 +375,14 @@ public class CsvReplayer {
             return;
         }
 
-        Socket outputSocket;
         BufferedWriter outputWriter;
         if (outputHost == null) {
             outputWriter = new BufferedWriter(new OutputStreamWriter(System.out));
         } else {
             try {
-                outputSocket = new Socket(outputHost, outputPort);
+                ServerSocket serverSocket = new ServerSocket(outputPort, 1, InetAddress.getByName(outputHost));
+                Socket outputSocket = serverSocket.accept();
+                System.err.printf("Client connected: %s\n", outputSocket.getInetAddress().getHostAddress());
                 outputWriter = new BufferedWriter(new OutputStreamWriter(outputSocket.getOutputStream()));
             } catch (IOException e) {
                 System.err.print("Error: " + e.getMessage() + "\n");
@@ -385,10 +393,9 @@ public class CsvReplayer {
 
         LinkedBlockingQueue<EventBuffer> queue = new LinkedBlockingQueue<>(queueCapacity);
         InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, eventBufferFactory, queue);
-        OutputWorker outputWorker = new OutputWorker(outputWriter, doReport, queue);
-
         Thread inputThread = new Thread(inputWorker);
         inputThread.start();
+        OutputWorker outputWorker = new OutputWorker(outputWriter, doReport, queue, inputThread);
         Thread outputThread = new Thread(outputWorker);
         outputThread.start();
 
