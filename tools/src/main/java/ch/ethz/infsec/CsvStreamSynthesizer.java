@@ -10,7 +10,7 @@ public class CsvStreamSynthesizer {
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
                 "Usage: [-l load] [-r rate] [-x violations] [-p positive] [-n negative] [-w window] [-t]\n" +
-                "       [-d] [-s seconds] [-o host:port]\n");
+                "       [-v] [-d] [-s seconds] [-o host:port]\n");
         System.exit(2);
     }
 
@@ -23,12 +23,14 @@ public class CsvStreamSynthesizer {
         float relativeViolations = 0.01f;
         boolean isTriangle = false;
         int streamLength = 60;
+        boolean doReport = false;
         boolean dump = false;
         String outputHost = null;
         int outputPort = 0;
 
         for (int i = 0; i < args.length; ++i) {
-            if (args[i].startsWith("-") && !args[i].equals("-t") && !args[i].equals("-d") && i + 1 == args.length) {
+            if (args[i].startsWith("-") && !args[i].equals("-t") && !args[i].equals("-v") && !args[i].equals("-d") &&
+                    i + 1 == args.length) {
                 invalidArgument();
             }
             switch (args[i]) {
@@ -55,6 +57,9 @@ public class CsvStreamSynthesizer {
                     break;
                 case "-s":
                     streamLength = Integer.parseInt(args[++i]);
+                    break;
+                case "-v":
+                    doReport = true;
                     break;
                 case "-d":
                     dump = true;
@@ -103,6 +108,8 @@ public class CsvStreamSynthesizer {
                 outputWriter.flush();
             } else {
                 long startTime = System.nanoTime();
+                long maxSkew = 0;
+                long lastReport = 0;
                 long elapsedSeconds;
                 do {
                     String event = generator.nextEvent();
@@ -111,6 +118,15 @@ public class CsvStreamSynthesizer {
                     long now = System.nanoTime();
                     elapsedSeconds = (now - startTime) / 1000000000L;
                     long waitMillis = (emissionTime - (now - startTime)) / 1000000L;
+                    long skew = Math.max(0, -waitMillis);
+                    maxSkew = Math.max(maxSkew, skew);
+
+                    if (doReport && elapsedSeconds - lastReport > 0) {
+                        lastReport = elapsedSeconds;
+                        System.err.printf("%4ds: %6.3fs skew, %6.3fs max. skew\n",
+                                elapsedSeconds, (double)skew / 1000.0, (double)maxSkew / 1000.0);
+                    }
+
                     if (waitMillis > 1L) {
                         Thread.sleep(waitMillis);
                     }
