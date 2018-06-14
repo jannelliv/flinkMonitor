@@ -3,25 +3,35 @@ package ch.ethz.infsec;
 import java.io.*;
 import java.net.Socket;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 import java.util.concurrent.LinkedBlockingQueue;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class CsvReplayer {
     static final class EventBuffer {
-        final ArrayList<String> records = new ArrayList<>();
+        final long timestamp;
+        final HashMap<String, StringBuilder> relations = new HashMap<>();
         final long emissionTime;
+        int numberOfRecords = 0;
         boolean isLast = false;
 
-        EventBuffer(long emissionTime) {
+        EventBuffer(long timestamp, long emissionTime) {
+            this.timestamp = timestamp;
             this.emissionTime = emissionTime;
+        }
+
+        String toMonpoly() {
+            StringBuilder builder = new StringBuilder();
+            builder.append('@').append(timestamp);
+            for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
+                builder.append(' ').append(entry.getKey()).append(entry.getValue());
+            }
+            builder.append('\n');
+            return builder.toString();
         }
     }
 
     static class InputWorker implements Runnable {
-        private static final Pattern recordPattern =
-                Pattern.compile(".+?, tp = (\\d+), ts = (\\d+), .*");
-
         private final BufferedReader input;
         private final double timeMultiplier;
         private final LinkedBlockingQueue<EventBuffer> queue;
@@ -42,16 +52,11 @@ public class CsvReplayer {
             try {
                 String line;
                 while ((line = input.readLine()) != null) {
-                    Matcher matcher = recordPattern.matcher(line);
-                    if (matcher.matches()) {
-                        long timepoint = Long.parseLong(matcher.group(1), 10);
-                        long timestamp = Long.parseLong(matcher.group(2), 10);
-                        processRecord(line, timepoint, timestamp);
-                    }
+                    processRecord(line);
                 }
 
                 if (eventBuffer == null) {
-                    eventBuffer = new EventBuffer(-1);
+                    eventBuffer = new EventBuffer(0, -1);
                 }
                 eventBuffer.isLast = true;
                 queue.put(eventBuffer);
@@ -68,22 +73,74 @@ public class CsvReplayer {
             return successful;
         }
 
-        private void processRecord(String record, long timepoint, long timestamp)
-                throws InterruptedException {
+        private void processRecord(String line) throws InterruptedException {
+            String relation = null;
+            long timepoint = 0L;
+            long timestamp = 0L;
+            List<Serializable> tuple = new ArrayList<>(8);
+
+            int startIndex = -1;
+            int currentIndex = 0;
+
+            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+            startIndex = currentIndex;
+            currentIndex = line.indexOf(',', startIndex);
+            relation = line.substring(startIndex, currentIndex).trim();
+            currentIndex += 1;
+
+            currentIndex = line.indexOf('=', currentIndex) + 1;
+            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+            startIndex = currentIndex;
+            currentIndex = line.indexOf(',', startIndex);
+            timepoint = Long.valueOf(line.substring(startIndex, currentIndex).trim());
+            currentIndex += 1;
+
+            currentIndex = line.indexOf('=', currentIndex) + 1;
+            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+            startIndex = currentIndex;
+            currentIndex = line.indexOf(',', startIndex);
+            if (currentIndex < 0)
+                currentIndex = line.length();
+            timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
+            currentIndex += 1;
 
             if (eventBuffer == null) {
-                eventBuffer = new EventBuffer(0);
+                eventBuffer = new EventBuffer(timestamp, 0);
                 firstTimestamp = timestamp;
                 currentTimepoint = timepoint;
             } else if (timepoint != currentTimepoint) {
                 queue.put(eventBuffer);
 
                 long nextEmission = Math.round((double)(timestamp - firstTimestamp) / timeMultiplier * 1000.0);
-                eventBuffer = new EventBuffer(nextEmission);
+                eventBuffer = new EventBuffer(timestamp, nextEmission);
                 currentTimepoint = timepoint;
             }
 
-            eventBuffer.records.add(record);
+            ++eventBuffer.numberOfRecords;
+            StringBuilder builder = eventBuffer.relations.get(relation);
+            if (builder == null) {
+                builder = new StringBuilder();
+                eventBuffer.relations.put(relation, builder);
+            }
+
+            builder.append('(');
+            while (currentIndex < line.length()) {
+                currentIndex = line.indexOf('=', currentIndex);
+                if (currentIndex >= 0) {
+                    currentIndex += 1;
+                    while (currentIndex < line.length() && Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+                    startIndex = currentIndex;
+                    currentIndex = line.indexOf(',', startIndex);
+                    boolean hasMore = currentIndex >= 0;
+                    if (currentIndex < 0)
+                        currentIndex = line.length();
+                    builder.append(line.substring(startIndex, currentIndex).trim());
+                    if (hasMore)
+                        builder.append(',');
+                    currentIndex += 1;
+                }
+            }
+            builder.append(')');
         }
     }
 
@@ -136,7 +193,7 @@ public class CsvReplayer {
                     }
                     isFirst = false;
 
-                    int numberOfRecords = eventBuffer.records.size();
+                    int numberOfRecords = eventBuffer.numberOfRecords;
                     totalRecords += numberOfRecords;
                     maxRecords = Math.max(maxRecords, numberOfRecords);
                     ++events;
@@ -157,10 +214,7 @@ public class CsvReplayer {
                         Thread.sleep(waitMillis);
                     }
 
-                    for (String record : eventBuffer.records) {
-                        output.write(record);
-                        output.write('\n');
-                    }
+                    output.write(eventBuffer.toMonpoly());
                     output.flush();
                 } while (!eventBuffer.isLast);
 
