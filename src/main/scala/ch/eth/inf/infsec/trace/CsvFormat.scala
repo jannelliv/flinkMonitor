@@ -105,7 +105,7 @@ object CsvParser {
     timestamp = line.substring(startIndex, currentIndex).trim.toLong
     currentIndex += 1
 
-    while (currentIndex < line.length) {
+    while (0 <= currentIndex && currentIndex < line.length) {
       currentIndex = line.indexOf('=', currentIndex)
       if (currentIndex >= 0) {
         currentIndex += 1
