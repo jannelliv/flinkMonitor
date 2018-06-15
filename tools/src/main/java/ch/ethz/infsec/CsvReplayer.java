@@ -217,7 +217,7 @@ public class CsvReplayer {
 
     static class OutputWorker implements Runnable {
         private final BufferedWriter output;
-        private final boolean doReports;
+        private final int reportLevel;
         private final LinkedBlockingQueue<DatabaseBuffer> queue;
         private final Thread inputThread;
 
@@ -230,24 +230,32 @@ public class CsvReplayer {
 
         private boolean successful = false;
 
-        OutputWorker(BufferedWriter output, boolean doReports, LinkedBlockingQueue<DatabaseBuffer> queue, Thread inputThread) {
+        OutputWorker(BufferedWriter output, int reportLevel, LinkedBlockingQueue<DatabaseBuffer> queue, Thread inputThread) {
             this.output = output;
-            this.doReports = doReports;
+            this.reportLevel = reportLevel;
             this.queue = queue;
             this.inputThread = inputThread;
         }
 
         private void printReport(long elapsedMillis, long skew) {
-            System.err.printf(
-                    "%6.1fs: %9d indices, %9d events, %9d max. events, %6.3fs skew, %6.3fs max. skew, %6d underruns\n",
-                    (double) elapsedMillis / 1000.0,
-                    indices,
-                    totalEvents,
-                    maxEvents,
-                    (double) skew / 1000.0,
-                    (double) maxSkew / 1000.0,
-                    underruns
-            );
+            double elapsedSeconds = (double) elapsedMillis / 1000.0;
+            double skewSeconds = (double) skew / 1000.0;
+            double maxSkewSeconds = (double) maxSkew / 1000.0;
+
+            if (reportLevel == 1) {
+                System.err.printf("%6.1fs: %6.3f %6.3f\n", elapsedSeconds, skewSeconds, maxSkewSeconds);
+            } else {
+                System.err.printf(
+                        "%6.1fs: %9d indices, %9d events, %9d max. events, %6.3fs skew, %6.3fs max. skew, %6d underruns\n",
+                        elapsedSeconds,
+                        indices,
+                        totalEvents,
+                        maxEvents,
+                        skewSeconds,
+                        maxSkewSeconds,
+                        underruns
+                );
+            }
         }
 
         public void run() {
@@ -278,7 +286,7 @@ public class CsvReplayer {
 
                     maxSkew = Math.max(maxSkew, skew);
 
-                    if (doReports && elapsedMillis - lastReport > 1000) {
+                    if (reportLevel > 0 && elapsedMillis - lastReport > 1000) {
                         lastReport = elapsedMillis;
                         printReport(elapsedMillis, skew);
                     }
@@ -309,7 +317,7 @@ public class CsvReplayer {
 
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-v] [-a <acceleration>] [-q <buffer size>] [-m] [-o <host>:<port>] <file>\n");
+                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m] [-o <host>:<port>] <file>\n");
         System.exit(1);
     }
 
@@ -319,14 +327,17 @@ public class CsvReplayer {
         DatabaseBufferFactory databaseBufferFactory = new CsvDatabaseBufferFactory();
         String outputHost = null;
         int outputPort = 0;
-        boolean doReport = false;
+        int reportLevel = 0;
         int queueCapacity = 64;
 
         try {
             for (int i = 0; i < args.length; ++i) {
                 switch (args[i]) {
                     case "-v":
-                        doReport = true;
+                        reportLevel = 1;
+                        break;
+                    case "-vv":
+                        reportLevel = 2;
                         break;
                     case "-a":
                         if (++i == args.length) {
@@ -399,7 +410,7 @@ public class CsvReplayer {
         InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, databaseBufferFactory, queue);
         Thread inputThread = new Thread(inputWorker);
         inputThread.start();
-        OutputWorker outputWorker = new OutputWorker(outputWriter, doReport, queue, inputThread);
+        OutputWorker outputWorker = new OutputWorker(outputWriter, reportLevel, queue, inputThread);
         Thread outputThread = new Thread(outputWorker);
         outputThread.start();
 
