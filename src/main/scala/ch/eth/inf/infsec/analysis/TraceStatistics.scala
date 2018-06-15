@@ -34,7 +34,6 @@ case class Statistics(records: Long, counts: Array[immutable.HashMap[Domain, Int
     )
 }
 
-// TODO(JS): Merge with CountFunction
 class AggregateStatisticsFunction extends AggregateFunction[Record, Statistics, Statistics] {
   override def createAccumulator(): Statistics = Statistics(0, Array())
 
@@ -57,14 +56,22 @@ class LabelWindowFunction[T, K] extends ProcessWindowFunction[T, (Long, K, T), K
     key: K,
     context: Context,
     elements: Iterable[T],
-    out: Collector[(Long, K, T)])
-  {
+    out: Collector[(Long, K, T)]) {
     val aggregate = elements.head
     out.collect((context.window.getStart, key, aggregate))
   }
 }
 
 object TraceStatistics {
+
+  def analyzeRelationFrequencies(
+      events: DataStream[Record],
+      windowSize: Long,
+      overlap: Long): DataStream[(Long, String, Long)] =
+    events
+      .keyBy(_.label)
+      .window(SlidingEventTimeWindows.of(Time.seconds(windowSize), Time.seconds(windowSize / overlap)))
+      .aggregate(new CountFunction[Record](), new LabelWindowFunction[Long, String]())
 
   def analyzeRelations(
       events: DataStream[Record],
