@@ -74,7 +74,7 @@ object OfflineAnalysis {
       case Some(theSlicer) =>
         logger.info("Collecting slice statistics")
         val slicedStream = eventStream.flatMap(new ProcessorFunction(theSlicer))
-        TraceStatistics.analyzeSlices(slicedStream, windowSize, 1)
+        TraceStatistics.analyzeSlices(slicedStream, windowSize)
           .mapWith { case (startTime, (slice, relation), count) =>
             s"${startTime / 1000},$slice,$relation,$count"
           }
@@ -99,13 +99,13 @@ object OfflineAnalysis {
         }
 
         if (collectHeavy) {
-          TraceStatistics.analyzeRelations(filteredStream, windowSize, 1, degree)
+          TraceStatistics.analyzeRelations(filteredStream, windowSize, degree)
             .mapWith { case (startTime, relation, stats) =>
               val heavyHitters = stats.heavyHitters(degree).map(_.mkString(",")).mkString(";")
               s"${startTime / 1000},$relation,${stats.records};$heavyHitters"
             }
         } else {
-          TraceStatistics.analyzeRelationFrequencies(filteredStream, windowSize, 1)
+          TraceStatistics.analyzeRelationFrequencies(filteredStream, windowSize)
             .mapWith { case (startTime, relation, count) => s"${startTime / 1000},$relation,$count" }
         }
     }

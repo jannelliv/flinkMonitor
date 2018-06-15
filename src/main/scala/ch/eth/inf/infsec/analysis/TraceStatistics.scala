@@ -4,7 +4,7 @@ import ch.eth.inf.infsec.trace.{Domain, Record, Tuple}
 import org.apache.flink.api.common.functions.AggregateFunction
 import org.apache.flink.streaming.api.scala.function.ProcessWindowFunction
 import org.apache.flink.streaming.api.scala.{DataStream, _}
-import org.apache.flink.streaming.api.windowing.assigners.SlidingEventTimeWindows
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows
 import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.util.Collector
@@ -24,7 +24,8 @@ class CountFunction[T] extends AggregateFunction[T, Long, Long] {
 // TODO(JS): Implement proper sketching
 case class Statistics(records: Long, counts: Array[immutable.HashMap[Domain, Int]]) {
   def heavyHitters(degree: Int): IndexedSeq[Set[Domain]] =
-    counts.map(_.filter { case (_, c) => c >= records.toDouble / degree }.keySet)
+    // We divide the threshold by 2 to account for our use of tumbling windows.
+    counts.map(_.filter { case (_, c) => c >= records.toDouble / (2.0 * degree.toDouble) }.keySet)
 
   def withTuple(data: Tuple): Statistics =
     Statistics(
@@ -64,32 +65,25 @@ class LabelWindowFunction[T, K] extends ProcessWindowFunction[T, (Long, K, T), K
 
 object TraceStatistics {
 
-  def analyzeRelationFrequencies(
-      events: DataStream[Record],
-      windowSize: Long,
-      overlap: Long): DataStream[(Long, String, Long)] =
+  def analyzeRelationFrequencies(events: DataStream[Record], windowSize: Long): DataStream[(Long, String, Long)] =
     events
       .keyBy(_.label)
-      .window(SlidingEventTimeWindows.of(Time.seconds(windowSize), Time.seconds(windowSize / overlap)))
+      .window(TumblingEventTimeWindows.of(Time.seconds(windowSize)))
       .aggregate(new CountFunction[Record](), new LabelWindowFunction[Long, String]())
 
   def analyzeRelations(
       events: DataStream[Record],
       windowSize: Long,
-      overlap: Long,
       degree: Int): DataStream[(Long, String, Statistics)] =
     events
       .keyBy(_.label)
-      .window(SlidingEventTimeWindows.of(Time.seconds(windowSize), Time.seconds(windowSize / overlap)))
+      .window(TumblingEventTimeWindows.of(Time.seconds(windowSize)))
       .aggregate(new AggregateStatisticsFunction(), new LabelWindowFunction[Statistics, String]())
 
-  def analyzeSlices(
-      slices: DataStream[(Int, Record)],
-      windowSize: Long,
-      overlap: Long): DataStream[(Long, (Int, String), Long)] =
+  def analyzeSlices(slices: DataStream[(Int, Record)], windowSize: Long): DataStream[(Long, (Int, String), Long)] =
     slices
       .keyBy(r => (r._1, r._2.label))
-      .window(SlidingEventTimeWindows.of(Time.seconds(windowSize), Time.seconds(windowSize / overlap)))
+      .window(TumblingEventTimeWindows.of(Time.seconds(windowSize)))
       .aggregate(new CountFunction[(Int, Record)](), new LabelWindowFunction[Long, (Int, String)]())
 
 }
