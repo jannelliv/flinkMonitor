@@ -32,7 +32,7 @@ object StreamMonitoring {
   var processorExp: Int = 0
   var processors: Int = 0
 
-  var monitorCommand: String = ""
+  var monitorCommand: Seq[String] = Seq.empty
   var isMonpoly: Boolean = true
   var formulaFile: String = ""
   var signatureFile: String = ""
@@ -91,7 +91,7 @@ object StreamMonitoring {
     }
     logger.info(s"Using $processors parallel monitors")
 
-    monitorCommand = params.get("monitor", "monpoly")
+    monitorCommand = params.get("monitor", "monpoly -negate").split(' ')
     isMonpoly = params.getBoolean("monpoly", true)
     signatureFile = params.get("sig")
 
@@ -112,8 +112,8 @@ object StreamMonitoring {
 
     val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
-    // TODO(JS): Do we want to keep the nofilterrel and nofilteremptytp flags? There should be a parameter for this.
-    val monitorArgs = List(monitorCommand, "-sig", signatureFile, "-formula", formulaFile, "-negate", "-nofilterrel", "-nofilteremptytp")
+    val monitorArgs = monitorCommand ++ List("-sig", signatureFile, "-formula", formulaFile)
+    logger.info("Monitor command: {}", monitorArgs.mkString(" "))
     val process = if (isMonpoly) new MonpolyProcess(monitorArgs) else new EchoProcess(monitorArgs)
 
     val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment

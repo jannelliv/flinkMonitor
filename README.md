@@ -27,7 +27,7 @@ Required arguments: --out, --sig, --formula
 --out <file>                Write verdicts to <file>, which must not exist
 --out <host>:<port>         Connect to the given TCP server and write verdicts
 
---monitor <command>         Name of the monitor executable (default: monpoly)
+--monitor <command>         Name of the monitor executable and additional arguments (default: "monpoly -negate")
 
 --sig <file>                Name of the signature file
 
