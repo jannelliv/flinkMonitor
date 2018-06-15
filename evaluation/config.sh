@@ -11,5 +11,6 @@ OUTPUT_DIR="$WORK_DIR/output"
 REPORT_DIR="$WORK_DIR/reports"
 
 CPU_LIST=12-19
+AUX_CPU_LIST=20-23
 
 TIME_COMMAND=/usr/bin/time
