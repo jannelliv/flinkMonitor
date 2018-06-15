@@ -117,6 +117,8 @@ mkdir -p output
 mkdir -p reports
 
 
+export JAVA_HOME="$TARGET_DIR/jdk1.8.0_172"
+
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
 MONPOLY_BIN="monpoly"
