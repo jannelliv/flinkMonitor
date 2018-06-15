@@ -4,14 +4,11 @@ export JAVA_HOME="$WORK_DIR/jdk1.8.0_172"
 
 FLINK_BIN="$WORK_DIR/flink-1.5.0/bin"
 MONITOR_JAR="$WORK_DIR/parallel-online-monitoring-1.0-SNAPSHOT.jar"
-MONPOLY="$WORK_DIR/monpoly"
+TOOL_JAR="$WORK_DIR/evaluation-tools-1.0-SNAPSHOT.jar"
 
 CHECKPOINT_DIR="$WORK_DIR/checkpoints"
 OUTPUT_DIR="$WORK_DIR/output"
 REPORT_DIR="$WORK_DIR/reports"
-
-LDCC_SAMPLE="$WORK_DIR/ldcc_sample.csv"
-LDCC_SIG="$WORK_DIR/nokia/ldcc.sig"
 
 CPU_LIST=12-19
 

@@ -118,6 +118,7 @@ mkdir -p reports
 
 
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
+TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
 MONPOLY_BIN="monpoly"
 MISSING_FILE=0
 
@@ -135,6 +136,24 @@ if [[ ! -f $DRIVER_JAR ]]; then
     fi
     if [[ $DRIVER_INSTALL = "fail" ]]; then
             echo "Cannot build jar locally. Please copy the parallel online monitor jar into the current directory."
+            MISSING_FILE=1
+    fi
+fi
+
+if [[ ! -f $TOOL_JAR ]]; then
+    TOOL_INSTALL="fail"
+    echo "[WARNING] $TOOL_JAR does not exist. Building..."
+    if [[ ! -z $(which mvn) ]]; then
+        `cd "${SCRIPT_DIR}"; cd ../tools; mvn package 2> /dev/null > /dev/null`
+        if [[ $? -eq 0 ]]; then
+            if  cp ${SCRIPT_DIR}/../tools/target/evaluation-tools-1.0-SNAPSHOT.jar .; then
+                TOOL_INSTALL="success"
+                echo "$TOOL_JAR installed from source"
+            fi
+        fi
+    fi
+    if [[ $TOOL_INSTALL = "fail" ]]; then
+            echo "Cannot build jar locally. Please copy the evaluation tool jar into the current directory."
             MISSING_FILE=1
     fi
 fi
