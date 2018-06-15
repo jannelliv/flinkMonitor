@@ -1,9 +1,9 @@
 package ch.ethz.infsec;
 
-import java.util.Random;
+import org.apache.commons.math3.random.RandomGenerator;
 
 abstract class AbstractEventGenerator {
-    final Random random;
+    final RandomGenerator random;
     final int eventRate;
     final int eventsPerIndex;
 
@@ -13,7 +13,7 @@ abstract class AbstractEventGenerator {
     private long currentEmissionTime = -1;
     private long currentTimestamp = 0;
 
-    AbstractEventGenerator(Random random, int eventRate, int indexRate) {
+    AbstractEventGenerator(RandomGenerator random, int eventRate, int indexRate) {
         if (eventRate < indexRate || indexRate < 1) {
            throw new IllegalArgumentException();
         }

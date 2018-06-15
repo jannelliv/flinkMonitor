@@ -1,15 +1,17 @@
 package ch.ethz.infsec;
 
+import org.apache.commons.math3.random.JDKRandomGenerator;
+import org.apache.commons.math3.random.RandomGenerator;
+
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
-import java.util.Random;
 
 public class CsvStreamGenerator {
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
                 "Usage: [-e <event rate>] [-i <index rate>] [-x <violations>] [-w <window size>] [-t]\n" +
-                "       [-p <positive ratio>] [-n <negative ratio>] <seconds>\n");
+                "       [-p <positive ratio>] [-n <negative ratio>] [-z <Zipf exponents>] <seconds>\n");
         System.exit(1);
     }
 
@@ -21,6 +23,7 @@ public class CsvStreamGenerator {
         boolean isTriangle = false;
         float positiveRatio = 0.33f;
         float negativeRatio = 0.33f;
+        double zipfExponents[] = {};
         int streamLength = -1;
 
         try {
@@ -50,6 +53,13 @@ public class CsvStreamGenerator {
                     case "-n":
                         negativeRatio = Float.parseFloat(args[++i]);
                         break;
+                    case "-z":
+                        String exponents[] = args[++i].split(",");
+                        zipfExponents = new double[exponents.length];
+                        for (int j = 0; j < exponents.length; ++j) {
+                            zipfExponents[j] = Double.parseDouble(exponents[j]);
+                        }
+                        break;
                     default:
                         if (streamLength > 0) {
                             invalidArgument();
@@ -64,12 +74,17 @@ public class CsvStreamGenerator {
             invalidArgument();
         }
 
-        Random random = new Random(3141592654L);
+        RandomGenerator random = new JDKRandomGenerator(314159265);
         PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate);
         generator.setRatios(positiveRatio, negativeRatio);
         generator.setWindows(windowSize, windowSize);
         generator.setViolationProbability(relativeViolations / (float) eventRate);
         generator.setIsTriangle(isTriangle);
+        for (int i = 0; i < zipfExponents.length; ++i) {
+            if (zipfExponents[i] > 0.0) {
+                generator.setZipfAttribute(i, zipfExponents[i]);
+            }
+        }
 
         BufferedWriter outputWriter = new BufferedWriter(new OutputStreamWriter(System.out));
         int numberOfIndices = streamLength * indexRate;

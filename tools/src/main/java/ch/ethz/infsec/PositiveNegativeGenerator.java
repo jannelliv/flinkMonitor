@@ -1,7 +1,11 @@
 package ch.ethz.infsec;
 
+import org.apache.commons.math3.distribution.IntegerDistribution;
+import org.apache.commons.math3.distribution.UniformIntegerDistribution;
+import org.apache.commons.math3.distribution.ZipfDistribution;
+import org.apache.commons.math3.random.RandomGenerator;
+
 import java.util.PriorityQueue;
-import java.util.Random;
 
 public class PositiveNegativeGenerator extends AbstractEventGenerator {
     private static final String BASE_RELATION = "A";
@@ -20,6 +24,8 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
     private float violationProbability = 0.01f;
     private int negativeWindow = 100;
     private boolean isTriangle = false;
+
+    private IntegerDistribution distributions[];
 
     private static final class ScheduledEvent implements Comparable<ScheduledEvent> {
         final String relation;
@@ -49,9 +55,14 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
     private int positiveAtCurrentIndex;
     private int negativeAtCurrentIndex;
 
-    PositiveNegativeGenerator(Random random, int eventRate, int indexRate) {
+    PositiveNegativeGenerator(RandomGenerator random, int eventRate, int indexRate) {
         super(random, eventRate, indexRate);
         computeQueueCapacities();
+
+        distributions = new IntegerDistribution[4];
+        for (int i = 0; i < 4; ++i) {
+            distributions[i] = new UniformIntegerDistribution(random, 0, 999999999);
+        }
     }
 
     void setRatios(float positive, float negative) {
@@ -79,6 +90,10 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
 
     void setIsTriangle(boolean triangle) {
         isTriangle = triangle;
+    }
+
+    void setZipfAttribute(int attributeIndex, double exponent) {
+        distributions[attributeIndex] = new ZipfDistribution(random, 999999999, exponent);
     }
 
     private void computeQueueCapacities() {
@@ -123,20 +138,8 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
         return canSchedulePositive() && negativeQueue.size() < negativeQueueCapacity;
     }
 
-    private int nextValue0() {
-        return random.nextInt(100000000);
-    }
-
-    private int nextValue1() {
-        return random.nextInt(100000000);
-    }
-
-    private int nextValue2() {
-        return random.nextInt(100000000);
-    }
-
-    private int nextValue3() {
-        return random.nextInt(100000000);
+    private int nextValue(int attributeIndex) {
+        return distributions[attributeIndex].sample();
     }
 
     @Override
@@ -151,10 +154,10 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
         }
 
         if (flipCoin(violationProbability) && canScheduleViolation()) {
-            int value0 = nextValue0();
-            int value1 = nextValue1();
-            int value2 = nextValue2();
-            int value3 = isTriangle ? value0 : nextValue3();
+            int value0 = nextValue(0);
+            int value1 = nextValue(1);
+            int value2 = nextValue(2);
+            int value3 = isTriangle ? value0 : nextValue(3);
 
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
             long negativeTimestamp = positiveTimestamp + random.nextInt(negativeWindow);
@@ -168,26 +171,26 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
 
         float positiveAdjusted = positiveRatio - (float) positiveAtCurrentIndex / (float) eventsPerIndex;
         if (flipCoin(positiveAdjusted)) {
-            int value1 = nextValue1();
-            int value2 = nextValue2();
+            int value1 = nextValue(1);
+            int value2 = nextValue(2);
             appendEvent(builder, POSITIVE_RELATION, timestamp, value1, value2);
             return;
         }
 
         float negativeAdjusted = negativeRatio - (float) negativeAtCurrentIndex / (float) eventsPerIndex;
         if (flipCoin(negativeAdjusted)) {
-            int value2 = nextValue2();
-            int value3 = nextValue3();
+            int value2 = nextValue(2);
+            int value3 = isTriangle ? nextValue(0) : nextValue(3);
             appendEvent(builder, NEGATIVE_RELATION, timestamp, value2, value3);
             return;
         }
 
-        int value0 = nextValue0();
-        int value1 = nextValue1();
+        int value0 = nextValue(0);
+        int value1 = nextValue(1);
         appendEvent(builder, BASE_RELATION, timestamp, value0, value1);
 
         if (flipCoin(inclusionProbability) && canSchedulePositive()) {
-            int value2 = nextValue2();
+            int value2 = nextValue(2);
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
 
             positiveQueue.add(new ScheduledEvent(POSITIVE_RELATION, positiveTimestamp, value1, value2));
