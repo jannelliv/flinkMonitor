@@ -100,10 +100,21 @@ if ! cp flink-conf.yaml "$FLINK_DIR/conf"; then
     exit 1
 fi
 
+LDCC_SAMPLE="ldcc_sample.csv"
+if [[ ! -f $LDCC_SAMPLE ]]; then
+    echo "Cutting the LDCC log file. This may take some time ..."
+    if ! ./nokia/cut_log.py < "$LDCC_LOG" > "$LDCC_SAMPLE"; then
+        rm "$LDCC_SAMPLE"
+        echo "[ERROR] Cutting failed."
+        exit 1
+    fi
+fi
+
 
 echo "Preparing working directories ..."
 mkdir -p checkpoints
 mkdir -p output
+mkdir -p reports
 
 
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"

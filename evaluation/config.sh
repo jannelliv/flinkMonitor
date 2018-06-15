@@ -8,5 +8,11 @@ MONPOLY="$WORK_DIR/monpoly"
 
 CHECKPOINT_DIR="$WORK_DIR/checkpoints"
 OUTPUT_DIR="$WORK_DIR/output"
+REPORT_DIR="$WORK_DIR/reports"
+
+LDCC_SAMPLE="$WORK_DIR/ldcc_sample.csv"
+LDCC_SIG="$WORK_DIR/nokia/ldcc.sig"
 
 CPU_LIST=12-19
+
+TIME_COMMAND=/usr/bin/time
