@@ -206,7 +206,12 @@ public class CsvReplayer {
             } else if (timepoint != currentTimepoint) {
                 queue.put(databaseBuffer);
 
-                long nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+                long nextEmission;
+                if (timeMultiplier > 0.0) {
+                    nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+                } else {
+                    nextEmission = 0;
+                }
                 databaseBuffer = factory.createDatabaseBuffer(timestamp, nextEmission);
                 currentTimepoint = timepoint;
             }
