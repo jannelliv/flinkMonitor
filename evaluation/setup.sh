@@ -101,7 +101,7 @@ if ! cp flink-conf.yaml "$FLINK_DIR/conf"; then
 fi
 
 LDCC_SAMPLE="ldcc_sample.csv"
-if [[ ! -f $LDCC_SAMPLE ]]; then
+if [[ (! -f $LDCC_SAMPLE) || ./nokia/cut_log.py -nt $LDCC_SAMPLE ]]; then
     echo "Cutting the LDCC log file. This may take some time ..."
     if ! ./nokia/cut_log.py < "$LDCC_LOG" > "$LDCC_SAMPLE"; then
         rm "$LDCC_SAMPLE"
