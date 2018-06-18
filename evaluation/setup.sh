@@ -129,7 +129,7 @@ if [[ ! -f $DRIVER_JAR ]]; then
     DRIVER_INSTALL="fail"
     echo "[WARNING] $DRIVER_JAR does not exist. Building..."
     if [[ ! -z $(which mvn) ]]; then
-        `cd "${SCRIPT_DIR}"; cd ..; mvn package 2> /dev/null > /dev/null`
+        `cd "${SCRIPT_DIR}"; cd ..; mvn -P build-jar package 2> /dev/null > /dev/null`
         if [[ $? -eq 0 ]]; then
             if  cp ${SCRIPT_DIR}/../target/parallel-online-monitoring-1.0-SNAPSHOT.jar .; then
                 DRIVER_INSTALL="success"
