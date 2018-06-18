@@ -1,7 +1,7 @@
 NOT (NOT delete(x, "db1", y, data) OR data = "[unknown]") IMPLIES
     (
      ((ONCE[0,108000)
-       EXISTS u, v. insert(u, "db1", v, data))
+       (EXISTS u, v. insert(u, "db1", v, data)))
       AND
       ((PAST_ALWAYS[0,108000) 
            NOT (EXISTS u, v. insert(u, "db2", v, data)))
