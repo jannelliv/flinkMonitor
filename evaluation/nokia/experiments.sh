@@ -49,6 +49,7 @@ for procs in $PROCESSORS; do
     echo "  $numcpus processors:"
 
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
+    "$WORK_DIR/visual/start.sh" > /dev/null
 
     for formula in $FORMULAS; do
         echo "    Evaluating $formula:"
@@ -67,6 +68,7 @@ for procs in $PROCESSORS; do
         done
     done
 
+    "$WORK_DIR/visual/stop.sh" > /dev/null
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
 
@@ -77,6 +79,7 @@ for procs in $PROCESSORS; do
     echo "  $numcpus processors:"
 
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
+    "$WORK_DIR/visual/start.sh" > /dev/null
 
     for formula in $FORMULAS; do
         echo "    Evaluating $formula:"
@@ -95,6 +98,7 @@ for procs in $PROCESSORS; do
         done
     done
 
+    "$WORK_DIR/visual/stop.sh" > /dev/null
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
 
