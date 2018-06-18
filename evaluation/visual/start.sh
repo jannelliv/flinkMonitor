@@ -17,7 +17,7 @@ else
 fi
 
 if [[ -d ${SCRIPT_DIR}/grafana ]]; then
-    ${SCRIPT_DIR}/grafana/bin/grafana-server web &
+    (cd ${SCRIPT_DIR}/grafana ; ./bin/grafana-server web) &
 else
     echo "Prometheus not installed."
     exit 1
