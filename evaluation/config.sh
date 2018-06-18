@@ -1,6 +1,7 @@
 [[ -n $WORK_DIR ]] || WORK_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 
 export JAVA_HOME="$WORK_DIR/jdk1.8.0_172"
+export PATH="$PATH:$WORK_DIR/visual/sqlite"
 
 FLINK_BIN="$WORK_DIR/flink-1.5.0/bin"
 MONITOR_JAR="$WORK_DIR/parallel-online-monitoring-1.0-SNAPSHOT.jar"

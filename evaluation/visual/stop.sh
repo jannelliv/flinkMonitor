@@ -7,5 +7,6 @@ if [[ -f ${SCRIPT_DIR}/setup.sh ]]; then
     exit 1
 fi
 
-ps -af | grep grafana | tr -s " " | cut -d " " -f2 | xargs kill
-ps -af | grep prometheus | tr -s " " | cut -d " " -f2 | xargs kill
+echo ${SCRIPT_DIR}/grafana.pid | xargs kill
+echo ${SCRIPT_DIR}/prometheus.pid | xargs kill
+

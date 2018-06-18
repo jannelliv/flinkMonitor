@@ -24,10 +24,8 @@ if [[ ! -d sqlite ]]; then
 		exit 1
 	fi
 	echo "Extracting sqlite..."
-	unzip sqlite-tools-linux-x86-3240000.zip
+	unzip sqlite-tools-linux-x86-3240000.zip 2> /dev/null > /dev/null
 	mv sqlite-tools-linux-x86-3240000 sqlite
-	echo "PATH=\$PATH:`pwd`/sqlite" |  tee --append ~/.bash_profile
-	source ~/.bash_profile
 	rm sqlite-tools-linux-x86-3240000.zip
 fi
 
@@ -38,9 +36,10 @@ if [[ ! -d grafana ]]; then
 		exit 1
 	fi
 	echo "Extracting Grafana..."
-	tar -zxvf grafana-5.1.3.linux-x64.tar.gz
+	tar -zxvf grafana-5.1.3.linux-x64.tar.gz 2> /dev/null > /dev/null
 	mv grafana-5.1.3 grafana
 	echo "Configuring Grafana..."
+        sed -i s:INSTALLFOLDER:$(pwd):g grafana.ini
 	cp grafana.ini grafana/conf/custom.ini
 	rm grafana-5.1.3.linux-x64.tar.gz
 fi
@@ -52,7 +51,7 @@ if [[ ! -d prometheus ]]; then
 		exit 1
 	fi
 	echo "Extracting Prometheus..."
-	tar -xvf prometheus-2.3.0.linux-amd64.tar.gz
+	tar -xvf prometheus-2.3.0.linux-amd64.tar.gz 2> /dev/null > /dev/null
 	mv prometheus-2.3.0.linux-amd64 prometheus
 	echo "Configuring Prometheus..."
 	cp prometheus.yml prometheus/
