@@ -20,9 +20,11 @@ else
 fi
 
 if [[ -d ${SCRIPT_DIR}/grafana ]]; then
-    (cd ${SCRIPT_DIR}/grafana ; ./bin/grafana-server web) &
+    pushd ${SCRIPT_DIR}/grafana 
+    ./bin/grafana-server web &
     PIDG=$!
     echo $PIDG > ${SCRIPT_DIR}/grafana.pid
+    popd
     echo "Starting Grafana..."
 else
     echo "Grafana not installed."
