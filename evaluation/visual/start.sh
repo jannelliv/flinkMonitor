@@ -7,7 +7,7 @@ if [[ -f ${SCRIPT_DIR}/setup.sh ]]; then
     exit 1
 fi
 
-source ../config.sh
+source ${SCRIPT_DIR}/../config.sh
 
 if [[ -d ${SCRIPT_DIR}/prometheus ]]; then
     ${SCRIPT_DIR}/prometheus/prometheus --config.file=${SCRIPT_DIR}/prometheus/prometheus.yml 2> /dev/null &
