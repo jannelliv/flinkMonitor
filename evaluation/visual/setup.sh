@@ -56,7 +56,7 @@ if [[ ! -d prometheus ]]; then
 	echo "Configuring Prometheus..."
 	cp prometheus.yml prometheus/
 	echo "Configuring Flink..."
-	echo -e "metrics.reporters: prom\nmetrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter" >> "$FLINK_HOME/conf/flink-conf.yaml"
+	echo -e "metrics.reporters: prom\nmetrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter\nmetrics.reporter.prom.port: 9250-9265" >> "$FLINK_HOME/conf/flink-conf.yaml"
 	cp $FLINK_HOME/opt/flink-metrics-prometheus-1.5.0.jar $FLINK_HOME/lib
 	rm prometheus-2.3.0.linux-amd64.tar.gz
 fi
