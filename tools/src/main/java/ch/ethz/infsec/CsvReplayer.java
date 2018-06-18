@@ -230,7 +230,8 @@ public class CsvReplayer {
         private int indices = 0;
         private int totalEvents = 0;
         private int maxEvents = 0;
-        private long maxSkew = 0;
+        private long maxDelay = 0;
+        private long delaySum = 0;
         private long lastReport = 0;
 
         private boolean successful = false;
@@ -242,22 +243,25 @@ public class CsvReplayer {
             this.inputThread = inputThread;
         }
 
-        private void printReport(long elapsedMillis, long skew) {
+        private void printReport(long elapsedMillis, long delay) {
             double elapsedSeconds = (double) elapsedMillis / 1000.0;
-            double skewSeconds = (double) skew / 1000.0;
-            double maxSkewSeconds = (double) maxSkew / 1000.0;
+            double delaySeconds = (double) delay / 1000.0;
+            double maxDelaySeconds = (double) maxDelay / 1000.0;
+            double averageDelaySeconds = (double) delaySum / ((double) indices * 1000.0);
 
             if (reportLevel == 1) {
-                System.err.printf("%6.1fs: %6.3f %6.3f\n", elapsedSeconds, skewSeconds, maxSkewSeconds);
+                System.err.printf("%6.1fs: %6.3f %6.3f %6.3f\n",
+                        elapsedSeconds, delaySeconds, maxDelaySeconds, averageDelaySeconds);
             } else {
                 System.err.printf(
-                        "%6.1fs: %9d indices, %9d events, %9d max. events, %6.3fs skew, %6.3fs max. skew, %6d underruns\n",
+                        "%6.1fs: %9d indices, %9d events, %9d max. events, %6.3fs delay, %6.3fs max. delay, %6.3fs avg. delay, %6d underruns\n",
                         elapsedSeconds,
                         indices,
                         totalEvents,
                         maxEvents,
-                        skewSeconds,
-                        maxSkewSeconds,
+                        delaySeconds,
+                        maxDelaySeconds,
+                        averageDelaySeconds,
                         underruns
                 );
             }
@@ -287,21 +291,24 @@ public class CsvReplayer {
                     long now = System.nanoTime();
                     long elapsedMillis = (now - startTime) / 1000000L;
                     long waitMillis = databaseBuffer.emissionTime - elapsedMillis;
-                    long skew = Math.max(0, -waitMillis);
-
-                    maxSkew = Math.max(maxSkew, skew);
-
-                    if (reportLevel > 0 && elapsedMillis - lastReport > 1000) {
-                        lastReport = elapsedMillis;
-                        printReport(elapsedMillis, skew);
-                    }
-
                     if (waitMillis > 1L) {
                         Thread.sleep(waitMillis);
                     }
 
                     databaseBuffer.write(output);
                     output.flush();
+
+                    now = System.nanoTime();
+                    elapsedMillis = (now - startTime) / 1000000L;
+                    long delay = Math.max(0, elapsedMillis - databaseBuffer.emissionTime);
+
+                    maxDelay = Math.max(maxDelay, delay);
+                    delaySum += delay;
+
+                    if (reportLevel > 0 && (elapsedMillis - lastReport > 1000 || databaseBuffer.isLast)) {
+                        lastReport = elapsedMillis;
+                        printReport(elapsedMillis, delay);
+                    }
                 } while (!databaseBuffer.isLast);
 
                 successful = true;
