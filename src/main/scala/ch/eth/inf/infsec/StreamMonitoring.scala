@@ -138,19 +138,20 @@ object StreamMonitoring {
 
     //Single node
     val textStream = in match {
-      case Some(Left((h, p))) => env.socketTextStream(h, p)
+      case Some(Left((h, p))) => env.socketTextStream(h, p).uid("socket-source")
       case Some(Right(f)) =>
         if (watchInput)
           env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
+            .uid("watching-file-source")
         else
-          env.readTextFile(f)
+          env.readTextFile(f).uid("simple-file-source")
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
-    val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))
+    val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser())).uid("input-parser")
 
     val slicedTrace = parsedTrace
-      .flatMap(new ProcessorFunction(slicer))
-      .map(x => (sliceMapping(x._1), x._2))
+      .flatMap(new ProcessorFunction(slicer)).uid("slicer")
+      .map(x => (sliceMapping(x._1), x._2)).uid("key-remapper")
       .keyBy(x => x._1)
 
     // Parallel node
@@ -161,16 +162,16 @@ object StreamMonitoring {
       new KeyedMonpolyPrinter[Int],
       process,
       if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
-      256).setParallelism(processors)
+      256).setParallelism(processors).uid("monitor")
 
     //Single node
 
     out match {
       case Some(Left((h, p))) => verdicts
-        .map(v => v + "\n").setParallelism(1)
-        .writeToSocket(h, p, new SimpleStringSchema()).setParallelism(1)
-      case Some(Right(f)) => verdicts.writeAsText(f).setParallelism(1)
-      case _ => verdicts.print().setParallelism(1)
+        .map(v => v + "\n").setParallelism(1).uid("add-newline")
+        .writeToSocket(h, p, new SimpleStringSchema()).setParallelism(1).uid("socket-sink")
+      case Some(Right(f)) => verdicts.writeAsText(f).setParallelism(1).uid("file-sink")
+      case _ => verdicts.print().setParallelism(1).uid("print-sink")
     }
     env.execute("Parallel Online Monitor")
   }
