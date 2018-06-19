@@ -59,11 +59,12 @@ for procs in $PROCESSORS; do
             for i in $(seq 1 $REPETITIONS); do
                 echo "        Repetition $i ..."
 
+                JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_delay.txt"
 
                 rm "$VERDICT_FILE"
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus
+                "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME"
             done
         done
     done
@@ -89,11 +90,12 @@ for procs in $PROCESSORS; do
             for i in $(seq 1 $REPETITIONS); do
                 echo "        Repetition $i ..."
 
+                JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_delay.txt"
 
                 rm "$VERDICT_FILE"
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus
+                "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME"
             done
         done
     done

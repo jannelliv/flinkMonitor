@@ -22,6 +22,8 @@ object StreamMonitoring {
 
   private val logger = LoggerFactory.getLogger(StreamMonitoring.getClass)
 
+  var jobName: String = ""
+
   var checkpointUri: String = ""
 
   var in: Option[Either[(String, Int), String]] = _
@@ -68,6 +70,8 @@ object StreamMonitoring {
   }
 
   def init(params: ParameterTool) {
+    jobName = params.get("job", "Parallel Online Monitor")
+
     checkpointUri = params.get("checkpoints", "")
 
     in = parseArgs(params.get("in", "127.0.0.1:9000"))
@@ -173,7 +177,7 @@ object StreamMonitoring {
       case Some(Right(f)) => verdicts.writeAsText(f).setParallelism(1).uid("file-sink")
       case _ => verdicts.print().setParallelism(1).uid("print-sink")
     }
-    env.execute("Parallel Online Monitor")
+    env.execute(jobName)
   }
 
 }
