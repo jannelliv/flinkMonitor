@@ -1,10 +1,11 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
-import ch.eth.inf.infsec.trace.{Domain, Tuple}
+import ch.eth.inf.infsec.trace.{Domain, IntegralValue, StringValue, Tuple}
 
 import scala.collection.mutable
-import scala.util.{Random, hashing}
+import scala.util.Random
+import scala.util.hashing.MurmurHash3
 
 class HypercubeSlicer(
                        val formula: Formula,
@@ -39,8 +40,20 @@ class HypercubeSlicer(
     strides
   }
 
-  // TODO(JS): Use a proper hash function.
-  private def hash(value: Domain, seed: Int): Int = hashing.byteswap32(value.## ^ seed)
+  private def hash(value: Domain, seed: Int): Int = value match {
+    case IntegralValue(x) =>
+      val lo = (x & 0xffffffff).toInt
+      val hi = (x >> 32).toInt
+      MurmurHash3.finalizeHash(MurmurHash3.mixLast(MurmurHash3.mix(seed, lo), hi), 0)
+    case StringValue(x) =>
+      var h = seed
+      var i = 0
+      while (i < x.length) {
+        h = MurmurHash3.mix(h, x.charAt(i))
+        i += 1
+      }
+      MurmurHash3.finalizeHash(h, x.length)
+  }
 
   override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]) {
     // Compute which variables hold heavy hitters. This determines the shares to use.
