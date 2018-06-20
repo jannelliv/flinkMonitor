@@ -42,17 +42,10 @@ class HypercubeSlicer(
 
   private def hash(value: Domain, seed: Int): Int = value match {
     case IntegralValue(x) =>
-      val lo = (x & 0xffffffff).toInt
+      val lo = x.toInt
       val hi = (x >> 32).toInt
       MurmurHash3.finalizeHash(MurmurHash3.mixLast(MurmurHash3.mix(seed, lo), hi), 0)
-    case StringValue(x) =>
-      var h = seed
-      var i = 0
-      while (i < x.length) {
-        h = MurmurHash3.mix(h, x.charAt(i))
-        i += 1
-      }
-      MurmurHash3.finalizeHash(h, x.length)
+    case StringValue(x) => MurmurHash3.stringHash(x, seed)
   }
 
   override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]) {
