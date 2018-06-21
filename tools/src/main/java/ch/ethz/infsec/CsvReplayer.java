@@ -220,76 +220,165 @@ public class CsvReplayer {
         }
     }
 
-    static class OutputWorker implements Runnable {
-        private final BufferedWriter output;
-        private final int reportLevel;
-        private final LinkedBlockingQueue<DatabaseBuffer> queue;
-        private final Thread inputThread;
+    interface Reporter extends Runnable {
+        void reportUnderrun();
+
+        void reportDelivery(DatabaseBuffer databaseBuffer, long startTime);
+    }
+
+    static class NullReporter implements Reporter {
+        @Override
+        public void reportUnderrun() {
+        }
+
+        @Override
+        public void reportDelivery(DatabaseBuffer databaseBuffer, long startTime) {
+        }
+
+        @Override
+        public void run() {
+        }
+    }
+
+    static class IntervalReporter implements Reporter {
+        static final long INTERVAL_MILLIS = 1000L;
+
+        private final boolean verbose;
+
+        private volatile boolean running = true;
+        private long startTime;
+        private long lastReport;
 
         private int underruns = 0;
         private int indices = 0;
+        private int indicesSinceLastReport = 0;
         private int totalEvents = 0;
-        private int maxEvents = 0;
-        private long maxDelay = 0;
+        private int eventsSinceLastReport = 0;
+        private long currentDelay = 0;
         private long delaySum = 0;
-        private long lastReport = 0;
+        private long maxDelay = 0;
+        private long maxDelaySinceLastReport = 0;
 
-        private boolean successful = false;
-
-        OutputWorker(BufferedWriter output, int reportLevel, LinkedBlockingQueue<DatabaseBuffer> queue, Thread inputThread) {
-            this.output = output;
-            this.reportLevel = reportLevel;
-            this.queue = queue;
-            this.inputThread = inputThread;
+        IntervalReporter(boolean verbose) {
+            this.verbose = verbose;
         }
 
-        private void printReport(long elapsedMillis, long delay) {
-            double elapsedSeconds = (double) elapsedMillis / 1000.0;
-            double delaySeconds = (double) delay / 1000.0;
-            double maxDelaySeconds = (double) maxDelay / 1000.0;
-            double averageDelaySeconds = (double) delaySum / ((double) indices * 1000.0);
+        @Override
+        public synchronized void reportUnderrun() {
+            ++underruns;
+        }
 
-            if (reportLevel == 1) {
-                System.err.printf("%6.1fs: %6.3f %6.3f %6.3f\n",
-                        elapsedSeconds, delaySeconds, maxDelaySeconds, averageDelaySeconds);
-            } else {
-                System.err.printf(
-                        "%6.1fs: %9d indices, %9d events, %9d max. events, %6.3fs delay, %6.3fs max. delay, %6.3fs avg. delay, %6d underruns\n",
-                        elapsedSeconds,
-                        indices,
-                        totalEvents,
-                        maxEvents,
-                        delaySeconds,
-                        maxDelaySeconds,
-                        averageDelaySeconds,
-                        underruns
-                );
+        @Override
+        public synchronized void reportDelivery(DatabaseBuffer databaseBuffer, long startTime) {
+            long now = System.nanoTime();
+
+            ++indices;
+            ++indicesSinceLastReport;
+
+            int events = databaseBuffer.getNumberOfEvents();
+            totalEvents += events;
+            eventsSinceLastReport += events;
+
+            long elapsedMillis = (now - startTime) / 1_000_000L;
+            currentDelay = Math.max(0, elapsedMillis - databaseBuffer.emissionTime);
+            delaySum += currentDelay;
+            maxDelay = Math.max(maxDelay, currentDelay);
+            maxDelaySinceLastReport = Math.max(maxDelaySinceLastReport, currentDelay);
+
+            if (databaseBuffer.isLast) {
+                doReport(now);
+                running = false;
             }
         }
 
-        public void run() {
-            final long startTime = System.nanoTime();
+        private synchronized void doReport(long now) {
+            if (!running) return;
 
+            double totalSeconds = (double) (now - startTime) / 1e9;
+            double deltaSeconds = (double) (now - lastReport) / 1e9;
+
+            double indexRate = (double) indicesSinceLastReport / deltaSeconds;
+            double eventRate = (double) eventsSinceLastReport / deltaSeconds;
+            double delaySeconds = (double) currentDelay / 1000.0;
+            double totalAverageDelaySeconds = (double) delaySum / ((double) indices * 1000.0);
+            double maxDelaySeconds = (double) maxDelay / 1000.0;
+            double currentMaxDelaySeconds = (double) maxDelaySinceLastReport / 1000.0;
+
+            if (verbose) {
+                System.err.printf(
+                        "%5.1fs: %8.1f indices/s, %8.1f events/s, %6.3fs delay, %6.3fs peak delay, %6.3fs max. delay, %6.3fs avg. delay, %9d indices, %9d events, %6d underruns\n",
+                        totalSeconds, indexRate, eventRate, delaySeconds, currentMaxDelaySeconds, maxDelaySeconds, totalAverageDelaySeconds, indices, totalEvents, underruns);
+            } else {
+                System.err.printf("%5.1f   %8.1f %8.1f   %6.3f %6.3f %6.3f %6.3f\n",
+                        totalSeconds, indexRate, eventRate, delaySeconds, currentMaxDelaySeconds, maxDelaySeconds, totalAverageDelaySeconds);
+            }
+
+            indicesSinceLastReport = 0;
+            eventsSinceLastReport = 0;
+            currentDelay = 0;
+            maxDelaySinceLastReport = 0;
+
+            lastReport = now;
+        }
+
+        @Override
+        public void run() {
             try {
+                long now = System.nanoTime();
+                long schedule = now;
+                synchronized (this) {
+                    startTime = now;
+                    lastReport = now;
+                }
+
+                do {
+                    schedule += INTERVAL_MILLIS * 1_000_000L;
+                    long waitMillis = (schedule - now) / 1_000_000L;
+                    Thread.sleep(waitMillis);
+                    now = System.nanoTime();
+                    doReport(now);
+                } while (running);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
+    static class OutputWorker implements Runnable {
+        private final BufferedWriter output;
+        private final LinkedBlockingQueue<DatabaseBuffer> queue;
+        private final Reporter reporter;
+        private final Thread inputThread;
+
+        private boolean successful = false;
+
+        OutputWorker(BufferedWriter output, LinkedBlockingQueue<DatabaseBuffer> queue, Reporter reporter, Thread inputThread) {
+            this.output = output;
+            this.queue = queue;
+            this.reporter = reporter;
+            this.inputThread = inputThread;
+        }
+
+        public void run() {
+            try {
+                long startTime = 0L;
                 boolean isFirst = true;
                 DatabaseBuffer databaseBuffer;
                 do {
-                    databaseBuffer = queue.poll();
-                    if (databaseBuffer == null) {
-                        if (!isFirst) {
-                            ++underruns;
-                        }
+                    if (isFirst) {
                         databaseBuffer = queue.take();
+                        startTime = System.nanoTime();
+                        isFirst = false;
+                    } else {
+                        databaseBuffer = queue.poll();
+                        if (databaseBuffer == null) {
+                            reporter.reportUnderrun();
+                            databaseBuffer = queue.take();
+                        }
                     }
-                    isFirst = false;
-
-                    int numberOfEvents = databaseBuffer.getNumberOfEvents();
-                    totalEvents += numberOfEvents;
-                    maxEvents = Math.max(maxEvents, numberOfEvents);
-                    ++indices;
 
                     long now = System.nanoTime();
-                    long elapsedMillis = (now - startTime) / 1000000L;
+                    long elapsedMillis = (now - startTime) / 1_000_000L;
                     long waitMillis = databaseBuffer.emissionTime - elapsedMillis;
                     if (waitMillis > 1L) {
                         Thread.sleep(waitMillis);
@@ -298,17 +387,7 @@ public class CsvReplayer {
                     databaseBuffer.write(output);
                     output.flush();
 
-                    now = System.nanoTime();
-                    elapsedMillis = (now - startTime) / 1000000L;
-                    long delay = Math.max(0, elapsedMillis - databaseBuffer.emissionTime);
-
-                    maxDelay = Math.max(maxDelay, delay);
-                    delaySum += delay;
-
-                    if (reportLevel > 0 && (elapsedMillis - lastReport > 1000 || databaseBuffer.isLast)) {
-                        lastReport = elapsedMillis;
-                        printReport(elapsedMillis, delay);
-                    }
+                    reporter.reportDelivery(databaseBuffer, startTime);
                 } while (!databaseBuffer.isLast);
 
                 successful = true;
@@ -339,17 +418,17 @@ public class CsvReplayer {
         DatabaseBufferFactory databaseBufferFactory = new CsvDatabaseBufferFactory();
         String outputHost = null;
         int outputPort = 0;
-        int reportLevel = 0;
+        Reporter reporter = new NullReporter();
         int queueCapacity = 64;
 
         try {
             for (int i = 0; i < args.length; ++i) {
                 switch (args[i]) {
                     case "-v":
-                        reportLevel = 1;
+                        reporter = new IntervalReporter(false);
                         break;
                     case "-vv":
-                        reportLevel = 2;
+                        reporter = new IntervalReporter(true);
                         break;
                     case "-a":
                         if (++i == args.length) {
@@ -418,11 +497,15 @@ public class CsvReplayer {
             }
         }
 
+        Thread reporterThread = new Thread(reporter);
+        reporterThread.setDaemon(true);
+        reporterThread.start();
+
         LinkedBlockingQueue<DatabaseBuffer> queue = new LinkedBlockingQueue<>(queueCapacity);
         InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, databaseBufferFactory, queue);
         Thread inputThread = new Thread(inputWorker);
         inputThread.start();
-        OutputWorker outputWorker = new OutputWorker(outputWriter, reportLevel, queue, inputThread);
+        OutputWorker outputWorker = new OutputWorker(outputWriter, queue, reporter, inputThread);
         Thread outputThread = new Thread(outputWorker);
         outputThread.start();
 
@@ -432,6 +515,7 @@ public class CsvReplayer {
                 outputThread.interrupt();
             }
             outputThread.join();
+            reporterThread.join(1000);
         } catch (InterruptedException ignored) {
         }
 
