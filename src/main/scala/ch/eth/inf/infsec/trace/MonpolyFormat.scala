@@ -170,15 +170,27 @@ object MonpolyPrinter {
 class KeyedMonpolyPrinter[K] extends Processor[(K, Record), String] with Serializable {
   private val internalPrinter = new MonpolyPrinter
 
+  @transient @volatile private var numberOfEvents: Long = 0
+
   override type State = MonpolyPrinter#State
 
   override def getState: MonpolyPrinter#State = internalPrinter.getState
 
-  override def restoreState(state: Option[MonpolyPrinter#State]): Unit = internalPrinter.restoreState(state)
+  override def restoreState(state: Option[MonpolyPrinter#State]): Unit = {
+    internalPrinter.restoreState(state)
+    numberOfEvents = 0
+  }
 
-  override def process(in: (K, Record), f: String => Unit): Unit = internalPrinter.process(in._2, f)
+  override def process(in: (K, Record), f: String => Unit): Unit = {
+    if (!in._2.isEndMarker)
+      numberOfEvents += 1
+    internalPrinter.process(in._2, f)
+  }
 
   override def terminate(f: String => Unit): Unit = internalPrinter.terminate(f)
+
+  // TODO(JS): This doesn't really belong here.
+  override def getCustomCounter: Long = numberOfEvents
 }
 
 object MonpolyFormat extends TraceFormat {

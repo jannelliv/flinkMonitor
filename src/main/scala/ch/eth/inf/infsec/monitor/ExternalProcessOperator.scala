@@ -7,6 +7,7 @@ import ch.eth.inf.infsec.Processor
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor, ValueState, ValueStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
+import org.apache.flink.metrics.Gauge
 import org.apache.flink.runtime.state.{KeyGroupRangeAssignment, StateInitializationContext, StateSnapshotContext}
 import org.apache.flink.streaming.api.graph.StreamConfig
 import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator, Output}
@@ -108,6 +109,11 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     val stateType: TypeInformation[Array[Byte]] = implicitly[TypeInformation[Array[Byte]]]
     stateSerializer = stateType.createSerializer(getExecutionConfig)
+
+    // TODO(JS): This is specific to the monitoring application.
+    getMetricGroup.gauge[Long, Gauge[Long]]("numEvents", new Gauge[Long] {
+      override def getValue: Long = preprocessing.getCustomCounter
+    })
   }
 
   override def open(): Unit = {

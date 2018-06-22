@@ -37,6 +37,7 @@ package object infsec {
 
     // TODO(JS): Leaky abstraction
     def setParallelInstanceIndex(instance: Int): Unit = ()
+    def getCustomCounter: Long = 0
   }
 
   trait StatelessProcessor[I, O] extends Processor[I, O] {
