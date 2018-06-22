@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 SCRIPT_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
+DATASOURCE="monitor"
 
 if [[ -f ${SCRIPT_DIR}/setup.sh ]]; then
     echo "You must call start.sh from the intallation folder"
@@ -26,6 +27,16 @@ if [[ -d ${SCRIPT_DIR}/grafana ]]; then
     echo $PIDG > ${SCRIPT_DIR}/grafana.pid
     popd
     echo "Starting Grafana..."
+    sleep 2
+    response=$(curl --write-out %{http_code} --silent --output /dev/null http://admin:admin@localhost:6001/api/datasources/name/$DATASOURCE)
+    if [[ ! response -eq 200 ]]; then
+        sed -i "s/SOURCENAME/$DATASOURCE/g" create.json
+        response=$(curl -X POST -H "Content-Type: application/json" -d @create.json --write-out %{http_code} --silent --output /dev/null http://admin:admin@localhost:6001/api/datasources)
+        if [[ ! response -eq 200 ]]; then
+            echo "Prometheus source added successfully"
+        else
+        fi
+    fi
 else
     echo "Grafana not installed."
     exit 1

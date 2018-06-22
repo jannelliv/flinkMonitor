@@ -36,12 +36,17 @@ for formula in $FORMULAS; do
             DELAY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_delay.txt"
             SUMMARY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_summary.txt"
 
-            rm "$VERDICT_FILE"
+            rm "$VERDICT_FILE" 2> /dev/null
             (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
                 | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e %M" -o "$SUMMARY_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
         done
     done
 done
+
+# # Stop visual monitors if running
+# "$WORK_DIR/visual/stop.sh" > /dev/null
+# # start visual monitors
+# "$WORK_DIR/visual/start.sh" > /dev/null
 
 echo "Flink with Monpoly, no checkpointing:"
 for procs in $PROCESSORS; do
@@ -50,7 +55,6 @@ for procs in $PROCESSORS; do
     echo "  $numcpus processors:"
 
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
-    "$WORK_DIR/visual/start.sh" > /dev/null
 
     for formula in $FORMULAS; do
         echo "    Evaluating $formula:"
@@ -70,7 +74,6 @@ for procs in $PROCESSORS; do
         done
     done
 
-    "$WORK_DIR/visual/stop.sh" > /dev/null
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
 
@@ -81,7 +84,6 @@ for procs in $PROCESSORS; do
     echo "  $numcpus processors:"
 
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
-    "$WORK_DIR/visual/start.sh" > /dev/null
 
     for formula in $FORMULAS; do
         echo "    Evaluating $formula:"
@@ -101,7 +103,6 @@ for procs in $PROCESSORS; do
         done
     done
 
-    "$WORK_DIR/visual/stop.sh" > /dev/null
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
 
