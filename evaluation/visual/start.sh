@@ -30,8 +30,8 @@ if [[ -d ${SCRIPT_DIR}/grafana ]]; then
     sleep 2
     response=$(curl --write-out %{http_code} --silent --output /dev/null http://admin:admin@localhost:6001/api/datasources/name/$DATASOURCE)
     if [[ ! response -eq 200 ]]; then
-        sed -i "s/SOURCENAME/$DATASOURCE/g" create.json
-        response=$(curl -X POST -H "Content-Type: application/json" -d @create.json --write-out %{http_code} --silent --output /dev/null http://admin:admin@localhost:6001/api/datasources)
+        sed -i "s/SOURCENAME/$DATASOURCE/g" ${SCRIPT_DIR}/create.json
+        response=$(curl -X POST -H "Content-Type: application/json" -d @${SCRIPT_DIR}/create.json --write-out %{http_code} --silent --output /dev/null http://admin:admin@localhost:6001/api/datasources)
         if [[ ! response -eq 200 ]]; then
             echo "Prometheus source added successfully."
         else
