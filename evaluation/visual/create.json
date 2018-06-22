@@ -9,6 +9,6 @@
     "jsonData": {
         "httpMethod": "GET",
         "keepCookies": [],
-        "timeInterval": "1"
+        "timeInterval": "1s"
     }
 }
