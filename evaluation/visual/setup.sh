@@ -19,6 +19,7 @@ fi
 
 #SQLITE
 if [[ ! -d sqlite ]]; then
+    echo "Downloading sqlite..."
 	if ! curl -LR#O https://www.sqlite.org/2018/sqlite-tools-linux-x86-3240000.zip; then
 		echo "Could not download sqlite"
 		exit 1
@@ -31,6 +32,7 @@ fi
 
 #GRAFANA
 if [[ ! -d grafana ]]; then
+	echo "Downloading Grafana..."
 	if ! curl -LR#O https://s3-us-west-2.amazonaws.com/grafana-releases/release/grafana-5.1.3.linux-x64.tar.gz; then
 		echo "Could not download Grafana"
 		exit 1
@@ -46,6 +48,7 @@ fi
 
 #Prometheus
 if [[ ! -d prometheus ]]; then
+	echo "Downloading Prometheus..."
 	if ! curl -LR#O https://github.com/prometheus/prometheus/releases/download/v2.3.0/prometheus-2.3.0.linux-amd64.tar.gz; then
 		echo "Could not download Prometheus"
 		exit 1

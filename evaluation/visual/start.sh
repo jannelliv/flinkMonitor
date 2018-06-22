@@ -22,7 +22,7 @@ fi
 
 if [[ -d ${SCRIPT_DIR}/grafana ]]; then
     pushd ${SCRIPT_DIR}/grafana 
-    ./bin/grafana-server web &
+    ./bin/grafana-server web 2> /dev/null > /dev/null  &
     PIDG=$!
     echo $PIDG > ${SCRIPT_DIR}/grafana.pid
     popd
@@ -33,8 +33,9 @@ if [[ -d ${SCRIPT_DIR}/grafana ]]; then
         sed -i "s/SOURCENAME/$DATASOURCE/g" create.json
         response=$(curl -X POST -H "Content-Type: application/json" -d @create.json --write-out %{http_code} --silent --output /dev/null http://admin:admin@localhost:6001/api/datasources)
         if [[ ! response -eq 200 ]]; then
-            echo "Prometheus source added successfully"
+            echo "Prometheus source added successfully."
         else
+            echo "Prometheus source could not be added, please try to add it manually."
         fi
     fi
 else
