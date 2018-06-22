@@ -117,8 +117,10 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     pendingCount = 0
     waitingRequest = null
 
-    preprocessing.setParallelInstanceIndex(getRuntimeContext.getIndexOfThisSubtask)
-    postprocessing.setParallelInstanceIndex(getRuntimeContext.getIndexOfThisSubtask)
+    val subtaskIndex = getRuntimeContext.getIndexOfThisSubtask
+    preprocessing.setParallelInstanceIndex(subtaskIndex)
+    postprocessing.setParallelInstanceIndex(subtaskIndex)
+    process.identifier = Some(subtaskIndex.toString)
 
     if (recoveredResults == null) {
       preprocessing.restoreState(None)

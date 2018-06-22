@@ -3,6 +3,8 @@ package ch.eth.inf.infsec.monitor
 import scala.collection.mutable
 
 trait ExternalProcess[IN, OUT] extends Serializable {
+  var identifier: Option[String]
+
   def open(): Unit
   def open(initialState: Array[Byte]): Unit
 

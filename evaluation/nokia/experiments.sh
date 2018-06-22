@@ -38,7 +38,7 @@ for formula in $FORMULAS; do
 
             rm "$VERDICT_FILE" 2> /dev/null
             (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
-                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e %M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
+                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
         done
     done
 done
@@ -66,11 +66,12 @@ for procs in $PROCESSORS; do
 
                 JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_delay.txt"
+                TIME_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_time_{ID}.txt"
                 JOB_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_job.txt"
 
                 rm "$VERDICT_FILE" 2> /dev/null
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
             done
         done
     done
@@ -96,11 +97,12 @@ for procs in $PROCESSORS; do
 
                 JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_delay.txt"
+                TIME_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_time_{ID}.txt"
                 JOB_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_job.txt"
 
                 rm "$VERDICT_FILE" 2> /dev/null
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
             done
         done
     done

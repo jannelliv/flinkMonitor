@@ -6,15 +6,22 @@ import java.lang.ProcessBuilder.Redirect
 import scala.collection.JavaConversions
 
 abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT] {
-  private var process: Process = _
+  @transient private var process: Process = _
 
-  protected var writer: BufferedWriter = _
-  protected var reader: BufferedReader = _
+  @transient protected var writer: BufferedWriter = _
+  @transient protected var reader: BufferedReader = _
+
+  override var identifier: Option[String] = None
 
   def open(command: Seq[String]): Unit = {
     require(process == null)
 
-    process = new ProcessBuilder(JavaConversions.seqAsJavaList(command))
+    val instantiatedCommand = identifier match {
+      case Some(id) => command.map(_.replaceAll("\\{ID\\}", id))
+      case None => command
+    }
+
+    process = new ProcessBuilder(JavaConversions.seqAsJavaList(instantiatedCommand))
         .redirectError(Redirect.INHERIT)
         .start()
     writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
