@@ -10,19 +10,32 @@ import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class CsvReplayer {
-    static abstract class DatabaseBuffer {
+    static abstract class OutputItem {
         final long emissionTime;
         boolean isLast = false;
 
-        DatabaseBuffer(long emissionTime) {
+        OutputItem(long emissionTime) {
             this.emissionTime = emissionTime;
+        }
+
+        abstract void write(Writer writer) throws IOException;
+
+        abstract void reportDelivery(Reporter reporter, long startTime);
+    }
+
+    static abstract class DatabaseBuffer extends OutputItem {
+        DatabaseBuffer(long emissionTime) {
+            super(emissionTime);
         }
 
         abstract void addEvent(String csvLine, String relation, int indexBeforeData);
 
         abstract int getNumberOfEvents();
 
-        abstract void write(Writer writer) throws IOException;
+        @Override
+        void reportDelivery(Reporter reporter, long startTime) {
+            reporter.reportDelivery(this, startTime);
+        }
     }
 
     static final class MonpolyDatabaseBuffer extends DatabaseBuffer {
@@ -107,6 +120,28 @@ public class CsvReplayer {
         }
     }
 
+    static final class TimestampItem extends OutputItem {
+        static final String TIMESTAMP_PREFIX = "###";
+
+        private final String line;
+
+        TimestampItem(long emissionTime, long startTimestamp) {
+            super(emissionTime);
+
+            long timestamp = startTimestamp + emissionTime;
+            this.line = TIMESTAMP_PREFIX + Long.toString(timestamp) + "\n";
+        }
+
+        @Override
+        public void write(Writer writer) throws IOException {
+            writer.write(line);
+        }
+
+        @Override
+        void reportDelivery(Reporter reporter, long startTime) {
+        }
+    }
+
     interface DatabaseBufferFactory {
         DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime);
     }
@@ -128,8 +163,9 @@ public class CsvReplayer {
     static class InputWorker implements Runnable {
         private final BufferedReader input;
         private final double timeMultiplier;
+        private final long timestampInterval;
         private final DatabaseBufferFactory factory;
-        private final LinkedBlockingQueue<DatabaseBuffer> queue;
+        private final LinkedBlockingQueue<OutputItem> queue;
 
         private boolean successful = false;
 
@@ -137,9 +173,13 @@ public class CsvReplayer {
         private long firstTimestamp;
         private long currentTimepoint;
 
-        InputWorker(BufferedReader input, double timeMultiplier, DatabaseBufferFactory factory, LinkedBlockingQueue<DatabaseBuffer> queue) {
+        private long absoluteStartMillis = -1;
+        private long nextTimestampToEmit;
+
+        InputWorker(BufferedReader input, double timeMultiplier, long timestampInterval, DatabaseBufferFactory factory, LinkedBlockingQueue<OutputItem> queue) {
             this.input = input;
             this.timeMultiplier = timeMultiplier;
+            this.timestampInterval = timestampInterval;
             this.factory = factory;
             this.queue = queue;
         }
@@ -154,8 +194,7 @@ public class CsvReplayer {
                 if (databaseBuffer == null) {
                     databaseBuffer = factory.createDatabaseBuffer(0, -1);
                 }
-                databaseBuffer.isLast = true;
-                queue.put(databaseBuffer);
+                emitBuffer(databaseBuffer, true);
 
                 successful = true;
             } catch (IOException e) {
@@ -204,7 +243,7 @@ public class CsvReplayer {
                 firstTimestamp = timestamp;
                 currentTimepoint = timepoint;
             } else if (timepoint != currentTimepoint) {
-                queue.put(databaseBuffer);
+                emitBuffer(databaseBuffer, false);
 
                 long nextEmission;
                 if (timeMultiplier > 0.0) {
@@ -217,6 +256,34 @@ public class CsvReplayer {
             }
 
             databaseBuffer.addEvent(line, relation, currentIndex);
+        }
+
+        private void emitBuffer(DatabaseBuffer databaseBuffer, boolean isLast) throws InterruptedException {
+            long emissionTime = databaseBuffer.emissionTime;
+
+            if (timestampInterval > 0) {
+                if (absoluteStartMillis < 0) {
+                    absoluteStartMillis = System.currentTimeMillis();
+                    nextTimestampToEmit = 0;
+                }
+
+                while (nextTimestampToEmit < emissionTime) {
+                    queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
+                    nextTimestampToEmit += timestampInterval;
+                }
+            } else {
+                if (isLast) {
+                    databaseBuffer.isLast = true;
+                }
+            }
+
+            queue.put(databaseBuffer);
+
+            if (timestampInterval > 0 && isLast) {
+                TimestampItem item = new TimestampItem(emissionTime, absoluteStartMillis);
+                item.isLast = true;
+                queue.put(item);
+            }
         }
     }
 
@@ -286,13 +353,15 @@ public class CsvReplayer {
             maxDelaySinceLastReport = Math.max(maxDelaySinceLastReport, currentDelay);
 
             if (databaseBuffer.isLast) {
-                doReport(now);
+                doReport();
                 running = false;
             }
         }
 
-        private synchronized void doReport(long now) {
+        private synchronized void doReport() {
             if (!running) return;
+
+            long now = System.nanoTime();
 
             double totalSeconds = (double) (now - startTime) / 1e9;
             double deltaSeconds = (double) (now - lastReport) / 1e9;
@@ -324,20 +393,20 @@ public class CsvReplayer {
         @Override
         public void run() {
             try {
-                long now = System.nanoTime();
-                long schedule = now;
+                long schedule;
                 synchronized (this) {
-                    startTime = now;
-                    lastReport = now;
+                    startTime = System.nanoTime();
+                    lastReport = startTime;
+                    schedule = startTime;
                 }
 
-                do {
+                while (running) {
                     schedule += INTERVAL_MILLIS * 1_000_000L;
-                    long waitMillis = (schedule - now) / 1_000_000L;
+                    long now = System.nanoTime();
+                    long waitMillis = Math.max(0L, (schedule - now) / 1_000_000L);
                     Thread.sleep(waitMillis);
-                    now = System.nanoTime();
-                    doReport(now);
-                } while (running);
+                    doReport();
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
@@ -346,13 +415,13 @@ public class CsvReplayer {
 
     static class OutputWorker implements Runnable {
         private final BufferedWriter output;
-        private final LinkedBlockingQueue<DatabaseBuffer> queue;
+        private final LinkedBlockingQueue<OutputItem> queue;
         private final Reporter reporter;
         private final Thread inputThread;
 
         private boolean successful = false;
 
-        OutputWorker(BufferedWriter output, LinkedBlockingQueue<DatabaseBuffer> queue, Reporter reporter, Thread inputThread) {
+        OutputWorker(BufferedWriter output, LinkedBlockingQueue<OutputItem> queue, Reporter reporter, Thread inputThread) {
             this.output = output;
             this.queue = queue;
             this.reporter = reporter;
@@ -363,32 +432,32 @@ public class CsvReplayer {
             try {
                 long startTime = 0L;
                 boolean isFirst = true;
-                DatabaseBuffer databaseBuffer;
+                OutputItem outputItem;
                 do {
                     if (isFirst) {
-                        databaseBuffer = queue.take();
+                        outputItem = queue.take();
                         startTime = System.nanoTime();
                         isFirst = false;
                     } else {
-                        databaseBuffer = queue.poll();
-                        if (databaseBuffer == null) {
+                        outputItem = queue.poll();
+                        if (outputItem == null) {
                             reporter.reportUnderrun();
-                            databaseBuffer = queue.take();
+                            outputItem = queue.take();
                         }
                     }
 
                     long now = System.nanoTime();
                     long elapsedMillis = (now - startTime) / 1_000_000L;
-                    long waitMillis = databaseBuffer.emissionTime - elapsedMillis;
+                    long waitMillis = outputItem.emissionTime - elapsedMillis;
                     if (waitMillis > 1L) {
                         Thread.sleep(waitMillis);
                     }
 
-                    databaseBuffer.write(output);
+                    outputItem.write(output);
                     output.flush();
 
-                    reporter.reportDelivery(databaseBuffer, startTime);
-                } while (!databaseBuffer.isLast);
+                    outputItem.reportDelivery(reporter, startTime);
+                } while (!outputItem.isLast);
 
                 successful = true;
             } catch (IOException e) {
@@ -408,7 +477,7 @@ public class CsvReplayer {
 
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m] [-o <host>:<port>] <file>\n");
+                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m] [-t <interval>] [-o <host>:<port>] <file>\n");
         System.exit(1);
     }
 
@@ -416,6 +485,7 @@ public class CsvReplayer {
         String inputFilename = null;
         double timeMultiplier = 1.0;
         DatabaseBufferFactory databaseBufferFactory = new CsvDatabaseBufferFactory();
+        long timestampInterval = -1;
         String outputHost = null;
         int outputPort = 0;
         Reporter reporter = new NullReporter();
@@ -444,6 +514,12 @@ public class CsvReplayer {
                         break;
                     case "-m":
                         databaseBufferFactory = new MonpolyDatabaseBufferFactory();
+                        break;
+                    case "-t":
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        timestampInterval = Long.parseLong(args[i]);
                         break;
                     case "-o":
                         if (++i == args.length) {
@@ -501,8 +577,8 @@ public class CsvReplayer {
         reporterThread.setDaemon(true);
         reporterThread.start();
 
-        LinkedBlockingQueue<DatabaseBuffer> queue = new LinkedBlockingQueue<>(queueCapacity);
-        InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, databaseBufferFactory, queue);
+        LinkedBlockingQueue<OutputItem> queue = new LinkedBlockingQueue<>(queueCapacity);
+        InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, timestampInterval, databaseBufferFactory, queue);
         Thread inputThread = new Thread(inputWorker);
         inputThread.start();
         OutputWorker outputWorker = new OutputWorker(outputWriter, queue, reporter, inputThread);

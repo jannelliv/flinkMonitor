@@ -24,14 +24,14 @@ for formula in $FORMULAS; do
     rm "$SAVE_COMMAND"
 done
 
-echo "Monpoly standalone:"
+echo "-- Monpoly standalone:"
 for formula in $FORMULAS; do
     echo "  Evaluating $formula:"
     STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
     for acc in $ACCELERATIONS; do
-        echo "    Acceleration $acc:"
+        echo "---- Acceleration $acc:"
         for i in $(seq 1 $REPETITIONS); do
-            echo "      Repetition $i ..."
+            echo "------ Repetition $i ..."
 
             DELAY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_delay.txt"
             SUMMARY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_summary.txt"
@@ -48,27 +48,27 @@ done
 # # start visual monitors
 # "$WORK_DIR/visual/start.sh" > /dev/null
 
-echo "Flink with Monpoly, no checkpointing:"
+echo "-- Flink with Monpoly, no checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
     cpulist=${procs#*/}
-    echo "  $numcpus processors:"
+    echo "---- $numcpus processors:"
 
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
 
     for formula in $FORMULAS; do
-        echo "    Evaluating $formula:"
+        echo "------ Evaluating $formula:"
         STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
         for acc in $ACCELERATIONS; do
-            echo "      Acceleration $acc:"
+            echo "-------- Acceleration $acc:"
             for i in $(seq 1 $REPETITIONS); do
-                echo "        Repetition $i ..."
+                echo "---------- Repetition $i ..."
 
                 JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_delay.txt"
 
-                rm "$VERDICT_FILE"
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                rm "$VERDICT_FILE" 2> /dev/null
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
                 "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME"
             done
         done
@@ -77,27 +77,27 @@ for procs in $PROCESSORS; do
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
 
-echo "Flink with Monpoly, checkpointing:"
+echo "-- Flink with Monpoly, checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
     cpulist=${procs#*/}
-    echo "  $numcpus processors:"
+    echo "---- $numcpus processors:"
 
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
 
     for formula in $FORMULAS; do
-        echo "    Evaluating $formula:"
+        echo "------ Evaluating $formula:"
         STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
         for acc in $ACCELERATIONS; do
-            echo "      Acceleration $acc:"
+            echo "-------- Acceleration $acc:"
             for i in $(seq 1 $REPETITIONS); do
-                echo "        Repetition $i ..."
+                echo "---------- Repetition $i ..."
 
                 JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_delay.txt"
 
-                rm "$VERDICT_FILE"
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                rm "$VERDICT_FILE" 2> /dev/null
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
                 "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor "$WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME"
             done
         done

@@ -6,12 +6,13 @@ import ch.eth.inf.infsec.slicer.ColissionlessKeyGenerator
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.serialization.SimpleStringSchema
-import org.apache.flink.api.java.io.TextInputFormat
+import org.apache.flink.api.java.io.{TextInputFormat, TextOutputFormat}
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
 import org.apache.flink.core.fs.Path
 import org.apache.flink.streaming.api.TimeCharacteristic
-import org.apache.flink.streaming.api.functions.source.FileProcessingMode
+import org.apache.flink.streaming.api.functions.sink.{OutputFormatSinkFunction, PrintSinkFunction, SocketClientSink}
+import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
 import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
 
@@ -128,7 +129,8 @@ object StreamMonitoring {
     }
     env.setRestartStrategy(RestartStrategies.noRestart())
 
-    env.getConfig.setLatencyTrackingInterval(1000)
+    // Disable automatic latency tracking, since we inject latency markers ourselves.
+    env.getConfig.setLatencyTrackingInterval(-1)
 
     // Performance tuning
     env.getConfig.enableObjectReuse()
@@ -142,20 +144,27 @@ object StreamMonitoring {
 
     //Single node
     val textStream = in match {
-      case Some(Left((h, p))) => env.socketTextStream(h, p).uid("socket-source")
+      case Some(Left((h, p))) => LatencyTrackingExtensions.addSourceWithProvidedMarkers(
+          env,
+          new SocketTextStreamFunction(h, p, "\n", 0),
+          "Socket source")
+        .uid("socket-source")
       case Some(Right(f)) =>
         if (watchInput)
           env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
-            .uid("watching-file-source")
+            .name("File watch source")
+            .uid("file-watch-source")
         else
-          env.readTextFile(f).uid("simple-file-source")
+          env.readTextFile(f).name("file-source").uid("File source")
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
-    val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser())).uid("input-parser")
+    val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))
+      .name("Parser")
+      .uid("input-parser")
 
     val slicedTrace = parsedTrace
-      .flatMap(new ProcessorFunction(slicer)).uid("slicer")
-      .map(x => (sliceMapping(x._1), x._2)).uid("key-remapper")
+      .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
+      .map(x => (sliceMapping(x._1), x._2)).name("Key remapper").uid("key-remapper")
       .keyBy(x => x._1)
 
     // Parallel node
@@ -166,17 +175,29 @@ object StreamMonitoring {
       new KeyedMonpolyPrinter[Int],
       process,
       if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
-      256).setParallelism(processors).uid("monitor")
+      256).setParallelism(processors).name("Monitor").uid("monitor")
 
     //Single node
 
     out match {
-      case Some(Left((h, p))) => verdicts
-        .map(v => v + "\n").setParallelism(1).uid("add-newline")
-        .writeToSocket(h, p, new SimpleStringSchema()).setParallelism(1).uid("socket-sink")
-      case Some(Right(f)) => verdicts.writeAsText(f).setParallelism(1).uid("file-sink")
-      case _ => verdicts.print().setParallelism(1).uid("print-sink")
+      case Some(Left((h, p))) =>
+        val outVerdicts = verdicts.map(v => v + "\n").setParallelism(1).name("Add newline").uid("add-newline")
+        LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
+            outVerdicts,
+            new SocketClientSink[String](h, p, new SimpleStringSchema(), 0))
+          .setParallelism(1).name("Socket sink").uid("socket-sink")
+      case Some(Right(f)) =>
+        LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
+            verdicts,
+            new OutputFormatSinkFunction[String](new TextOutputFormat[String](new Path(f))))
+          .setParallelism(1).name("File sink").uid("file-sink")
+      case _ =>
+        LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
+            verdicts,
+            new PrintSinkFunction[String]())
+          .setParallelism(1).name("Print sink").uid("print-sink")
     }
+
     env.execute(jobName)
   }
 
