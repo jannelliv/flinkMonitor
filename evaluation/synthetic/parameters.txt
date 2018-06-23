@@ -1,0 +1,8 @@
+event rate: 2000, 4000, 6000, 8000, 12000, 16000, 24000, 32000
+index rate: 1, 1000
+violation rate: 10
+window size: 10
+A ratio: 0.01
+B ratio: 0.495
+value distribution: no skew
+duration: 60

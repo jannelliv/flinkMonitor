@@ -1,0 +1,1 @@
+(ONCE[0,10) A(a,b)) IMPLIES B(a,c) IMPLIES ALWAYS[0,10) NOT C(a,d)
