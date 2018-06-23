@@ -11,7 +11,7 @@ public class CsvStreamGenerator {
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
                 "Usage: -S|-L|-T [-e <event rate>] [-i <index rate>] [-x <violations>] [-w <window size>]\n" +
-                "       [-p <positive ratio>] [-n <negative ratio>] [-z <Zipf exponents>] <seconds>\n");
+                "       [-pA <A ratio>] [-pB <B ratio>] [-z <Zipf exponents>] <seconds>\n");
         System.exit(1);
     }
 
@@ -21,8 +21,8 @@ public class CsvStreamGenerator {
         int indexRate = 1;
         float relativeViolations = 0.01f;
         int windowSize = 10;
+        float baseRatio = 0.33f;
         float positiveRatio = 0.33f;
-        float negativeRatio = 0.33f;
         double zipfExponents[] = {};
         int streamLength = -1;
 
@@ -62,17 +62,17 @@ public class CsvStreamGenerator {
                         }
                         windowSize = Integer.parseInt(args[++i]);
                         break;
-                    case "-p":
+                    case "-pA":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        baseRatio = Float.parseFloat(args[++i]);
+                        break;
+                    case "-pB":
                         if (i + 1 == args.length) {
                             invalidArgument();
                         }
                         positiveRatio = Float.parseFloat(args[++i]);
-                        break;
-                    case "-n":
-                        if (i + 1 == args.length) {
-                            invalidArgument();
-                        }
-                        negativeRatio = Float.parseFloat(args[++i]);
                         break;
                     case "-z":
                         if (i + 1 == args.length) {
@@ -98,17 +98,20 @@ public class CsvStreamGenerator {
             invalidArgument();
         }
 
+        float violationProbability = relativeViolations / (float)eventRate;
+
         RandomGenerator random = new JDKRandomGenerator(314159265);
         PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate);
         generator.setVariableGraph(variableGraph);
-        generator.setRatios(positiveRatio, negativeRatio);
-        generator.setWindows(windowSize, windowSize);
-        generator.setViolationProbability(relativeViolations / (float) eventRate);
         for (int i = 0; i < zipfExponents.length; ++i) {
             if (zipfExponents[i] > 0.0) {
-                generator.setZipfVariable(i, zipfExponents[i]);
+                generator.setZipfExponent(i, zipfExponents[i]);
             }
         }
+        generator.setEventDistribution(baseRatio, positiveRatio, violationProbability);
+        generator.setPositiveWindow(windowSize);
+        generator.setNegativeWindow(windowSize);
+        generator.initialize();
 
         BufferedWriter outputWriter = new BufferedWriter(new OutputStreamWriter(System.out));
         int numberOfIndices = streamLength * indexRate;

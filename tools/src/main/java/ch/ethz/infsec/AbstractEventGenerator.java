@@ -4,9 +4,8 @@ import org.apache.commons.math3.random.RandomGenerator;
 
 abstract class AbstractEventGenerator {
     final RandomGenerator random;
-    final int eventRate;
-    final int eventsPerIndex;
 
+    private final int eventsPerIndex;
     private final long timeIncrement;
 
     private long currentIndex = -1;
@@ -19,14 +18,13 @@ abstract class AbstractEventGenerator {
         }
 
         this.random = random;
-        this.eventRate = eventRate;
         this.eventsPerIndex = eventRate / indexRate;
         this.timeIncrement = 1000000000L / indexRate;
     }
 
-    abstract void initializeIndex(long timestamp);
-
     abstract void appendNextEvent(StringBuilder builder, long timestamp);
+
+    abstract void initialize();
 
     String nextDatabase() {
         ++currentIndex;
@@ -37,8 +35,6 @@ abstract class AbstractEventGenerator {
             currentTimestamp = currentEmissionTime / 1000000000L;
         }
 
-        initializeIndex(currentTimestamp);
-
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < eventsPerIndex; ++i) {
             appendNextEvent(builder, currentTimestamp);
@@ -48,17 +44,13 @@ abstract class AbstractEventGenerator {
         return builder.toString();
     }
 
-    long getCurrentEmissionTime() {
-        return currentEmissionTime;
-    }
-
-    void appendEventStart(StringBuilder builder, String relation, long timestamp) {
+    void appendEventStart(StringBuilder builder, String relation) {
         builder
                 .append(relation)
                 .append(", tp=")
                 .append(currentIndex)
                 .append(", ts=")
-                .append(timestamp);
+                .append(currentTimestamp);
     }
 
     void appendAttribute(StringBuilder builder, String name, int value) {
