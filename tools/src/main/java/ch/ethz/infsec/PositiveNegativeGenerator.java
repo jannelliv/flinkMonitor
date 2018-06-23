@@ -15,17 +15,18 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
     private static final String ATTRIBUTE_0 = "x";
     private static final String ATTRIBUTE_1 = "y";
 
+    public enum VariableGraph { STAR, LINEAR, TRIANGLE }
+
+    private VariableGraph variableGraph = VariableGraph.STAR;
+    private IntegerDistribution distributions[];
+
     private float positiveRatio = 0.33f;
     private float negativeRatio = 0.33f;
 
-    private float inclusionProbability = 1.0f;
     private int positiveWindow = 100;
+    private int negativeWindow = 100;
 
     private float violationProbability = 0.01f;
-    private int negativeWindow = 100;
-    private boolean isTriangle = false;
-
-    private IntegerDistribution distributions[];
 
     private static final class ScheduledEvent implements Comparable<ScheduledEvent> {
         final String relation;
@@ -65,6 +66,14 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
         }
     }
 
+    void setVariableGraph(VariableGraph variableGraph) {
+        this.variableGraph = variableGraph;
+    }
+
+    void setZipfVariable(int variableIndex, double exponent) {
+        distributions[variableIndex] = new ZipfDistribution(random, 999999999, exponent);
+    }
+
     void setRatios(float positive, float negative) {
         if (positive + negative >= 1.0f) {
             throw new IllegalArgumentException();
@@ -80,20 +89,8 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
         computeQueueCapacities();
     }
 
-    void setInclusionProbability(float p) {
-        inclusionProbability = p;
-    }
-
     void setViolationProbability(float p) {
         violationProbability = p;
-    }
-
-    void setIsTriangle(boolean triangle) {
-        isTriangle = triangle;
-    }
-
-    void setZipfAttribute(int attributeIndex, double exponent) {
-        distributions[attributeIndex] = new ZipfDistribution(random, 999999999, exponent);
     }
 
     private void computeQueueCapacities() {
@@ -138,8 +135,25 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
         return canSchedulePositive() && negativeQueue.size() < negativeQueueCapacity;
     }
 
-    private int nextValue(int attributeIndex) {
-        return distributions[attributeIndex].sample();
+    private int nextValue(int variableIndex) {
+        return distributions[variableIndex].sample();
+    }
+
+    private int[] nextValues() {
+        int value0 = nextValue(0);
+        int value1 = nextValue(1);
+        int value2 = nextValue(2);
+        int value3 = nextValue(3);
+        switch (variableGraph) {
+            case STAR:
+                return new int[]{value0, value1, value0, value2, value0, value3};
+            case LINEAR:
+                return new int[]{value0, value1, value1, value2, value2, value3};
+            case TRIANGLE:
+                return new int[]{value0, value1, value1, value2, value2, value0};
+            default:
+                throw new IllegalStateException();
+        }
     }
 
     @Override
@@ -154,46 +168,37 @@ public class PositiveNegativeGenerator extends AbstractEventGenerator {
         }
 
         if (flipCoin(violationProbability) && canScheduleViolation()) {
-            int value0 = nextValue(0);
-            int value1 = nextValue(1);
-            int value2 = nextValue(2);
-            int value3 = isTriangle ? value0 : nextValue(3);
-
+            int[] values = nextValues();
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
             long negativeTimestamp = positiveTimestamp + random.nextInt(negativeWindow);
 
-            appendEvent(builder, BASE_RELATION, timestamp, value0, value1);
-            positiveQueue.add(new ScheduledEvent(POSITIVE_RELATION, positiveTimestamp, value1, value2));
-            negativeQueue.add(new ScheduledEvent(NEGATIVE_RELATION, negativeTimestamp, value2, value3));
+            appendEvent(builder, BASE_RELATION, timestamp, values[0], values[1]);
+            positiveQueue.add(new ScheduledEvent(POSITIVE_RELATION, positiveTimestamp, values[2], values[3]));
+            negativeQueue.add(new ScheduledEvent(NEGATIVE_RELATION, negativeTimestamp, values[4], values[5]));
 
             return;
         }
 
         float positiveAdjusted = positiveRatio - (float) positiveAtCurrentIndex / (float) eventsPerIndex;
         if (flipCoin(positiveAdjusted)) {
-            int value1 = nextValue(1);
-            int value2 = nextValue(2);
-            appendEvent(builder, POSITIVE_RELATION, timestamp, value1, value2);
+            int[] values = nextValues();
+            appendEvent(builder, POSITIVE_RELATION, timestamp, values[2], values[3]);
             return;
         }
 
         float negativeAdjusted = negativeRatio - (float) negativeAtCurrentIndex / (float) eventsPerIndex;
         if (flipCoin(negativeAdjusted)) {
-            int value2 = nextValue(2);
-            int value3 = isTriangle ? nextValue(0) : nextValue(3);
-            appendEvent(builder, NEGATIVE_RELATION, timestamp, value2, value3);
+            int[] values = nextValues();
+            appendEvent(builder, NEGATIVE_RELATION, timestamp, values[4], values[5]);
             return;
         }
 
-        int value0 = nextValue(0);
-        int value1 = nextValue(1);
-        appendEvent(builder, BASE_RELATION, timestamp, value0, value1);
+        int[] values = nextValues();
+        appendEvent(builder, BASE_RELATION, timestamp, values[0], values[1]);
 
-        if (flipCoin(inclusionProbability) && canSchedulePositive()) {
-            int value2 = nextValue(2);
+        if (canSchedulePositive()) {
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
-
-            positiveQueue.add(new ScheduledEvent(POSITIVE_RELATION, positiveTimestamp, value1, value2));
+            positiveQueue.add(new ScheduledEvent(POSITIVE_RELATION, positiveTimestamp, values[2], values[3]));
         }
     }
 }

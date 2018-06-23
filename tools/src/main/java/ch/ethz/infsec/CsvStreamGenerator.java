@@ -10,17 +10,17 @@ import java.io.OutputStreamWriter;
 public class CsvStreamGenerator {
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-e <event rate>] [-i <index rate>] [-x <violations>] [-w <window size>] [-t]\n" +
+                "Usage: -S|-L|-T [-e <event rate>] [-i <index rate>] [-x <violations>] [-w <window size>]\n" +
                 "       [-p <positive ratio>] [-n <negative ratio>] [-z <Zipf exponents>] <seconds>\n");
         System.exit(1);
     }
 
     public static void main(String[] args) {
+        PositiveNegativeGenerator.VariableGraph variableGraph = null;
         int eventRate = 10;
         int indexRate = 1;
         float relativeViolations = 0.01f;
         int windowSize = 10;
-        boolean isTriangle = false;
         float positiveRatio = 0.33f;
         float negativeRatio = 0.33f;
         double zipfExponents[] = {};
@@ -28,32 +28,56 @@ public class CsvStreamGenerator {
 
         try {
             for (int i = 0; i < args.length; ++i) {
-                if (args[i].startsWith("-") && !args[i].equals("-v") && !args[i].equals("-t") && i + 1 == args.length) {
-                    invalidArgument();
-                }
                 switch (args[i]) {
+                    case "-S":
+                        variableGraph = PositiveNegativeGenerator.VariableGraph.STAR;
+                        break;
+                    case "-L":
+                        variableGraph = PositiveNegativeGenerator.VariableGraph.LINEAR;
+                        break;
+                    case "-T":
+                        variableGraph = PositiveNegativeGenerator.VariableGraph.TRIANGLE;
+                        break;
                     case "-e":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
                         eventRate = Integer.parseInt(args[++i]);
                         break;
                     case "-i":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
                         indexRate = Integer.parseInt(args[++i]);
                         break;
                     case "-x":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
                         relativeViolations = Float.parseFloat(args[++i]);
                         break;
                     case "-w":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
                         windowSize = Integer.parseInt(args[++i]);
                         break;
-                    case "-t":
-                        isTriangle = true;
-                        break;
                     case "-p":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
                         positiveRatio = Float.parseFloat(args[++i]);
                         break;
                     case "-n":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
                         negativeRatio = Float.parseFloat(args[++i]);
                         break;
                     case "-z":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
                         String exponents[] = args[++i].split(",");
                         zipfExponents = new double[exponents.length];
                         for (int j = 0; j < exponents.length; ++j) {
@@ -70,19 +94,19 @@ public class CsvStreamGenerator {
         } catch (NumberFormatException e) {
             invalidArgument();
         }
-        if (streamLength <= 0) {
+        if (variableGraph == null || streamLength <= 0) {
             invalidArgument();
         }
 
         RandomGenerator random = new JDKRandomGenerator(314159265);
         PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate);
+        generator.setVariableGraph(variableGraph);
         generator.setRatios(positiveRatio, negativeRatio);
         generator.setWindows(windowSize, windowSize);
         generator.setViolationProbability(relativeViolations / (float) eventRate);
-        generator.setIsTriangle(isTriangle);
         for (int i = 0; i < zipfExponents.length; ++i) {
             if (zipfExponents[i] > 0.0) {
-                generator.setZipfAttribute(i, zipfExponents[i]);
+                generator.setZipfVariable(i, zipfExponents[i]);
             }
         }
 
