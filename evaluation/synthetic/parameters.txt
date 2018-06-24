@@ -1,4 +1,4 @@
-event rate: 2000, 4000, 6000, 8000, 12000, 16000, 24000, 32000
+event rate: 2000, 2200, 2400, 2600, 2800, 3200, 3600, 4000
 index rate: 1, 1000
 violation rate: 10
 window size: 10
