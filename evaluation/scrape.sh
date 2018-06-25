@@ -5,6 +5,9 @@
 #./scrape.sh 2018-06-24T09:00:00.000Z 2018-06-25T10:00:00.000Z synthetic
 # creates files synthetic_max.json, synthetic_average.json, and synthetic_peak.json
 
+# The script performs multiple 3 hour range queries, since the time resolution of
+# query answers has a hardcoded bound of 11k data points.
+
 
 format="+%Y-%m-%dT%H:%M:%S.%3NZ"
 
@@ -29,7 +32,7 @@ mod=$( expr $diff_s % 10800)
 metrics="max average peak"
 
 for m in $metrics; do
-    echo "" > ${output}_${m}.json
+    echo "{ \"all\": [ " > ${output}_${m}.json
 done
 
 for i in `seq 1 $periods`; do
@@ -40,8 +43,14 @@ for i in `seq 1 $periods`; do
   for m in $metrics; do
     url="http://localhost:9090/api/v1/query_range?query=flink_taskmanager_job_task_operator_latency_"${m}"&start="${start_utc}"&end="${end_utc}"&step=1s"
     curl $url 2> /dev/null >> ${output}_${m}.json
+    echo "," >> ${output}_${m}.json
   done
   # increment
   start_utc=$end_utc
 
 done
+
+for m in $metrics; do
+    echo "] } " >> ${output}_${m}.json
+done
+
