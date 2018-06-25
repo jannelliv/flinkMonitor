@@ -43,7 +43,9 @@ for i in `seq 1 $periods`; do
   for m in $metrics; do
     url="http://localhost:9090/api/v1/query_range?query=flink_taskmanager_job_task_operator_latency_"${m}"&start="${start_utc}"&end="${end_utc}"&step=1s"
     curl $url 2> /dev/null >> ${output}_${m}.json
-    echo "," >> ${output}_${m}.json
+    if [[ ! $i -eq $periods ]]; then 
+      echo "," >> ${output}_${m}.json
+    fi
   done
   # increment
   start_utc=$end_utc
