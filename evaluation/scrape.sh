@@ -8,12 +8,15 @@
 # The script performs multiple 3 hour range queries, since the time resolution of
 # query answers has a hardcoded bound of 11k data points.
 
+SCRIPT_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
+TARGET_DIR=`pwd`
+
 
 format="+%Y-%m-%dT%H:%M:%S.%3NZ"
 
 start="$1"
 end="$2"
-output="$3"
+output="$TARGET_DIR/$3"
 
 start_utc=$(echo "$start" | xargs -I J date "$format" --utc -d J)
 end_utc=$(echo "$end" | xargs -I J date "$format" --utc -d J)
@@ -56,4 +59,4 @@ for m in $metrics; do
     echo "] } " >> ${output}_${m}.json
 done
 
-./parse-metrics.py ${output}
+$SCRIPT_DIR/parse-metrics.py ${output}
