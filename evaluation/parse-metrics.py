@@ -29,7 +29,7 @@ with open(sys.argv[1]+"_peak.json") as f_peak:
 for i in range(len(data_max['all'])):
     for j in range(len(data_max['all'][i]['data']['result'])):
         file = data_max['all'][i]['data']['result'][j]['metric']['job_name']
-        output_file = open("metrics_"+file, 'w')
+        output_file = open("metrics_"+file+".csv", 'w')
         writer = csv.writer(output_file)
         writer.writerow(['timestamp', 'peak', 'max', 'average'])
         idx = len(data_max['all'][i]['data']['result'][j]['values'])

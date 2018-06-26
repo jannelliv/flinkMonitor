@@ -48,6 +48,8 @@ done
 # # start visual monitors
 # "$WORK_DIR/visual/start.sh" > /dev/null
 
+start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
+
 echo "Flink with Monpoly, no checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
@@ -109,6 +111,14 @@ for procs in $PROCESSORS; do
 
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
+
+end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
+
+echo 
+echo "Scraping metrics..."
+$WORK_DIR/scrape.sh $start_time $end_time nokia
+mv $WORK_DIR/*.json $REPORT_DIR
+mv $WORK_DIR/*.csv $REPORT_DIR
 
 echo
 echo "Evaluation complete!"
