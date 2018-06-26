@@ -1,10 +1,12 @@
+#!/usr/bin/env python
+
 import csv
 import sys
 import json
 from pprint import pprint
 
 """
-A simple program to print the result of a Prometheus query as CSV.
+A simple program to print the result of a Prometheus range query as CSV.
 """
 
 if len(sys.argv) != 2:
@@ -40,6 +42,9 @@ for i in range(len(data_max['all'])):
         output_file.close()
 
 
+
+
 f_max.close()
 f_avg.close()
 f_peak.close()
+
