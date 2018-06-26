@@ -56,3 +56,4 @@ for m in $metrics; do
     echo "] } " >> ${output}_${m}.json
 done
 
+./parse-metrics.py ${output}
