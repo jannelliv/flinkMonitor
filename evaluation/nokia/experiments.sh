@@ -114,11 +114,9 @@ done
 
 end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
-echo 
+echo
 echo "Scraping metrics..."
-$WORK_DIR/scrape.sh $start_time $end_time nokia
-mv $WORK_DIR/*.json $REPORT_DIR
-mv $WORK_DIR/*.csv $REPORT_DIR
+(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time latency)
 
 echo
 echo "Evaluation complete!"
