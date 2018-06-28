@@ -15,10 +15,14 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
     private static final String ATTRIBUTE_0 = "x";
     private static final String ATTRIBUTE_1 = "y";
 
+    private static final int POSITIVE_SKEW_SHIFT = 1_000_000;
+    private static final int NEGATIVE_SKEW_SHIFT = 2_000_000;
+
     public enum VariableGraph { STAR, LINEAR, TRIANGLE }
 
     private VariableGraph variableGraph = VariableGraph.STAR;
     private IntegerDistribution distributions[];
+    private boolean hasSkew = false;
 
     private float baseRatio = 0.33f;
     private float positiveRatio = 0.33f;
@@ -55,7 +59,7 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
 
         distributions = new IntegerDistribution[4];
         for (int i = 0; i < 4; ++i) {
-            distributions[i] = new UniformIntegerDistribution(random, 0, 999999999);
+            distributions[i] = new UniformIntegerDistribution(random, 0, 999_999_999);
         }
     }
 
@@ -64,7 +68,8 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
     }
 
     void setZipfExponent(int variableIndex, double exponent) {
-        distributions[variableIndex] = new ZipfDistribution(random, 999999999, exponent);
+        distributions[variableIndex] = new ZipfDistribution(random, 1_000_000_000, exponent);
+        hasSkew = true;
     }
 
     void setEventDistribution(float baseRatio, float positiveRatio, float violationProbability) {
@@ -108,18 +113,28 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
         return distributions[variableIndex].sample();
     }
 
-    private int[] nextValues() {
+    private int[] nextValues(boolean correlated) {
         int value0 = nextValue(0);
         int value1 = nextValue(1);
         int value2 = nextValue(2);
         int value3 = nextValue(3);
+
+        int positiveShift, negativeShift;
+        if (!correlated && hasSkew) {
+            positiveShift = POSITIVE_SKEW_SHIFT;
+            negativeShift = NEGATIVE_SKEW_SHIFT;
+        } else {
+            positiveShift = 0;
+            negativeShift = 0;
+        }
+
         switch (variableGraph) {
             case STAR:
-                return new int[]{value0, value1, value0, value2, value0, value3};
+                return new int[]{value0, value1, value0 + positiveShift, value2 + positiveShift, value0 + negativeShift, value3 + negativeShift};
             case LINEAR:
-                return new int[]{value0, value1, value1, value2, value2, value3};
+                return new int[]{value0, value1, value1 + positiveShift, value2 + positiveShift, value2 + negativeShift, value3 + negativeShift};
             case TRIANGLE:
-                return new int[]{value0, value1, value1, value2, value2, value0};
+                return new int[]{value0, value1, value1 + positiveShift, value2 + positiveShift, value2 + negativeShift, value0 + negativeShift};
             default:
                 throw new IllegalStateException();
         }
@@ -139,7 +154,7 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
             value0 = scheduledData.value0;
             value1 = scheduledData.value1;
         } else {
-            int[] values = nextValues();
+            int[] values = nextValues(false);
             value0 = values[index0];
             value1 = values[index1];
         }
@@ -149,7 +164,7 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
     @Override
     void appendNextEvent(StringBuilder builder, long timestamp) {
         if (flipCoin(violationProbability)) {
-            int[] values = nextValues();
+            int[] values = nextValues(true);
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
             long negativeTimestamp = positiveTimestamp + random.nextInt(negativeWindow);
 
@@ -161,7 +176,7 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
         }
 
         if (flipCoin(baseProbability)) {
-            int[] values = nextValues();
+            int[] values = nextValues(true);
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
 
             appendEvent(builder, BASE_RELATION, values[0], values[1]);
