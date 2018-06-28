@@ -22,7 +22,7 @@ make_log() {
 
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -x 10 -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 60 > "$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -x 0.1 -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 60 > "$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
         done
     done
 }
