@@ -117,7 +117,7 @@ end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
 echo
 #echo "Scraping metrics..."
-#(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time latency)
+#(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time synthetic_heavy)
 echo "Metrics period: $start_time $end_time"
 
 echo
