@@ -23,7 +23,7 @@ make_log() {
 
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -x 10 -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 60 > "$OUTPUT_DIR/genh2_${formula}_${heavy_set}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -x 10 -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 60 > "$OUTPUT_DIR/genh3_${formula}_${heavy_set}_${er}_${ir}.csv"
         done
     done
 }
@@ -64,9 +64,9 @@ for procs in $PROCESSORS; do
                     for i in $(seq 1 $REPETITIONS); do
                         echo "        Repetition $i ..."
 
-                        INPUT_FILE="$OUTPUT_DIR/genh2_${formula}_${heavy_set}_${er}_${ir}.csv"
+                        INPUT_FILE="$OUTPUT_DIR/genh3_${formula}_${heavy_set}_${er}_${ir}.csv"
 
-                        JOB_NAME="genh2_flink_ft_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
+                        JOB_NAME="genh3_flink_ft_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -100,10 +100,10 @@ for procs in $PROCESSORS; do
                     for i in $(seq 1 $REPETITIONS); do
                         echo "        Repetition $i ..."
 
-                        INPUT_FILE="$OUTPUT_DIR/genh2_${formula}_${heavy_set}_${er}_${ir}.csv"
+                        INPUT_FILE="$OUTPUT_DIR/genh3_${formula}_${heavy_set}_${er}_${ir}.csv"
                         HEAVY_FILE="$OUTPUT_DIR/heavy_${numcpus}_${formula}_${heavy_set}.csv"
 
-                        JOB_NAME="genh2_flink_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
+                        JOB_NAME="genh3_flink_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"

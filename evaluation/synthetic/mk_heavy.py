@@ -21,6 +21,8 @@ heavy_hitters = {
     16: [1, 2, 3, 4]
 }
 
+C_shift = 1000000
+
 for formula, sets in configurations.items():
     for include_sets in range(1, len(sets) + 1):
         for processors, heavy in heavy_hitters.items():
@@ -29,5 +31,7 @@ for formula, sets in configurations.items():
             for this_set in sets[:include_sets]:
                 for prefix in this_set:
                     for value in heavy:
+                        if prefix.startswith("C,"):
+                            value += C_shift
                         output.write(prefix + "," + str(value) + "\n")
             output.close()
