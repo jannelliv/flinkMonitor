@@ -29,7 +29,7 @@ object SlicingSpecification {
     }
 
     val ratesSpec = parameters.get("rates", "")
-    val rates = SlicingSpecification.parseKeyValueParameter(ratesSpec, _.toLong)
+    val rates = SlicingSpecification.parseKeyValueParameter(ratesSpec, _.toDouble)
     if (ratesSpec.nonEmpty && sharesSpec.nonEmpty) {
       throw new IllegalArgumentException("At most one of shares and rates may be given")
     }
