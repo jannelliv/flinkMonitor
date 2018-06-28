@@ -1,8 +1,24 @@
+Traces without skew:
+
 event rate: 2000, 2200, 2400, 2600, 2800, 3200, 3600, 4000
 index rate: 1, 1000
 violation rate: 10
 window size: 10
 A ratio: 0.01
 B ratio: 0.495
-value distribution: no skew
+uniform distribution
+duration: 60
+
+Traces with skew:
+
+event rate: 2000, 2800, 4000
+index rate: 1000
+violation rate: 10
+window size: 10
+A ratio: 0.3333
+B ratio: 0.3333
+Zipf exponents:
+    star: {2,0,0,0}, {2,2,0,0}
+    linear: {0,2,0,0}, {0,2,2,0}
+    triangle: {2,0,0}, {2,2,0}
 duration: 60
