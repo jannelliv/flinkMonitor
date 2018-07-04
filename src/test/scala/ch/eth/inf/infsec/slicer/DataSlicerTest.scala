@@ -39,10 +39,7 @@ class DataSlicerTest extends FunSuite with Matchers {
     )
 
     val slicer = new TestDataSlicer()
-    implicit val type1 = TypeInfo[Record]()
-    implicit val type2 = TypeInfo[(Int, Record)]()
 
-    //val slices = slicer(events).seq
     val slices = slicer.processAll(records)
     slices should contain theSameElementsInOrderAs List(
       (0, Record(101, "A", Tuple(1, 2))),

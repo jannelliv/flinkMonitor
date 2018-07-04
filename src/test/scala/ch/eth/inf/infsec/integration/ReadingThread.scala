@@ -4,8 +4,6 @@ import java.io.BufferedReader
 import java.util.{Timer, TimerTask}
 
 import scala.collection.generic.Growable
-import scala.collection.mutable
-import scala.collection.mutable.Set
 
 class ReadingThread(output:BufferedReader, verdicts:Growable[String], process:Process, timeout:Long) extends Thread{
   override def run(): Unit = {

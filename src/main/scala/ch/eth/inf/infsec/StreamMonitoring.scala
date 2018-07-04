@@ -202,14 +202,3 @@ object StreamMonitoring {
   }
 
 }
-
-
-//val verdicts = slicedTrace.reduce(monpoly)
-
-//Type issue example with sized
-//    val r:Relation = Set(Sized(SInteger(1),SString("a")),
-//                         Sized(SInteger(2),SString("b")))
-//    val e:Event = (4,Set(r))
-
-
-

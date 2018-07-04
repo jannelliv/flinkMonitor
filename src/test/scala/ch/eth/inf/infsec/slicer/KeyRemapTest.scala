@@ -1,6 +1,5 @@
 package ch.eth.inf.infsec.slicer
 
-import org.apache.flink.runtime.state.KeyGroupRangeAssignment
 import org.scalatest.{FunSuite, Matchers}
 
 class KeyRemapTest extends FunSuite with Matchers {
