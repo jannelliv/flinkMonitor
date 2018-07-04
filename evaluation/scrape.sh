@@ -38,11 +38,14 @@ for m in $metrics; do
     echo "{ \"all\": [ " > ${output}_${m}.json
 done
 
+echo "{ \"all\": [ " > ${output}_records.json
+
 for i in `seq 1 $periods`; do
 
   end_utc=$(echo $start_utc | xargs -I J date $format --utc -d "J+3hours")
   # scrape
   echo "Scraping from $start_utc to $end_utc"
+  #latency metrics
   for m in $metrics; do
     url="http://localhost:9090/api/v1/query_range?query=flink_taskmanager_job_task_operator_latency_"${m}"&start="${start_utc}"&end="${end_utc}"&step=1s"
     curl $url 2> /dev/null >> ${output}_${m}.json
@@ -50,6 +53,16 @@ for i in `seq 1 $periods`; do
       echo "," >> ${output}_${m}.json
     fi
   done
+
+  #number of records metrics
+  flink_taskmanager_job_task_operator_numEvents
+  url="http://localhost:9090/api/v1/query_range?query=flink_taskmanager_job_task_operator_numEvents&start="${start_utc}"&end="${end_utc}"&step=1s"
+  curl $url 2> /dev/null >> ${output}_records.json
+  if [[ ! $i -eq $periods ]]; then 
+    echo "," >> ${output}_records.json
+  fi
+
+
   # increment
   start_utc=$end_utc
 
@@ -58,5 +71,6 @@ done
 for m in $metrics; do
     echo "] } " >> ${output}_${m}.json
 done
+echo "] } " >> ${output}_records.json
 
 $SCRIPT_DIR/parse-metrics.py ${output}
