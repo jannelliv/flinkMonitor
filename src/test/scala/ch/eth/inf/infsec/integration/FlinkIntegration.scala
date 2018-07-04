@@ -3,13 +3,11 @@ package ch.eth.inf.infsec.integration
 
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.lang.ProcessBuilder.Redirect
-import java.util.{Timer, TimerTask}
-import java.util.concurrent.{LinkedBlockingQueue, TimeUnit}
 
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
-import scala.collection.{JavaConversions, mutable}
-import scala.collection.mutable.{HashSet, ListBuffer, Set}
+import scala.collection.JavaConversions
+import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
 
