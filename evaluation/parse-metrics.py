@@ -25,26 +25,94 @@ with open(sys.argv[1]+"_average.json") as f_avg:
 with open(sys.argv[1]+"_peak.json") as f_peak:
     data_peak = json.load(f_peak)
 
-# Get the files
-for i in range(len(data_max['all'])):
-    for j in range(len(data_max['all'][i]['data']['result'])):
-        file = data_max['all'][i]['data']['result'][j]['metric']['job_name']
-        output_file = open("metrics_"+file+".csv", 'w')
-        writer = csv.writer(output_file)
-        writer.writerow(['timestamp', 'peak', 'max', 'average'])
-        idx = len(data_max['all'][i]['data']['result'][j]['values'])
-        for t in range(idx):
-            ts = data_max['all'][i]['data']['result'][j]['values'][t][0]
-            peak = data_peak['all'][i]['data']['result'][j]['values'][t][1]
-            max = data_max['all'][i]['data']['result'][j]['values'][t][1]
-            avg = data_avg['all'][i]['data']['result'][j]['values'][t][1]
-            writer.writerow([ts, peak, max, avg])
-        output_file.close()
+with open(sys.argv[1]+"_records.json") as f_record:
+    data_record = json.load(f_record)
+
+job_map_record = {}
+
+for i in range(len(data_record['all'])):
+    for j in range(len(data_record['all'][i]['data']['result'])):
+        job = str(data_record['all'][i]['data']['result'][j]['metric']['job_name'])
+        try:
+            monitor_map=job_map_record[job]
+        except:
+            monitor_map={}
+        m = int(data_record['all'][i]['data']['result'][j]['metric']['subtask_index'])
+        sample_map = {}
+        sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
+        for t in range(0,sample_num):
+            ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
+            sample_map[ts] = int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+        monitor_map[m]=sample_map
+        job_map_record[job]=monitor_map
 
 
+def extract(data):
+    job_map_latency = {}
+    for i in range(len(data['all'])):
+        for j in range(len(data['all'][i]['data']['result'])):
+            job = str(data['all'][i]['data']['result'][j]['metric']['job_name'])
+            sample_num = len(data['all'][i]['data']['result'][j]['values'])
+            sample_map = {}
+            for t in range(sample_num):
+                ts             = int(data['all'][i]['data']['result'][j]['values'][t][0])
+                sample_map[ts] = int(data['all'][i]['data']['result'][j]['values'][t][1])
+            job_map_latency[job] = sample_map
+    return job_map_latency
 
+job_map_max  = extract(data_max)
+job_map_avg  = extract(data_avg)
+job_map_peak = extract(data_peak)
+
+print(str(len(job_map_record)) + " record jobs extracted")
+print(str(len(job_map_max)) + " max jobs extracted")
+print(str(len(job_map_avg)) + " avg jobs extracted")
+print(str(len(job_map_peak)) + " peak jobs extracted")
+
+def d2l(d):
+    dictlist = []
+    for key, value in d.iteritems():
+        temp = [key,value]
+        dictlist.append(temp)
+    return dictlist
+
+for job in job_map_record:
+    output_file = open("metrics_"+job+".csv", 'w')
+    writer = csv.writer(output_file)
+    ms = len(job_map_record[job])
+    writer.writerow(['timestamp', 'peak', 'max', 'average']+ map(lambda x: "monitor"+str(x), range(0,ms)))
+    
+    index = 0
+    peak_list= d2l(job_map_peak[job])
+    max_list = d2l(job_map_max[job])
+    avg_list = d2l(job_map_avg[job])
+    for i in range(0,len(job_map_max[job])):
+        skip=False
+        ts_p, peak = peak_list[i]
+        ts_m, max  = max_list[i]
+        ts_a, avg  = avg_list[i]
+        assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
+        ts = min(ts_p,ts_m,ts_a)
+        r = [ts,peak,max,avg]
+        for m in range(ms):
+            try:
+                ts_r, rec = d2l(job_map_record[job][m])[i]
+                if ts < ts_r:
+                    skip=True
+                    break
+                if ts > ts_r:
+                    continue
+                r = r + [rec] 
+            except IndexError:
+                # number of samples misaligned
+                break
+        if skip:
+            continue
+
+        writer.writerow(r)
+    output_file.close()
 
 f_max.close()
 f_avg.close()
 f_peak.close()
-
+f_record.close()

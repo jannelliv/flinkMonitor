@@ -55,7 +55,6 @@ for i in `seq 1 $periods`; do
   done
 
   #number of records metrics
-  flink_taskmanager_job_task_operator_numEvents
   url="http://localhost:9090/api/v1/query_range?query=flink_taskmanager_job_task_operator_numEvents&start="${start_utc}"&end="${end_utc}"&step=1s"
   curl $url 2> /dev/null >> ${output}_records.json
   if [[ ! $i -eq $periods ]]; then 
