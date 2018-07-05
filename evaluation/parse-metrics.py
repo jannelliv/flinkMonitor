@@ -69,6 +69,18 @@ print(str(len(job_map_max)) + " max jobs extracted")
 print(str(len(job_map_avg)) + " avg jobs extracted")
 print(str(len(job_map_peak)) + " peak jobs extracted")
 
+common_jobs = set(job_map_record.keys()).intersection(set(job_map_max.keys()))
+common_jobs = common_jobs.intersection(job_map_avg.keys())
+common_jobs = common_jobs.intersection(job_map_peak.keys())
+
+#additional jobs
+non_common_jobs = set(job_map_record.keys())-common_jobs
+non_common_jobs = non_common_jobs.union(set(job_map_max.keys())-common_jobs)
+non_common_jobs = non_common_jobs.union(set(job_map_avg.keys())-common_jobs)
+non_common_jobs = non_common_jobs.union(set(job_map_peak.keys())-common_jobs)
+print("Skipping the "+ str(len(non_common_jobs)) +" jobs not in common: " + str(non_common_jobs))
+
+
 def d2l(d):
     dictlist = []
     for key, value in d.iteritems():
@@ -76,7 +88,7 @@ def d2l(d):
         dictlist.append(temp)
     return dictlist
 
-for job in job_map_record:
+for job in common_jobs:
     output_file = open("metrics_"+job+".csv", 'w')
     writer = csv.writer(output_file)
     ms = len(job_map_record[job])
