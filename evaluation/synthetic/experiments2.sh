@@ -66,6 +66,7 @@ for procs in $PROCESSORS; do
                     if [[ $? = 124 ]]; then
                         cancel_job "$JOB_NAME"
                     fi
+                    wait
                 done
             done
         done
@@ -102,6 +103,7 @@ for procs in $PROCESSORS; do
                     if [[ $? = 124 ]]; then
                         cancel_job "$JOB_NAME"
                     fi
+                    wait
                 done
             done
         done
@@ -138,6 +140,7 @@ for procs in $PROCESSORS; do
                     if [[ $? = 124 ]]; then
                         cancel_job "$JOB_NAME"
                     fi
+                    wait
                 done
             done
         done
