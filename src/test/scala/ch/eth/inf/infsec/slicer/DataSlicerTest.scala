@@ -17,9 +17,9 @@ class DataSlicerTest extends FunSuite with Matchers {
 
     override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]): Unit =
       if (valuation(0) != null)
-        slices ++= List(0, valuation(0).asInstanceOf[IntegralValue].value.toInt)
+        slices ++= List(0, valuation(0).integralValue.toInt)
       else
-        slices ++= List(1, valuation(1).asInstanceOf[IntegralValue].value.toInt)
+        slices ++= List(1, valuation(1).integralValue.toInt)
 
     override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
   }

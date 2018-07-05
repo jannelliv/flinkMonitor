@@ -4,21 +4,27 @@ import scala.language.implicitConversions
 
 package object trace {
 
-  trait Domain extends Serializable
-
-  case class StringValue(value: String) extends Domain {
-    override def toString: String = "\"" + value + "\""
+  case class Domain(integralValue: Long, stringValue: String) {
+    override def toString: String = if (stringValue == null) integralValue.toString else stringValue
   }
 
-  case class IntegralValue(value: Long) extends Domain {
-    override def toString: String = value.toString
+  object StringValue {
+    def apply(value: String): Domain = Domain(-1, value)
+
+    def unapply(domain: Domain): Option[String] = Option(domain.stringValue)
   }
 
-  implicit def stringToDomain(value: String): StringValue = StringValue(value)
+  object IntegralValue {
+    def apply(value: Long): Domain = Domain(value, null)
 
-  implicit def longToDomain(value: Long): IntegralValue = IntegralValue(value)
+    def unapply(domain: Domain): Option[Long] = if (domain.stringValue == null) Some(domain.integralValue) else None
+  }
 
-  implicit def intToDomain(value: Int): IntegralValue = IntegralValue(value)
+  implicit def stringToDomain(value: String): Domain = StringValue(value)
+
+  implicit def longToDomain(value: Long): Domain = IntegralValue(value)
+
+  implicit def intToDomain(value: Int): Domain = IntegralValue(value)
 
   type Tuple = IndexedSeq[Domain]
   val emptyTuple: Tuple = Vector.empty

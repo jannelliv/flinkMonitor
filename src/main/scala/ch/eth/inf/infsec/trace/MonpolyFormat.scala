@@ -32,7 +32,7 @@ object MonpolyParsers {
       (Letter | Digit | CharIn("_[]/:-.!")).rep(min = 1).!
     )
 
-    val Value: P[Domain] = P( Integer.map(IntegralValue) | String.map(StringValue) )
+    val Value: P[Domain] = P( Integer.map(IntegralValue(_)) | String.map(StringValue(_)) )
   }
 
   private val WhitespaceWrapper = WhitespaceApi.Wrapper(Token.Whitespace)

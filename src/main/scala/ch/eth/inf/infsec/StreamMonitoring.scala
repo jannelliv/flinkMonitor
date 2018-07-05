@@ -134,8 +134,6 @@ object StreamMonitoring {
 
     // Performance tuning
     env.getConfig.enableObjectReuse()
-    env.registerType(classOf[StringValue])
-    env.registerType(classOf[IntegralValue])
 
     env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
     env.setParallelism(1)
