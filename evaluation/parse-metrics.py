@@ -86,6 +86,7 @@ def d2l(d):
     for key, value in d.iteritems():
         temp = [key,value]
         dictlist.append(temp)
+    dictlist.sort(key=lambda x: x[0])
     return dictlist
 
 for job in common_jobs:
