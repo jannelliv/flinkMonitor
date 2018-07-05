@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import itertools
+import numbers
 import pathlib
 import re
 import sys
@@ -26,6 +27,8 @@ def enumerate_keys(index, names):
 def describe_key_value(name, value):
     if isinstance(value, bool):
         return name if value else "no " + name
+    elif isinstance(value, numbers.Number):
+        return name + " " + str(value)
     else:
         return str(value)
 
@@ -48,7 +51,7 @@ class Data:
         view = self.df.loc[(experiment, tool, checkpointing, statistics, processors, formula, heavy_hitters, event_rate, index_rate, repetition), :]
         return Data(self.name, view)
 
-    def plot(self, x_level, y_columns, series_levels=[], column_levels=[], title=None, path=None):
+    def plot(self, x_level, y_columns, series_levels=[], column_levels=[], style='-o', title=None, path=None):
         df = self.df.reset_index(level=x_level)
 
         y_columns = [y_columns] if isinstance(y_columns, str) else y_columns
@@ -74,7 +77,7 @@ class Data:
         figsize = (4.0 * ncols, 3.0 * nrows)
         fig, axes = plt.subplots(nrows, ncols, sharex='row', sharey='row', squeeze=False, figsize=figsize)
         if title is not None:
-            fig.suptitle(title)
+            fig.suptitle(title, y = 1 - 0.3 / figsize[1])
 
         lines = []
         for row, row_key in enumerate(row_keys):
@@ -84,16 +87,16 @@ class Data:
                     plot_key = row_key + column_key
 
                     ax = axes[row, col]
-                    ax.set_title(describe_key(plot_key_names + [""], plot_key + (y_column,)), fontdict=self.subplot_font)
+                    ax.set_title(describe_key(plot_key_names, plot_key), fontdict=self.subplot_font)
                     ax.set_xlabel(x_level)
-                    #ax.set_ylabel(y_column)
+                    ax.set_ylabel(y_column)
 
                     lines = []
                     for series in series_keys:
                         selector = key_to_selector(index, series_key_names, plot_key + series)
                         X = df.loc[selector, x_level]
                         Y = df.loc[selector, y_column]
-                        lines += ax.plot(X, Y, '-o')
+                        lines += ax.plot(X, Y, style)
 
         fig.legend(lines, map(lambda k: describe_key(series_level_list, k), series_keys), 'upper right')
         fig.tight_layout(pad=0.5, h_pad=1, w_pad=0.5, rect=[0, 0, 1 - 1 / figsize[0], 1 - 0.8 / figsize[1]])
@@ -177,13 +180,17 @@ class Loader:
     def average_repetitions(self, df):
         group_levels = list(df.index.names)
         group_levels.remove('repetition')
-        group_levels.remove('timestamp')
         return df.groupby(level=group_levels).mean()
 
     def process(self):
         raw_summary = pd.concat(self.summary_data, keys=self.summary_keys, names=self.job_levels)
+        raw_summary.reset_index('timestamp', drop=True, inplace=True)
+        raw_summary.sort_index(inplace=True)
         summary = self.average_repetitions(raw_summary)
-        latency = pd.concat(self.latency_data, keys=self.latency_keys, names=self.job_levels)
+
+        latency = pd.concat(self.latency_data, keys=self.latency_keys, names=self.job_levels).to_frame()
+        latency.sort_index(inplace=True)
+
         return Data("Summary", summary), Data("Peak latency", latency)
 
     @classmethod
@@ -205,11 +212,14 @@ if __name__ == '__main__':
         gen_formulas = summary.select(experiment='gen', tool='flink', checkpointing=True, statistics=False)
         gen_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas.pdf")
 
-        nokia_nproc = summary.select(experiment='nokia')
+        nokia_nproc = summary.select(experiment='nokia', statistics=False)
         nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
 
         nokia_formulas = summary.select(experiment='nokia', tool='flink', checkpointing=True, statistics=False)
         nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
+
+        nokia_series = latency.select(experiment='nokia', checkpointing=True, statistics=False)
+        nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['repetition'], style='-', title="Latency (Nokia, checkpointing)", path="nokia_series.pdf")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)
