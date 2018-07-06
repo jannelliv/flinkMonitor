@@ -53,6 +53,20 @@ class Data:
         view = self.df.loc[(experiment, tool, checkpointing, statistics, processors, formula, heavy_hitters, event_rate, index_rate, repetition), :]
         return Data(self.name, view)
 
+    def export(self, *columns, path=None):
+        index = self.df.index.remove_unused_levels()
+        key_levels = varying_levels(index)
+        unused_levels = set(index.names) - key_levels
+
+        columns = self.df.columns.intersection(columns)
+        result = self.df.loc[:, columns].copy()
+        result.reset_index(list(unused_levels), drop=True, inplace=True)
+        result.reset_index(inplace=True)
+
+        if path is not None:
+            result.to_csv(path, index=False)
+        return result
+
     def plot(self, x_level, y_columns, series_levels=[], column_levels=[], style='-o', title=None, path=None):
         df = self.df.reset_index(level=x_level)
 
@@ -315,6 +329,9 @@ if __name__ == '__main__':
 
         nokia_series = latency.select(experiment='nokia2', statistics=False)
         nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
+
+        gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
+        gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)
