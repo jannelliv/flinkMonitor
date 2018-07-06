@@ -67,8 +67,11 @@ class Data:
             result.to_csv(path, index=False)
         return result
 
-    def plot(self, x_level, y_columns, series_levels=[], column_levels=[], style='-o', title=None, path=None):
-        df = self.df.reset_index(level=x_level)
+    def plot(self, x_level, y_columns, series_levels=[], column_levels=[], box_plot=None, style='-o', title=None, path=None):
+        if box_plot:
+            df = self.df
+        else:
+            df = self.df.reset_index(level=x_level)
 
         y_columns = [y_columns] if isinstance(y_columns, str) else y_columns
         series_levels = set(series_levels)
@@ -77,6 +80,8 @@ class Data:
         index = df.index.remove_unused_levels()
         levels = varying_levels(index)
         extra_levels = levels - series_levels - {x_level}
+        if box_plot:
+            extra_levels -= {box_plot}
 
         row_levels = extra_levels - column_levels
         column_levels = extra_levels & column_levels
@@ -87,6 +92,10 @@ class Data:
         series_level_list, series_keys = enumerate_keys(index, series_levels)
         plot_key_names = row_level_list + column_level_list
         series_key_names = plot_key_names + series_level_list
+
+        if box_plot:
+            series_key_names += [x_level]
+            x_keys = list(index.levels[index.names.index(x_level)])
 
         nrows = len(row_keys)
         ncols = len(column_keys) * len(y_columns)
@@ -110,12 +119,17 @@ class Data:
 
                     lines = []
                     for series in series_keys:
-                        selector = key_to_selector(index, series_key_names, plot_key + series)
-                        X = df.loc[selector, x_level]
-                        Y = df.loc[selector, y_column]
-                        lines += ax.plot(X, Y, style)
+                        if box_plot:
+                            samples = [df.loc[key_to_selector(index, series_key_names, plot_key + series + (x,)), y_column].values for x in x_keys]
+                            ax.boxplot(samples, labels=x_keys)
+                        else:
+                            selector = key_to_selector(index, series_key_names, plot_key + series)
+                            X = df.loc[selector, x_level]
+                            Y = df.loc[selector, y_column]
+                            lines += ax.plot(X, Y, style)
 
-        fig.legend(lines, map(lambda k: describe_key(series_level_list, k), series_keys), 'upper right')
+        if not box_plot:
+            fig.legend(lines, map(lambda k: describe_key(series_level_list, k), series_keys), 'upper right')
         fig.tight_layout(pad=0.5, h_pad=1, w_pad=0.5, rect=[0, 0, 1 - 1 / figsize[0], 1 - 0.8 / figsize[1]])
         if path is not None:
             fig.savefig(path)
@@ -294,10 +308,16 @@ class Loader:
         summary = self.average_repetitions(raw_summary)
         summary.sort_index(inplace=True)
 
+        monitor_columns = [column for column in list(raw_summary.columns) if column.startswith('monitor')]
+        raw_slices = raw_summary.loc[:, monitor_columns].stack()
+        raw_slices.index.rename('monitor', level=-1, inplace=True)
+        raw_slices.name = 'total_events'
+        slices = self.average_repetitions(raw_slices).to_frame()
+
         series = pd.concat(self.series_data, keys=self.series_keys, names=self.job_levels)
         series.sort_index(inplace=True)
 
-        return Data("Summary", summary), Data("Time series", series)
+        return Data("Summary", summary), Data("Slices", slices), Data("Time series", series)
 
     @classmethod
     def load(cls, paths):
@@ -310,7 +330,7 @@ class Loader:
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         paths = map(pathlib.Path, sys.argv[1:])
-        summary, series = Loader.load(paths)
+        summary, slices, series = Loader.load(paths)
 
         gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
         gen_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
@@ -320,6 +340,12 @@ if __name__ == '__main__':
 
         gen_formulas = summary.select(experiment='gen', tool='flink', checkpointing=True, statistics=False)
         gen_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas.pdf")
+
+        gen_slices = slices.select(experiment='gen', tool='flink', checkpointing=False, index_rate=1000)
+        gen_slices.plot('processors', 'total_events', column_levels=['formula'], box_plot='monitor', title="Slice sizes (synthetic)", path="gen_slices.pdf")
+
+        genh_slices = slices.select(experiment='genh3', tool='flink', checkpointing=True, event_rate=4000, index_rate=1000)
+        genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh3_slices.pdf")
 
         nokia_nproc = summary.select(experiment='nokia2', statistics=False)
         nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
