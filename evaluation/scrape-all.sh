@@ -11,6 +11,7 @@ TARGET_DIR=`pwd`
 
 # Nokia data range:
 $SCRIPT_DIR/scrape.sh 2018-06-22T22:00:00.000Z  2018-06-23T10:00:00.000Z nokia
+$SCRIPT_DIR/scrape.sh 2018-07-05T18:30:00.000Z  2018-07-06T05:00:00.000Z nokia-part2
 
 # Synthethic data range:
 $SCRIPT_DIR/scrape.sh 2018-06-24T09:00:00.000Z  2018-06-25T10:00:00.000Z synthethic
