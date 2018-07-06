@@ -5,13 +5,15 @@ source "$WORK_DIR/config.sh"
 
 REPETITIONS=3
 FORMULAS="script1 ins-1-2 del-1-2"
-ACCELERATIONS="500 1000 1500 2000 2500 3000 4000 5000"
-PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
+ACCELERATIONS="500 1000 1500 2000 2500 3000 3500 4000"
+PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 REPLAYER_QUEUE=1200
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
+
+echo "=== Nokia experiments ==="
 
 for formula in $FORMULAS; do
     echo "Computing initial state for $formula ..."
@@ -43,14 +45,9 @@ for formula in $FORMULAS; do
     done
 done
 
-# # Stop visual monitors if running
-# "$WORK_DIR/visual/stop.sh" > /dev/null
-# # start visual monitors
-# "$WORK_DIR/visual/start.sh" > /dev/null
-
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
-echo "Flink with Monpoly, no checkpointing:"
+echo "Flink without checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
     cpulist=${procs#*/}
@@ -67,9 +64,9 @@ for procs in $PROCESSORS; do
                 echo "        Repetition $i ..."
 
                 JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
-                DELAY_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_delay.txt"
-                TIME_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_time_{ID}.txt"
-                JOB_REPORT="$REPORT_DIR/nokia_flink_${numcpus}_${formula}_${acc}_${i}_job.txt"
+                DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                 rm "$VERDICT_FILE" 2> /dev/null
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
@@ -82,7 +79,7 @@ for procs in $PROCESSORS; do
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
 
-echo "Flink with Monpoly, checkpointing:"
+echo "Flink with checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
     cpulist=${procs#*/}
@@ -99,9 +96,9 @@ for procs in $PROCESSORS; do
                 echo "        Repetition $i ..."
 
                 JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}"
-                DELAY_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_delay.txt"
-                TIME_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_time_{ID}.txt"
-                JOB_REPORT="$REPORT_DIR/nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}_job.txt"
+                DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                 rm "$VERDICT_FILE" 2> /dev/null
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
@@ -117,7 +114,7 @@ done
 end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
 echo
-echo "Scraping metrics..."
+echo "Scraping metrics from $start_time to $end_time ..."
 (cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time nokia)
 
 echo

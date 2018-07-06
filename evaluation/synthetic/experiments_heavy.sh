@@ -5,15 +5,17 @@ source "$WORK_DIR/config.sh"
 
 REPETITIONS=3
 FORMULAS="star linear triangle"
-EVENT_RATES="2000 2800 4000"
+EVENT_RATES="2000 2500 3000 3500 4000 5000 6000 8000"
 INDEX_RATES="1000"
-HEAVY_SETS_NO_INFO="h0 h1 h2"
-HEAVY_SETS_INFO="h1 h2"
+HEAVY_SETS_NO_STATS="h0 h1"
+HEAVY_SETS_STATS="h1"
 PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 AUX_CPU_LIST="10-11,34-35"
 REPLAYER_QUEUE=1200
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
+
+echo "=== Synthetic experiments (heavy hitters) ==="
 
 make_log() {
     flag=$1
@@ -23,7 +25,7 @@ make_log() {
 
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -x 10 -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 60 > "$OUTPUT_DIR/genh3_${formula}_${heavy_set}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -x 10 -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 60 > "$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
         done
     done
 }
@@ -56,7 +58,7 @@ for procs in $PROCESSORS; do
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
 
     for formula in $FORMULAS; do
-        for heavy_set in $HEAVY_SETS_NO_INFO; do
+        for heavy_set in $HEAVY_SETS_NO_STATS; do
             echo "    Evaluating $formula ($heavy_set):"
             for er in $EVENT_RATES; do
                 for ir in $INDEX_RATES; do
@@ -64,9 +66,9 @@ for procs in $PROCESSORS; do
                     for i in $(seq 1 $REPETITIONS); do
                         echo "        Repetition $i ..."
 
-                        INPUT_FILE="$OUTPUT_DIR/genh3_${formula}_${heavy_set}_${er}_${ir}.csv"
+                        INPUT_FILE="$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
 
-                        JOB_NAME="genh3_flink_ft_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
+                        JOB_NAME="genh_flink_ft_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -93,7 +95,7 @@ for procs in $PROCESSORS; do
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
 
     for formula in $FORMULAS; do
-        for heavy_set in $HEAVY_SETS_INFO; do
+        for heavy_set in $HEAVY_SETS_STATS; do
             echo "    Evaluating $formula ($heavy_set):"
             for er in $EVENT_RATES; do
                 for ir in $INDEX_RATES; do
@@ -101,10 +103,10 @@ for procs in $PROCESSORS; do
                     for i in $(seq 1 $REPETITIONS); do
                         echo "        Repetition $i ..."
 
-                        INPUT_FILE="$OUTPUT_DIR/genh3_${formula}_${heavy_set}_${er}_${ir}.csv"
+                        INPUT_FILE="$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
                         HEAVY_FILE="$OUTPUT_DIR/heavy_${numcpus}_${formula}_${heavy_set}.csv"
 
-                        JOB_NAME="genh3_flink_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
+                        JOB_NAME="genh_flink_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -125,9 +127,8 @@ done
 end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
 echo
-#echo "Scraping metrics..."
-#(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time synthetic_heavy)
-echo "Metrics period: $start_time $end_time"
+echo "Scraping metrics from $start_time to $end_time ..."
+(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time gen_heavy)
 
 echo
 echo "Evaluation complete!"
