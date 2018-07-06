@@ -135,8 +135,8 @@ class Loader:
     summary_keys = []
     summary_data = []
 
-    latency_keys = []
-    latency_data = []
+    series_keys = []
+    series_data = []
 
     memory_keys = []
     memory_data = []
@@ -162,9 +162,9 @@ class Loader:
             self.summary_data.append(summary)
 
             start_timestamp = df.iloc[0].name - 1
-            latency = df.loc[:, 'peak'].rename(index = lambda timestamp: timestamp - start_timestamp)
-            self.latency_keys.append(key)
-            self.latency_data.append(latency)
+            series = df.rename(index = lambda timestamp: timestamp - start_timestamp)
+            self.series_keys.append(key)
+            self.series_data.append(series)
         else:
             self.warn_invalid_file(path)
 
@@ -185,9 +185,9 @@ class Loader:
             self.summary_keys.append(key)
             self.summary_data.append(summary)
 
-            latency = df.loc[:, 'peak'].copy()
-            self.latency_keys.append(key)
-            self.latency_data.append(latency)
+            series = df.copy()
+            self.series_keys.append(key)
+            self.series_data.append(series)
         else:
             self.warn_invalid_file(path)
 
@@ -294,10 +294,10 @@ class Loader:
         summary = self.average_repetitions(raw_summary)
         summary.sort_index(inplace=True)
 
-        latency = pd.concat(self.latency_data, keys=self.latency_keys, names=self.job_levels).to_frame()
-        latency.sort_index(inplace=True)
+        series = pd.concat(self.series_data, keys=self.series_keys, names=self.job_levels)
+        series.sort_index(inplace=True)
 
-        return Data("Summary", summary), Data("Peak latency", latency)
+        return Data("Summary", summary), Data("Time series", series)
 
     @classmethod
     def load(cls, paths):
@@ -310,7 +310,7 @@ class Loader:
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         paths = map(pathlib.Path, sys.argv[1:])
-        summary, latency = Loader.load(paths)
+        summary, series = Loader.load(paths)
 
         gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
         gen_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
@@ -327,7 +327,7 @@ if __name__ == '__main__':
         nokia_formulas = summary.select(experiment='nokia2', tool='flink', checkpointing=True, statistics=False)
         nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
 
-        nokia_series = latency.select(experiment='nokia2', statistics=False)
+        nokia_series = series.select(experiment='nokia2', statistics=False)
         nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
 
         gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
