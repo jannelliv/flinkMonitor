@@ -5,6 +5,7 @@ import numbers
 import pathlib
 import re
 import sys
+import textwrap
 
 import numpy as np
 import pandas as pd
@@ -25,10 +26,11 @@ def enumerate_keys(index, names):
     return name_list, list(itertools.product(*dimensions))
 
 def describe_key_value(name, value):
+    pretty_name = name.replace('_', ' ')
     if isinstance(value, bool):
-        return name if value else "no " + name
+        return pretty_name if value else "no " + pretty_name
     elif isinstance(value, numbers.Number):
-        return name + " " + str(value)
+        return pretty_name + " " + str(value)
     else:
         return str(value)
 
@@ -87,7 +89,8 @@ class Data:
                     plot_key = row_key + column_key
 
                     ax = axes[row, col]
-                    ax.set_title(describe_key(plot_key_names, plot_key), fontdict=self.subplot_font)
+                    plot_title = describe_key(plot_key_names, plot_key)
+                    ax.set_title('\n'.join(textwrap.wrap(plot_title, 40)), fontdict=self.subplot_font)
                     ax.set_xlabel(x_level)
                     ax.set_ylabel(y_column)
 
@@ -108,10 +111,12 @@ class Data:
 class Loader:
     job_levels = ['experiment', 'tool', 'checkpointing', 'statistics', 'processors', 'formula', 'heavy_hitters', 'event_rate', 'index_rate', 'repetition']
 
-    job_regex = r"(nokia|nokia2|gen|genh3)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)_\d_\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
+    job_regex = r"(nokia|nokia2|gen|genh3)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
+
+    delay_header = ['timestamp', 'current_indices', 'current_events', 'current_latency', 'peak', 'max', 'average']
 
     summary_keys = []
     summary_data = []
@@ -138,15 +143,35 @@ class Loader:
             self.summary_keys.append(key)
             self.summary_data.append(summary)
 
-            first_timestamp = df.iloc[0].name
-            latency = df.loc[:, 'peak'].rename(index = lambda timestamp: timestamp - first_timestamp)
+            start_timestamp = df.iloc[0].name - 1
+            latency = df.loc[:, 'peak'].rename(index = lambda timestamp: timestamp - start_timestamp)
             self.latency_keys.append(key)
             self.latency_data.append(latency)
         else:
             self.warn_invalid_file(path)
 
     def read_replayer_delay(self, key, path):
-        raise NotImplemented()
+        try:
+            with open(path, 'r') as f:
+                first_line = f.readline()
+                skip_rows = 1 if first_line and first_line.startswith("Client connected:") else 0
+            df = pd.read_csv(path, sep='\\s+', header=None, names=self.delay_header, index_col=0, skiprows=skip_rows)
+        except Exception as e:
+            raise Exception("Error while reading file " + str(entry)) from e
+
+        if df.shape[0] > 0:
+            df.loc[:, df.columns.intersection(['current_latency', 'peak', 'max', 'average'])] *= 1000.0
+            df.loc[:, 'peak'].replace(to_replace=0, inplace=True, method='ffill')
+
+            summary = df.loc[:, ['peak', 'max', 'average']].tail(1)
+            self.summary_keys.append(key)
+            self.summary_data.append(summary)
+
+            latency = df.loc[:, 'peak'].copy()
+            self.latency_keys.append(key)
+            self.latency_data.append(latency)
+        else:
+            self.warn_invalid_file(path)
 
     def read_file(self, path):
         metrics_match = self.metrics_pattern.fullmatch(path.name)
@@ -157,15 +182,41 @@ class Loader:
                 bool(metrics_match.group(3)),
                 bool(metrics_match.group(4)),
                 int(metrics_match.group(5)),
-                metrics_match.group(6),
+                metrics_match.group(6).replace('_', '-'),
                 int(metrics_match.group(7) or 0),
                 int(metrics_match.group(8)),
                 int(metrics_match.group(9) or 0),
                 int(metrics_match.group(10))
                 )
             self.read_metrics(key, path)
-        else:
-            self.warn_skipped_path(path)
+            return
+
+        delay_match = self.delay_pattern.fullmatch(path.name)
+        if delay_match:
+            if delay_match.group(2) != 'monpoly':
+                # NOTE: We silently ignore replayer data for non-Monpoly experiments.
+                return
+            key = (
+                'nokia2' if delay_match.group(1) == 'nokia' else delay_match.group(1),
+                delay_match.group(2),
+                bool(delay_match.group(3)),
+                bool(delay_match.group(4)),
+                int(delay_match.group(5) or 1),
+                delay_match.group(6),
+                int(delay_match.group(7) or 0),
+                int(delay_match.group(8)),
+                int(delay_match.group(9) or 0),
+                int(delay_match.group(10))
+                )
+            self.read_replayer_delay(key, path)
+            return
+
+        time_match = self.time_pattern.fullmatch(path.name)
+        if time_match:
+            # TODO
+            return
+
+        self.warn_skipped_path(path)
 
     def read_files(self, path):
         if path.is_file():
@@ -212,14 +263,14 @@ if __name__ == '__main__':
         gen_formulas = summary.select(experiment='gen', tool='flink', checkpointing=True, statistics=False)
         gen_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas.pdf")
 
-        nokia_nproc = summary.select(experiment='nokia', statistics=False)
+        nokia_nproc = summary.select(experiment='nokia2', statistics=False)
         nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
 
-        nokia_formulas = summary.select(experiment='nokia', tool='flink', checkpointing=True, statistics=False)
+        nokia_formulas = summary.select(experiment='nokia2', tool='flink', checkpointing=True, statistics=False)
         nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
 
-        nokia_series = latency.select(experiment='nokia', checkpointing=True, statistics=False)
-        nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['repetition'], style='-', title="Latency (Nokia, checkpointing)", path="nokia_series.pdf")
+        nokia_series = latency.select(experiment='nokia2', statistics=False)
+        nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)
