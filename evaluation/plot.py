@@ -53,9 +53,9 @@ class Data:
         view = self.df.loc[(experiment, tool, checkpointing, statistics, processors, formula, heavy_hitters, event_rate, index_rate, repetition), :]
         return Data(self.name, view)
 
-    def export(self, *columns, path=None):
+    def export(self, *columns, drop_levels=[], path=None):
         index = self.df.index.remove_unused_levels()
-        key_levels = varying_levels(index)
+        key_levels = varying_levels(index) - set(drop_levels)
         unused_levels = set(index.names) - key_levels
 
         columns = self.df.columns.intersection(columns)
@@ -358,6 +358,9 @@ if __name__ == '__main__':
 
         gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
         gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
+
+        genh_slices_export = slices.select(experiment='genh3', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
+        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh3_slices.csv")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)
