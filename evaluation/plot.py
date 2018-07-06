@@ -124,8 +124,12 @@ class Loader:
     latency_keys = []
     latency_data = []
 
+    memory_keys = []
+    memory_data = []
+
     def warn_skipped_path(self, path):
-        warn("Skipped " + str(path))
+        #warn("Skipped " + str(path))
+        pass
 
     def warn_invalid_file(self, path):
         warn("Invalid data in file " + str(path))
@@ -134,7 +138,7 @@ class Loader:
         try:
             df = pd.read_csv(path, header=0, index_col=0)
         except Exception as e:
-            raise Exception("Error while reading file " + str(entry)) from e
+            raise Exception("Error while reading file " + str(path)) from e
 
         if df.shape[0] > 0 and df.index.name == 'timestamp' and set(df.columns) >= {'peak', 'max', 'average'}:
             df.loc[:, 'peak'].replace(to_replace=0, inplace=True, method='ffill')
@@ -157,7 +161,7 @@ class Loader:
                 skip_rows = 1 if first_line and first_line.startswith("Client connected:") else 0
             df = pd.read_csv(path, sep='\\s+', header=None, names=self.delay_header, index_col=0, skiprows=skip_rows)
         except Exception as e:
-            raise Exception("Error while reading file " + str(entry)) from e
+            raise Exception("Error while reading file " + str(path)) from e
 
         if df.shape[0] > 0:
             df.loc[:, df.columns.intersection(['current_latency', 'peak', 'max', 'average'])] *= 1000.0
@@ -172,6 +176,21 @@ class Loader:
             self.latency_data.append(latency)
         else:
             self.warn_invalid_file(path)
+
+    def read_memory(self, key, monitor_index, path):
+        try:
+            with open(path, 'r') as f:
+                first_line = f.readline()
+                if not first_line or ';' not in first_line:
+                    self.warn_invalid_file(path)
+                    return
+                memory_usage = np.int32(first_line.split(';', 1)[1])
+        except Exception as e:
+            raise Exception("Error while reading file " + str(path)) from e
+
+        memory = pd.DataFrame([memory_usage], index=pd.Index([monitor_index], name='monitor'), columns=['memory'])
+        self.memory_keys.append(key)
+        self.memory_data.append(memory)
 
     def read_file(self, path):
         metrics_match = self.metrics_pattern.fullmatch(path.name)
@@ -213,7 +232,20 @@ class Loader:
 
         time_match = self.time_pattern.fullmatch(path.name)
         if time_match:
-            # TODO
+            key = (
+                'nokia2' if time_match.group(1) == 'nokia' and time_match.group(2) == 'monpoly' else time_match.group(1),
+                time_match.group(2),
+                bool(time_match.group(3)),
+                bool(time_match.group(4)),
+                int(time_match.group(5) or 1),
+                time_match.group(6),
+                int(time_match.group(7) or 0),
+                int(time_match.group(8)),
+                int(time_match.group(9) or 0),
+                int(time_match.group(10))
+                )
+            monitor_index = int(time_match.group(11) or 0)
+            self.read_memory(key, monitor_index, path)
             return
 
         self.warn_skipped_path(path)
@@ -228,16 +260,25 @@ class Loader:
         else:
             self.warn_skipped_path(path)
 
+    def max_memory(self, df):
+        group_levels = list(df.index.names)
+        group_levels.remove('monitor')
+        return df.groupby(level=group_levels).max()
+
     def average_repetitions(self, df):
         group_levels = list(df.index.names)
         group_levels.remove('repetition')
         return df.groupby(level=group_levels).mean()
 
     def process(self):
+        raw_memory = pd.concat(self.memory_data, keys=self.memory_keys, names=self.job_levels)
+        memory = self.max_memory(raw_memory)
+
         raw_summary = pd.concat(self.summary_data, keys=self.summary_keys, names=self.job_levels)
         raw_summary.reset_index('timestamp', drop=True, inplace=True)
-        raw_summary.sort_index(inplace=True)
+        raw_summary = raw_summary.merge(memory, 'outer', left_index=True, right_index=True)
         summary = self.average_repetitions(raw_summary)
+        summary.sort_index(inplace=True)
 
         latency = pd.concat(self.latency_data, keys=self.latency_keys, names=self.job_levels).to_frame()
         latency.sort_index(inplace=True)
@@ -259,6 +300,9 @@ if __name__ == '__main__':
 
         gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
         gen_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
+
+        gen_memory = summary.select(experiment='gen', checkpointing=False, statistics=False, index_rate=1000)
+        gen_memory.plot('event_rate', 'memory', series_levels=['tool', 'processors'], column_levels=['formula'], title="Max. monitor memory (synthetic, 1000)" , path="gen_memory.pdf")
 
         gen_formulas = summary.select(experiment='gen', tool='flink', checkpointing=True, statistics=False)
         gen_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas.pdf")
