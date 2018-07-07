@@ -288,7 +288,7 @@ class Loader:
         raw_memory = pd.concat(self.memory_data, keys=self.memory_keys, names=self.job_levels)
         memory = self.max_memory(raw_memory)
 
-        raw_summary = pd.concat(self.summary_data, keys=self.summary_keys, names=self.job_levels)
+        raw_summary = pd.concat(self.summary_data, sort=True, keys=self.summary_keys, names=self.job_levels)
         raw_summary.reset_index('timestamp', drop=True, inplace=True)
         raw_summary = raw_summary.merge(memory, 'outer', left_index=True, right_index=True)
         summary = self.average_repetitions(raw_summary)
@@ -312,26 +312,45 @@ if __name__ == '__main__':
         paths = map(pathlib.Path, sys.argv[1:])
         summary, latency = Loader.load(paths)
 
-        gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
-        gen_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
+        # gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
+        # gen_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
 
-        gen_memory = summary.select(experiment='gen', checkpointing=False, statistics=False, index_rate=1000)
-        gen_memory.plot('event_rate', 'memory', series_levels=['tool', 'processors'], column_levels=['formula'], title="Max. monitor memory (synthetic, 1000)" , path="gen_memory.pdf")
+        # gen_memory = summary.select(experiment='gen', checkpointing=False, statistics=False, index_rate=1000)
+        # gen_memory.plot('event_rate', 'memory', series_levels=['tool', 'processors'], column_levels=['formula'], title="Max. monitor memory (synthetic, 1000)" , path="gen_memory.pdf")
 
-        gen_formulas = summary.select(experiment='gen', tool='flink', checkpointing=True, statistics=False)
-        gen_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas.pdf")
+        # gen_formulas = summary.select(experiment='gen', tool='flink', checkpointing=True, statistics=False)
+        # gen_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas.pdf")
 
-        nokia_nproc = summary.select(experiment='nokia2', statistics=False)
-        nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
+        # nokia_nproc = summary.select(experiment='nokia2', statistics=False)
+        # nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
 
-        nokia_formulas = summary.select(experiment='nokia2', tool='flink', checkpointing=True, statistics=False)
-        nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
+        # nokia_formulas = summary.select(experiment='nokia2', tool='flink', checkpointing=True, statistics=False)
+        # nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
 
-        nokia_series = latency.select(experiment='nokia2', statistics=False)
-        nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
+        # nokia_series = latency.select(experiment='nokia2', statistics=False)
+        # nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
 
-        gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
-        gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
+        # gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
+        # gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
+
+        # gen_nproc_export = summary.select()
+        # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="all.csv")
+
+        #plot1
+        # gen_nproc_export = summary.select(experiment='gen',checkpointing=True)
+        # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
+
+        #plot2
+        # nokia_nproc = summary.select(experiment='nokia2', statistics=False)
+        # nokia_nproc.export('max', 'peak', 'average', 'memory', path="plot-nokia.csv")
+
+        #plot3
+        nokia_series = latency.select(experiment='nokia2', checkpointing=False, repetition=2, statistics=False)
+        nokia_series.export('peak', path="plot-nokia-time-f.csv")
+
+        nokia_series = latency.select(experiment='nokia2', checkpointing=True, repetition=2, statistics=False)
+        nokia_series.export('peak', path="plot-nokia-time-t.csv")
+
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)
