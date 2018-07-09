@@ -139,7 +139,7 @@ class Data:
 class Loader:
     job_levels = ['experiment', 'tool', 'checkpointing', 'statistics', 'processors', 'formula', 'heavy_hitters', 'event_rate', 'index_rate', 'repetition']
 
-    job_regex = r"(nokia|gen|genh3)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
+    job_regex = r"(nokia|gen|genh)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
@@ -344,8 +344,8 @@ if __name__ == '__main__':
         gen_slices = slices.select(experiment='gen', tool='flink', checkpointing=False, index_rate=1000)
         gen_slices.plot('processors', 'total_events', column_levels=['formula'], box_plot='monitor', title="Slice sizes (synthetic)", path="gen_slices.pdf")
 
-        genh_slices = slices.select(experiment='genh3', tool='flink', checkpointing=True, event_rate=4000, index_rate=1000)
-        genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh3_slices.pdf")
+        genh_slices = slices.select(experiment='genh', tool='flink', checkpointing=True, event_rate=4000, index_rate=1000)
+        genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh_slices.pdf")
 
         nokia_nproc = summary.select(experiment='nokia', statistics=False)
         nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
@@ -359,8 +359,8 @@ if __name__ == '__main__':
         gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
         gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
 
-        genh_slices_export = slices.select(experiment='genh3', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh3_slices.csv")
+        genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
+        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)
