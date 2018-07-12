@@ -139,7 +139,7 @@ class Data:
 class Loader:
     job_levels = ['experiment', 'tool', 'checkpointing', 'statistics', 'processors', 'formula', 'heavy_hitters', 'event_rate', 'index_rate', 'repetition']
 
-    job_regex = r"(nokia|nokia2|gen|genh3)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
+    job_regex = r"(nokia|gen|genh3)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
@@ -244,7 +244,7 @@ class Loader:
                 # NOTE: We silently ignore replayer data for non-Monpoly experiments.
                 return
             key = (
-                'nokia2' if delay_match.group(1) == 'nokia' else delay_match.group(1),
+                delay_match.group(1),
                 delay_match.group(2),
                 bool(delay_match.group(3)),
                 bool(delay_match.group(4)),
@@ -261,7 +261,7 @@ class Loader:
         time_match = self.time_pattern.fullmatch(path.name)
         if time_match:
             key = (
-                'nokia2' if time_match.group(1) == 'nokia' and time_match.group(2) == 'monpoly' else time_match.group(1),
+                time_match.group(1),
                 time_match.group(2),
                 bool(time_match.group(3)),
                 bool(time_match.group(4)),
@@ -344,15 +344,24 @@ if __name__ == '__main__':
         # nokia_nproc = summary.select(experiment='nokia2', statistics=False)
         # nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
 
-        # nokia_formulas = summary.select(experiment='nokia2', tool='flink', checkpointing=True, statistics=False)
-        # nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
+        # nokia_nproc = summary.select(experiment='nokia', statistics=False)
+        # nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
 
         # nokia_series = latency.select(experiment='nokia2', statistics=False)
         # nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
 
-        # gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
-        # gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
+        # nokia_series = series.select(experiment='nokia', statistics=False)
+        # nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
+
+        # # gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
+        # # gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
         
+
+        # # nokia_formulas = summary.select(experiment='nokia2', tool='flink', checkpointing=True, statistics=False)
+        # # nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
+
+        # nokia_formulas = summary.select(experiment='nokia', tool='flink', checkpointing=True, statistics=False)
+        # nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
 
         # ALL
         # gen_nproc_export = summary.select()
@@ -381,8 +390,8 @@ if __name__ == '__main__':
         # genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh3_slices.pdf")
     
         # PLOT5
-        genh_slices_export = slices.select(experiment='genh3', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh3_slices.csv")
+        # genh_slices_export = slices.select(experiment='genh3', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
+        # genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh3_slices.csv")
 
 
     else:
