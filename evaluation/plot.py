@@ -356,7 +356,7 @@ if __name__ == '__main__':
         # gen_slices = slices.select(experiment='gen', tool='flink', checkpointing=False, index_rate=1000)
         # gen_slices.plot('processors', 'total_events', column_levels=['formula'], box_plot='monitor', title="Slice sizes (synthetic)", path="gen_slices.pdf")
 
-        # genh_slices = slices.select(experiment='genh3', tool='flink', checkpointing=True, event_rate=4000, index_rate=1000)
+        # genh_slices = slices.select(experiment='genh', tool='flink', checkpointing=True, event_rate=4000, index_rate=1000)
         # genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh3_slices.pdf")
 
 
@@ -385,8 +385,7 @@ if __name__ == '__main__':
     
         # PLOT5
         genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh3_slices.csv")
-
+        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
 
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
