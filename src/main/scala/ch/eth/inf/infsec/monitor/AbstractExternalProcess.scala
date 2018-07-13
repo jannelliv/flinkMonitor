@@ -34,7 +34,8 @@ abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT]
 
   override def dispose(): Unit = {
     try {
-      process.destroy()
+      if (process != null)
+        process.destroy()
     } finally {
       process = null
       writer = null
