@@ -470,7 +470,6 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     def interruptAndStop(): Unit = {
       running = false
       interrupt()
-      join()
     }
   }
 
