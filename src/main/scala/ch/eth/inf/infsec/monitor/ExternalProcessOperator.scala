@@ -182,17 +182,23 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
                 process.readResults(buffer)
                 for (result <- buffer)
                   postprocessing.process(result, r =>
-                    resultQueue.add(OutputItem(outputRecord(record.asRecord(), r))))
+                    resultQueue.add(OutputItem(outputRecord(record, r))))
                 resultQueue.add(OutputSeparatorItem())
               } finally {
                 buffer.clear()
               }
+
             case mark@WatermarkItem(_) => resultQueue.add(mark)
             case marker@LatencyMarkerItem(_) => resultQueue.add(marker)
             case SnapshotRequestItem() =>
               resultQueue.add(SnapshotResultItem(process.readSnapshot()))
               snapshotReady.release()
             case shutdown@ShutdownItem() =>
+              process.drainResults(buffer)
+              for (result <- buffer)
+                postprocessing.process(result, r =>
+                  resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
+
               postprocessing.terminate(r =>
                 resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
               resultQueue.add(OutputSeparatorItem())
@@ -425,7 +431,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     }
   }
 
-  private def outputRecord(input: StreamRecord[IN], value: OUT): StreamRecord[OUT] =
+  private def outputRecord[T](input: StreamRecord[T], value: OUT): StreamRecord[OUT] =
     if (input.hasTimestamp)
       new StreamRecord[OUT](value, input.getTimestamp)
     else

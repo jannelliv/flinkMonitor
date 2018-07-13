@@ -15,6 +15,7 @@ trait ExternalProcess[IN, OUT] extends Serializable {
 
   // Output functions
   def readResults(buffer: mutable.Buffer[OUT]): Unit
+  def drainResults(buffer: mutable.Buffer[OUT]): Unit
   def readSnapshot(): Array[Byte]
   def join(): Unit
 

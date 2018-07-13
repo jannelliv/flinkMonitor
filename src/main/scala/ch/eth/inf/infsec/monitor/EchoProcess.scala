@@ -20,5 +20,7 @@ class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[Stri
       buffer += line
   }
 
+  override def drainResults(buffer: mutable.Buffer[String]): Unit = readResults(buffer)
+
   override def readSnapshot(): Array[Byte] = Array.emptyByteArray
 }

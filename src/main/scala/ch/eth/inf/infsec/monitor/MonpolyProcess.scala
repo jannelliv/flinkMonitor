@@ -64,6 +64,18 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     } while (more)
   }
 
+  override def drainResults(buffer: mutable.Buffer[String]): Unit = {
+    var more = true
+    do {
+      val line = reader.readLine()
+      if (line == null)
+        more = false
+      else
+      // TODO(JS): Check that line is a verdict before adding it to the buffer.
+        buffer += line
+    } while (more)
+  }
+
   override def readSnapshot(): Array[Byte] = {
     val line = reader.readLine()
     if (line != SAVE_STATE_OK)
