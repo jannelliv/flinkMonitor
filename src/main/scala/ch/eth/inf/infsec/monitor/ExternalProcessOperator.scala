@@ -62,8 +62,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   @transient private var requestQueue: LinkedBlockingQueue[PendingRequest] = _
   @transient private var processingQueue: LinkedBlockingQueue[PendingRequest] = _
-  @transient private var resultLock: Object = _
-  @transient private var resultQueue: util.ArrayDeque[PendingResult] = _
+  @transient private var resultQueue: LinkedBlockingQueue[PendingResult] = _
 
   @transient private var snapshotReady: Semaphore = _
 
@@ -94,8 +93,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     taskLock = getContainingTask.getCheckpointLock
     requestQueue = new LinkedBlockingQueue[PendingRequest]()
     processingQueue = new LinkedBlockingQueue[PendingRequest]()
-    resultLock = new Object
-    resultQueue = new util.ArrayDeque[PendingResult]()
+    resultQueue = new LinkedBlockingQueue[PendingResult]()
     snapshotReady = new Semaphore(0)
 
     val preprocessingType = TypeInformation.of(new TypeHint[preprocessing.State]() {})
@@ -174,39 +172,35 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
       override def handle(): Unit = {
         val request = processingQueue.take()
-        // FIXME(JS): Do more fine-grained locking; some of the calls below might be blocking!
-        resultLock.synchronized {
-          request match {
-            case InputItem(record) =>
-              try {
-                process.readResults(buffer)
-                for (result <- buffer)
-                  postprocessing.process(result, r =>
-                    resultQueue.add(OutputItem(outputRecord(record, r))))
-                resultQueue.add(OutputSeparatorItem())
-              } finally {
-                buffer.clear()
-              }
-
-            case mark@WatermarkItem(_) => resultQueue.add(mark)
-            case marker@LatencyMarkerItem(_) => resultQueue.add(marker)
-            case SnapshotRequestItem() =>
-              resultQueue.add(SnapshotResultItem(process.readSnapshot()))
-              snapshotReady.release()
-            case shutdown@ShutdownItem() =>
-              process.drainResults(buffer)
+        request match {
+          case InputItem(record) =>
+            try {
+              process.readResults(buffer)
               for (result <- buffer)
                 postprocessing.process(result, r =>
-                  resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
+                  resultQueue.put(OutputItem(outputRecord(record, r))))
+              resultQueue.put(OutputSeparatorItem())
+            } finally {
+              buffer.clear()
+            }
 
-              postprocessing.terminate(r =>
-                resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
-              resultQueue.add(OutputSeparatorItem())
-              process.join()
-              resultQueue.add(shutdown)
-              running = false
-          }
-          resultLock.notifyAll()
+          case mark@WatermarkItem(_) => resultQueue.put(mark)
+          case marker@LatencyMarkerItem(_) => resultQueue.put(marker)
+          case SnapshotRequestItem() =>
+            resultQueue.put(SnapshotResultItem(process.readSnapshot()))
+            snapshotReady.release()
+          case shutdown@ShutdownItem() =>
+            process.drainResults(buffer)
+            for (result <- buffer)
+              postprocessing.process(result, r =>
+                resultQueue.put(OutputItem(new StreamRecord[OUT](r))))
+
+            postprocessing.terminate(r =>
+              resultQueue.put(OutputItem(new StreamRecord[OUT](r))))
+            resultQueue.put(OutputSeparatorItem())
+            process.join()
+            resultQueue.put(shutdown)
+            running = false
         }
       }
     }
@@ -214,20 +208,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     emitterThread = new ServiceThread {
       override def handle(): Unit = {
-        resultLock.synchronized {
-          while (resultQueue.isEmpty)
-            resultLock.wait()
-        }
-
-        if (!running)
-          return
-
+        val result = resultQueue.take()
         taskLock.synchronized {
-          var result: PendingResult = null
-          resultLock.synchronized {
-            result = resultQueue.removeFirst()
-          }
-
           // TODO(JS): In AsyncWaitOperator, a TimestampedCollector is used, which recycles a single record object.
           // Do we want to do the same here?
           result match {
@@ -354,19 +336,17 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     try {
       var gotSnapshot = false
 
-      resultLock.synchronized {
-        for (result: PendingResult <- resultQueue) {
-          assert(!gotSnapshot)
-          result match {
-            case OutputItem(_) => resultState.add(result)
-            case OutputSeparatorItem() => resultState.add(result)
-            case WatermarkItem(_) => resultState.add(result)
-            case LatencyMarkerItem(_) => resultState.add(result)
-            case SnapshotResultItem(state) =>
-              processState.update(state)
-              gotSnapshot = true
-            case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
-          }
+      for (result: PendingResult <- resultQueue) {
+        assert(!gotSnapshot)
+        result match {
+          case OutputItem(_) => resultState.add(result)
+          case OutputSeparatorItem() => resultState.add(result)
+          case WatermarkItem(_) => resultState.add(result)
+          case LatencyMarkerItem(_) => resultState.add(result)
+          case SnapshotResultItem(state) =>
+            processState.update(state)
+            gotSnapshot = true
+          case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
         }
       }
       assert(gotSnapshot)
