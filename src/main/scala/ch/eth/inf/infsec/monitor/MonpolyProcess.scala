@@ -53,13 +53,11 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     var more = true
     do {
       val line = reader.readLine()
-      if (line != null) {
-        if (line.startsWith(GET_INDEX_PREFIX)) {
+      if (line == null || line.startsWith(GET_INDEX_PREFIX)) {
           more = false
-        } else {
-          // TODO(JS): Check that line is a verdict before adding it to the buffer.
-          buffer += line
-        }
+      } else {
+        // TODO(JS): Check that line is a verdict before adding it to the buffer.
+        buffer += line
       }
     } while (more)
   }

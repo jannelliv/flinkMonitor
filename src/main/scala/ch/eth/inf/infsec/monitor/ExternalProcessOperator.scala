@@ -417,8 +417,6 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     getContainingTask.getEnvironment.failExternally(throwable)
   }
 
-  // FIXME(JS): If the process dies, we might get stuck in taskLock.wait(), even though Flink is trying to cancel
-  // the task.
   private def enqueueRequest(request: PendingRequest): Unit = {
     assert(Thread.holdsLock(taskLock))
     waitingRequest = request
