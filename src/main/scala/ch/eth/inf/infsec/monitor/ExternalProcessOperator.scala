@@ -42,6 +42,8 @@ private case class ShutdownItem() extends PendingRequest with PendingResult
 
 
 // TODO(JS): Limit the capacity of the resultQueue for backpressure towards the external process.
+// TODO(JS): One could also consider removing the resultQueue and merging the reader and emitter threads. However, it
+// is not obvious how the synchronization during snapshotting would work.
 class ExternalProcessOperator[IN, PIN, POUT, OUT](
   partitionMapping: Int => Int,
   preprocessing: Processor[IN, PIN],
@@ -62,7 +64,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   @transient private var requestQueue: LinkedBlockingQueue[PendingRequest] = _
   @transient private var processingQueue: LinkedBlockingQueue[PendingRequest] = _
-  @transient private var resultQueue: LinkedBlockingQueue[PendingResult] = _
+  @transient private var resultLock: Object = _
+  @transient private var resultQueue: util.ArrayDeque[PendingResult] = _
 
   @transient private var snapshotReady: Semaphore = _
 
@@ -93,7 +96,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     taskLock = getContainingTask.getCheckpointLock
     requestQueue = new LinkedBlockingQueue[PendingRequest]()
     processingQueue = new LinkedBlockingQueue[PendingRequest]()
-    resultQueue = new LinkedBlockingQueue[PendingResult]()
+    resultLock = new Object()
+    resultQueue = new util.ArrayDeque[PendingResult]()
     snapshotReady = new Semaphore(0)
 
     val preprocessingType = TypeInformation.of(new TypeHint[preprocessing.State]() {})
@@ -170,36 +174,49 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     readerThread = new ServiceThread {
       private var buffer = new ArrayBuffer[POUT]()
 
+      private def putResult(result: PendingResult): Unit = resultLock.synchronized {
+        resultQueue.add(result)
+        resultLock.notifyAll()
+      }
+
       override def handle(): Unit = {
         val request = processingQueue.take()
         request match {
           case InputItem(record) =>
             try {
               process.readResults(buffer)
-              for (result <- buffer)
-                postprocessing.process(result, r =>
-                  resultQueue.put(OutputItem(outputRecord(record, r))))
-              resultQueue.put(OutputSeparatorItem())
+              resultLock.synchronized {
+                for (result <- buffer)
+                  postprocessing.process(
+                    result, r =>
+                      resultQueue.add(OutputItem(outputRecord(record, r))))
+                resultQueue.add(OutputSeparatorItem())
+                resultLock.notifyAll()
+              }
             } finally {
               buffer.clear()
             }
 
-          case mark@WatermarkItem(_) => resultQueue.put(mark)
-          case marker@LatencyMarkerItem(_) => resultQueue.put(marker)
+          case mark@WatermarkItem(_) => putResult(mark)
+          case marker@LatencyMarkerItem(_) => putResult(marker)
           case SnapshotRequestItem() =>
-            resultQueue.put(SnapshotResultItem(process.readSnapshot()))
+            putResult(SnapshotResultItem(process.readSnapshot()))
             snapshotReady.release()
           case shutdown@ShutdownItem() =>
             process.drainResults(buffer)
-            for (result <- buffer)
-              postprocessing.process(result, r =>
-                resultQueue.put(OutputItem(new StreamRecord[OUT](r))))
 
-            postprocessing.terminate(r =>
-              resultQueue.put(OutputItem(new StreamRecord[OUT](r))))
-            resultQueue.put(OutputSeparatorItem())
+            resultLock.synchronized {
+              for (result <- buffer)
+                postprocessing.process(
+                  result, r =>
+                    resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
+              postprocessing.terminate(r =>
+                resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
+              resultQueue.add(OutputSeparatorItem())
+              resultLock.notifyAll()
+            }
             process.join()
-            resultQueue.put(shutdown)
+            putResult(shutdown)
             running = false
         }
       }
@@ -208,8 +225,22 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     emitterThread = new ServiceThread {
       override def handle(): Unit = {
-        val result = resultQueue.take()
+        var result = null
+        resultLock.synchronized {
+          while (resultQueue.isEmpty)
+            resultLock.wait()
+        }
+
         taskLock.synchronized {
+          var result: PendingResult = null
+          resultLock.synchronized {
+            if (resultQueue.isEmpty)
+              return
+            result = resultQueue.removeFirst()
+          }
+          if (result == null)
+            return
+
           // TODO(JS): In AsyncWaitOperator, a TimestampedCollector is used, which recycles a single record object.
           // Do we want to do the same here?
           result match {
@@ -336,17 +367,19 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     try {
       var gotSnapshot = false
 
-      for (result: PendingResult <- resultQueue) {
-        assert(!gotSnapshot)
-        result match {
-          case OutputItem(_) => resultState.add(result)
-          case OutputSeparatorItem() => resultState.add(result)
-          case WatermarkItem(_) => resultState.add(result)
-          case LatencyMarkerItem(_) => resultState.add(result)
-          case SnapshotResultItem(state) =>
-            processState.update(state)
-            gotSnapshot = true
-          case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
+      resultLock.synchronized {
+        for (result: PendingResult <- resultQueue) {
+          assert(!gotSnapshot)
+          result match {
+            case OutputItem(_) => resultState.add(result)
+            case OutputSeparatorItem() => resultState.add(result)
+            case WatermarkItem(_) => resultState.add(result)
+            case LatencyMarkerItem(_) => resultState.add(result)
+            case SnapshotResultItem(state) =>
+              processState.update(state)
+              gotSnapshot = true
+            case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
+          }
         }
       }
       assert(gotSnapshot)
