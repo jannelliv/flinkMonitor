@@ -6,6 +6,7 @@ import ch.eth.inf.infsec.slicer.ColissionlessKeyGenerator
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.serialization.SimpleStringSchema
+import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.io.{TextInputFormat, TextOutputFormat}
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
@@ -138,8 +139,6 @@ object StreamMonitoring {
     env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
     env.setParallelism(1)
 
-    val sliceMapping = ColissionlessKeyGenerator.getMapping(processors)
-
     //Single node
     val textStream = in match {
       case Some(Left((h, p))) => LatencyTrackingExtensions.addSourceWithProvidedMarkers(
@@ -162,13 +161,11 @@ object StreamMonitoring {
 
     val slicedTrace = parsedTrace
       .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
-      .map(x => (sliceMapping(x._1), x._2)).name("Key remapper").uid("key-remapper")
-      .keyBy(x => x._1)
+      .partitionCustom(new IdPartitioner, 0)
 
     // Parallel node
     // TODO(JS): Timeout? Capacity?
-    val verdicts = ExternalProcessOperator.transform[(Int, Record), Int, String, String, String](
-      sliceMapping,
+    val verdicts = ExternalProcessOperator.transform[(Int, Record), String, String, String](
       slicedTrace,
       new KeyedMonpolyPrinter[Int],
       process,
