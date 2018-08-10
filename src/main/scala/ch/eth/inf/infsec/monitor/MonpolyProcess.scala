@@ -1,7 +1,9 @@
 package ch.eth.inf.infsec.monitor
 
 import java.nio.file.{Files, Path}
+import java.util
 
+import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
 class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[String, String] {
@@ -16,6 +18,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
   @transient private var tempDirectory: Path = _
   @transient private var tempStateFile: Path = _
+  @transient private var tempStateFiles: util.LinkedList[Path] = _
 
   override def open(): Unit = {
     createTempFile()
@@ -25,6 +28,24 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   override def open(initialState: Array[Byte]): Unit = {
     createTempFile()
     Files.write(tempStateFile, initialState)
+
+    val loadCommand = command ++ List("-load", tempStateFile.toString)
+    try {
+      open(loadCommand)
+      val reply = reader.readLine()
+      if (reply != LOAD_STATE_OK)
+        throw new Exception("Monitor process failed to load state. Reply: " + reply)
+    } finally {
+      Files.delete(tempStateFile)
+    }
+  }
+
+  override def open(initialStates: Iterable[(Int, Array[Byte])]): Unit = {
+    createTempFiles(initialStates.size)
+
+    val states = initialStates.to[util.LinkedList]
+
+    for(file <- tempStateFiles) Files.write(file, states.pop._2)
 
     val loadCommand = command ++ List("-load", tempStateFile.toString)
     try {
@@ -96,5 +117,31 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     tempDirectory.toFile.deleteOnExit()
     tempStateFile = tempDirectory.resolve("state.bin")
     tempStateFile.toFile.deleteOnExit()
+  }
+
+
+  override def readSnapshots(): Iterable[(Int, Array[Byte])] = {
+    val line = reader.readLine()
+    if (line != SAVE_STATE_OK)
+      throw new Exception("Monitor process failed to save state. Reply: " + line)
+
+    var states = new ListSet[(Int, Array[Byte])]
+    var i = 0
+    for (file <- tempStateFiles){
+      states += ((i, Files.readAllBytes(file)))
+      Files.delete(file)
+      i+=1
+    }
+    states
+  }
+
+  private def createTempFiles(parallelism: Int): Unit = {
+    tempDirectory = Files.createTempDirectory("monpoly-state")
+    tempDirectory.toFile.deleteOnExit()
+    for (i <- parallelism) {
+      val tmp = tempDirectory.resolve("state-" + i + ".bin")
+      tmp.toFile.deleteOnExit()
+      tempStateFiles.add(tmp)
+    }
   }
 }
