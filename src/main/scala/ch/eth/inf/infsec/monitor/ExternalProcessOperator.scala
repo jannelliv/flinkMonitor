@@ -51,7 +51,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   postprocessing: Processor[POUT, OUT],
   timeout: Long,
   capacity: Int)
-  extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] with CheckpointedFunction {
+  extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
 
   require(capacity > 0)
 
@@ -88,7 +88,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   @transient private var emitterThread: ServiceThread = _
 
   override def setup(
-    containingTask: StreamTask[_, _ <: StreamOperator[_]],
+    containingTask: StreamTask[_, _],
     config: StreamConfig,
     output: Output[StreamRecord[OUT]]): Unit = {
 
@@ -319,7 +319,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       throw exception
   }
 
-  override def snapshotState(context: FunctionSnapshotContext): Unit = {
+  override def snapshotState(context: StateSnapshotContext): Unit = {
     super.snapshotState(context)
     assert(Thread.holdsLock(taskLock))
 
@@ -381,7 +381,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     }
   }
 
-  override def initializeState(context: FunctionInitializationContext): Unit = {
+  override def initializeState(context: StateInitializationContext): Unit = {
     super.initializeState(context)
 
     preprocessingState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[preprocessing.State](

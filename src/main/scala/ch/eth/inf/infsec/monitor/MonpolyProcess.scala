@@ -1,7 +1,6 @@
 package ch.eth.inf.infsec.monitor
 
 import java.nio.file.{Files, Path}
-import java.util
 
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
@@ -18,7 +17,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
   @transient private var tempDirectory: Path = _
   @transient private var tempStateFile: Path = _
-  @transient private var tempStateFiles: util.LinkedList[Path] = _
+  @transient private var tempStateFiles: ListSet[Path] = _
 
   override def open(): Unit = {
     createTempFile()
@@ -43,9 +42,11 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   override def open(initialStates: Iterable[(Int, Array[Byte])]): Unit = {
     createTempFiles(initialStates.size)
 
-    val states = initialStates.to[util.LinkedList]
-
-    for(file <- tempStateFiles) Files.write(file, states.pop._2)
+    var states = initialStates
+    for(file <- tempStateFiles) {
+      Files.write(file, states.head._2)
+      states = states.tail
+    }
 
     val loadCommand = command ++ List("-load", tempStateFile.toString)
     try {
@@ -127,6 +128,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
     var states = new ListSet[(Int, Array[Byte])]
     var i = 0
+
     for (file <- tempStateFiles){
       states += ((i, Files.readAllBytes(file)))
       Files.delete(file)
@@ -138,10 +140,13 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   private def createTempFiles(parallelism: Int): Unit = {
     tempDirectory = Files.createTempDirectory("monpoly-state")
     tempDirectory.toFile.deleteOnExit()
-    for (i <- parallelism) {
+
+    var i = 0
+    while(i < parallelism){
       val tmp = tempDirectory.resolve("state-" + i + ".bin")
       tmp.toFile.deleteOnExit()
-      tempStateFiles.add(tmp)
+      tempStateFiles += tmp
+      i += 1
     }
   }
 }
