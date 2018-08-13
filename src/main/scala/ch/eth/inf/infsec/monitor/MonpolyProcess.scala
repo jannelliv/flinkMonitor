@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec.monitor
 
 import java.nio.file.{Files, Path}
+import java.io.File
 
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
@@ -127,12 +128,11 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
       throw new Exception("Monitor process failed to save state. Reply: " + line)
 
     var states = new ListSet[(Int, Array[Byte])]
-    var i = 0
 
-    for (file <- tempStateFiles){
-      states += ((i, Files.readAllBytes(file)))
-      Files.delete(file)
-      i+=1
+    val files = getFilesOfStates(tempDirectory.toFile, "bin")
+    for(file <- files){
+      val tuple = (extractPartitionDigits(file.getName), Files.readAllBytes(file.toPath))
+      states += tuple
     }
     states
   }
@@ -148,5 +148,15 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
       tempStateFiles += tmp
       i += 1
     }
+  }
+
+  private def getFilesOfStates(dir: File, extension: String): List[File] = {
+    if (dir.exists && dir.isDirectory)
+      dir.listFiles.filter(_.isFile).toList.filter {file => file.getName.endsWith(extension)}
+    else throw new Exception("File does not exist or is not a directory")
+  }
+
+  private def extractPartitionDigits(str: String): Int = {
+      Integer.parseInt(str.replaceAll("\\D+",""))
   }
 }
