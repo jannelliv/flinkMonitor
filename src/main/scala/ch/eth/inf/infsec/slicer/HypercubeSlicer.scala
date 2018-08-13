@@ -138,6 +138,40 @@ class HypercubeSlicer(
 
     slice == expectedSlice
   }
+
+  def stringifyHeavy(): String = {
+    val it = heavy.iterator
+    val sb = new StringBuilder
+
+    while(it.hasNext){
+      val h = it.next
+      sb ++= "(%d,(%s))".format(h._1, h._2.mkString(","))
+      if(it.hasNext) sb ++= ","
+    }
+    "{%s}".format(sb.mkString)
+  }
+
+  def stringifyNestedIt(input: Iterable[Iterable[Int]]): String = {
+    val it = input.iterator
+    val sb = new StringBuilder
+    while(it.hasNext){
+      sb ++= "(%s)".format(it.next.mkString(","))
+      if(it.hasNext) sb ++= ","
+    }
+    "{%s}".format(sb.mkString)
+  }
+
+  def stringify(): String = {
+    val itStrides = strides.toIterable.map(_.toIterable)
+
+    val sb = new StringBuilder
+
+    sb ++= stringifyHeavy() + ","
+    sb ++= stringifyNestedIt(shares) + ","
+    sb ++= stringifyNestedIt(itStrides)
+
+    "{%s}".format(sb.mkString)
+  }
 }
 
 object HypercubeSlicer {
