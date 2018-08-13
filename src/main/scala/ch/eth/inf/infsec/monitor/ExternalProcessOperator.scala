@@ -37,7 +37,7 @@ private case class LatencyMarkerItem(marker: LatencyMarker) extends PendingReque
 
 private case class SnapshotRequestItem() extends PendingRequest
 
-private case class SnapshotResultItem(snapshot: Array[Byte]) extends PendingResult
+private case class SnapshotResultItem(snapshot: Iterable[(Int, Array[Byte])]) extends PendingResult
 
 private case class ShutdownItem() extends PendingRequest with PendingResult
 
@@ -72,12 +72,12 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   @transient private var preprocessingSerializer: TypeSerializer[preprocessing.State] = _
   @transient private var postprocessingSerializer: TypeSerializer[postprocessing.State] = _
   @transient private var resultSerializer: TypeSerializer[Array[PendingResult]] = _
-  @transient private var stateSerializer: TypeSerializer[Array[Byte]] = _
+  @transient private var stateSerializer: TypeSerializer[(Int, Array[Byte])] = _
 
   @transient private var resultState: ListState[Array[PendingResult]] = _
   @transient private var preprocessingState: ListState[preprocessing.State] = _
   @transient private var postprocessingState: ListState[postprocessing.State] = _
-  @transient private var processState: ListState[Array[Byte]] = _
+  @transient private var processState: ListState[(Int,Array[Byte])] = _
 
   @transient private var pendingCount: Int = 0
 
@@ -109,7 +109,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     val pendingResultType = TypeInformation.of(new TypeHint[Array[PendingResult]]() {})
     resultSerializer = pendingResultType.createSerializer(getExecutionConfig)
 
-    val stateType = TypeInformation.of(new TypeHint[Array[Byte]]() {})
+    val stateType = TypeInformation.of(new TypeHint[(Int, Array[Byte])]() {})
     stateSerializer = stateType.createSerializer(getExecutionConfig)
 
     // TODO(JS): This is specific to the monitoring application.
@@ -143,7 +143,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     processStates.headOption match {
       case Some(_) =>
-        process.open(processStates.head)
+        val relevant = processStates.filter(_._1 == subtaskIndex)
+        process.open(relevant)
       case None => process.open()
     }
 
@@ -198,7 +199,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case mark@WatermarkItem(_) => putResult(mark)
           case marker@LatencyMarkerItem(_) => putResult(marker)
           case SnapshotRequestItem() =>
-            putResult(SnapshotResultItem(process.readSnapshot()))
+            putResult(SnapshotResultItem(process.readSnapshots()))
             snapshotReady.release()
           case shutdown@ShutdownItem() =>
             process.drainResults(buffer)
@@ -363,8 +364,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
             case OutputSeparatorItem() => results.add(result)
             case WatermarkItem(_) => results.add(result)
             case LatencyMarkerItem(_) => results.add(result)
-            case SnapshotResultItem(state) =>
-              processState.add(state)
+            case SnapshotResultItem(states) =>
+              processState.addAll(states.toList)
               gotSnapshot = true
             case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
           }
@@ -392,7 +393,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     resultState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[Array[PendingResult]](
       RESULT_STATE_NAME,
       resultSerializer))
-    processState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[Array[Byte]](
+    processState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[(Int, Array[Byte])](
       PROCESS_STATE_NAME,
       stateSerializer))
   }

@@ -134,6 +134,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
       val tuple = (extractPartitionDigits(file.getName), Files.readAllBytes(file.toPath))
       states += tuple
     }
+
     states
   }
 
@@ -157,6 +158,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   }
 
   private def extractPartitionDigits(str: String): Int = {
-      Integer.parseInt(str.replaceAll("\\D+",""))
+      val digits = str.replaceAll("\\D+","")
+      if(digits == "") 0
+      else Integer.parseInt(digits)
   }
 }
