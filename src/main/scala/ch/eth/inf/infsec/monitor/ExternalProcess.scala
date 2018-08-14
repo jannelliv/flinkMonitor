@@ -12,6 +12,7 @@ trait ExternalProcess[IN, OUT] extends Serializable {
   // Input functions
   def writeRequest(in: IN): Unit
   def initSnapshot(): Unit
+  def initSnapshot(slicer: String): Unit
   def shutdown(): Unit
 
   // Output functions

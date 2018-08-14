@@ -15,6 +15,7 @@ class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[Stri
   }
 
   override def initSnapshot(): Unit = ()
+  override def initSnapshot(slicer: String): Unit = ()
 
   override def readResults(buffer: mutable.Buffer[String]): Unit = {
     val line = reader.readLine()

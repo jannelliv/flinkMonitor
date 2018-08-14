@@ -166,6 +166,7 @@ object StreamMonitoring {
     // Parallel node
     // TODO(JS): Timeout? Capacity?
     val verdicts = ExternalProcessOperator.transform[(Int, Record), String, String, String](
+      slicer,
       slicedTrace,
       new KeyedMonpolyPrinter[Int],
       process,

@@ -13,6 +13,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   private val LOAD_STATE_OK = "Loaded state"
 
   // TODO(JS): We could pass the filename for saving as an argument, too.
+  private val SET_SLICER_COMMAND = ">set_slicer %s<\n"
+  private val SPLIT_SAVE_COMMAND = ">split_save %s<\n"
   private val SAVE_STATE_COMMAND = ">save_state \"%s\"<\n"
   private val SAVE_STATE_OK = "Saved state"
 
@@ -69,6 +71,12 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
   override def initSnapshot(): Unit = {
     writer.write(SAVE_STATE_COMMAND.format(tempStateFile.toString))
+    writer.flush()
+  }
+
+  override def initSnapshot(slicer: String): Unit = {
+    writer.write(SET_SLICER_COMMAND.format(slicer))
+    writer.write(SPLIT_SAVE_COMMAND.format("state"))
     writer.flush()
   }
 

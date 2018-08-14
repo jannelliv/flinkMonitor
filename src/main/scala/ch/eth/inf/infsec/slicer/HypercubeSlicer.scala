@@ -139,7 +139,7 @@ class HypercubeSlicer(
     slice == expectedSlice
   }
 
-  def stringifyHeavy(): String = {
+  private def stringifyHeavy(): String = {
     val it = heavy.iterator
     val sb = new StringBuilder
 
@@ -151,7 +151,7 @@ class HypercubeSlicer(
     "{%s}".format(sb.mkString)
   }
 
-  def stringifyNestedIt(input: Iterable[Iterable[Int]]): String = {
+  private def stringifyNestedIt(input: Iterable[Iterable[Int]]): String = {
     val it = input.iterator
     val sb = new StringBuilder
     while(it.hasNext){
