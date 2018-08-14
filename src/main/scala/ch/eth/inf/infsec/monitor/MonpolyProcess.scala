@@ -11,6 +11,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   private val GET_INDEX_PREFIX = "Current index: "
 
   private val LOAD_STATE_OK = "Loaded state"
+  private val COMBINED_STATE_OK = "Combined state"
 
   // TODO(JS): We could pass the filename for saving as an argument, too.
   private val SET_SLICER_COMMAND = ">set_slicer %s<\n"
@@ -46,19 +47,20 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     createTempFiles(initialStates.size)
 
     var states = initialStates
+
     for(file <- tempStateFiles) {
       Files.write(file, states.head._2)
       states = states.tail
     }
 
-    val loadCommand = command ++ List("-load", tempStateFile.toString)
+    val loadCommand = command ++ List("-combine", tempStateFiles.map(_.toString).mkString(","))
     try {
       open(loadCommand)
       val reply = reader.readLine()
-      if (reply != LOAD_STATE_OK)
+      if (reply != COMBINED_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
-      Files.delete(tempStateFile)
+      for(file <- tempStateFiles) {Files.delete(file) }
     }
   }
 
@@ -76,7 +78,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
   override def initSnapshot(slicer: String): Unit = {
     writer.write(SET_SLICER_COMMAND.format(slicer))
-    writer.write(SPLIT_SAVE_COMMAND.format("state"))
+    writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
+    println(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
     writer.flush()
   }
 
@@ -131,7 +134,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
 
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = {
-    val line = reader.readLine()
+    var line = reader.readLine()
+    while(line == "") line = reader.readLine()
     if (line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)
 
@@ -147,6 +151,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   }
 
   private def createTempFiles(parallelism: Int): Unit = {
+    tempStateFiles = new ListSet[Path]
     tempDirectory = Files.createTempDirectory("monpoly-state")
     tempDirectory.toFile.deleteOnExit()
 
