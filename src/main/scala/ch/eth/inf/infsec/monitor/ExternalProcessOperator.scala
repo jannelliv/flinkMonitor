@@ -9,10 +9,9 @@ import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
 import org.apache.flink.metrics.Gauge
-import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext, StateInitializationContext, StateSnapshotContext}
-import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
+import org.apache.flink.runtime.state.{StateInitializationContext, StateSnapshotContext}
 import org.apache.flink.streaming.api.graph.StreamConfig
-import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator, Output, StreamOperator}
+import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator, Output}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.watermark.Watermark
 import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRecord}
@@ -163,7 +162,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
           case LatencyMarkerItem(_) => ()
-          case SnapshotRequestItem() => process.initSnapshot()
+          case SnapshotRequestItem() =>
+            process.initSnapshot(slicer.stringify())
+            //process.initSnapshot()
           case ShutdownItem() =>
             process.shutdown()
             running = false
@@ -410,6 +411,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
     // TODO(JS): Implement timeout
+    //TODO: transient state
     preprocessing.process(streamRecord.getValue, x =>
       enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))) )
   }

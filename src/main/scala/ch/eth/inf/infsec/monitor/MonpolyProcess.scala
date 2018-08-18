@@ -8,7 +8,7 @@ import scala.collection.mutable
 
 class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[String, String] {
   private val GET_INDEX_COMMAND = ">get_pos<\n"
-  private val GET_INDEX_PREFIX = "Current index: "
+  private val GET_INDEX_PREFIX = "Current timepoint: "
 
   private val LOAD_STATE_OK = "Loaded state"
   private val COMBINED_STATE_OK = "Combined state"
@@ -39,7 +39,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
       if (reply != LOAD_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
-      Files.delete(tempStateFile)
+      //Files.delete(tempStateFile)
     }
   }
 
@@ -56,11 +56,14 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     val loadCommand = command ++ List("-combine", tempStateFiles.map(_.toString).mkString(","))
     try {
       open(loadCommand)
-      val reply = reader.readLine()
+      var reply = reader.readLine()
+      while (reply != COMBINED_STATE_OK) {
+        reply = reader.readLine()
+      }
       if (reply != COMBINED_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
-      for(file <- tempStateFiles) {Files.delete(file) }
+        for(file <- tempStateFiles) {Files.delete(file) }
     }
   }
 
@@ -79,7 +82,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   override def initSnapshot(slicer: String): Unit = {
     writer.write(SET_SLICER_COMMAND.format(slicer))
     writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
-    println(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
     writer.flush()
   }
 
@@ -119,6 +121,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
   override def dispose(): Unit = {
     super.dispose()
+    if(tempStateFiles != null)
+      for(file <- tempStateFiles)
+        Files.deleteIfExists(file)
     if (tempDirectory != null)
       Files.deleteIfExists(tempStateFile)
     if (tempStateFile != null)
@@ -134,8 +139,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
 
 
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = {
-    var line = reader.readLine()
-    while(line == "") line = reader.readLine()
+    val line = reader.readLine()
     if (line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)
 
