@@ -3,7 +3,6 @@ package ch.eth.inf.infsec
 import scala.language.implicitConversions
 
 package object trace {
-
   case class Domain(integralValue: Long, stringValue: String) {
     override def toString: String = if (stringValue == null) integralValue.toString else stringValue
   }
@@ -33,15 +32,44 @@ package object trace {
 
   type Timestamp = Long
 
-  case class Record(timestamp: Timestamp, label: String, data: Tuple) extends Serializable {
+  trait Record extends Serializable{
+    val timestamp: Timestamp
+    val parameters: String
+    val command: String
+    val label: String
+    val data: Tuple
+
+    def isEndMarker: Boolean
+    override def toString: String
+  }
+
+  case class CommandRecord(command: String, parameters: String) extends Record {
+    def isEndMarker: Boolean = false
+    val timestamp: Timestamp = 0l
+    val label: Null = null
+    val data: Null = null
+
+    override def toString: String = label
+  }
+
+  case class EventRecord(timestamp: Timestamp, label: String, data: Tuple)  extends Record {
     def isEndMarker: Boolean = label.isEmpty
+    val parameters: Null = null
+    val command: Null = null
 
     override def toString: String =
       if (isEndMarker) s"@$timestamp <end>" else s"@$timestamp $label(${data.mkString(", ")})"
   }
 
+  /*case class Record(timestamp: Timestamp, label: String, data: Tuple) extends Serializable {
+    def isEndMarker: Boolean = label.isEmpty
+
+    override def toString: String =
+      if (isEndMarker) s"@$timestamp <end>" else s"@$timestamp $label(${data.mkString(", ")})"
+  }*/
+
   object Record {
-    def markEnd(timestamp: Timestamp): Record = Record(timestamp, "", emptyTuple)
+    def markEnd(timestamp: Timestamp): Record = EventRecord(timestamp, "", emptyTuple)
   }
 
   trait TraceFormat {

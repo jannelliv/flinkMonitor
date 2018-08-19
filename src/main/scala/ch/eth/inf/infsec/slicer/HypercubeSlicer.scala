@@ -12,6 +12,7 @@ class HypercubeSlicer(
                        val heavy: IndexedSeq[(Int, Set[Domain])],
                        val shares: IndexedSeq[IndexedSeq[Int]],
                        val seed: Long = 1234) extends DataSlicer with Serializable {
+  override type State = Array[Byte]
 
   // The number of variables with heavy hitters is limited to 30 because of the internal encoding
   // of variable sets as bit masks. A higher limit is probably unreasonable.
@@ -137,6 +138,15 @@ class HypercubeSlicer(
     }
 
     slice == expectedSlice
+  }
+
+  override def getState(): State  = {
+    if(pendingSlicer != null) pendingSlicer.toCharArray.map(_.toByte)
+    else this.stringify().toCharArray.map(_.toByte)
+  }
+
+  override def restoreState(state: Option[State]): Unit = {
+    //TODO(FB) restore s
   }
 
   private def stringifyHeavy(): String = {

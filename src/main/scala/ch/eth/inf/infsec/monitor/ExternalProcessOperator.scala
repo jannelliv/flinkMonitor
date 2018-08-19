@@ -46,7 +46,6 @@ private case class ShutdownItem() extends PendingRequest with PendingResult
 // TODO(JS): One could also consider removing the resultQueue and merging the reader and emitter threads. However, it
 // is not obvious how the synchronization during snapshotting would work.
 class ExternalProcessOperator[IN, PIN, POUT, OUT](
-  slicer: HypercubeSlicer,
   preprocessing: Processor[IN, PIN],
   process: ExternalProcess[PIN, POUT],
   postprocessing: Processor[POUT, OUT],
@@ -159,12 +158,11 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
         val request = requestQueue.take()
         processingQueue.put(request)
         request match {
-          case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
+          case InputItem(record)   => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
           case LatencyMarkerItem(_) => ()
           case SnapshotRequestItem() =>
-            process.initSnapshot(slicer.stringify())
-            //process.initSnapshot()
+            process.initSnapshot()
           case ShutdownItem() =>
             process.shutdown()
             running = false
@@ -411,9 +409,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
     // TODO(JS): Implement timeout
-    //TODO: transient state
     preprocessing.process(streamRecord.getValue, x =>
-      enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))) )
+    enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))))
   }
 
   def failOperator(throwable: Throwable): Unit = {
@@ -467,7 +464,6 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 object ExternalProcessOperator {
   // TODO(JS): Do we need to "clean" the process/preprocessing?
   def transform[IN, PIN, POUT, OUT: TypeInformation](
-      slicer: HypercubeSlicer,
       in: DataStream[IN],
       preprocessing: Processor[IN, PIN],
       process: ExternalProcess[PIN, POUT],
@@ -475,5 +471,5 @@ object ExternalProcessOperator {
       capacity: Int): DataStream[OUT] =
     in.transform(
       "External Process",
-      new ExternalProcessOperator[IN, PIN, POUT, OUT](slicer, preprocessing, process, postprocessing,0, capacity))
+      new ExternalProcessOperator[IN, PIN, POUT, OUT](preprocessing, process, postprocessing,0, capacity))
 }

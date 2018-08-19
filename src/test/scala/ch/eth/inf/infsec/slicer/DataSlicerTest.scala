@@ -2,7 +2,7 @@ package ch.eth.inf.infsec
 package slicer
 
 import ch.eth.inf.infsec.policy._
-import ch.eth.inf.infsec.trace.{Domain, IntegralValue, Record, Tuple}
+import ch.eth.inf.infsec.trace.{Domain, IntegralValue, EventRecord, Record, Tuple}
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.collection.mutable
@@ -21,19 +21,24 @@ class DataSlicerTest extends FunSuite with Matchers {
       else
         slices ++= List(1, valuation(1).integralValue.toInt)
 
+
+    override def getState(): Array[Byte] = Array.emptyByteArray
+
+    override def restoreState(state: Option[Array[Byte]]): Unit = {}
+
     override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
   }
 
   test("apply") {
     val records = List(
-      Record(101, "A", Tuple(1, 2)),
-      Record(101, "B", Tuple(3, 4)),
+      EventRecord(101, "A", Tuple(1, 2)),
+      EventRecord(101, "B", Tuple(3, 4)),
       Record.markEnd(101),
       Record.markEnd(102),
-      Record(103, "A", Tuple(1, 2)),
-      Record(103, "B", Tuple(2, 1)),
-      Record(103, "A", Tuple(2, 3)),
-      Record(103, "B", Tuple(2, 3)),
+      EventRecord(103, "A", Tuple(1, 2)),
+      EventRecord(103, "B", Tuple(2, 1)),
+      EventRecord(103, "A", Tuple(2, 3)),
+      EventRecord(103, "B", Tuple(2, 3)),
       Record.markEnd(103),
       Record.markEnd(104)
     )
@@ -42,10 +47,10 @@ class DataSlicerTest extends FunSuite with Matchers {
 
     val slices = slicer.processAll(records)
     slices should contain theSameElementsInOrderAs List(
-      (0, Record(101, "A", Tuple(1, 2))),
-      (2, Record(101, "A", Tuple(1, 2))),
-      (1, Record(101, "B", Tuple(3, 4))),
-      (3, Record(101, "B", Tuple(3, 4))),
+      (0, EventRecord(101, "A", Tuple(1, 2))),
+      (2, EventRecord(101, "A", Tuple(1, 2))),
+      (1, EventRecord(101, "B", Tuple(3, 4))),
+      (3, EventRecord(101, "B", Tuple(3, 4))),
       (0, Record.markEnd(101)),
       (1, Record.markEnd(101)),
       (2, Record.markEnd(101)),
@@ -56,14 +61,14 @@ class DataSlicerTest extends FunSuite with Matchers {
       (2, Record.markEnd(102)),
       (3, Record.markEnd(102)),
 
-      (0, Record(103, "A", Tuple(1, 2))),
-      (2, Record(103, "A", Tuple(1, 2))),
-      (1, Record(103, "B", Tuple(2, 1))),
-      (2, Record(103, "B", Tuple(2, 1))),
-      (0, Record(103, "A", Tuple(2, 3))),
-      (3, Record(103, "A", Tuple(2, 3))),
-      (1, Record(103, "B", Tuple(2, 3))),
-      (2, Record(103, "B", Tuple(2, 3))),
+      (0, EventRecord(103, "A", Tuple(1, 2))),
+      (2, EventRecord(103, "A", Tuple(1, 2))),
+      (1, EventRecord(103, "B", Tuple(2, 1))),
+      (2, EventRecord(103, "B", Tuple(2, 1))),
+      (0, EventRecord(103, "A", Tuple(2, 3))),
+      (3, EventRecord(103, "A", Tuple(2, 3))),
+      (1, EventRecord(103, "B", Tuple(2, 3))),
+      (2, EventRecord(103, "B", Tuple(2, 3))),
       (0, Record.markEnd(103)),
       (1, Record.markEnd(103)),
       (2, Record.markEnd(103)),

@@ -3,12 +3,17 @@ package ch.eth.inf.infsec.monitor
 import java.nio.file.{Files, Path}
 import java.io.File
 
+import org.slf4j.LoggerFactory
+
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
-class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[String, String] {
+class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[MonpolyRequest, String] {
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current timepoint: "
+
+  private val COMMAND_PREFIX = ">"
+  private val COMMAND_SUFFIX = "<"
 
   private val LOAD_STATE_OK = "Loaded state"
   private val COMBINED_STATE_OK = "Combined state"
@@ -22,6 +27,11 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
   @transient private var tempDirectory: Path = _
   @transient private var tempStateFile: Path = _
   @transient private var tempStateFiles: ListSet[Path] = _
+
+  @transient private var pendingSlicer: Boolean = _
+
+  private val logger = LoggerFactory.getLogger(getClass)
+
 
   override def open(): Unit = {
     createTempFile()
@@ -39,7 +49,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
       if (reply != LOAD_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
-      //Files.delete(tempStateFile)
+      Files.delete(tempStateFile)
     }
   }
 
@@ -67,15 +77,23 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[S
     }
   }
 
-  override def writeRequest(in: String): Unit = {
-    writer.write(in)
+  override def writeRequest(request: MonpolyRequest): Unit = {
+    request match {
+      case CommandItem(request.in) =>
+        logger.info("Pending Slicer set")
+        pendingSlicer = true
+      case EventItem(request.in) =>
+    }
+
+    writer.write(request.in)
     writer.write(GET_INDEX_COMMAND)
     // TODO(JS): Do not flush if there are more requests in the queue
     writer.flush()
   }
 
   override def initSnapshot(): Unit = {
-    writer.write(SAVE_STATE_COMMAND.format(tempStateFile.toString))
+    if(pendingSlicer) writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
+    else writer.write(SAVE_STATE_COMMAND.format(tempStateFile.toString))
     writer.flush()
   }
 

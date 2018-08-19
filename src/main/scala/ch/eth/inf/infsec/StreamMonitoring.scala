@@ -1,6 +1,6 @@
 package ch.eth.inf.infsec
 
-import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess}
+import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess, MonpolyRequest}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.ColissionlessKeyGenerator
 import ch.eth.inf.infsec.trace._
@@ -165,8 +165,7 @@ object StreamMonitoring {
 
     // Parallel node
     // TODO(JS): Timeout? Capacity?
-    val verdicts = ExternalProcessOperator.transform[(Int, Record), String, String, String](
-      slicer,
+    val verdicts = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, String, String](
       slicedTrace,
       new KeyedMonpolyPrinter[Int],
       process,

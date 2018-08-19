@@ -35,7 +35,7 @@ class CsvParser extends Processor[String, Record] with Serializable {
       currentTimepoint = timepoint
       currentTimestamp = timestamp
     }
-    f(Record(timestamp, relation, tuple))
+    f(EventRecord(timestamp, relation, tuple))
   }
 
   override def terminate(f: Record => Unit) {
