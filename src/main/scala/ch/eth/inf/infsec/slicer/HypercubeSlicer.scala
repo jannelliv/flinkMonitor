@@ -2,6 +2,7 @@ package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
 import ch.eth.inf.infsec.trace.{Domain, IntegralValue, StringValue, Tuple}
+import org.slf4j.LoggerFactory
 
 import scala.collection.mutable
 import scala.util.Random
@@ -9,10 +10,12 @@ import scala.util.hashing.MurmurHash3
 
 class HypercubeSlicer(
                        val formula: Formula,
-                       val heavy: IndexedSeq[(Int, Set[Domain])],
-                       val shares: IndexedSeq[IndexedSeq[Int]],
+                       var heavy: IndexedSeq[(Int, Set[Domain])],
+                       var shares: IndexedSeq[IndexedSeq[Int]],
                        val seed: Long = 1234) extends DataSlicer with Serializable {
   override type State = Array[Byte]
+
+  private val logger = LoggerFactory.getLogger(getClass)
 
   // The number of variables with heavy hitters is limited to 30 because of the internal encoding
   // of variable sets as bit masks. A higher limit is probably unreasonable.
@@ -33,7 +36,7 @@ class HypercubeSlicer(
     Array.fill(shares.length){Array.fill(dimensions){random.nextInt()}}
   }
 
-  private val strides: Array[Array[Int]] = {
+  private var strides: Array[Array[Int]] = {
     val strides = Array.fill(shares.length){Array.fill(dimensions)(1)}
     for ((s, h) <- strides.zipWithIndex)
       for (i <- 1 until dimensions)
@@ -146,10 +149,59 @@ class HypercubeSlicer(
   }
 
   override def restoreState(state: Option[State]): Unit = {
-    //TODO(FB) restore s
+    logger.info("Restoring State")
+    println("Slicer: restoring state")
+    var stringifiedSlicer: String = null
+
+    state match {
+      case Some(x) =>
+        stringifiedSlicer = x.map(_.toChar).mkString("")
+        parseSlicer(stringifiedSlicer)
+      case None => ???
+    }
   }
 
-  private def stringifyHeavy(): String = {
+  private def parseDomain(str: String): Domain = {
+    StringValue(str)
+  }
+
+  private def parseHeavy(str: String): IndexedSeq[(Int, Set[Domain])] = {
+    println(str)
+    val it = str.substring(1, str.length-1).split("\\),\\(")
+    it.map(str => {
+      val tuple = str.split(",\\(")
+      if(tuple(1).length > 1) {
+        val domain = tuple(1).substring(0, str.length-1).split(",").map(parseDomain)
+        (Integer.parseInt(tuple(0)), domain.toSet)
+      }else
+        (Integer.parseInt(tuple(0)), Set.empty[Domain])
+    })
+  }
+
+  private def parseNestedIt(str: String): IndexedSeq[IndexedSeq[Int]] = {
+    val it = str.substring(1, str.length-1).split("\\),\\(")
+
+    val test = it.toIndexedSeq.map(subseq => {println(subseq); subseq.split(",")})//.map(Integer.parseInt).toIndexedSeq)
+    val () = test.foreach(a => println(a.mkString(",")))
+
+    test.map(a => a.map(Integer.parseInt).toIndexedSeq)
+  }
+
+  private def parseSlicer(str: String): Unit ={
+    val trim = str.substring(2, str.length-2)
+
+    val params = trim.split("\\},\\{")
+
+    val heavy = parseHeavy(params(0))
+    val shares = parseNestedIt(params(1))
+    val strides = parseNestedIt(params(2))
+
+    this.heavy = heavy
+    this.shares = shares
+    this.strides = strides.map(_.toArray).toArray
+  }
+
+  private def stringifyHeavy(heavy: Iterable[(Int, Set[Domain])]): String = {
     val it = heavy.iterator
     val sb = new StringBuilder
 
@@ -176,7 +228,7 @@ class HypercubeSlicer(
 
     val sb = new StringBuilder
 
-    sb ++= stringifyHeavy() + ","
+    sb ++= stringifyHeavy(heavy) + ","
     sb ++= stringifyNestedIt(shares) + ","
     sb ++= stringifyNestedIt(itStrides)
 
@@ -266,6 +318,9 @@ object HypercubeSlicer {
       optimizeSingleSet(formula, degreeExp, statistics, activeVariables)
     })
 
-    new HypercubeSlicer(formula, heavy, shares)
+    val test = new HypercubeSlicer(formula, heavy, shares)
+    println(test.stringify())
+
+    test
   }
 }

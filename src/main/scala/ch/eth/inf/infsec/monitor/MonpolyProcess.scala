@@ -34,11 +34,13 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
 
   override def open(): Unit = {
+    println("Open normal")
     createTempFile()
     open(command)
   }
 
   override def open(initialState: Array[Byte]): Unit = {
+    println("Open from save state")
     createTempFile()
     Files.write(tempStateFile, initialState)
 
@@ -46,6 +48,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     try {
       open(loadCommand)
       val reply = reader.readLine()
+      println(reply)
       if (reply != LOAD_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
@@ -54,6 +57,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def open(initialStates: Iterable[(Int, Array[Byte])]): Unit = {
+    println("Open from split state")
     createTempFiles(initialStates.size)
 
     var states = initialStates
@@ -70,6 +74,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       while (reply != COMBINED_STATE_OK) {
         reply = reader.readLine()
       }
+      println(reply)
       if (reply != COMBINED_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {

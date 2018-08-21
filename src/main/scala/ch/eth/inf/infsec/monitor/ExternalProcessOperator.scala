@@ -144,7 +144,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     processStates.headOption match {
       case Some(_) =>
         val relevant = processStates.filter(_._1 == subtaskIndex)
-        process.open(relevant)
+        println("Size: " + relevant.size)
+        if(relevant.size == 1) process.open(relevant.head._2)
+        else process.open(relevant)
       case None => process.open()
     }
 
@@ -200,7 +202,12 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case mark@WatermarkItem(_) => putResult(mark)
           case marker@LatencyMarkerItem(_) => putResult(marker)
           case SnapshotRequestItem() =>
-            putResult(SnapshotResultItem(process.readSnapshots()))
+            val results = process.readSnapshots()
+            if(results.size == 1){
+              val result = results.head
+              putResult(SnapshotResultItem(List((subtaskIndex, result._2))))
+            }
+            else putResult(SnapshotResultItem(process.readSnapshots()))
             snapshotReady.release()
           case shutdown@ShutdownItem() =>
             process.drainResults(buffer)

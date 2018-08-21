@@ -37,9 +37,6 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
 
   def processCommand(record: CommandRecord, f: ((Int, Record)) => Unit): Unit ={
     var i = 0
-
-    //TODO(FB) set pending slicer
-
     while (i < degree) {
       f((i, record))
       i += 1
