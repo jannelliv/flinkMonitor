@@ -33,6 +33,12 @@ object MonpolyParsers {
       (Letter | Digit | CharIn("_[]/:-.!")).rep(min = 1).!
     )
 
+    val CommandString: P[String] = P(
+      "\"" ~/ CharsWhile(_ != '"').! ~/ "\"" |
+        (Letter | Digit | CharIn("_[]/:-.,!(){}")).rep(min = 1).!
+    )
+
+
     val Value: P[Domain] = P( Integer.map(IntegralValue(_)) | String.map(StringValue(_)) )
   }
 
@@ -44,8 +50,8 @@ object MonpolyParsers {
   private val Database: P[Seq[(String, Seq[Tuple])]] = P( (Token.String ~/ Relation).rep )
 
   val Command: P[Record] = P(
-    (Token.Whitespace ~/ ">" ~/ Token.String ~/ Token.String ~/ "<" ~/ Token.Whitespace ~/ End).map {
-      case (s, seq) => CommandRecord(s, seq)
+    (Token.Whitespace ~/ ">" ~/ Token.String ~/ Token.CommandString ~/ "<" ~/ Token.Whitespace ~/ End).map {
+      case (s, param) => CommandRecord(s, param)
   })
 
   val Event: P[(Long, Seq[Record])] = P(
@@ -161,10 +167,10 @@ class MonpolyPrinter extends Processor[Record, MonpolyRequest] with Serializable
 
     if (buffer.nonEmpty) {
       val str = new mutable.StringBuilder()
-      str.append('>').append(buffer.head.command).append(buffer.head.data.mkString(",")).append('<')
+      str.append('>').append(buffer.head.command).append(" ").append(buffer.head.parameters).append('<')
       str.append('\n')
 
-      println("Command: " + str.toString())
+      println("COMMAND: " + str.toString())
       f(CommandItem(str.toString()))
       buffer.clear()
     }

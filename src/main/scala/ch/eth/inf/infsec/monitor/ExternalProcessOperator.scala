@@ -207,7 +207,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
               val result = results.head
               putResult(SnapshotResultItem(List((subtaskIndex, result._2))))
             }
-            else putResult(SnapshotResultItem(process.readSnapshots()))
+            else
+              putResult(SnapshotResultItem(results))
+
             snapshotReady.release()
           case shutdown@ShutdownItem() =>
             process.drainResults(buffer)

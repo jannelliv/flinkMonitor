@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec.slicer
 
 import ch.eth.inf.infsec.policy._
+import ch.eth.inf.infsec.trace
 import ch.eth.inf.infsec.trace.{Domain, IntegralValue, StringValue, Tuple}
 import org.slf4j.LoggerFactory
 
@@ -143,14 +144,16 @@ class HypercubeSlicer(
     slice == expectedSlice
   }
 
+  override def setSlicer(record: trace.CommandRecord): Unit = super.setSlicer(record)
+
   override def getState(): State  = {
-    if(pendingSlicer != null) pendingSlicer.toCharArray.map(_.toByte)
-    else this.stringify().toCharArray.map(_.toByte)
+    if (pendingSlicer != null)
+      pendingSlicer.toCharArray.map(_.toByte)
+    else
+      this.stringify().toCharArray.map(_.toByte)
   }
 
   override def restoreState(state: Option[State]): Unit = {
-    logger.info("Restoring State")
-    println("Slicer: restoring state")
     var stringifiedSlicer: String = null
 
     state match {
@@ -166,7 +169,6 @@ class HypercubeSlicer(
   }
 
   private def parseHeavy(str: String): IndexedSeq[(Int, Set[Domain])] = {
-    println(str)
     val it = str.substring(1, str.length-1).split("\\),\\(")
     it.map(str => {
       val tuple = str.split(",\\(")
@@ -181,10 +183,7 @@ class HypercubeSlicer(
   private def parseNestedIt(str: String): IndexedSeq[IndexedSeq[Int]] = {
     val it = str.substring(1, str.length-1).split("\\),\\(")
 
-    val test = it.toIndexedSeq.map(subseq => {println(subseq); subseq.split(",")})//.map(Integer.parseInt).toIndexedSeq)
-    val () = test.foreach(a => println(a.mkString(",")))
-
-    test.map(a => a.map(Integer.parseInt).toIndexedSeq)
+    it.toIndexedSeq.map(_.split(",")).map(a => a.map(Integer.parseInt).toIndexedSeq)
   }
 
   private def parseSlicer(str: String): Unit ={

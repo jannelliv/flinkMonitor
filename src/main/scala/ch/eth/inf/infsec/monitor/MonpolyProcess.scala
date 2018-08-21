@@ -11,6 +11,7 @@ import scala.collection.mutable
 class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[MonpolyRequest, String] {
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current timepoint: "
+  private val SLICING_PREFIX = "Slicing "
 
   private val COMMAND_PREFIX = ">"
   private val COMMAND_SUFFIX = "<"
@@ -21,7 +22,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   // TODO(JS): We could pass the filename for saving as an argument, too.
   private val SET_SLICER_COMMAND = ">set_slicer %s<\n"
   private val SPLIT_SAVE_COMMAND = ">split_save %s<\n"
-  private val SAVE_STATE_COMMAND = ">save_state \"%s\"<\n"
+  private val SAVE_STATE_COMMAND = ">save_state %s<\n"
   private val SAVE_STATE_OK = "Saved state"
 
   @transient private var tempDirectory: Path = _
@@ -34,13 +35,11 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
 
   override def open(): Unit = {
-    println("Open normal")
     createTempFile()
     open(command)
   }
 
   override def open(initialState: Array[Byte]): Unit = {
-    println("Open from save state")
     createTempFile()
     Files.write(tempStateFile, initialState)
 
@@ -48,7 +47,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     try {
       open(loadCommand)
       val reply = reader.readLine()
-      println(reply)
       if (reply != LOAD_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
@@ -57,7 +55,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def open(initialStates: Iterable[(Int, Array[Byte])]): Unit = {
-    println("Open from split state")
     createTempFiles(initialStates.size)
 
     var states = initialStates
@@ -70,11 +67,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     val loadCommand = command ++ List("-combine", tempStateFiles.map(_.toString).mkString(","))
     try {
       open(loadCommand)
-      var reply = reader.readLine()
-      while (reply != COMBINED_STATE_OK) {
-        reply = reader.readLine()
-      }
-      println(reply)
+      val reply = reader.readLine()
       if (reply != COMBINED_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
@@ -97,8 +90,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def initSnapshot(): Unit = {
-    if(pendingSlicer) writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
-    else writer.write(SAVE_STATE_COMMAND.format(tempStateFile.toString))
+    var command = ""
+    if(pendingSlicer) command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
+    else command = SAVE_STATE_COMMAND.format(tempStateFile.toString)
+    writer.write(command)
     writer.flush()
   }
 
@@ -168,12 +163,15 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
     var states = new ListSet[(Int, Array[Byte])]
 
-    val files = getFilesOfStates(tempDirectory.toFile, "bin")
-    for(file <- files){
-      val tuple = (extractPartitionDigits(file.getName), Files.readAllBytes(file.toPath))
-      states += tuple
+    if(!pendingSlicer){
+      states += ((0, readSnapshot()))
+    }else {
+      val files = getFilesOfStates(tempDirectory.toFile, "bin")
+      for (file <- files) {
+        val digits = extractPartitionDigits(file.getName)
+        if (digits >= 0) states += ((extractPartitionDigits(file.getName), Files.readAllBytes(file.toPath)))
+      }
     }
-
     states
   }
 
@@ -199,7 +197,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
   private def extractPartitionDigits(str: String): Int = {
       val digits = str.replaceAll("\\D+","")
-      if(digits == "") 0
+      if(digits == "") -1
       else Integer.parseInt(digits)
   }
 }
