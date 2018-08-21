@@ -150,7 +150,7 @@ class HypercubeSlicer(
     if (pendingSlicer != null)
       pendingSlicer.toCharArray.map(_.toByte)
     else
-      this.stringify().toCharArray.map(_.toByte)
+      stringify().toCharArray.map(_.toByte)
   }
 
   override def restoreState(state: Option[State]): Unit = {

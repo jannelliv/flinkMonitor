@@ -55,6 +55,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def open(initialStates: Iterable[(Int, Array[Byte])]): Unit = {
+    createTempFile()
     createTempFiles(initialStates.size)
 
     var states = initialStates

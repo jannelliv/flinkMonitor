@@ -36,7 +36,7 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
   }
 
   def setSlicer(record: CommandRecord): Unit = {
-    pendingSlicer = record.command
+    pendingSlicer = record.parameters
   }
 
   def processCommand(record: CommandRecord, f: ((Int, Record)) => Unit): Unit ={
