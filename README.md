@@ -44,3 +44,53 @@ Required arguments: --out, --sig, --formula
 --heavy <file>              If set, read a list of heavy hitters from <file>.
                             Each line has the format "<relation>,<attribute>,<value>", where <attribute>
                             is a zero-based index.
+
+
+Arguments for ch.eth.inf.infsec.analysis.OfflineAnalysis
+--------------------------------------------------------
+
+Required arguments: --log, --out
+
+--log <file>                Read events from <file>
+
+--out <file>                Write statistics to <file>, see below for output format
+
+--format monpoly|csv        Format of the input events (default: monpoly)
+
+--window <size>             Window size in seconds for which the statistics are computed (default: 60)
+
+--degree <N>                Number of parallel monitors, used to determine heavy hitters (default: 16)
+
+--formula <file>            If set, read the MFOTL formula from <file> and use it for filtering/optimization
+
+--shares <var>=<N>,...
+--rates <relation>=<N>,...
+--heavy <file>              See above. If any of these is set, compute statistics for individual slices.
+
+--collect-heavy true|false  Whether heavy hitters should be collected (default: true)
+
+
+Output format for slice statistics (if --rates or --shares is set):
+<start time of window>,<slice id>,<relation>,<count>
+
+Output format for global statistics (--collect-heavy true):
+<start time of window>,<relation>,<count>;<heavy hitter for attribute #0>,...;<heavy hitter for attribute #1>,...;...
+
+The count for the empty relation name refers to the number of time-points.
+
+
+Utilities
+---------
+
+Replayer
+    See tools/README.md
+
+tools/split_statistics.py <rates> <heavy>
+    Reads OfflineAnalysis statistics from standard input and splits it into two files with event rates and heavy hitters, respectively.
+    The format of the heavy hitter file is: <start time of window>,<relation>,<attribute index (0-based)>,<value>
+
+tools/merge_heavy.py
+    Reads the heavy hitter file as produced by split_statistics.py from standard input and merges all windows. This removes the first column.
+
+evaluation/nokia/cut_log.py <input> <past output> <main output>
+    Reads the "Nokia" CSV log file from <input> and writes two hard-coded time intervals to the given files.
