@@ -4,7 +4,8 @@ import java.util
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
 import ch.eth.inf.infsec.Processor
-import ch.eth.inf.infsec.slicer.HypercubeSlicer
+import ch.eth.inf.infsec.slicer.{HypercubeSlicer, SlicerParser}
+import ch.eth.inf.infsec.trace.{CommandRecord, EventRecord, MonpolyVerdictFilter, Record}
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
@@ -46,6 +47,7 @@ private case class ShutdownItem() extends PendingRequest with PendingResult
 // TODO(JS): One could also consider removing the resultQueue and merging the reader and emitter threads. However, it
 // is not obvious how the synchronization during snapshotting would work.
 class ExternalProcessOperator[IN, PIN, POUT, OUT](
+  slicer: HypercubeSlicer,
   preprocessing: Processor[IN, PIN],
   process: ExternalProcess[PIN, POUT],
   postprocessing: Processor[POUT, OUT],
@@ -118,6 +120,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     })
   }
 
+  @transient
+  var pendingSlicer: String = _
+
   override def open(): Unit = {
     super.open()
     assert(Thread.holdsLock(taskLock))
@@ -127,12 +132,22 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     val subtaskIndex = getRuntimeContext.getIndexOfThisSubtask
     preprocessing.setParallelInstanceIndex(subtaskIndex)
-    postprocessing.setParallelInstanceIndex(subtaskIndex)
     process.identifier = Some(subtaskIndex.toString)
 
     val processStates = processState.get()
     preprocessing.restoreState(preprocessingState.get().headOption)
     postprocessing.restoreState(postprocessingState.get().headOption)
+
+    val postProcessState = postprocessingState.get().headOption
+    postprocessing.restoreState(postProcessState)
+    postProcessState match {
+      case Some(x) =>
+        slicer.updateState(x.asInstanceOf[Array[Byte]])
+        postprocessing.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
+      case None =>
+        postprocessing.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
+    }
+    postprocessing.setParallelInstanceIndex(subtaskIndex)
 
     resultState.get().headOption match {
       case Some(results) =>
@@ -144,7 +159,6 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     processStates.headOption match {
       case Some(_) =>
         val relevant = processStates.filter(_._1 == subtaskIndex)
-        println("Size: " + relevant.size)
         if(relevant.size == 1) process.open(relevant.head._2)
         else process.open(relevant)
       case None => process.open()
@@ -418,8 +432,16 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
     // TODO(JS): Implement timeout
+    val tuple = streamRecord.getValue.asInstanceOf[(Int, Record)]
+    tuple._2 match {
+      case CommandRecord(_, parameters) =>
+        postprocessing.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
+        pendingSlicer = parameters
+      case _ => ()
+    }
+
     preprocessing.process(streamRecord.getValue, x =>
-    enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))))
+      enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))))
   }
 
   def failOperator(throwable: Throwable): Unit = {
@@ -473,12 +495,13 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 object ExternalProcessOperator {
   // TODO(JS): Do we need to "clean" the process/preprocessing?
   def transform[IN, PIN, POUT, OUT: TypeInformation](
-      in: DataStream[IN],
-      preprocessing: Processor[IN, PIN],
+      slicer: HypercubeSlicer,
+      in: DataStream[(Int, Record)],
+      preprocessing: Processor[(Int, Record), PIN],
       process: ExternalProcess[PIN, POUT],
       postprocessing: Processor[POUT, OUT],
       capacity: Int): DataStream[OUT] =
     in.transform(
       "External Process",
-      new ExternalProcessOperator[IN, PIN, POUT, OUT](preprocessing, process, postprocessing,0, capacity))
+      new ExternalProcessOperator[(Int, Record), PIN, POUT, OUT](slicer, preprocessing, process, postprocessing,0, capacity))
 }

@@ -35,6 +35,8 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
     }
   }
 
+  def updateState(state: Array[Byte]): Unit = ()
+
   def setSlicer(record: CommandRecord): Unit = {
     pendingSlicer = record.parameters
   }

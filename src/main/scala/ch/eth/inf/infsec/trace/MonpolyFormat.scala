@@ -93,10 +93,18 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
   override def terminate(f: Record => Unit): Unit = ()
 }
 
-class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean)
-    extends StatelessProcessor[String, String] with Serializable {
+class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
+    extends Processor[String, String] with Serializable {
+  override type State = Array[Byte]
+
+  private var currentSlicer : Array[Byte] = _
+  private var pendingSlicer : Array[Byte] = _
 
   private var pred: Tuple => Boolean = mkFilter(0)
+
+  def updateProcessingFunction(f: Int => Tuple => Boolean): Unit = {
+    mkFilter = f
+  }
 
   override def setParallelInstanceIndex(instance: Int): Unit = {
     pred = mkFilter(instance)
@@ -132,6 +140,21 @@ class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean)
   }
 
   override def terminate(f: String => Unit): Unit = ()
+
+  override def getState: Array[Byte] = {
+    if(this.pendingSlicer != null) this.pendingSlicer
+    else this.currentSlicer
+  }
+
+  override def restoreState(state: Option[Array[Byte]]): Unit = {
+    state match {
+      case Some(x) => this.currentSlicer = x
+      case None =>
+    }
+  }
+
+  def setCurrent(slicer: Array[Byte]): Unit = this.currentSlicer = slicer
+  def updatePending(slicer: Array[Byte]): Unit = this.pendingSlicer = slicer
 }
 
 class MonpolyPrinter extends Processor[Record, MonpolyRequest] with Serializable {
