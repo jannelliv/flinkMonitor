@@ -1,11 +1,15 @@
 package ch.eth.inf.infsec
 
-import ch.eth.inf.infsec.trace.{Domain, StringValue}
+import ch.eth.inf.infsec.trace.{Domain, IntegralValue, StringValue}
 
 package object slicer {
   class SlicerParser extends Serializable {
     private def parseDomain(str: String): Domain = {
-      StringValue(str)
+      val value: Domain = if (str.startsWith("\""))
+        StringValue(str.stripPrefix("\"").stripSuffix("\""))
+      else
+        IntegralValue(str.toLong)
+      value
     }
 
     private def parseHeavy(str: String): IndexedSeq[(Int, Set[Domain])] = {
