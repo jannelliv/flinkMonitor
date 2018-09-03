@@ -155,7 +155,8 @@ object StreamMonitoring {
           env.readTextFile(f).name("file-source").uid("File source")
       case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
     }
-    val parsedTrace = textStream.flatMap(new ProcessorFunction(inputFormat.createParser()))
+
+    val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), Rescaler.rescale)))
       .name("Parser")
       .uid("input-parser")
 
@@ -194,6 +195,25 @@ object StreamMonitoring {
           .setParallelism(1).name("Print sink").uid("print-sink")
     }
 
+    var streamGraph = env.getStreamGraph
+    streamGraph.setJobName(jobName)
+
+    var jobGraph = streamGraph.getJobGraph
+    jobGraph.setAllowQueuedScheduling(true)
+
+    println(jobGraph.getJobID)
+    println(jobGraph.getJobID)
+
+    streamGraph = env.getStreamGraph
+    streamGraph.setJobName(jobName)
+
+    jobGraph = streamGraph.getJobGraph
+    jobGraph.setAllowQueuedScheduling(true)
+
+    println(jobGraph.getJobID)
+    println(jobGraph.getJobID)
+
+    Rescaler.create( "127.0.0.1")
     env.execute(jobName)
   }
 
