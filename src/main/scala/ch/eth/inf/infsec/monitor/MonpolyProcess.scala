@@ -165,7 +165,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     var states = new ListSet[(Int, Array[Byte])]
 
     if(!pendingSlicer){
-      states += ((0, readSnapshot()))
+      states += ((0, Files.readAllBytes(tempStateFile)))
+      Files.delete(tempStateFile)
     }else {
       val files = getFilesOfStates(tempDirectory.toFile, "bin")
       for (file <- files) {

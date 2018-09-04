@@ -1,4 +1,4 @@
-package ch.eth.inf.infsec
+package ch.eth.inf.infsec.tools
 
 import java.io.{BufferedReader, InputStreamReader, PrintWriter}
 import java.net.{InetSocketAddress, ServerSocket, Socket}

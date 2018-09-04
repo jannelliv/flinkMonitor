@@ -3,6 +3,7 @@ package ch.eth.inf.infsec
 import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess, MonpolyRequest}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.ColissionlessKeyGenerator
+import ch.eth.inf.infsec.tools.Rescaler
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.serialization.SimpleStringSchema
@@ -194,24 +195,6 @@ object StreamMonitoring {
             new PrintSinkFunction[String]())
           .setParallelism(1).name("Print sink").uid("print-sink")
     }
-
-    var streamGraph = env.getStreamGraph
-    streamGraph.setJobName(jobName)
-
-    var jobGraph = streamGraph.getJobGraph
-    jobGraph.setAllowQueuedScheduling(true)
-
-    println(jobGraph.getJobID)
-    println(jobGraph.getJobID)
-
-    streamGraph = env.getStreamGraph
-    streamGraph.setJobName(jobName)
-
-    jobGraph = streamGraph.getJobGraph
-    jobGraph.setAllowQueuedScheduling(true)
-
-    println(jobGraph.getJobID)
-    println(jobGraph.getJobID)
 
     Rescaler.create( "127.0.0.1")
     env.execute(jobName)
