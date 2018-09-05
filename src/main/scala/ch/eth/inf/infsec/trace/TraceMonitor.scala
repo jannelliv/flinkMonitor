@@ -18,7 +18,8 @@ class TraceMonitor(protected val processor: Processor[String, Record], rescale: 
       record match {
         case CommandRecord(command, parameters) =>
           logger.info("Command: " + command)
-          //rescale(parallelism)
+          println("Command witnessed by wrapper: " + command)
+          rescale(parallelism)
           f(CommandRecord(command, parameters))
         case EventRecord(timestamp, label, data) => f(EventRecord(timestamp, label, data))
         case _ =>

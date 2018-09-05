@@ -8,61 +8,83 @@ import org.apache.flink.api.common.JobID
 import org.apache.flink.client.cli.CliArgsException
 import org.apache.flink.client.program.rest.RestClusterClient
 import org.apache.flink.configuration.Configuration
+import org.apache.flink.runtime.client.JobStatusMessage
 
+import scala.collection.immutable
 
 object Rescaler extends Serializable {
   class Rescaler() extends Serializable {
-    private var jobId: JobID = _
     private var server: ServerSocket = _
     private var client: RestClusterClient[String] = _
     private val config: Configuration = new Configuration()
 
+    private var clientSocket: Socket = _
+
     private var out: PrintWriter = _
     private var in: BufferedReader = _
 
-    def init(jmAddress: String, jmPort: Int = 6123): Unit = {
+    def init(jobName: String, jmAddress: String, jmPort: Int = 6123): Unit = {
       try {
         server = new ServerSocket(1112)
 
         config.setString("jobmanager.rpc.address", jmAddress)
         client = new RestClusterClient[String](config, "RemoteExecutor")
 
-        run()
+        run(jobName)
       } catch {
         case e: Exception => println(e)
       }
     }
 
-    private def run(): Unit = {
+    private def run(jobName: String): Unit = {
+      var line: String = null
       new Thread(new Runnable() {
         def run(): Unit = {
-        while (true) {
-          val clientSocket: Socket = server.accept()
+        clientSocket = server.accept()
+        //out = new PrintWriter(clientSocket.getOutputStream, true)
+        in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
 
-          out = new PrintWriter(clientSocket.getOutputStream, true)
-          in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
-          var line: String = null
+        while (true) {
           line = in.readLine()
-          println("Received jobId:" + line)
-          var jobId: JobID = null
-          try {
-            jobId = parseJobId(line)
-          } catch {
-            case _: Exception => out.println("Error parsing jobId from %s \n".format(line))
-          }
-          out.println("Received & Parsed jobId\n")
-          out.flush()
-          processRescale(jobId, 4)
+
+          println("Received: " + line)
+          //out.println("Received & Parsed jobId")
+          //out.flush()
+          processRescale(jobName, 4)
         }}}).start()
     }
 
-    def processRescale(jobId: JobID, p: Int): Unit = {
-      println("Sending RPC")
-      client.rescaleJob(jobId, 4)
+    /** Parts of this code are dependent on the Flink implementation of the Rest client and its dependencies**/
+    def processRescale(jobName: String, p: Int): Unit = {
+      val jobId = getJobId(jobName)
+
+      println("Attempting to rescale job with id: " + jobId.toString)
+      val rescaleFuture = client.rescaleJob(jobId, p)
+      try {
+        rescaleFuture.get
+      } catch {
+        case _: Exception => throw new Exception("Could not rescale job " + jobId + '.')
+      }
+      println("Rescaled job " + jobId + ". Its new parallelism is " + p + '.')
+    }
+
+    def getJobId(jobName: String): JobID = {
+      val jobDetailsFuture = client.listJobs()
+
+      val jobDetails = jobDetailsFuture.get
+      var runningJobs = new immutable.ListSet[JobStatusMessage]
+
+      jobDetails.toArray.foreach(e => runningJobs += e.asInstanceOf[JobStatusMessage])
+      runningJobs.filter(e => e.getJobName eq jobName)
+
+      if(runningJobs.size != 1) throw new Exception("Flink job with name \"%s\" could not be found".format(jobName))
+      runningJobs.head.getJobId
     }
 
 
-    /* Extracted from Flink CliFrontend.java & JobID.java respectively  */
+    /* Legacy: Replaced by getJobId
+     * Extracted from Flink CliFrontend.java & JobID.java respectively
+     * */
     def parseJobId(jobIdString: String): JobID = {
       var jobId: JobID = null
       try {
@@ -82,9 +104,9 @@ object Rescaler extends Serializable {
     }
   }
 
-  def create(jmAddress: String, jmPort: Int = 6123): Unit = {
+  def create(jobName: String, jmAddress: String, jmPort: Int = 6123): Unit = {
     val rescaler = new Rescaler()
-    rescaler.init(jmAddress, jmPort)
+    rescaler.init(jobName, jmAddress, jmPort)
   }
 
   def rescale(p: Int): Unit = {
@@ -94,16 +116,16 @@ object Rescaler extends Serializable {
       client.bind(new InetSocketAddress("127.0.0.1", 1111))
       client.connect(new InetSocketAddress("127.0.0.1", 1112))
       val output = client.getOutputStream
-      val input = new BufferedReader(new InputStreamReader(client.getInputStream))
+      //val input = new BufferedReader(new InputStreamReader(client.getInputStream))
 
       val command = "modify -p %d\n".format(p).toCharArray.map(_.toByte)
 
       output.write(command)
       output.flush()
-      responseLine = input.readLine()
-      println("Response: " + responseLine)
+      //responseLine = input.readLine()
+      //println("Response: " + responseLine)
 
-      input.close()
+      //input.close()
       output.close()
       client.close()
     } catch {

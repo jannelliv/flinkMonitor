@@ -196,7 +196,7 @@ object StreamMonitoring {
           .setParallelism(1).name("Print sink").uid("print-sink")
     }
 
-    Rescaler.create( "127.0.0.1")
+    Rescaler.create(jobName, "127.0.0.1")
     env.execute(jobName)
   }
 

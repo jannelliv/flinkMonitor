@@ -192,8 +192,6 @@ class MonpolyPrinter extends Processor[Record, MonpolyRequest] with Serializable
       val str = new mutable.StringBuilder()
       str.append('>').append(buffer.head.command).append(" ").append(buffer.head.parameters).append('<')
       str.append('\n')
-
-      println("COMMAND: " + str.toString())
       f(CommandItem(str.toString()))
       buffer.clear()
     }
