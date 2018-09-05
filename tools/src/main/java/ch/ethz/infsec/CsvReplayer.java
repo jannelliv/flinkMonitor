@@ -101,13 +101,14 @@ public class CsvReplayer {
         void write(Writer writer) throws IOException {
             StringBuilder command = relations.get("command");
             if(command != null){
+                relations.remove("command");
                 writer.append(command);
                 writer.append('\n');
             }
-            if(command == null || (command != null && relations.size() > 1)){
+            if(relations.size() > 0){
                 writer.append('@').append(Long.toString(timestamp));
                 for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
-                    if (entry.getKey() != "command") writer.append(' ').append(entry.getKey()).append(entry.getValue());
+                    writer.append(' ').append(entry.getKey()).append(entry.getValue());
                 }
                 writer.append('\n');
             }
