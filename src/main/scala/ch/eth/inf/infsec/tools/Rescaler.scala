@@ -47,10 +47,10 @@ object Rescaler extends Serializable {
         while (true) {
           line = in.readLine()
 
-          println("Received: " + line)
           //out.println("Received & Parsed jobId")
           //out.flush()
-          processRescale(jobName, 4)
+          if(line == null) run()
+          else processRescale(jobName, 4)
         }}}).start()
     }
 

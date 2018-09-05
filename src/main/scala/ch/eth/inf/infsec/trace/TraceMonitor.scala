@@ -3,7 +3,7 @@ package ch.eth.inf.infsec.trace
 import ch.eth.inf.infsec.Processor
 import org.slf4j.LoggerFactory
 
-class TraceMonitor(protected val processor: Processor[String, Record], rescale: Int => Unit) extends Processor[String, Record] with Serializable {
+class TraceMonitor(processor: Processor[String, Record], rescale: Int => Unit) extends Processor[String, Record] with Serializable {
   private var parallelism: Int = _
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -17,8 +17,7 @@ class TraceMonitor(protected val processor: Processor[String, Record], rescale: 
     def processWrapper(record: Record): Unit = {
       record match {
         case CommandRecord(command, parameters) =>
-          logger.info("Command: " + command)
-          println("Command witnessed by wrapper: " + command)
+          logger.info("Parsed command: " + command)
           rescale(parallelism)
           f(CommandRecord(command, parameters))
         case EventRecord(timestamp, label, data) => f(EventRecord(timestamp, label, data))
