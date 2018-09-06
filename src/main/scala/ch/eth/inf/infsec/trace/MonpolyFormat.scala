@@ -117,7 +117,6 @@ class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
       out.append(". (time point ")
       out.append(timepoint)
       out.append("):")
-
       var nonEmpty = false
       if (rel.size == 1 && rel.head.isEmpty) {
         out.append(" true")
@@ -132,9 +131,9 @@ class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
           nonEmpty = true
         }
       }
-
-      if (nonEmpty)
+      if (nonEmpty) {
         f(out.toString())
+      }else println("EMPTY, SHOULD NOT HAPPEN (FREQUENTLY)")
 
     case _ => ()
   }
@@ -195,8 +194,6 @@ class MonpolyPrinter extends Processor[Record, MonpolyRequest] with Serializable
       f(CommandItem(str.toString()))
       buffer.clear()
     }
-
-    //TODO(FB): print command correctly
   }
 
   override def terminate(f: MonpolyRequest => Unit) {

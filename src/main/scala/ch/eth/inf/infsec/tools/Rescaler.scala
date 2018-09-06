@@ -41,16 +41,19 @@ object Rescaler extends Serializable {
       new Thread(new Runnable() {
         def run(): Unit = {
         clientSocket = server.accept()
-        //out = new PrintWriter(clientSocket.getOutputStream, true)
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
 
         while (true) {
           line = in.readLine()
-
-          //out.println("Received & Parsed jobId")
-          //out.flush()
           if(line == null) run()
-          else processRescale(jobName, 4)
+
+          if(line.matches("^(\\w)+:(\\d)+$")){
+            val tuple = line.split(":")
+            tuple(0) match {
+              case "parallelism" => processRescale(jobName, Integer.parseInt(tuple(1)))
+              case _ => println("Unrecognized command")
+            }
+          }
         }}}).start()
     }
 
@@ -110,22 +113,17 @@ object Rescaler extends Serializable {
   }
 
   def rescale(p: Int): Unit = {
-    var responseLine: String = null
     try {
       val client = new Socket()
       client.bind(new InetSocketAddress("127.0.0.1", 1111))
       client.connect(new InetSocketAddress("127.0.0.1", 1112))
-      val output = client.getOutputStream
-      //val input = new BufferedReader(new InputStreamReader(client.getInputStream))
 
-      val command = "modify -p %d\n".format(p).toCharArray.map(_.toByte)
+      val output = client.getOutputStream
+      val command = "parallelism:%d\n".format(p).toCharArray.map(_.toByte)
 
       output.write(command)
       output.flush()
-      //responseLine = input.readLine()
-      //println("Response: " + responseLine)
 
-      //input.close()
       output.close()
       client.close()
     } catch {

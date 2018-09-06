@@ -204,8 +204,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
               resultLock.synchronized {
                 for (result <- buffer)
                   postprocessing.process(
-                    result, r =>
-                      resultQueue.add(OutputItem(outputRecord(record, r))))
+                    result, r => resultQueue.add(OutputItem(outputRecord(record, r))))
                 resultQueue.add(OutputSeparatorItem())
                 resultLock.notifyAll()
               }

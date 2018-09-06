@@ -2,10 +2,13 @@ package ch.eth.inf.infsec.trace
 
 import ch.eth.inf.infsec.Processor
 import org.slf4j.LoggerFactory
+import ch.eth.inf.infsec.slicer.SlicerParser
 
-class TraceMonitor(processor: Processor[String, Record], rescale: Int => Unit) extends Processor[String, Record] with Serializable {
-  private var parallelism: Int = _
+class TraceMonitor(protected val processor: Processor[String, Record], rescale: Int => Unit) extends Processor[String, Record] with Serializable {
   private val logger = LoggerFactory.getLogger(this.getClass)
+
+  private val SLICER_COMMAND = "set_slicer"
+  private val parser = new SlicerParser()
 
   override type State = this.processor.State
 
@@ -18,7 +21,7 @@ class TraceMonitor(processor: Processor[String, Record], rescale: Int => Unit) e
       record match {
         case CommandRecord(command, parameters) =>
           logger.info("Parsed command: " + command)
-          rescale(parallelism)
+          if(command.startsWith(SLICER_COMMAND)) rescale(parser.getParallelism(parameters))
           f(CommandRecord(command, parameters))
         case EventRecord(timestamp, label, data) => f(EventRecord(timestamp, label, data))
         case _ =>

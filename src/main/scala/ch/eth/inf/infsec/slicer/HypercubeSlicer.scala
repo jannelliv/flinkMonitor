@@ -154,6 +154,10 @@ class HypercubeSlicer(
       parser.stringify(heavy, shares, seeds).toCharArray.map(_.toByte)
   }
 
+  def stringify(): String = {
+    parser.stringify(this.heavy, this.shares, this.seeds)
+  }
+
   override def restoreState(state: Option[State]): Unit = {
     var stringifiedSlicer: String = null
 

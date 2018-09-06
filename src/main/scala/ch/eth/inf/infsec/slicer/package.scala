@@ -30,6 +30,15 @@ package object slicer {
       it.toIndexedSeq.map(_.split(",")).map(a => a.map(Integer.parseInt).toIndexedSeq)
     }
 
+    def getParallelism(str: String): Int = {
+      val trim = str.substring(2, str.length - 2)
+
+      val params = trim.split("\\},\\{")
+
+      val simpleShares = parseNestedIt(params(1))(0)
+      if (simpleShares.isEmpty) 1 else simpleShares.product
+    }
+
     def parseSlicer(str: String): (IndexedSeq[(Int, Set[Domain])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]]) ={
       val trim = str.substring(2, str.length - 2)
 
