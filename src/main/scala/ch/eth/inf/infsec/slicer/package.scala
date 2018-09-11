@@ -51,13 +51,26 @@ package object slicer {
       (heavy, shares, seeds.map(_.toArray).toArray)
     }
 
+    private def stringifyDomain(domain: Set[Domain]): String = {
+      val it = domain.iterator
+      val sb = new StringBuilder
+      while (it.hasNext) {
+        it.next() match {
+          case StringValue(s) =>  sb ++= "\"%s\"".format(s)
+          case IntegralValue(i) => sb ++= "%d".format(i)
+        }
+        if (it.hasNext) sb ++= ","
+      }
+      sb.mkString
+    }
+
     private def stringifyHeavy(heavy: Iterable[(Int, Set[Domain])]): String = {
       val it = heavy.iterator
       val sb = new StringBuilder
 
       while (it.hasNext) {
         val h = it.next
-        sb ++= "(%d,(%s))".format(h._1, h._2.mkString(","))
+        sb ++= "(%d,(%s))".format(h._1, stringifyDomain(h._2))
         if (it.hasNext) sb ++= ","
       }
       "{%s}".format(sb.mkString)

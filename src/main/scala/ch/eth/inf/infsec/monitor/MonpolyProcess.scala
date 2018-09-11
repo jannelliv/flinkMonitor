@@ -99,7 +99,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def initSnapshot(slicer: String): Unit = {
-    writer.write(SET_SLICER_COMMAND.format(slicer))
+    writer.write(SET_SLICER_COMMAND.format(convertToMonpolyFormat(slicer)))
     writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
     writer.flush()
   }
@@ -201,5 +201,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       val digits = str.replaceAll("\\D+","")
       if(digits == "") -1
       else Integer.parseInt(digits)
+  }
+
+  private def convertToMonpolyFormat(slicer: String): String = {
+    slicer.replace("\"", "")
   }
 }
