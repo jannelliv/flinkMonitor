@@ -1,12 +1,9 @@
 package ch.eth.inf.infsec.analysis
 
 
-import scala.collection.immutable.ListSet
 import java.io.PrintWriter
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
 import java.io.File
-import java.util
-
 import org.apache.flink.api.java.utils.ParameterTool
 import ch.eth.inf.infsec.SlicingSpecification
 import ch.eth.inf.infsec.StreamMonitoring.formula
@@ -18,7 +15,6 @@ import scala.io.Source
 object TraceAnalysis {
   class AnalysisPreparation(analysisDirectory: String, formula: Formula, traceLength: Int,  window: Int, degree: Int){
     private val analysisDir: File = new File(analysisDirectory)
-    private val traceLengthInSec: Int = traceLength * window
     private var tmpHeavyDir: Path = _
     private var tmpRatesDir: Path = _
 
@@ -98,9 +94,7 @@ object TraceAnalysis {
 
         line = reader.readLine()
       }
-
       writeMapToFile(writer, ratesMap)
-      writer.close()
       reader.close()
     }
 
@@ -157,16 +151,19 @@ object TraceAnalysis {
       slicers
     }
 
+
+
     def produceSlicersOfTrace(folder: Path, insertIntoTrace: Boolean): Unit = {
-      val heavyTrace: Path = new File("%s/%s".format(folder.toString, "heavy-trace-wrapped")).toPath
-      val ratesTrace: Path = new File("%s/%s".format(folder.toString, "rates-trace")).toPath
+      val heavyTrace = Paths.get("%s/%s".format(folder.toString, "heavy-trace-wrapped"))
+      val ratesTrace = Paths.get("%s/%s".format(folder.toString, "rates-trace"))
       val timestamp = extractTs(folder)
 
       extractParts(heavyTrace, ratesTrace, timestamp)
 
       val slicers = processParts
-      val outputFile = createTmpFile(folder, "slicers")
-      writeTempFile(outputFile, slicers)
+      //deleteIfExists("%s/%s".format(folder.toString, "slicers"))
+      //val outputFile = createTmpFile(folder, "slicers")
+      //writeTempFile(outputFile, slicers)
 
       if (insertIntoTrace) {
         val logTrace:   Path = new File("%s/%s".format(folder.toString, "log-trace.csv")).toPath
@@ -190,14 +187,12 @@ object TraceAnalysis {
         if(startTs == 0){
           startTs = currTs
           boundary = startTs + window
-          writer.println(slicers.head)
-          slicers = slicers.tail
         }
 
         if(currTs > boundary && line != null){
           boundary += window
-          if(!slicers.isEmpty) {
-            writer.println(slicers.head)
+          if(slicers.nonEmpty) {
+            writer.println(">set_slicer %s<".format(slicers.head))
             slicers = slicers.tail
           }
         }
@@ -219,6 +214,14 @@ object TraceAnalysis {
       clearWorkingDirectory()
     }
 
+    def produceSlicersForExperiment(): Unit = {
+      setupWorkingDirectory()
+
+      produceSlicersOfTrace(analysisDir.toPath, insertIntoTrace = true)
+
+      clearWorkingDirectory()
+    }
+
     def getSlicer(heavy: String, rates: String): String = {
       val arguments = Array[String]("--heavy", heavy, "--rates", rates)
       val params = ParameterTool.fromArgs(arguments)
@@ -233,8 +236,15 @@ object TraceAnalysis {
   }
 
   def createFile(dir: Path, name: String): Path = {
-    val file = dir.resolve(name)
-    file
+    val path = Paths.get("%s/%s".format(dir.toString, name))
+    deleteIfExists(path)
+
+    Files.createFile(path)
+  }
+
+  def deleteIfExists(path: Path): Unit = {
+    if(Files.exists(path))
+      Files.delete(path)
   }
 
   def getFiles(dir: File): Iterable[Path] = {
@@ -252,10 +262,15 @@ object TraceAnalysis {
 
     val content = Files.readAllLines(file)
     var current = 0
+
+    var elems: Array[String] = null
+    var relation: String = null
     content.toArray.foreach(e => {
-      val relation = e.asInstanceOf[String].split(",")(1)
+      elems = e.asInstanceOf[String].split(",")
+      relation = elems(1)
       current = ratesMap.getOrElseUpdate(relation, 0)
-      ratesMap.update(relation, current+1)
+      current += Integer.parseInt(elems(2))
+      ratesMap.update(relation, current)
     })
 
    formatRatesMap(ratesMap)
@@ -284,7 +299,7 @@ object TraceAnalysis {
 
     val traceLength = params.getInt("traceLength")
     val window = params.getInt("window")
-    val degree = params.getInt("degree")
+    val degree = params.getInt("processors")
 
     if(traceLength <= 0 || window <= 0 || degree <= 0) {
       println("Integer values must be positive")
@@ -294,6 +309,26 @@ object TraceAnalysis {
     val prep = new AnalysisPreparation(params.get("directory"), parseFormula(params.get("formula")) ,traceLength, window, degree)
 
     prep.produceSlicers()
+  }
+
+  def prepareSimulation(params: ParameterTool): Unit = {
+
+    val traceLength = params.getInt("traceLength")
+    val window = params.getInt("window")
+    val degree = params.getInt("processors")
+
+    if(traceLength <= 0 || window <= 0 || degree <= 0) {
+      println("Integer values must be positive")
+      sys.exit(1)
+    }
+
+    val prep = new AnalysisPreparation(params.get("directory"), parseFormula(params.get("formula")), traceLength, window, degree)
+
+    prep.produceSlicersForExperiment()
+
+
+
+
   }
 
   def parseFormula(file: String): Formula = {
