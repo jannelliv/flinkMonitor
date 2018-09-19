@@ -1,6 +1,5 @@
 package ch.eth.inf.infsec.policy
 
-import ch.eth.inf.infsec.trace.{IntegralValue, StringValue}
 import fastparse.WhitespaceApi
 import fastparse.noApi._
 
@@ -18,11 +17,12 @@ private object PolicyParsers {
     val Letter: P0 = P( CharIn('a' to 'z', 'A' to 'Z') )
     val Digit: P0 = P( CharIn('0' to '9') )
     val AnyStringExclQuotes: P0 = P( (Letter | Digit | CharIn("_-/:")).rep )
-    val AnyString: P0 = P( (Letter | Digit | CharIn("_-/:\'\"")).rep )
+    val NonDigit: P0 = P( Letter | CharIn("_-/:\'\"") )
+    val AnyString: P0 = P( (NonDigit | Digit).rep )
 
     val Identifier: P[String] = P( ((Letter | Digit | "_") ~ AnyString).! )
 
-    val Integer: P[Long] = P( ("-".? ~ Digit.rep(min = 1)).!.map(_.toLong) )
+    val Integer: P[Long] = P( ("-".? ~ Digit.rep(min = 1) ~ !NonDigit).!.map(_.toLong) )
     // TODO(JS): Should use an exact type for rationals.
     val Rational: P[Any] = Fail
     val QuotedString: P[String] = P(
@@ -32,10 +32,13 @@ private object PolicyParsers {
 
     val Quantity: P[(Int, String)] = P( Digit.rep.!.map(_.toInt) ~/ Letter.?.! )
 
-    val Eventually: P0 = P( "EVENTUALLY" | "SOMETIMES" )
-    val Once: P0 = P( "ONCE" )
-    val Always: P0 = P( "ALWAYS" )
-    val Historically: P0 = P( "PAST_ALWAYS" | "HISTORICALLY" )
+    def keyword(word: String): P0 = P( word ~ !(NonDigit | Digit) )(sourcecode.Name(s"`$word`"))
+
+    val Eventually: P0 = P( keyword("EVENTUALLY") | keyword("SOMETIMES") )
+    val Once: P0 = P( keyword("ONCE") )
+    val Always: P0 = P( keyword("ALWAYS") )
+    val Historically: P0 = P( keyword("PAST_ALWAYS") | keyword("HISTORICALLY") )
+    val SinceUntil: P0 = P( keyword("SINCE") | keyword("UNTIL") )
   }
 
   private val WhitespaceWrapper = WhitespaceApi.Wrapper(Token.Whitespace)
@@ -51,23 +54,27 @@ private object PolicyParsers {
 
   private def optionalInterval(spec: Option[Interval]): Interval = spec.getOrElse(Interval.any)
 
-  private def leftAssoc(op: P0, sub: P[FormulaS], mk: (FormulaS, FormulaS) => FormulaS): P[FormulaS] =
-    P(sub.rep(min = 1, sep = op).map(xs => xs.tail.foldLeft(xs.head)(mk)))
-
-  private def rightAssoc(op: P0, sub: P[FormulaS], mk: (FormulaS, FormulaS) => FormulaS): P[FormulaS] =
-    P(sub.rep(min = 1, sep = op).map(xs => xs.init.foldRight(xs.last)(mk)))
-
-  private def quantifier(op: P0, sub: P[FormulaS], mk: (String, FormulaS) => FormulaS): P[FormulaS] =
-    P((op ~/ Token.Identifier.rep(min = 1, sep = ",") ~ "." ~/ sub).map { case (vars, phi) =>
-      vars.init.foldRight(mk(vars.last, phi))(mk)
+  private def leftAssoc(op: P0, sub: P[FormulaS], subp: P[FormulaS], mk: (FormulaS, FormulaS) => FormulaS): P[FormulaS] =
+    (sub.rep(min = 1, sep = op) ~ (op ~ subp).?).map(xs => {
+      val xs2 = xs._1 ++ xs._2
+      xs2.tail.foldLeft(xs2.head)(mk)
     })
 
+  private def rightAssoc(op: P0, sub: P[FormulaS], subp: P[FormulaS], mk: (FormulaS, FormulaS) => FormulaS): P[FormulaS] =
+    (sub.rep(min = 1, sep = op) ~ (op ~ subp).?).map(xs => {
+      val xs2 = xs._1 ++ xs._2
+      xs2.init.foldRight(xs2.last)(mk)
+    })
+
+  private def quantifier(op: P0, sub: P[FormulaS], mk: (String, FormulaS) => FormulaS): P[FormulaS] =
+    (op ~/ Token.Identifier.rep(min = 1, sep = ",") ~ "." ~/ sub).map { case (vars, phi) =>
+      vars.init.foldRight(mk(vars.last, phi))(mk)
+    }
+
   private def unaryTemporal(op: P0, sub: P[FormulaS], mk: (Interval, FormulaS) => FormulaS): P[FormulaS] =
-    P( (op ~/ TimeInterval.? ~/ sub).map{ case (i, phi) => mk(optionalInterval(i), phi) } )
+    (op ~/ TimeInterval.? ~/ sub).map{ case (i, phi) => mk(optionalInterval(i), phi) }
 
   // TODO(JS): Support decimal numbers
-  // BUG(JS): Does not follow the longest match used by ocamllex. Identifiers such as "5_"
-  // are not parsed correctly.
   val Term: P[Term[String]] = P(
     Token.Integer.map(Const[String](_)) /*| Token.Rational.map(Const)*/ |
     Token.QuotedString.map(Const[String](_)) | Token.Identifier.map(Var(_))
@@ -83,35 +90,37 @@ private object PolicyParsers {
   )
 
   val Formula9: P[FormulaS] = P(
-    ("(" ~/ Formula1 ~/ ")") | "TRUE" ~/ PassWith(True[String]()) | "FALSE" ~/ PassWith(False[String]()) |
-    ("NOT" ~/ Formula9).map(Not(_)) |
-    unaryTemporal("PREVIOUS", Formula9, Prev(_, _)) |
-    unaryTemporal("NEXT", Formula9, Next(_, _)) |
-    unaryTemporal(Token.Eventually, Formula9, GenFormula.eventually) |
-    unaryTemporal(Token.Once, Formula9, GenFormula.once) |
-    unaryTemporal(Token.Always, Formula9, GenFormula.always) |
-    unaryTemporal(Token.Historically, Formula9, GenFormula.historically) |
+    ("(" ~/ Formula1 ~/ ")") |
+    Token.keyword("TRUE") ~/ PassWith(True[String]()) | Token.keyword("FALSE") ~/ PassWith(False[String]()) |
+    (Token.keyword("NOT") ~/ Formula9).map(Not(_)) |
     (Token.Identifier ~ "(" ~/ Term.rep(sep = ",") ~ ")").map(x => Pred(x._1, x._2:_*)) |
     (Term ~ "=" ~/ Term).map(x => Pred("__eq", x._1, x._2)) |
     (Term ~ "<" ~/ Term).map(x => Pred("__less", x._1, x._2))
   )
 
-  val Formula8: P[FormulaS] = leftAssoc("AND", Formula9, And(_, _))
+  val Formula8: P[FormulaS] = P( leftAssoc(Token.keyword("AND"), Formula9, Formula2Prefix, And(_, _)) )
 
-  val Formula7: P[FormulaS] = leftAssoc("OR", Formula8, Or(_, _))
+  val Formula7: P[FormulaS] = P( leftAssoc(Token.keyword("OR"), Formula8, Formula2Prefix, Or(_, _)) )
 
-  val Formula6: P[FormulaS] = rightAssoc("IMPLIES", Formula7, GenFormula.implies)
+  val Formula6: P[FormulaS] = P( rightAssoc(Token.keyword("IMPLIES"), Formula7, Formula2Prefix, GenFormula.implies) )
 
-  val Formula5: P[FormulaS] = leftAssoc("EQUIV", Formula6, GenFormula.equiv)
+  val Formula5: P[FormulaS] = P( leftAssoc(Token.keyword("EQUIV"), Formula6, Formula2Prefix, GenFormula.equiv) )
 
-  val Formula2: P[FormulaS] = P(
-    quantifier("EXISTS", Formula2, Ex(_, _)) |
-    quantifier("FORALL", Formula2, All(_, _)) |
-    Formula5
+  val Formula2Prefix: P[FormulaS] = P(
+    unaryTemporal(Token.keyword("PREVIOUS"), Formula2, Prev(_, _)) |
+    unaryTemporal(Token.keyword("NEXT"), Formula2, Next(_, _)) |
+    unaryTemporal(Token.Eventually, Formula2, GenFormula.eventually) |
+    unaryTemporal(Token.Once, Formula2, GenFormula.once) |
+    unaryTemporal(Token.Always, Formula2, GenFormula.always) |
+    unaryTemporal(Token.Historically, Formula2, GenFormula.historically) |
+    quantifier(Token.keyword("EXISTS"), Formula2, Ex(_, _)) |
+    quantifier(Token.keyword("FORALL"), Formula2, All(_, _))
   )
 
+  val Formula2: P[FormulaS] = P( Formula2Prefix | Formula5 )
+
   val Formula1: P[FormulaS] = P(
-    (Formula2 ~/ ( StringIn("SINCE", "UNTIL").! ~/ TimeInterval.? ~/ Formula2).rep)
+    (Formula2 ~ ( Token.SinceUntil.! ~/ TimeInterval.? ~/ Formula2).rep)
       .map{ case (phi1, ops) =>
         ops.foldRight(identity[FormulaS](_)){ case ((op, i, phi), mkr) => lhs =>
           val rhs = mkr(phi)

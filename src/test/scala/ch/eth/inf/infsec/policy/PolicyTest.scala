@@ -18,6 +18,8 @@ class PolicyTest extends FunSuite with Matchers {
     Policy.parse("TRUE").right.value shouldBe True()
     Policy.parse("FALSE").right.value shouldBe False()
     Policy.parse("P()").right.value shouldBe Pred("P")
+    Policy.parse("5_()").right.value shouldBe Pred("5_")
+    Policy.parse("NOTX()").right.value shouldBe Pred("NOTX")
     Policy.parse("P(x)").right.value shouldBe Px
     Policy.parse("Q(x,y)").right.value shouldBe Qxy
     Policy.parse("Q(7, -42)").right.value shouldBe Qii
@@ -95,5 +97,7 @@ class PolicyTest extends FunSuite with Matchers {
     Policy.parse("EXISTS x. P(x) SINCE P(y)").right.value shouldBe Since(Interval.any, Ex("x", Px), Py)
     Policy.parse("P(x) IMPLIES ONCE Q(x, y)").right.value shouldBe
       GenFormula.implies(Px, GenFormula.once(Interval.any, Qxy))
+    Policy.parse("P(x) IMPLIES ONCE Q(x,y) AND P(x)").right.value shouldBe
+      GenFormula.implies(Px, GenFormula.once(Interval.any, And(Qxy, Px)))
   }
 }
