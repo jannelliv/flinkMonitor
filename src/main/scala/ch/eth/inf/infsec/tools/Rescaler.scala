@@ -44,7 +44,12 @@ object Rescaler extends Serializable {
         in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream))
 
         while (true) {
-          line = in.readLine()
+          try {
+            line = in.readLine()
+            clientSocket.close()
+          } catch {
+            case e: Exception => run()
+          }
           if(line == null) run()
 
           if(line.matches("^(\\w)+:(\\d)+$")){
@@ -54,7 +59,8 @@ object Rescaler extends Serializable {
               case _ => println("Unrecognized command")
             }
           }
-        }}}).start()
+        }
+        }}).start()
     }
 
     /** Parts of this code are dependent on the Flink implementation of the Rest client and its dependencies**/
@@ -107,27 +113,31 @@ object Rescaler extends Serializable {
     }
   }
 
+
+
   def create(jobName: String, jmAddress: String, jmPort: Int = 6123): Unit = {
     val rescaler = new Rescaler()
     rescaler.init(jobName, jmAddress, jmPort)
   }
 
-  def rescale(p: Int): Unit = {
-    try {
-      val client = new Socket()
-      client.bind(new InetSocketAddress("127.0.0.1", 1111))
-      client.connect(new InetSocketAddress("127.0.0.1", 1112))
+  class RescaleInitiator extends Serializable {
 
-      val output = client.getOutputStream
-      val command = "parallelism:%d\n".format(p).toCharArray.map(_.toByte)
+    def rescale(p: Int): Unit = {
+      try {
+        val client = new Socket()
+        client.connect(new InetSocketAddress("127.0.0.1", 1112))
+        val output = client.getOutputStream
 
-      output.write(command)
-      output.flush()
+        val command = "parallelism:%d\n".format(p).toCharArray.map(_.toByte)
 
-      output.close()
-      client.close()
-    } catch {
-      case e: Exception => println(e)
+        output.write(command)
+        output.flush()
+
+        output.close()
+        client.close()
+      } catch {
+        case e: Exception => println(e)
+      }
     }
   }
 }

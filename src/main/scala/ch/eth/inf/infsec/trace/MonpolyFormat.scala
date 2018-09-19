@@ -34,8 +34,7 @@ object MonpolyParsers {
     )
 
     val CommandString: P[String] = P(
-      "\"" ~/ CharsWhile(_ != '"').! ~/ "\"" |
-        (Letter | Digit | CharIn("_[]/:-.,!(){}")).rep(min = 1).!
+        (Letter | Digit | CharIn("_[]/:\"-.,!(){}")).rep(min = 1).!
     )
 
 
@@ -85,7 +84,7 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
       MonpolyParsers.Command.parse(line) match {
         case Parsed.Success(record, _) =>
           f(record)
-        case _ => ()
+        case _ => println("Could not parse: " + line)
       }
     }
   }

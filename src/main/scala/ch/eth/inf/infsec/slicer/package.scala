@@ -17,7 +17,7 @@ package object slicer {
       it.map(str => {
         val tuple = str.split(",\\(")
         if (tuple(1).length > 1) {
-          val domain = tuple(1).substring(0, str.length - 1).split(",").map(parseDomain)
+          val domain = tuple(1).substring(0, tuple(1).length - 1).split(",").map(parseDomain)
           (Integer.parseInt(tuple(0)), domain.toSet)
         } else
           (Integer.parseInt(tuple(0)), Set.empty[Domain])

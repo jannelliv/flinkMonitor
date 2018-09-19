@@ -1,9 +1,11 @@
 package ch.eth.inf.infsec
 
+import ch.eth.inf.infsec.analysis.TraceAnalysis
 import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess, MonpolyRequest}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.ColissionlessKeyGenerator
 import ch.eth.inf.infsec.tools.Rescaler
+import ch.eth.inf.infsec.tools.Rescaler.RescaleInitiator
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.serialization.SimpleStringSchema
@@ -113,91 +115,97 @@ object StreamMonitoring {
   }
 
   def main(args: Array[String]) {
-
     val params = ParameterTool.fromArgs(args)
-    init(params)
 
-    val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
+    val simulation = params.getBoolean("simulation")
 
-    val monitorArgs = monitorCommand ++ List("-sig", signatureFile, "-formula", formulaFile)
-    logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-    val process = if (isMonpoly) new MonpolyProcess(monitorArgs) else new EchoProcess(monitorArgs)
+    if (simulation) TraceAnalysis.prepareSimulation(params)
+    else {
+      init(params)
 
-    val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
+      val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
-    if (!checkpointUri.isEmpty) {
-      env.setStateBackend(new RocksDBStateBackend(checkpointUri))
-      env.enableCheckpointing(10000)
-    }
-    env.setRestartStrategy(RestartStrategies.noRestart())
+      val monitorArgs = monitorCommand ++ List("-sig", signatureFile, "-formula", formulaFile)
+      logger.info("Monitor command: {}", monitorArgs.mkString(" "))
+      val process = if (isMonpoly) new MonpolyProcess(monitorArgs) else new EchoProcess(monitorArgs)
 
-    // Disable automatic latency tracking, since we inject latency markers ourselves.
-    env.getConfig.setLatencyTrackingInterval(-1)
+      val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
-    // Performance tuning
-    env.getConfig.enableObjectReuse()
+      if (!checkpointUri.isEmpty) {
+        env.setStateBackend(new RocksDBStateBackend(checkpointUri))
+        env.enableCheckpointing(10000)
+      }
+      env.setRestartStrategy(RestartStrategies.noRestart())
 
-    env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
-    env.setParallelism(1)
+      // Disable automatic latency tracking, since we inject latency markers ourselves.
+      env.getConfig.setLatencyTrackingInterval(-1)
 
-    //Single node
-    val textStream = in match {
-      case Some(Left((h, p))) => LatencyTrackingExtensions.addSourceWithProvidedMarkers(
+      // Performance tuning
+      env.getConfig.enableObjectReuse()
+
+      env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
+      env.setParallelism(1)
+
+      //Single node
+      val textStream = in match {
+        case Some(Left((h, p))) => LatencyTrackingExtensions.addSourceWithProvidedMarkers(
           env,
           new SocketTextStreamFunction(h, p, "\n", 0),
           "Socket source")
-        .uid("socket-source")
-      case Some(Right(f)) =>
-        if (watchInput)
-          env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
-            .name("File watch source")
-            .uid("file-watch-source")
-        else
-          env.readTextFile(f).name("file-source").uid("File source")
-      case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
-    }
+          .uid("socket-source")
+        case Some(Right(f)) =>
+          if (watchInput)
+            env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
+              .name("File watch source")
+              .uid("file-watch-source")
+          else
+            env.readTextFile(f).name("file-source").uid("File source")
+        case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
+      }
 
-    val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), Rescaler.rescale)))
-      .name("Parser")
-      .uid("input-parser")
+      val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), new RescaleInitiator().rescale)))
+        .name("Parser")
+        .uid("input-parser")
 
-    val slicedTrace = parsedTrace
-      .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
-      .partitionCustom(new IdPartitioner, 0)
+      val slicedTrace = parsedTrace
+        .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
+        .partitionCustom(new IdPartitioner, 0)
 
-    // Parallel node
-    // TODO(JS): Timeout? Capacity?
-    val verdicts = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, String, String](
-      slicer,
-      slicedTrace,
-      new KeyedMonpolyPrinter[Int],
-      process,
-      if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
-      256).setParallelism(processors).name("Monitor").uid("monitor")
+      // Parallel node
+      // TODO(JS): Timeout? Capacity?
+      val verdicts = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, String, String](
+        slicer,
+        slicedTrace,
+        new KeyedMonpolyPrinter[Int],
+        process,
+        if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
+        256).setParallelism(processors).name("Monitor").uid("monitor")
 
-    //Single node
+      //Single node
 
-    out match {
-      case Some(Left((h, p))) =>
-        val outVerdicts = verdicts.map(v => v + "\n").setParallelism(1).name("Add newline").uid("add-newline")
-        LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
+      out match {
+        case Some(Left((h, p))) =>
+          val outVerdicts = verdicts.map(v => v + "\n").setParallelism(1).name("Add newline").uid("add-newline")
+          LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
             outVerdicts,
             new SocketClientSink[String](h, p, new SimpleStringSchema(), 0))
-          .setParallelism(1).name("Socket sink").uid("socket-sink")
-      case Some(Right(f)) =>
-        LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
+            .setParallelism(1).name("Socket sink").uid("socket-sink")
+        case Some(Right(f)) =>
+          LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
             verdicts,
             new OutputFormatSinkFunction[String](new TextOutputFormat[String](new Path(f))))
-          .setParallelism(1).name("File sink").uid("file-sink")
-      case _ =>
-        LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
+            .setParallelism(1).name("File sink").uid("file-sink")
+        case _ =>
+          LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
             verdicts,
             new PrintSinkFunction[String]())
-          .setParallelism(1).name("Print sink").uid("print-sink")
-    }
+            .setParallelism(1).name("Print sink").uid("print-sink")
+      }
 
-    Rescaler.create(jobName, "127.0.0.1")
-    env.execute(jobName)
+      Rescaler.create(jobName, "127.0.0.1")
+      Thread.sleep(3000)
+      env.execute(jobName)
+    }
   }
 
 }
