@@ -55,12 +55,14 @@ class HypercubeSlicer(
   }
 
   override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]) {
+    //var internalSet = new mutable.HashSet[Int]()
     // Compute which variables hold heavy hitters. This determines the shares to use.
     // Additionally, we have to consider all combinations of variables that are not constrained by the valuation,
     // but that can take on heavy hitters in other valuations.
     var heavySet = 0
     var unconstrainedSet = 0
     var i = 0
+
     while (i < valuation.length) {
       val heavyMap = heavy(i)
       if (heavyMap._1 >= 0) {
@@ -85,36 +87,46 @@ class HypercubeSlicer(
         val value = valuation(i)
         if (value != null)
           sliceIndex += theStrides(i) * Math.floorMod(hash(value, theSeeds(i)), theShares(i))
+
         i += 1
       }
 
       // All other other variables are broadcast in their dimension.
-      def broadcast(i: Int, k: Int): Unit = if (i < 0) slices += k else {
-        val value = valuation(i)
-        if (value == null)
-          for (j <- 0 until theShares(i)) broadcast(i - 1, k + theStrides(i) * j)
-        else
-          broadcast(i - 1, k)
+      def broadcast(i: Int, k: Int): Unit = {
+        if (i < 0){
+          slices += k
+          //internalSet += k
+        } else {
+          val value = valuation(i)
+          if (value == null)
+            for (j <- 0 until theShares(i)) broadcast(i - 1, k + theStrides(i) * j)
+          else
+            broadcast(i - 1, k)
+        }
       }
 
       broadcast(valuation.length - 1, sliceIndex)
     }
 
     // Iterate over all combinations of the unconstrained variables.
-    def coverUnconstrained(m: Int, h: Int): Unit = if (m == 0) addSlicesForHeavySet(h) else {
-      if ((unconstrainedSet & m) != 0)
-        coverUnconstrained(m >> 1, h | m)
-      coverUnconstrained(m >> 1, h)
+    def coverUnconstrained(m: Int, h: Int): Unit = {
+      if (m == 0) addSlicesForHeavySet(h) else {
+        if ((unconstrainedSet & m) != 0)
+          coverUnconstrained(m >> 1, h | m)
+        coverUnconstrained(m >> 1, h)
+      }
     }
 
     if (valuation.isEmpty)
       addSlicesForHeavySet(heavySet)
     else
       coverUnconstrained(1 << (valuation.length - 1), heavySet)
+
+    //println(">{(%s),(%s),(%s)}<".format("data,x,y", valuation.mkString(","), internalSet.mkString(",")))
   }
 
   // TODO(JS): Verify whether Monpoly enumerates free variable in DFS order.
-  private val variablesInOrder = formula.freeVariablesInOrder.distinct
+  val variablesInOrder = formula.freeVariablesInOrder.distinct
 
   override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = {
     var heavySet = 0
@@ -155,7 +167,7 @@ class HypercubeSlicer(
   }
 
   def stringify(): String = {
-    parser.stringify(this.heavy, this.shares, this.seeds)
+    parser.stringify(heavy, shares, seeds)
   }
 
   override def restoreState(state: Option[State]): Unit = {
@@ -165,16 +177,17 @@ class HypercubeSlicer(
       case Some(x) =>
         stringifiedSlicer = x.map(_.toChar).mkString("")
         parseSlicer(stringifiedSlicer)
-      case None => ???
+       // println(">set_slicer %s<".format(stringifiedSlicer))
+      case None => throw new Exception("No state to restore slicer from")
     }
   }
 
   private def parseSlicer(slicer: String): Unit = {
     val res = parser.parseSlicer(slicer)
-    this.heavy = res._1
-    this.shares = res._2
-    this.seeds = res._3
-    this.strides = calcStrides
+    heavy = res._1
+    shares = res._2
+    seeds = res._3
+    strides = calcStrides
   }
 
   override def updateState(state: Array[Byte]): Unit = parseSlicer(state.map(_.toChar).mkString(""))
@@ -262,6 +275,8 @@ object HypercubeSlicer {
       optimizeSingleSet(formula, degreeExp, statistics, activeVariables)
     })
 
-    new HypercubeSlicer(formula, heavy, shares)
+    val slicer = new HypercubeSlicer(formula, heavy, shares)
+    //println(slicer.stringify())
+    slicer
   }
 }

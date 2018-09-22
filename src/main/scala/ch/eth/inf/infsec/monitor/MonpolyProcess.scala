@@ -46,7 +46,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     val loadCommand = command ++ List("-load", tempStateFile.toString)
     try {
       open(loadCommand)
-      val reply = reader.readLine()
+      var reply =  reader.readLine()
+      while (reply != LOAD_STATE_OK) reply = reader.readLine()
+      //val reply = reader.readLine()
       if (reply != LOAD_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
@@ -68,7 +70,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     val loadCommand = command ++ List("-combine", tempStateFiles.map(_.toString).mkString(","))
     try {
       open(loadCommand)
-      val reply = reader.readLine()
+      var reply =  reader.readLine()
+      while (reply != COMBINED_STATE_OK) reply = reader.readLine()
+      //val reply = reader.readLine()
       if (reply != COMBINED_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
@@ -92,14 +96,16 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
   override def initSnapshot(): Unit = {
     var command = ""
-    if(pendingSlicer) command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
+    if(pendingSlicer) {
+      command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
+    }
     else command = SAVE_STATE_COMMAND.format(tempStateFile.toString)
     writer.write(command)
     writer.flush()
   }
 
   override def initSnapshot(slicer: String): Unit = {
-    writer.write(SET_SLICER_COMMAND.format(convertToMonpolyFormat(slicer)))
+    writer.write(SET_SLICER_COMMAND.format(slicer))
     writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
     writer.flush()
   }
@@ -158,8 +164,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
 
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = {
-    val line = reader.readLine()
-    if (line != SAVE_STATE_OK)
+    var line =  reader.readLine()
+    while (line != SAVE_STATE_OK) line = reader.readLine()
+    if(line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)
 
     var states = new ListSet[(Int, Array[Byte])]
@@ -201,9 +208,5 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       val digits = str.replaceAll("\\D+","")
       if(digits == "") -1
       else Integer.parseInt(digits)
-  }
-
-  private def convertToMonpolyFormat(slicer: String): String = {
-    slicer.replace("\"", "")
   }
 }

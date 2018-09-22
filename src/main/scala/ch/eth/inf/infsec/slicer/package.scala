@@ -4,7 +4,7 @@ import ch.eth.inf.infsec.trace.{Domain, IntegralValue, StringValue}
 
 package object slicer {
   class SlicerParser extends Serializable {
-    private def parseDomain(str: String): Domain = {
+    def parseDomain(str: String): Domain = {
       val value: Domain = if (str.startsWith("\""))
         StringValue(str.stripPrefix("\"").stripSuffix("\""))
       else
