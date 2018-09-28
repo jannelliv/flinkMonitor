@@ -16,6 +16,17 @@ import scala.io.Source
 object OfflineAnalysis {
   private val logger = LoggerFactory.getLogger(getClass)
 
+  private def extraHeavyHittersToString(map: Map[List[Option[Domain]], Int]): String = {
+    val builder = new mutable.StringBuilder()
+    for ((k, v) <- map) {
+      builder.append(v)
+      for (d <- k)
+        builder.append(',').append(if (d.isDefined) d.get.toString else "")
+      builder.append(';')
+    }
+    builder.take(builder.length - 1).toString
+  }
+
   def main(args: Array[String]): Unit = {
     val parameters = ParameterTool.fromArgs(args)
 
@@ -59,7 +70,8 @@ object OfflineAnalysis {
     else None
 
     val collectHeavy = parameters.getBoolean("collect-heavy", true)
-
+    val collectExtra = parameters.getBoolean("collect-extra", false)
+    val minThreshold = parameters.getInt("threshold", 0)
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment
     env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
@@ -101,7 +113,10 @@ object OfflineAnalysis {
         if (collectHeavy) {
           TraceStatistics.analyzeRelations(filteredStream, windowSize, degree)
             .mapWith { case (startTime, relation, stats) =>
-              val heavyHitters = stats.heavyHitters(degree).map(_.mkString(",")).mkString(";")
+              val heavyHitters = if (collectExtra)
+                  extraHeavyHittersToString(stats.allHeavyHitters(degree, minThreshold))
+                else
+                  stats.heavyHitters(degree, minThreshold).map(_.mkString(",")).mkString(";")
               s"${startTime / 1000},$relation,${stats.records};$heavyHitters"
             }
         } else {
