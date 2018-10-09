@@ -13,8 +13,7 @@ import scala.collection.mutable
 import scala.io.Source
 
 object TraceAnalysis {
-  class AnalysisPreparation(analysisDirectory: String, formula: Formula, traceLength: Int,  window: Int, degree: Int){
-    private val analysisDir: File = new File(analysisDirectory)
+  class AnalysisPreparation(analysisDir: Path, outputDir: Path, formula: Formula, var windows: Int, degree: Int){
     private var tmpHeavyDir: Path = _
     private var tmpRatesDir: Path = _
 
@@ -48,14 +47,14 @@ object TraceAnalysis {
       writer.close()
     }
 
-    def getAnalysisTraceFolders: Iterable[Path] = {
-      if (analysisDir.exists && analysisDir.isDirectory)
-        analysisDir.listFiles.filter(!_.isFile).map(_.toPath).toIterable
-      else
-        throw new Exception("%s does not exist or is not a directory".format(analysisDir.toString))
-    }
+    //def getAnalysisTraceFolders: Iterable[Path] = {
+    //  if (analysisDir.exists && analysisDir.isDirectory)
+    //    analysisDir.listFiles.filter(!_.isFile).map(_.toPath).toIterable
+    //  else
+    //    throw new Exception("%s does not exist or is not a directory".format(analysisDir.toString))
+    //}
 
-    def extractHeavyParts(heavy: Path, dir: Path): Unit = {
+    def extractHeavyParts(heavy: Path, dir: Path, windowSize: Int): Unit = {
       def writeMapToFile(writer: PrintWriter, map: mutable.Map[(String, String, String), Int]): Unit = {
         map.foreach(t => if(t._2 > 0) writer.println("%s,%s,%s".format(t._1._1, t._1._2, t._1._3)))
         writer.close()
@@ -78,7 +77,7 @@ object TraceAnalysis {
 
         if(startTs == 0){
           startTs = currTs
-          boundary = startTs + window
+          boundary = startTs + windowSize
           writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, startTs.toString)))
         }
 
@@ -86,7 +85,7 @@ object TraceAnalysis {
         ratesMap.put((arr(1), arr(2), arr(3)), value + 1)
 
         if(currTs > boundary){
-          boundary += window
+          boundary += windowSize
           writeMapToFile(writer, ratesMap)
           ratesMap = new mutable.HashMap[(String, String, String), Int]().withDefaultValue(0)
           writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, currTs.toString)))
@@ -98,51 +97,56 @@ object TraceAnalysis {
       reader.close()
     }
 
-    def extractParts(heavy: Path, rates: Path, endTs: Int): Unit = {
+    def extractTraceParts(input: Path, dir: Path, windowSize: Int): Unit = {
+      var startTs = 0
+      var currTs: Int = 0
+      var boundary = 0
+      val reader = Files.newBufferedReader(input)
+
+      println(windowSize)
       var line: String = null
+      var writer: PrintWriter = null
 
-      wipeTempFiles()
-      def extractAllParts(input: Path, dir: Path): Unit = {
-        var startTs = 0
-        var currTs: Int = 0
-        var boundary = 0
-        val reader = Files.newBufferedReader(input)
+      line = reader.readLine()
+      while (line != null && line.trim != "") {
+        currTs = line.split(",")(0).toInt
 
-        var writer: PrintWriter = null
-
-        line = reader.readLine()
-        while (line != null) {
-          currTs = line.split(",")(0).toInt
-
-          if(startTs == 0){
-            startTs = currTs
-            boundary = startTs + window
-            writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, startTs.toString)))
-          }
-
-          if(currTs > boundary && line != null){
-            boundary += window
-            writer.close()
-            writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, currTs.toString)))
-            writer.println(line)
-          }else writer.println(line)
-
-          line = reader.readLine()
+        if(startTs == 0){
+          startTs = currTs
+          println("Start TS: " + startTs)
+          boundary = startTs + windowSize
+          writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, startTs.toString)))
         }
 
-        writer.close()
-        reader.close()
+        if(currTs > boundary && line != null){
+          boundary += windowSize
+          println(currTs)
+          writer.close()
+          writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, currTs.toString)))
+          writer.println(line)
+        }else writer.println(line)
+
+        line = reader.readLine()
       }
 
-      extractHeavyParts(heavy, tmpHeavyDir)
-      extractAllParts(rates, tmpRatesDir)
+      writer.close()
+      reader.close()
+    }
+
+    def extractParts(heavy: Path, rates: Path, windowSize: Int): Unit = {
+      wipeTempFiles()
+
+      extractHeavyParts(heavy, tmpHeavyDir, windowSize)
+      extractTraceParts(rates, tmpRatesDir, windowSize)
     }
 
     def processParts: Iterable[String] = {
       val heavyFiles = getFiles(tmpHeavyDir.toFile).toArray
       val ratesFiles = getFiles(tmpRatesDir.toFile).toArray
 
+      println("Heavy files: %d; Rates files: %d; Windows: %d".format(heavyFiles.length, ratesFiles.length, windows))
       if(heavyFiles.length != ratesFiles.length) throw new Exception("Mismatch in number of analysis files")
+      if(heavyFiles.length != windows) throw new Exception("Mismatch in number of analysis files and windows")
 
       var slicers = new mutable.MutableList[String]
       for (i <- heavyFiles.indices ){
@@ -151,27 +155,28 @@ object TraceAnalysis {
       slicers
     }
 
+    def produceSlicersOfTrace(timestamp: Int, windowSize: Int, insertIntoTrace: Boolean): Unit = {
+      val heavyTrace = Paths.get("%s/%s".format(analysisDir.toString, "heavy-trace-wrapped"))
+      val ratesTrace = Paths.get("%s/%s".format(analysisDir.toString, "rates-trace"))
 
-
-    def produceSlicersOfTrace(folder: Path, insertIntoTrace: Boolean): Unit = {
-      val heavyTrace = Paths.get("%s/%s".format(folder.toString, "heavy-trace-wrapped"))
-      val ratesTrace = Paths.get("%s/%s".format(folder.toString, "rates-trace"))
-      val timestamp = extractTs(folder)
-
-      extractParts(heavyTrace, ratesTrace, timestamp)
+      extractParts(heavyTrace, ratesTrace, windowSize)
 
       val slicers = processParts
-      //deleteIfExists("%s/%s".format(folder.toString, "slicers"))
-      //val outputFile = createTmpFile(folder, "slicers")
-      //writeTempFile(outputFile, slicers)
+      deleteIfExists(createFile(outputDir, "slicers"))
+      val outputFile = createFile(outputDir, "slicers")
+      writeTempFile(outputFile, slicers)
+
+      if(slicers.size != windows) throw new Exception("Error: %d windows and %d slicers".format(windows, slicers.size))
 
       if (insertIntoTrace) {
-        val logTrace:   Path = new File("%s/%s".format(folder.toString, "log-trace.csv")).toPath
-        createSlicedCopyOfTrace(logTrace, createFile(folder, "log-trace-sliced.csv"), slicers)
+        val logTrace:   Path = new File("%s/%s".format(analysisDir.toString, "log-trace.csv")).toPath
+        createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-predictive.csv"), slicers, predictive = true)
+        createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-reactive.csv"), slicers, predictive = false)
       }
     }
 
-    def createSlicedCopyOfTrace(input: Path, output: Path, slicerIt: Iterable[String]): Unit = {
+    def createSlicedCopyOfTrace(windowSize: Int, input: Path, output: Path, slicerIt: Iterable[String], predictive: Boolean): Unit = {
+      var slicersInserted = 0
       var slicers = slicerIt
       var currTs = 0
       var startTs = 0
@@ -186,13 +191,16 @@ object TraceAnalysis {
 
         if(startTs == 0){
           startTs = currTs
-          boundary = startTs + window
+          boundary = startTs + windowSize
+          if(predictive)
+            slicers = slicers.tail
         }
 
         if(currTs > boundary && line != null){
-          boundary += window
-          if(slicers.nonEmpty) {
+          boundary += windowSize
+          if(slicers.nonEmpty && slicersInserted <= windows -2) {
             writer.println(">set_slicer %s<".format(slicers.head))
+            slicersInserted += 1
             slicers = slicers.tail
           }
         }
@@ -201,23 +209,17 @@ object TraceAnalysis {
         line = reader.readLine()
       }
 
+      if(slicersInserted != windows -1) throw new Exception("Mismatch between windows (%d) and slicers inserted (%d) should only be 1".format(windows, slicersInserted))
       writer.close()
       reader.close()
     }
 
-    def produceSlicers(): Unit = {
+    def produceSlicersForExperiment(startTs: Int, endTs: Int): Unit = {
       setupWorkingDirectory()
 
-      val traces = getAnalysisTraceFolders
-      traces.foreach(produceSlicersOfTrace(_, insertIntoTrace = true))
+      val windowSize = (endTs - startTs) / this.windows
 
-      clearWorkingDirectory()
-    }
-
-    def produceSlicersForExperiment(): Unit = {
-      setupWorkingDirectory()
-
-      produceSlicersOfTrace(analysisDir.toPath, insertIntoTrace = true)
+      produceSlicersOfTrace(endTs, windowSize, insertIntoTrace = true)
 
       clearWorkingDirectory()
     }
@@ -297,38 +299,36 @@ object TraceAnalysis {
   def main(args: Array[String]): Unit = {
     val params = ParameterTool.fromArgs(args)
 
-    val traceLength = params.getInt("traceLength")
-    val window = params.getInt("window")
-    val degree = params.getInt("processors")
-
-    if(traceLength <= 0 || window <= 0 || degree <= 0) {
-      println("Integer values must be positive")
-      sys.exit(1)
-    }
-
-    val prep = new AnalysisPreparation(params.get("directory"), parseFormula(params.get("formula")) ,traceLength, window, degree)
-
-    prep.produceSlicers()
+    prepareSimulation(params)
   }
 
   def prepareSimulation(params: ParameterTool): Unit = {
+    val degrees = Array(2, 4, 8)
+    val windows = Array(2, 4, 10, 20)
+    val formulas = Array("script1 ins-1-2 del-1-2")
 
-    val traceLength = params.getInt("traceLength")
-    val window = params.getInt("window")
-    val degree = params.getInt("processors")
+    val analysisDir = new File(params.get("directory")).toPath
+    val baseDir = createDir(analysisDir, "formulas")
+    formulas.foreach(f => {
+      val formula = parseFormula("%s/%s.mfotl".format(params.get("formula"), f))
+      val formDir = createDir(createDir(baseDir, f), "degrees")
+      degrees.foreach(d => {
+        val degDir = createDir(createDir(formDir, d.toString), "windows")
+        windows.foreach(w => {
+          val winDir = createDir(degDir, w.toString)
+          println("Preparing files for configuration degrees=%d, windows=%d".format(d,w))
+          val prep = new AnalysisPreparation(analysisDir, winDir, formula, w, d)
+          prep.produceSlicersForExperiment(startTs = 1282921200, endTs = 1283101200)
+        })
+      })
+    })
+  }
 
-    if(traceLength <= 0 || window <= 0 || degree <= 0) {
-      println("Integer values must be positive")
-      sys.exit(1)
-    }
+  def createDir(dir: Path, name: String): Path = {
+    val path = Paths.get("%s/%s".format(dir.toString, name))
+    deleteIfExists(path)
 
-    val prep = new AnalysisPreparation(params.get("directory"), parseFormula(params.get("formula")), traceLength, window, degree)
-
-    prep.produceSlicersForExperiment()
-
-
-
-
+    Files.createDirectory(path)
   }
 
   def parseFormula(file: String): Formula = {
