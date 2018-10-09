@@ -103,7 +103,6 @@ object TraceAnalysis {
       var boundary = 0
       val reader = Files.newBufferedReader(input)
 
-      println(windowSize)
       var line: String = null
       var writer: PrintWriter = null
 
@@ -113,14 +112,12 @@ object TraceAnalysis {
 
         if(startTs == 0){
           startTs = currTs
-          println("Start TS: " + startTs)
           boundary = startTs + windowSize
           writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, startTs.toString)))
         }
 
         if(currTs > boundary && line != null){
           boundary += windowSize
-          println(currTs)
           writer.close()
           writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, currTs.toString)))
           writer.println(line)
@@ -256,7 +253,7 @@ object TraceAnalysis {
       throw new Exception("%s does not exist or is not a directory".format(dir.toString))
   }
 
-  val arr = Array("select", "insert", "updated", "delete", "script_start", "script_end", "script_svn", "script_md5", "commit")
+  val arr = Array("select", "insert", "update", "delete", "script_start", "script_end", "script_svn", "script_md5", "commit")
 
   def getRatesFromFile(file: Path): String = {
     val ratesMap = new mutable.HashMap[String, Int]().withDefaultValue(0)
@@ -305,7 +302,7 @@ object TraceAnalysis {
   def prepareSimulation(params: ParameterTool): Unit = {
     val degrees = Array(2, 4, 8)
     val windows = Array(2, 4, 10, 20)
-    val formulas = Array("script1 ins-1-2 del-1-2")
+    val formulas = Array("script1", "ins-1-2", "del-1-2")
 
     val analysisDir = new File(params.get("directory")).toPath
     val baseDir = createDir(analysisDir, "formulas")
