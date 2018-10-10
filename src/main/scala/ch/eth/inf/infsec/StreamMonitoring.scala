@@ -166,9 +166,13 @@ object StreamMonitoring {
       val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), new RescaleInitiator().rescale)))
         .name("Parser")
         .uid("input-parser")
+        .setMaxParallelism(1)
+        .setParallelism(1)
 
       val slicedTrace = parsedTrace
         .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
+        .setMaxParallelism(1)
+        .setParallelism(1)
         .partitionCustom(new IdPartitioner, 0)
 
       // Parallel node
@@ -179,7 +183,7 @@ object StreamMonitoring {
         new KeyedMonpolyPrinter[Int],
         process,
         if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
-        256).setParallelism(processors).name("Monitor").uid("monitor")
+        256).setParallelism(processors).setMaxParallelism(16).name("Monitor").uid("monitor")
 
       //Single node
 

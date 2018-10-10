@@ -21,34 +21,12 @@ echo "Installing missing components"
 
 CHECKSUM_FILE="checksum.tmp"
 
-JDK_DIR="jdk1.8.0_172"
-if [[ ! -d $JDK_DIR ]]; then
-    JDK_ARCHIVE="server-jre-8u172-linux-x64.tar.gz"
-    if [[ ! -f $JDK_ARCHIVE ]]; then
-        echo "Downloading JRE ..."
-        if ! curl -LR#O -H "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u172-b11/a58eab1ec242421181065cdc37240b08/server-jre-8u172-linux-x64.tar.gz; then
-            echo "[ERROR] Could not download the JRE."
-            exit 1
-        fi
-        echo "3d0a5db2300423a1fd6ee25c229dbd5320d79204c73844337f5b6a082d58541f  server-jre-8u172-linux-x64.tar.gz" > "$CHECKSUM_FILE"
-        if ! sha256sum -c "$CHECKSUM_FILE"; then
-            echo "[ERROR] File corrupted."
-            exit 1
-        fi
-    fi
-    echo "Extracting JRE ..."
-    if ! tar -xzf "$JDK_ARCHIVE"; then
-        echo "[ERROR] Could not extract the JRE."
-        exit 1
-    fi
-fi
-
 FLINK_DIR="flink-1.5.0"
 if [[ ! -d $FLINK_DIR ]]; then
     FLINK_ARCHIVE="flink-1.5.0-bin-scala_2.11.tgz"
     if [[ ! -f $FLINK_ARCHIVE ]]; then
         echo "Downloading Flink ..."
-        if ! curl -LR#O http://www-eu.apache.org/dist/flink/flink-1.5.0/flink-1.5.0-bin-scala_2.11.tgz; then
+        if ! curl -LR#O https://archive.apache.org/dist/flink/flink-1.5.0/flink-1.5.0-bin-scala_2.11.tgz; then
             echo "[ERROR] Could not download Flink."
             exit 1
         fi
@@ -118,8 +96,6 @@ mkdir -p output
 mkdir -p reports
 
 
-export JAVA_HOME="$TARGET_DIR/jdk1.8.0_172"
-
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
 MONPOLY_BIN="monpoly"
@@ -161,13 +137,35 @@ if [[ ! -f $TOOL_JAR ]]; then
     fi
 fi
 
+PROXY_DIR="mt-csv-procy"
+if [[ ! -f $PROXY_JAR ]]; then
+    PROXY_INSTALL="fail"
+    echo "[WARNING] $PROXY_JAR does not exist. Building..."
+    if [[ ! -z $(which mvn) ]]; then
+        if [[ ! -z $(which git) ]]; then
+            git clone https://bitbucket.org/FreddiB/mt-csv-proxy/
+        fi
+        `cd "${PROXY_DIR}"; sbt assembly 2> /dev/null > /dev/null`
+        if [[ $? -eq 0 ]]; then
+            if  cp ${PROXY_DIR}/target/scala-2.10/ReplayerProxy-assembly-0.1.0-SNAPSHOT.jar .; then
+                PROXY_INSTALL="success"
+                echo "$PROXY_JAR installed from source"
+            fi
+        fi
+    fi
+    if [[ $PROXY_INSTALL = "fail" ]]; then
+            echo "Cannot build jar locally. Please copy the evaluation proxy jar into the current directory."
+            MISSING_FILE=1
+    fi
+fi
+
 MONPOLY_DIR="mt-monpoly"
 if [[ ! -x $MONPOLY_BIN ]]; then
     MONPOLY_INSTALL="fail"
     echo "[WARNING] $MONPOLY_BIN does not exist or is not executable. Compiling..."
     if [[ ! -d $MONPOLY_DIR ]]; then
         if [[ ! -z $(which git) ]]; then
-            git clone -b slicer-integration https://bitbucket.org/FreddiB/mt-monpoly/
+            git clone https://bitbucket.org/FreddiB/mt-monpoly/
         fi
     fi
     if [[ ! -z $(which opam) ]]; then

@@ -68,6 +68,7 @@ package object infsec {
     override def open(parameters: Configuration): Unit = {
       super.open(parameters)
       val index = getRuntimeContext.getIndexOfThisSubtask
+      println("Opening %s instance %d".format(getRuntimeContext.getTaskName, getRuntimeContext.getIndexOfThisSubtask))
       //TODO(FB): discuss with JS
       //if (index > 0 && processor.isStateful)
       //  throw new Exception("Stateful processors cannot be used in parallel.")
