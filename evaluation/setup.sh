@@ -91,6 +91,28 @@ fi
 
 
 #TODO? Prepare statistics here aswell
+COMPUTED_STATISTICS="ldcc_statistics.csv"
+java ${SCRIPT_DIR}/../target/classes/ch/eth/inf/infsec/analysis/OfflineAnalysis \
+    --log $LDCC_SAMPLE \
+    --format csv \
+    --window 6000 \
+    --collect-heavy true \--out ${COMPUTED_STATISTICS}
+
+HEAVY_RAW="heavy_raw.csv"
+RATES="rates.csv"
+echo "Splitting statistics"
+if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${HEAVY_RAW} ${RATES}; then
+    rm "$HEAVY_RAW" "$RATES"
+    exit 1
+fi
+
+HEAVY="heavy.csv"
+echo "Merging heavy"
+if ! cat ${HEAVY_RAW} | ./nokia/merge_heavy.py > ${HEAVY}; then
+    rm "$HEAVY_RAW" "$HEAVY" "$RATES"
+    exit 1
+fi
+rm $HEAVY_RAW
 
 
 echo "Preparing working directories ..."
