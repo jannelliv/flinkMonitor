@@ -107,23 +107,34 @@ if [[ (! -f $LDCC_SAMPLE) || (! -f $LDCC_SAMPLE_PAST) || ./nokia/cut_log.py -nt 
 fi
 
 
+RATES="rates-trace.csv"
+HEAVY="heavy-trace.csv"
 COMPUTED_STATISTICS="ldcc_statistics.csv"
 if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
-    HEAVY_RAW="heavy_raw.csv"
-    RATES="rates.csv"
-    echo "Splitting statistics"
-    if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${HEAVY_RAW} ${RATES}; then
-        rm "$HEAVY_RAW" "$RATES"
-        exit 1
-    fi
+    if [[ ((! -f $HEAVY) || (! -f $RATES)) ]]; then
+        HEAVY_RAW="heavy_raw.csv"
+        RATES_RAW="rates_raw.csv"
 
-    HEAVY="heavy.csv"
-    echo "Merging heavy"
-    if ! cat ${HEAVY_RAW} | ./nokia/merge_heavy.py > ${HEAVY}; then
-        rm "$HEAVY_RAW" "$HEAVY" "$RATES"
-        exit 1
+        echo "Splitting statistics"
+        if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${HEAVY_RAW} ${RATES_RAW}; then
+            rm "$HEAVY_RAW" "$RATES_RAW"
+            exit 1
+        fi
+
+        sed -i '1d' $RATES_RAW > $RATES
+
+
+        HEAVY="heavy.csv"
+        echo "Merging heavy"
+        if ! cat ${HEAVY_RAW} | ./nokia/merge_heavy.py > ${HEAVY}; then
+            rm "$HEAVY_RAW" "$RATES_RAW" "$HEAVY" "$RATES"
+            exit 1
+        fi
+        rm $HEAVY_RAW
     fi
-    rm $HEAVY_RAW
+el
+    echo "Computed statistics missing"
+    exit -1
 fi
 
 
