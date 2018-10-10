@@ -301,24 +301,26 @@ object TraceAnalysis {
 
   def prepareSimulation(params: ParameterTool): Unit = {
     val degrees = Array(2, 4, 8)
-    val windows = Array(2, 4, 10, 20)
-    val formulas = Array("script1", "ins-1-2", "del-1-2")
+    val windows = Array(2, 4)
 
-    val analysisDir = new File(params.get("directory")).toPath
-    val baseDir = createDir(analysisDir, "formulas")
-    formulas.foreach(f => {
-      val formula = parseFormula("%s/%s.mfotl".format(params.get("formula"), f))
-      val formDir = createDir(createDir(baseDir, f), "degrees")
-      degrees.foreach(d => {
-        val degDir = createDir(createDir(formDir, d.toString), "windows")
-        windows.foreach(w => {
-          val winDir = createDir(degDir, w.toString)
-          println("Preparing files for configuration degrees=%d, windows=%d".format(d,w))
-          val prep = new AnalysisPreparation(analysisDir, winDir, formula, w, d)
-          prep.produceSlicersForExperiment(startTs = 1282921200, endTs = 1283101200)
-        })
+    val directory = new File(params.get("directory")).toPath
+    val f = params.get("formula")
+
+    val traceDir = createDirIfNotExists(directory, "traces")
+
+    val formula = parseFormula("%s/nokia/%s.mfotl".format(params.get("directory"), f))
+
+    val formDir = createDir(createDir(traceDir, f), "degrees")
+    degrees.foreach(d => {
+      val degDir = createDir(createDir(formDir, d.toString), "windows")
+      windows.foreach(w => {
+        val winDir = createDir(degDir, w.toString)
+        println("Preparing files for configuration degrees=%d, windows=%d".format(d,w))
+        val prep = new AnalysisPreparation(directory, winDir, formula, w, d)
+        prep.produceSlicersForExperiment(startTs = 1282921200, endTs = 1283101200)
       })
     })
+
   }
 
   def createDir(dir: Path, name: String): Path = {
@@ -326,6 +328,14 @@ object TraceAnalysis {
     deleteIfExists(path)
 
     Files.createDirectory(path)
+  }
+
+  def createDirIfNotExists(dir: Path, name: String): Path = {
+    val path = Paths.get("%s/%s".format(dir.toString, name))
+    if(Files.exists(path))
+      Files.createDirectory(path)
+    else
+      path
   }
 
   def parseFormula(file: String): Formula = {

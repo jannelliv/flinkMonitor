@@ -132,11 +132,12 @@ mkdir -p checkpoints
 mkdir -p output
 mkdir -p reports
 
-export JAVA_HOME="$TARGET_DIR/jdk1.8.0_172"
+export JAVA_HOME="$TARGET_DIR/jdk1.8.0_181"
 
 
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
+PROXY_JAR="ReplayerProxy-assembly-0.1.0-SNAPSHOT.jar"
 MONPOLY_BIN="monpoly"
 MISSING_FILE=0
 
