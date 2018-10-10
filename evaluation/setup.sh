@@ -21,6 +21,23 @@ echo "Installing missing components"
 
 CHECKSUM_FILE="checksum.tmp"
 
+JDK_DIR="jdk1.8.0_172"
+if [[ ! -d $JDK_DIR ]]; then
+    JDK_ARCHIVE="server-jre-8u181-linux-x64.tar.gz"
+    if [[ ! -f $JDK_ARCHIVE ]]; then
+        echo "Downloading JRE ..."
+        if ! curl -LR#O -H "Cookie: oraclelicense=accept-securebackup-cookie" download.oracle.com/otn-pub/java/jdk/8u181-b13/96a7b8442fe848ef90c96a2fad6ed6d1/${JDK_ARCHIVE}; then
+            echo "[ERROR] Could not download the JRE."
+            exit 1
+        fi
+    fi
+    echo "Extracting JRE ..."
+    if ! tar -xzf "$JDK_ARCHIVE"; then
+        echo "[ERROR] Could not extract the JRE."
+        exit 1
+    fi
+fi
+
 FLINK_DIR="flink-1.5.0"
 if [[ ! -d $FLINK_DIR ]]; then
     FLINK_ARCHIVE="flink-1.5.0-bin-scala_2.11.tgz"
@@ -90,7 +107,6 @@ if [[ (! -f $LDCC_SAMPLE) || (! -f $LDCC_SAMPLE_PAST) || ./nokia/cut_log.py -nt 
 fi
 
 
-#TODO? Prepare statistics here aswell
 COMPUTED_STATISTICS="ldcc_statistics.csv"
 if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
     HEAVY_RAW="heavy_raw.csv"
