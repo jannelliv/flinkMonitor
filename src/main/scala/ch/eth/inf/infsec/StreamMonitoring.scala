@@ -117,9 +117,9 @@ object StreamMonitoring {
   def main(args: Array[String]) {
     val params = ParameterTool.fromArgs(args)
 
-    val simulation = params.getBoolean("simulation")
+    val analysis = params.getBoolean("analysis", false)
 
-    if (simulation) TraceAnalysis.prepareSimulation(params)
+    if (analysis) TraceAnalysis.prepareSimulation(params)
     else {
       init(params)
 

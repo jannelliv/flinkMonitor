@@ -53,44 +53,16 @@ for formula in $FORMULAS; do
     echo "Evaluating $formula:"
 
     echo "Generating trace files for ${formula}"
-    taskset -c $AUX_CPU_LIST "$WORK_DIR/slice_logfiles.sh" --formula $formula --directory $WORK_DIR
+    echo "taskset -c $AUX_CPU_LIST '$WORK_DIR/slice_logfiles.sh' --formula $formula --directory $WORK_DIR --analysis true"
+    taskset -c $AUX_CPU_LIST "$WORK_DIR/slice_logfiles.sh" --formula $formula --directory $WORK_DIR --analysis true
     echo "Trace files generated"
 
     STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
     start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
-    echo "Flink without checkpointing:"
-    for procs in $PROCESSORS; do
-        numcpus=${procs%/*}
-        cpulist=${procs#*/}
-        echo "  $numcpus processors:"
-
-        taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
-
-        for acc in $ACCELERATIONS; do
-            echo "      Acceleration $acc:"
-            for i in $(seq 1 $REPETITIONS); do
-                echo "        Repetition $i ..."
-                JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
-                DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
-                TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
-
-                rm "$VERDICT_FILE" 2> /dev/null
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
-                "$WORK_DIR/monitor.sh" --in localhost:$PROXY_PORT --format csv --out "$VERDICT_FILE" --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
-                wait
-            done
-        done
-
-        "$FLINK_BIN/stop-cluster.sh" > /dev/null
-    done
-
     TRACE_DIR="$WORK_DIR/traces/$formula/degrees"
 
-    echo "Flink with checkpointing:"
+    echo "Flink with adaptivity:"
     for procs in $PROCESSORS; do
         numcpus=${procs%/*}
         cpulist=${procs#*/}
@@ -125,6 +97,35 @@ for formula in $FORMULAS; do
                         wait
                     done
                 done
+            done
+        done
+
+        "$FLINK_BIN/stop-cluster.sh" > /dev/null
+    done
+
+    echo "Flink without adaptivity:"
+    for procs in $PROCESSORS; do
+        numcpus=${procs%/*}
+        cpulist=${procs#*/}
+        echo "  $numcpus processors:"
+
+        taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
+
+        for acc in $ACCELERATIONS; do
+            echo "      Acceleration $acc:"
+            for i in $(seq 1 $REPETITIONS); do
+                echo "        Repetition $i ..."
+                JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
+                DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
+                TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+
+                rm "$VERDICT_FILE" 2> /dev/null
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
+                "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --format csv --out "$VERDICT_FILE" --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                wait
             done
         done
 
