@@ -90,6 +90,9 @@ if [[ (! -f $LDCC_SAMPLE) || (! -f $LDCC_SAMPLE_PAST) || ./nokia/cut_log.py -nt 
 fi
 
 
+#TODO? Prepare statistics here aswell
+
+
 echo "Preparing working directories ..."
 mkdir -p checkpoints
 mkdir -p output
@@ -137,7 +140,7 @@ if [[ ! -f $TOOL_JAR ]]; then
     fi
 fi
 
-PROXY_DIR="mt-csv-procy"
+PROXY_DIR="mt-csv-proxy"
 if [[ ! -f $PROXY_JAR ]]; then
     PROXY_INSTALL="fail"
     echo "[WARNING] $PROXY_JAR does not exist. Building..."
