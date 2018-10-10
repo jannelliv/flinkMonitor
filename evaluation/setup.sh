@@ -132,7 +132,7 @@ if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
         fi
         rm $HEAVY_RAW
     fi
-el
+else
     echo "Computed statistics missing"
     exit -1
 fi
