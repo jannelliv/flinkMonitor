@@ -116,15 +116,13 @@ if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
         RATES_RAW="rates_raw.csv"
 
         echo "Splitting statistics"
-        if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${HEAVY_RAW} ${RATES_RAW}; then
+        if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${RATES_RAW} ${HEAVY_RAW}; then
             rm "$HEAVY_RAW" "$RATES_RAW"
             exit 1
         fi
 
-        sed -i '1d' $RATES_RAW > $RATES
+        sed '1d' $RATES_RAW > $RATES
 
-
-        HEAVY="heavy.csv"
         echo "Merging heavy"
         if ! cat ${HEAVY_RAW} | ./nokia/merge_heavy.py > ${HEAVY}; then
             rm "$HEAVY_RAW" "$RATES_RAW" "$HEAVY" "$RATES"
