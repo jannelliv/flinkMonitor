@@ -153,8 +153,8 @@ object TraceAnalysis {
     }
 
     def produceSlicersOfTrace(timestamp: Int, windowSize: Int, insertIntoTrace: Boolean): Unit = {
-      val heavyTrace = Paths.get("%s/%s".format(analysisDir.toString, "heavy-trace"))
-      val ratesTrace = Paths.get("%s/%s".format(analysisDir.toString, "rates-trace"))
+      val heavyTrace = Paths.get("%s/%s".format(analysisDir.toString, "heavy-trace.csv"))
+      val ratesTrace = Paths.get("%s/%s".format(analysisDir.toString, "rates-trace.csv"))
 
       extractParts(heavyTrace, ratesTrace, windowSize)
 
@@ -166,7 +166,7 @@ object TraceAnalysis {
       if(slicers.size != windows) throw new Exception("Error: %d windows and %d slicers".format(windows, slicers.size))
 
       if (insertIntoTrace) {
-        val logTrace:   Path = new File("%s/%s".format(analysisDir.toString, "log-trace.csv")).toPath
+        val logTrace:   Path = new File("%s/%s".format(analysisDir.toString, "ldcc_sample.csv")).toPath
         createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-predictive.csv"), slicers, predictive = true)
         createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-reactive.csv"), slicers, predictive = false)
       }

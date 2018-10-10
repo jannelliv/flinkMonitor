@@ -122,13 +122,10 @@ if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
         fi
 
         sed '1d' $RATES_RAW > $RATES
+        sed '1d' $HEAVY_RAW > $HEAVY
 
-        echo "Merging heavy"
-        if ! cat ${HEAVY_RAW} | ./nokia/merge_heavy.py > ${HEAVY}; then
-            rm "$HEAVY_RAW" "$RATES_RAW" "$HEAVY" "$RATES"
-            exit 1
-        fi
         rm $HEAVY_RAW
+        rm $RATES_RAW
     fi
 else
     echo "Computed statistics missing"

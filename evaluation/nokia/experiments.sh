@@ -52,9 +52,12 @@ done
 for formula in $FORMULAS; do
     echo "Evaluating $formula:"
 
+    echo "Removing old trace files"
+    rm -r "$WORK_DIR/traces"
+
     echo "Generating trace files for ${formula}"
     echo "taskset -c $AUX_CPU_LIST '$WORK_DIR/slice_logfiles.sh' --formula $formula --directory $WORK_DIR --analysis true"
-    taskset -c $AUX_CPU_LIST "$WORK_DIR/slice_logfiles.sh" --formula $formula --directory $WORK_DIR --analysis true
+    taskset -c $AUX_CPU_LIST "$WORK_DIR/monitor.sh" --formula $formula --directory $WORK_DIR --analysis true
     echo "Trace files generated"
 
     STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
