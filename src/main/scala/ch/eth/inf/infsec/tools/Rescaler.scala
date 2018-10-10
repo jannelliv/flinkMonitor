@@ -9,6 +9,7 @@ import org.apache.flink.client.cli.CliArgsException
 import org.apache.flink.client.program.rest.RestClusterClient
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.runtime.client.JobStatusMessage
+import org.apache.flink.runtime.jobgraph.JobStatus
 
 import scala.collection.immutable
 
@@ -83,7 +84,7 @@ object Rescaler extends Serializable {
       val jobDetails = jobDetailsFuture.get
       var runningJobs = new immutable.ListSet[JobStatusMessage]
 
-      jobDetails.toArray.foreach(e => runningJobs += e.asInstanceOf[JobStatusMessage])
+      jobDetails.toArray.foreach(e => if(e.asInstanceOf[JobStatusMessage].getJobState == JobStatus.RUNNING) runningJobs += e.asInstanceOf[JobStatusMessage])
       runningJobs.filter(e => e.getJobName eq jobName)
 
       if(runningJobs.size != 1) throw new Exception("Flink job with name \"%s\" could not be found".format(jobName))
