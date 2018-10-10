@@ -332,7 +332,7 @@ object TraceAnalysis {
 
   def createDirIfNotExists(dir: Path, name: String): Path = {
     val path = Paths.get("%s/%s".format(dir.toString, name))
-    if(Files.exists(path))
+    if(!Files.exists(path))
       Files.createDirectory(path)
     else
       path
@@ -341,7 +341,7 @@ object TraceAnalysis {
   def parseFormula(file: String): Formula = {
     val formulaSource = Source.fromFile(file).mkString
     formula = Policy.read(formulaSource) match {
-      case Left(err) =>
+      case Left(_) =>
         println("Cannot parse formula")
         sys.exit(1)
       case Right(phi) => phi
