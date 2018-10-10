@@ -25,7 +25,7 @@ object Rescaler extends Serializable {
 
     def init(jobName: String, jmAddress: String, jmPort: Int = 6123): Unit = {
       try {
-        server = new ServerSocket(1112)
+        server = new ServerSocket(10103)
 
         config.setString("jobmanager.rpc.address", jmAddress)
         client = new RestClusterClient[String](config, "RemoteExecutor")
@@ -125,7 +125,7 @@ object Rescaler extends Serializable {
     def rescale(p: Int): Unit = {
       try {
         val client = new Socket()
-        client.connect(new InetSocketAddress("127.0.0.1", 1112))
+        client.connect(new InetSocketAddress("127.0.0.1", 10103))
         val output = client.getOutputStream
 
         val command = "parallelism:%d\n".format(p).toCharArray.map(_.toByte)
