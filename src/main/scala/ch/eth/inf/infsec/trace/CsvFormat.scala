@@ -76,7 +76,7 @@ object CsvParser {
   }
 
   def parseCommand(line: String): (String, String) = {
-    val arr = line.replace(">", "").split(" ")
+    val arr = line.replaceAll("^>|<$", "").split(" ")
 
     (arr(0), arr(1))
   }

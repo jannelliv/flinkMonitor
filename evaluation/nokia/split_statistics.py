@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import sys
+
 stats_file = open(sys.argv[1], 'r')
 ratesFile = open(sys.argv[2], 'x')
 heavyFile = open(sys.argv[3], 'x')

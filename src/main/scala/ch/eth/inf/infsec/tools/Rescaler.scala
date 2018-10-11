@@ -10,11 +10,14 @@ import org.apache.flink.client.program.rest.RestClusterClient
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.runtime.client.JobStatusMessage
 import org.apache.flink.runtime.jobgraph.JobStatus
+import org.slf4j.LoggerFactory
 
 import scala.collection.immutable
 
 object Rescaler extends Serializable {
-  class Rescaler() extends Serializable {
+  class Rescaler extends Serializable {
+    private val logger = LoggerFactory.getLogger(this.getClass)
+
     private var server: ServerSocket = _
     private var client: RestClusterClient[String] = _
     private val config: Configuration = new Configuration()
@@ -53,11 +56,13 @@ object Rescaler extends Serializable {
           }
           if(line == null) run()
 
+          println("Received command")
+          logger.info("Received command")
           if(line.matches("^(\\w)+:(\\d)+$")){
             val tuple = line.split(":")
             tuple(0) match {
               case "parallelism" => processRescale(jobName, Integer.parseInt(tuple(1)))
-              case _ => println("Unrecognized command")
+              case _ => throw new Exception("Unrecognized command")
             }
           }
         }
@@ -69,12 +74,14 @@ object Rescaler extends Serializable {
       val jobId = getJobId(jobName)
 
       println("Attempting to rescale job with id: " + jobId.toString)
+      logger.info("Attempting to rescale job with id: " + jobId.toString)
       val rescaleFuture = client.rescaleJob(jobId, p)
       try {
         rescaleFuture.get
       } catch {
         case _: Exception => throw new Exception("Could not rescale job " + jobId + '.')
       }
+      logger.info("Rescaled job " + jobId + ". Its new parallelism is " + p + '.')
       println("Rescaled job " + jobId + ". Its new parallelism is " + p + '.')
     }
 
@@ -122,18 +129,22 @@ object Rescaler extends Serializable {
   }
 
   class RescaleInitiator extends Serializable {
+    private val logger = LoggerFactory.getLogger(this.getClass)
 
     def rescale(p: Int): Unit = {
       try {
+        logger.info("Opening socket to 10103")
         val client = new Socket()
         client.connect(new InetSocketAddress("127.0.0.1", 10103))
         val output = client.getOutputStream
 
         val command = "parallelism:%d\n".format(p).toCharArray.map(_.toByte)
 
+        logger.info("Writing command \"%s\" to socket".format(command))
         output.write(command)
         output.flush()
 
+        logger.info("Closing socket")
         output.close()
         client.close()
       } catch {

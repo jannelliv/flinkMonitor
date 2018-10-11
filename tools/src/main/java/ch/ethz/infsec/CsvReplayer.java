@@ -239,6 +239,7 @@ public class CsvReplayer {
                 databaseBuffer = factory.createDatabaseBuffer(0, 0);
                 databaseBuffer.addCommand(line, "command");
                 emitBuffer(databaseBuffer, false);
+                databaseBuffer = null;
             }else {
                 String relation;
                 long timepoint;
