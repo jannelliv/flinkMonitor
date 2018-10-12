@@ -149,10 +149,12 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     if(tempStateFiles != null)
       for(file <- tempStateFiles)
         Files.deleteIfExists(file)
-    if (tempDirectory != null)
-      Files.deleteIfExists(tempStateFile)
     if (tempStateFile != null)
+      Files.deleteIfExists(tempStateFile)
+    if (tempDirectory != null) {
+      deleteFilesOfFolder(tempDirectory.toFile)
       Files.deleteIfExists(tempDirectory)
+    }
   }
 
   private def createTempFile(): Unit = {
@@ -196,6 +198,12 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       tempStateFiles += tmp
       i += 1
     }
+  }
+
+  private def deleteFilesOfFolder(dir: File): Unit = {
+    if (dir.exists && dir.isDirectory)
+      dir.listFiles.map(Files.deleteIfExists(_.toPath))
+    else throw new Exception("File does not exist or is not a directory")
   }
 
   private def getFilesOfStates(dir: File, extension: String): List[File] = {

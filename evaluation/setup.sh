@@ -21,7 +21,7 @@ echo "Installing missing components"
 
 CHECKSUM_FILE="checksum.tmp"
 
-JDK_DIR="jdk1.8.0_172"
+JDK_DIR="jdk1.8.0_181"
 if [[ ! -d $JDK_DIR ]]; then
     JDK_ARCHIVE="server-jre-8u181-linux-x64.tar.gz"
     if [[ ! -f $JDK_ARCHIVE ]]; then
@@ -192,6 +192,7 @@ echo "Preparing working directories ..."
 mkdir -p checkpoints
 mkdir -p output
 mkdir -p reports
+
 
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
