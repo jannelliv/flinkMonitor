@@ -38,24 +38,75 @@ if [[ ! -d $JDK_DIR ]]; then
     fi
 fi
 
+#SCALA_DIR="scala-2.11.8"
+#if [[ ! -d $SCALA_DIR ]]; then
+#    SCALA_ARCHIVE="scala-2.11.8.tgz"
+#    if [[ ! -f $SCALA_ARCHIVE ]]; then
+#        echo "Downloading Scala ..."
+#        if ! curl -LR#O downloads.lightbend.com/scala/2.11.8/${SCALA_ARCHIVE}; then
+#            echo "[ERROR] Could not download scala."
+#            exit 1
+#        fi
+#    fi
+#    echo "Extracting scala ..."
+#    if ! tar -xzf "$SCALA_ARCHIVE"; then
+#        echo "[ERROR] Could not extract scala."
+#        exit 1
+#    fi
+#fi
+
+
 FLINK_DIR="flink-1.5.0"
-if [[ ! -d $FLINK_DIR ]]; then
-    FLINK_ARCHIVE="flink-1.5.0-bin-scala_2.11.tgz"
-    if [[ ! -f $FLINK_ARCHIVE ]]; then
+FLINK_DIR_SRC="flink-1.5.0-src"
+if [[ ! -d ${FLINK_DIR} ]]; then
+    FLINK_ARCHIVE="flink-1.5.0-src.tgz"
+    if [[ ! -f ${FLINK_ARCHIVE} ]]; then
         echo "Downloading Flink ..."
-        if ! curl -LR#O https://archive.apache.org/dist/flink/flink-1.5.0/flink-1.5.0-bin-scala_2.11.tgz; then
+        if ! curl -LR#O archive.apache.org/dist/flink/flink-1.5.0/${FLINK_ARCHIVE}; then
             echo "[ERROR] Could not download Flink."
             exit 1
         fi
-        echo "0664149acc2facb7193160e1e0c1cec571300f2c22adeb01e2e605871cda2d47c9dab16731c7168f389f5b0eff9e7484ff6206898bc13c3be8b9d0027d36d14f  flink-1.5.0-bin-scala_2.11.tgz" > "$CHECKSUM_FILE"
-        if ! sha512sum -c "$CHECKSUM_FILE"; then
-            echo "[ERROR] File corrupted."
+    fi
+
+    if [[ ! -f ${FLINK_DIR_SRC} ]]; then
+        mkdir -p ${FLINK_DIR_SRC}
+        echo "Extracting Flink ..."
+        if ! tar -xzf "$FLINK_ARCHIVE" -C ${FLINK_DIR_SRC} --strip-components 1; then
+            echo "[ERROR] Could not extract Flink."
+            rm -r ${FLINK_DIR_SRC}
+            rm ${FLINK_ARCHIVE}
             exit 1
         fi
     fi
-    echo "Extracting Flink ..."
-    if ! tar -xzf "$FLINK_ARCHIVE"; then
-        echo "[ERROR] Could not extract Flink."
+
+
+    FLINK_EDIT_FOLDER="flink-edit"
+    FLINK_EDIT_FILE="RescalingHandlers.java"
+    FLINK_EDIT_PATH="flink-runtime/src/main/java/org/apache/flink/runtime/rest/handler/job/rescaling"
+
+    echo "Copying modified file"
+    if [[ (! -f $FLINK_EDIT_FOLDER) || (! -f $FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE) ]]; then
+        echo "Edited file not found"
+        exit 1
+    fi
+
+    if [[ ! cp "$FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE" "$FLINK_DIR_SRC/$FLINK_EDIT_FOLDER/" ]]; then
+        echo "File could not be copied to location: $FLINK_EDIT_FOLDER"
+        exit 1
+    fi
+
+    echo "Building from source"
+    if [[ ! `cd ${FLINK_DIR_SRC} && mvn clean install -DskipTests -Dfast` ]]; then
+        echo "Building Flink from source failed"
+        exit 1
+    fi
+    if [[ ! `cd ${FLINK_DIR_SRC}/flink-dist && mvn clean install` ]]; then
+        echo "Building Flink from source failed"
+        exit 1
+    fi
+
+    if [[ ! `mv ${FLINK_DIR_SRC}/flink-dist/target/flink-1.5.0-bin/flink-1.5.0 $FLINK_DIR` ]]; then
+        echo "Building Flink from source failed"
         exit 1
     fi
 fi
@@ -138,8 +189,10 @@ mkdir -p checkpoints
 mkdir -p output
 mkdir -p reports
 
-export JAVA_HOME="$TARGET_DIR/jdk1.8.0_181"
-
+export JAVA_HOME="$TARGET_DIR/$JDK_DIR"
+#export SCALA_HOME="$TARGET_DIR/$SCALA_DIR"
+echo $JAVA_HOME
+#echo $SCALA_HOME
 
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
@@ -229,6 +282,12 @@ if [[ ! -x $MONPOLY_BIN ]]; then
         MISSING_FILE=1
     fi
 fi
+
+chmod +x "$SCRIPT_DIR/nokia/cut_log.py"
+chmod +x "$SCRIPT_DIR/nokia/split_statistics.py"
+chmod +x "$SCRIPT_DIR/monitor.sh"
+chmod +x "$SCRIPT_DIR/proxy.sh"
+chmod +x "$SCRIPT_DIR/replayer.sh"
 
 [[ $MISSING_FILE = 0 ]] || exit 1
 

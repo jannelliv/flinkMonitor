@@ -5,11 +5,11 @@ source "$WORK_DIR/config.sh"
 
 REPETITIONS=1
 FORMULAS="ins-1-2"
-ACCELERATIONS="3000"
+ACCELERATIONS="2000 3000"
 PROCESSORS="2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
-WINDOWS="2 4"
+WINDOWS="4"
 STATS="predictive reactive"
 REPLAYER_QUEUE=1200
 
@@ -28,37 +28,37 @@ for formula in $FORMULAS; do
     rm "$SAVE_COMMAND"
 done
 
-echo "Monpoly standalone:"
-for formula in $FORMULAS; do
-    echo "  Evaluating $formula:"
-    STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
-    for acc in $ACCELERATIONS; do
-        echo "    Acceleration $acc:"
-        for i in $(seq 1 $REPETITIONS); do
-            echo "      Repetition $i ..."
-
-            DELAY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_delay.txt"
-            TIME_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_time.txt"
-
-            rm "$VERDICT_FILE" 2> /dev/null
-            (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
-                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
-        done
-    done
-done
+#echo "Monpoly standalone:"
+#for formula in $FORMULAS; do
+#    echo "  Evaluating $formula:"
+#    STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
+#    for acc in $ACCELERATIONS; do
+#        echo "    Acceleration $acc:"
+#        for i in $(seq 1 $REPETITIONS); do
+#            echo "      Repetition $i ..."
+#
+#            DELAY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_delay.txt"
+#            TIME_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_time.txt"
+#
+#            rm "$VERDICT_FILE" 2> /dev/null
+#            (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
+#                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
+#        done
+#    done
+#done
 
 ###Reshuffled part
 
 for formula in $FORMULAS; do
     echo "Evaluating $formula:"
 
-    echo "Removing old trace files"
-    rm -r "$WORK_DIR/traces"
+    #echo "Removing old trace files"
+    #rm -r "$WORK_DIR/traces"
 
-    echo "Generating trace files for ${formula}"
-    echo "taskset -c $AUX_CPU_LIST '$WORK_DIR/slice_logfiles.sh' --formula $formula --directory $WORK_DIR --analysis true"
-    taskset -c $AUX_CPU_LIST "$WORK_DIR/monitor.sh" --formula $formula --directory $WORK_DIR --analysis true
-    echo "Trace files generated"
+    #echo "Generating trace files for ${formula}"
+    #echo "taskset -c $AUX_CPU_LIST '$WORK_DIR/slice_logfiles.sh' --formula $formula --directory $WORK_DIR --analysis true"
+    #taskset -c $AUX_CPU_LIST "$WORK_DIR/monitor.sh" --formula $formula --directory $WORK_DIR --analysis true
+    #echo "Trace files generated"
 
     STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
     start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
@@ -104,6 +104,7 @@ for formula in $FORMULAS; do
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
                         "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
+                        exit 1
                     done
                 done
             done

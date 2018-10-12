@@ -144,6 +144,7 @@ object StreamMonitoring {
       env.getConfig.enableObjectReuse()
 
       env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
+      env.setMaxParallelism(1)
       env.setParallelism(1)
 
       //Single node
@@ -183,7 +184,7 @@ object StreamMonitoring {
         new KeyedMonpolyPrinter[Int],
         process,
         if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
-        256).setParallelism(processors).setMaxParallelism(16).name("Monitor").uid("monitor")
+        256).setParallelism(processors).setMaxParallelism(8).name("Monitor").uid("monitor")
 
       //Single node
 
