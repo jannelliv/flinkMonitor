@@ -55,10 +55,18 @@ for formula in $FORMULAS; do
     #echo "Removing old trace files"
     #rm -r "$WORK_DIR/traces"
 
-    #echo "Generating trace files for ${formula}"
-    #echo "taskset -c $AUX_CPU_LIST '$WORK_DIR/slice_logfiles.sh' --formula $formula --directory $WORK_DIR --analysis true"
-    #taskset -c $AUX_CPU_LIST "$WORK_DIR/monitor.sh" --formula $formula --directory $WORK_DIR --analysis true
-    #echo "Trace files generated"
+
+    if [[ ! -d "$WORK_DIR/traces" ]]; then
+        echo "Creating traces folder"
+        mkdir -p "$WORK_DIR/traces"
+    fi
+
+    if [[ ! -d "$WORK_DIR/traces/$formula" ]]; then
+        echo "Generating trace files for ${formula}"
+        echo "taskset -c $AUX_CPU_LIST '$WORK_DIR/monitor.sh' --formula $formula --directory $WORK_DIR --analysis true"
+        taskset -c $AUX_CPU_LIST "$WORK_DIR/monitor.sh" --formula $formula --directory $WORK_DIR --analysis true
+        echo "Trace files generated"
+    fi
 
     STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
     start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)

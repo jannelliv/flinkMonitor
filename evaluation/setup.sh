@@ -88,29 +88,29 @@ if [[ ! -d ${FLINK_DIR} ]]; then
     FLINK_EDIT_FILE="RescalingHandlers.java"
     FLINK_EDIT_PATH="flink-runtime/src/main/java/org/apache/flink/runtime/rest/handler/job/rescaling"
 
-    echo "Copying modified file"
-    if [[ (! -f $FLINK_EDIT_FOLDER) || (! -f $FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE) ]]; then
-        echo "Edited file not found"
+    if [[ ! -d "$FLINK_EDIT_FOLDER" || ! -f "$FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE" ]]; then
+        echo "Edited Flink file does not exist"
         exit 1
     fi
 
-    if [[ ! cp "$FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE" "$FLINK_DIR_SRC/$FLINK_EDIT_FOLDER/" ]]; then
-        echo "File could not be copied to location: $FLINK_EDIT_FOLDER"
+    echo "Copying modified Flink file"
+    if ! cp "$FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE" "$FLINK_DIR_SRC/$FLINK_EDIT_PATH"; then
+        echo "File could not be copied to location: $FLINK_EDIT_PATH"
         exit 1
     fi
 
     echo "Building from source"
-    if [[ ! `cd ${FLINK_DIR_SRC} && mvn clean install -DskipTests -Dfast` ]]; then
+    if ! cd ${FLINK_DIR_SRC} && mvn clean install -DskipTests -Dfast; then
         echo "Building Flink from source failed"
         exit 1
     fi
-    if [[ ! `cd ${FLINK_DIR_SRC}/flink-dist && mvn clean install` ]]; then
+    if ! cd ${FLINK_DIR_SRC}/flink-dist && mvn clean install; then
         echo "Building Flink from source failed"
         exit 1
     fi
 
-    if [[ ! `mv ${FLINK_DIR_SRC}/flink-dist/target/flink-1.5.0-bin/flink-1.5.0 $FLINK_DIR` ]]; then
-        echo "Building Flink from source failed"
+    if ! mv ${FLINK_DIR_SRC}/flink-dist/target/flink-1.5.0-bin/flink-1.5.0 $FLINK_DIR; then
+        echo "Moving built flink to working dir failed"
         exit 1
     fi
 fi
