@@ -55,6 +55,10 @@ fi
 #    fi
 #fi
 
+export JAVA_HOME="$TARGET_DIR/$JDK_DIR"
+#export SCALA_HOME="$TARGET_DIR/$SCALA_DIR"
+echo $JAVA_HOME
+#echo $SCALA_HOME
 
 FLINK_DIR="flink-1.5.0"
 FLINK_DIR_SRC="flink-1.5.0-src"
@@ -188,11 +192,6 @@ echo "Preparing working directories ..."
 mkdir -p checkpoints
 mkdir -p output
 mkdir -p reports
-
-export JAVA_HOME="$TARGET_DIR/$JDK_DIR"
-#export SCALA_HOME="$TARGET_DIR/$SCALA_DIR"
-echo $JAVA_HOME
-#echo $SCALA_HOME
 
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
