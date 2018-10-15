@@ -13,7 +13,7 @@ import scala.collection.mutable
 import scala.io.Source
 
 object TraceAnalysis {
-  class AnalysisPreparation(analysisDir: Path, outputDir: Path, formula: Formula, var windows: Int, degree: Int){
+  class AnalysisPreparation(analysisDir: Path, outputDir: Path, formula: Formula, var degree: Int, windows: Int){
     private var tmpHeavyDir: Path = _
     private var tmpRatesDir: Path = _
 
@@ -159,9 +159,9 @@ object TraceAnalysis {
       extractParts(heavyTrace, ratesTrace, windowSize)
 
       val slicers = processParts
-      deleteIfExists(createFile(outputDir, "slicers"))
-      val outputFile = createFile(outputDir, "slicers")
-      writeTempFile(outputFile, slicers)
+      //deleteIfExists(createFile(outputDir, "slicers"))
+      //val outputFile = createFile(outputDir, "slicers")
+      //writeTempFile(outputFile, slicers)
 
       if(slicers.size != windows) throw new Exception("Error: %d windows and %d slicers".format(windows, slicers.size))
 
@@ -300,26 +300,18 @@ object TraceAnalysis {
   }
 
   def prepareSimulation(params: ParameterTool): Unit = {
-    val degrees = Array(2, 4, 8)
-    val windows = Array(2, 4)
+    val degrees = params.getInt("parallelism")
+    val windows = params.getInt("windows")
 
-    val directory = new File(params.get("directory")).toPath
+    val inputDir = new File(params.get("inputDir")).toPath
+    val outputDir = new File(params.get("outputDir")).toPath
     val f = params.get("formula")
 
-    val traceDir = createDirIfNotExists(directory, "traces")
+    val formula = parseFormula("%s/nokia/%s.mfotl".format(params.get("inputDir"), f))
 
-    val formula = parseFormula("%s/nokia/%s.mfotl".format(params.get("directory"), f))
-
-    val formDir = createDir(createDir(traceDir, f), "degrees")
-    degrees.foreach(d => {
-      val degDir = createDir(createDir(formDir, d.toString), "windows")
-      windows.foreach(w => {
-        val winDir = createDir(degDir, w.toString)
-        println("Preparing files for configuration degrees=%d, windows=%d".format(d,w))
-        val prep = new AnalysisPreparation(directory, winDir, formula, w, d)
-        prep.produceSlicersForExperiment(startTs = 1282921200, endTs = 1283101200)
-      })
-    })
+    println("Preparing files for configuration: parallelism=%d, windows=%d".format(degrees,windows))
+    val prep = new AnalysisPreparation(inputDir, outputDir, formula, degrees, windows)
+    prep.produceSlicersForExperiment(startTs = 1282921200, endTs = 1283101200)
 
   }
 
