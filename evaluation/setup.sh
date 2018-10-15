@@ -100,11 +100,11 @@ if [[ ! -d ${FLINK_DIR} ]]; then
     fi
 
     echo "Building from source"
-    if ! cd ${FLINK_DIR_SRC} && mvn clean install -DskipTests -Dfast; then
+    if ! (cd ${FLINK_DIR_SRC} && mvn clean install -DskipTests -Dfast > /dev/null); then
         echo "Building Flink from source failed"
         exit 1
     fi
-    if ! cd ${FLINK_DIR_SRC}/flink-dist && mvn clean install; then
+    if ! (cd ${FLINK_DIR_SRC}/flink-dist && mvn clean install > /dev/null); then
         echo "Building Flink from source failed"
         exit 1
     fi
