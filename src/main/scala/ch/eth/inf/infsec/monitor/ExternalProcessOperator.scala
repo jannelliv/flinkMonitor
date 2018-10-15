@@ -4,8 +4,8 @@ import java.util
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
 import ch.eth.inf.infsec.Processor
-import ch.eth.inf.infsec.slicer.{HypercubeSlicer, SlicerParser}
-import ch.eth.inf.infsec.trace.{CommandRecord, EventRecord, MonpolyVerdictFilter, Record}
+import ch.eth.inf.infsec.slicer.HypercubeSlicer
+import ch.eth.inf.infsec.trace.{CommandRecord, MonpolyVerdictFilter, Record}
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
@@ -285,6 +285,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     }
     emitterThread.start()
 
+    println("Opened EPO")
   }
 
   override def close(): Unit = {

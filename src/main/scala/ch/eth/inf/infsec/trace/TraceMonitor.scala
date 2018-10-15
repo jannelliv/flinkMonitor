@@ -20,7 +20,6 @@ class TraceMonitor(protected val processor: Processor[String, Record], rescale: 
     def processWrapper(record: Record): Unit = {
       record match {
         case CommandRecord(command, parameters) =>
-          logger.info("Parsed command: " + command)
           if(command.trim.startsWith(SLICER_COMMAND)) {
             val parallelism = parser.getParallelism(parameters)
             logger.info("Calling Rescale to %d".format(parallelism))

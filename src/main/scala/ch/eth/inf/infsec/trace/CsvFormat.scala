@@ -30,6 +30,8 @@ class CsvParser extends Processor[String, Record] with Serializable {
 
   override def process(line: String, f: Record => Unit) {
     if(line.startsWith(">")) {
+      //Important, terminate previous timepoint
+      terminate(f)
       val (command, parameters ) = CsvParser.parseCommand(line)
       f(CommandRecord(command, parameters))
     } else {

@@ -56,8 +56,6 @@ object Rescaler extends Serializable {
           }
           if(line == null) run()
 
-          println("Received command")
-          logger.info("Received command")
           if(line.matches("^(\\w)+:(\\d)+$")){
             val tuple = line.split(":")
             tuple(0) match {
@@ -140,7 +138,6 @@ object Rescaler extends Serializable {
 
         val command = "parallelism:%d\n".format(p).toCharArray.map(_.toByte)
 
-        logger.info("Writing command \"%s\" to socket".format(command))
         output.write(command)
         output.flush()
 

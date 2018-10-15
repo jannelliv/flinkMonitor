@@ -4,7 +4,7 @@ import scala.language.implicitConversions
 
 package object trace {
   case class Domain(integralValue: Long, stringValue: String) {
-    override def toString: String = if (stringValue == null) integralValue.toString else stringValue
+    override def toString: String = if (stringValue == null) integralValue.toString else "\"" + stringValue + "\""
   }
 
   object StringValue {

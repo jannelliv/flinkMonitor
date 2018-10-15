@@ -234,7 +234,7 @@ public class CsvReplayer {
         }
 
         private void processRecord(String line) throws InterruptedException {
-            if(line.startsWith(">")) {
+            if(line.trim().startsWith(">")) {
                 emitBuffer(databaseBuffer, false);
                 databaseBuffer = factory.createDatabaseBuffer(0, 0);
                 databaseBuffer.addCommand(line, "command");

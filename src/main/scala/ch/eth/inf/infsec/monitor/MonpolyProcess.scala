@@ -37,6 +37,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   override def open(): Unit = {
     createTempFile()
     open(command)
+    println("Opened Monpoly")
   }
 
   override def open(initialState: Array[Byte]): Unit = {
@@ -46,14 +47,13 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     val loadCommand = command ++ List("-load", tempStateFile.toString)
     try {
       open(loadCommand)
-      var reply =  reader.readLine()
-      while (reply != LOAD_STATE_OK) reply = reader.readLine()
-      //val reply = reader.readLine()
+      val reply =  reader.readLine()
       if (reply != LOAD_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
       Files.delete(tempStateFile)
     }
+    println("Opened Monpoly with single state")
   }
 
   override def open(initialStates: Iterable[(Int, Array[Byte])]): Unit = {
@@ -70,14 +70,13 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     val loadCommand = command ++ List("-combine", tempStateFiles.map(_.toString).mkString(","))
     try {
       open(loadCommand)
-      var reply =  reader.readLine()
-      while (reply != COMBINED_STATE_OK) reply = reader.readLine()
-      //val reply = reader.readLine()
-      if (reply != COMBINED_STATE_OK)
+      val reply = reader.readLine()
+      if (reply != LOAD_STATE_OK)
         throw new Exception("Monitor process failed to load state. Reply: " + reply)
     } finally {
-        for(file <- tempStateFiles) {Files.delete(file) }
+      for(file <- tempStateFiles) {Files.delete(file) }
     }
+    println("Opened Monpoly after rescale")
   }
 
   override def writeRequest(request: MonpolyRequest): Unit = {
@@ -85,7 +84,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       case CommandItem(request.in) =>
         logger.info("Pending Slicer set")
         pendingSlicer = true
-      case EventItem(request.in) =>
+      case EventItem(request.in) => ()
     }
 
     writer.write(request.in)
@@ -115,8 +114,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     do {
       val line = reader.readLine()
       if (line == null || line.startsWith(GET_INDEX_PREFIX)) {
-          more = false
+        more = false
       } else {
+        println("Monpoly Result: " + line)
         // TODO(JS): Check that line is a verdict before adding it to the buffer.
         buffer += line
       }
@@ -166,8 +166,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
 
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = {
-    var line =  reader.readLine()
-    while (line != SAVE_STATE_OK) line = reader.readLine()
+    val line = reader.readLine()
     if(line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)
 
@@ -202,7 +201,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
   private def deleteFilesOfFolder(dir: File): Unit = {
     if (dir.exists && dir.isDirectory)
-      dir.listFiles.map(Files.deleteIfExists(_.toPath))
+      dir.listFiles.map(f => Files.deleteIfExists(f.toPath))
     else throw new Exception("File does not exist or is not a directory")
   }
 
@@ -213,8 +212,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   private def extractPartitionDigits(str: String): Int = {
-      val digits = str.replaceAll("\\D+","")
-      if(digits == "") -1
-      else Integer.parseInt(digits)
+    val digits = str.replaceAll("\\D+","")
+    if(digits == "") -1
+    else Integer.parseInt(digits)
   }
 }
