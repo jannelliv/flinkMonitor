@@ -153,8 +153,8 @@ object TraceAnalysis {
     }
 
     def produceSlicersOfTrace(timestamp: Int, windowSize: Int, insertIntoTrace: Boolean): Unit = {
-      val heavyTrace = Paths.get("%s/%s".format(analysisDir.toString, "heavy-trace.csv"))
-      val ratesTrace = Paths.get("%s/%s".format(analysisDir.toString, "rates-trace.csv"))
+      val heavyTrace = Paths.get("%s/statistics/%s".format(analysisDir.toString, "heavy-trace-%d.csv".format(windows)))
+      val ratesTrace = Paths.get("%s/statistics/%s".format(analysisDir.toString, "rates-trace-%d.csv".format(windows)))
 
       extractParts(heavyTrace, ratesTrace, windowSize)
 

@@ -168,21 +168,21 @@ if [[ (! -f $LDCC_SAMPLE) || (! -f $LDCC_SAMPLE_PAST) || ./nokia/cut_log.py -nt 
 fi
 
 
-STATISTICS_FOLDER="statistics"
+STATISTICS_FOLDER="$TARGET_DIR/statistics"
 if [[ (! -d ${STATISTICS_FOLDER}) ]]; then
     echo "Statistics not found"
     exit 1
 fi
 
 windows="2 4 10 20"
-for window in windows; do
-    RATES="rates-trace-$window.csv"
-    HEAVY="heavy-trace-$window.csv"
-    COMPUTED_STATISTICS="ldcc_statistics_$window-windows.csv"
-    if [[ (-f ${STATISTICS_FOLDER}/${COMPUTED_STATISTICS}) ]]; then
-        if [[ ((! -f ${STATISTICS_FOLDER}/${HEAVY}) || (! -f ${STATISTICS_FOLDER}/${RATES})) ]]; then
-            HEAVY_RAW="heavy_raw.csv"
-            RATES_RAW="rates_raw.csv"
+for window in $windows; do
+    RATES="${STATISTICS_FOLDER}/rates-trace-$window.csv"
+    HEAVY="${STATISTICS_FOLDER}/heavy-trace-$window.csv"
+    COMPUTED_STATISTICS="${STATISTICS_FOLDER}/ldcc_statistics_$window-windows.csv"
+    if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
+        if [[ ((! -f ${HEAVY}) || (! -f ${RATES})) ]]; then
+            HEAVY_RAW="${STATISTICS_FOLDER}/heavy_raw.csv"
+            RATES_RAW="${STATISTICS_FOLDER}/rates_raw.csv"
 
             echo "Splitting statistics"
             if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${RATES_RAW} ${HEAVY_RAW}; then
