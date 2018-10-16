@@ -6,10 +6,10 @@ source "$WORK_DIR/config.sh"
 REPETITIONS=1
 FORMULAS="ins-1-2 script1"
 ACCELERATIONS="3000"
-PROCESSORS="2/0-3,24-27"
+PROCESSORS="2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
-WINDOWS="4 10"
+WINDOWS="2 4 10 20"
 STATS="predictive reactive"
 REPLAYER_QUEUE=1200
 
@@ -43,7 +43,7 @@ for formula in $FORMULAS; do
 
             rm "$VERDICT_FILE" 2> /dev/null
             taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" \
-                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
+                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load $STATE_FILE -negate > "$VERDICT_FILE"
         done
     done
 done
