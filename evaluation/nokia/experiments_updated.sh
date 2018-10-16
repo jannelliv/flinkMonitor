@@ -4,16 +4,14 @@ WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
 REPETITIONS=1
-FORMULAS="ins-1-2"
+FORMULAS="ins-1-2 script1"
 ACCELERATIONS="3000"
 PROCESSORS="2/0-3,24-27"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
-WINDOWS="4"
-STATS="predictive"
+WINDOWS="4 10"
+STATS="predictive reactive"
 REPLAYER_QUEUE=1200
-
-VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
 echo "=== Nokia experiments ==="
 
@@ -28,24 +26,27 @@ for formula in $FORMULAS; do
     rm "$SAVE_COMMAND"
 done
 
-#echo "Monpoly standalone:"
-#for formula in $FORMULAS; do
-#    echo "  Evaluating $formula:"
-#    STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
-#    for acc in $ACCELERATIONS; do
-#        echo "    Acceleration $acc:"
-#        for i in $(seq 1 $REPETITIONS); do
-#            echo "      Repetition $i ..."
-#
-#            DELAY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_delay.txt"
-#            TIME_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_time.txt"
-#
-#            rm "$VERDICT_FILE" 2> /dev/null
-#            (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
-#                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
-#        done
-#    done
-#done
+echo "Monpoly standalone:"
+for formula in $FORMULAS; do
+    echo "  Evaluating $formula:"
+
+    VERDICT_FILE="$OUTPUT_DIR/verdicts_${formula}.txt"
+    STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
+
+    for acc in $ACCELERATIONS; do
+        echo "    Acceleration $acc:"
+        for i in $(seq 1 $REPETITIONS); do
+            echo "      Repetition $i ..."
+
+            DELAY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_delay.txt"
+            TIME_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_time.txt"
+
+            rm "$VERDICT_FILE" 2> /dev/null
+            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" \
+                | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
+        done
+    done
+done
 
 ###Reshuffled part
 
@@ -78,7 +79,7 @@ for formula in $FORMULAS; do
                 if [[ ! (-d "$TRACE_DIR") || ! (-f "$TRACE_FILE") ]]; then
                     mkdir -p $TRACE_DIR
                     echo "Generating trace files for: f=${formula}, p=${numcpus}, w=${window}"
-                    "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --windows $window --parallelism $numcpus --analysis true
+                    taskset -c $AUX_CPU_LIST  "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --windows $window --parallelism $numcpus --analysis true
                     #if ! "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --windows $window --parallelism $numcpus --analysis true; then
                     #    echo "Trace files could not be generated"
                     #    exit -1
@@ -103,8 +104,8 @@ for formula in $FORMULAS; do
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                         rm "$VERDICT_FILE" 2> /dev/null
-                        "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$TRACE_FILE" 2> "$DELAY_REPORT" &
-                        "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
+                        taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$TRACE_FILE" 2> "$DELAY_REPORT" &
+                        taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
                         "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE -nofilteremptytp" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
                     done
