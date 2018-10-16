@@ -32,12 +32,8 @@ class LabelWindowFunction[T, K] extends ProcessWindowFunction[T, (Long, K, T), K
   }
 }
 
-case class Statistics(
-    attributes: Int,
-    records: Long,
-    heavy: Vector[Map[Domain, Int]],
-    counts: Map[Vector[Option[Domain]], Int]) {
-  def heavyHitters: IndexedSeq[Set[Domain]] = heavy.map(_.keySet)
+case class Statistics(events: Long, heavyCounts: Array[Array[(Domain, Int)]]) {
+  def heavyHitters: IndexedSeq[Set[Domain]] = heavyCounts.map(_.view.map(_._1).toSet)
 }
 
 // TODO(JS): Implement proper sketching/sampling
@@ -50,30 +46,21 @@ class StatisticsFunction[K](degree: Int, minThreshold: Int)
     elements: Iterable[Record],
     out: Collector[(Long, K, Statistics)]): Unit = {
 
-    val records = elements.size
-    // We divide the threshold by 2 to account for our use of tumbling windows.
-    val threshold = (records.toDouble / (2.0 * degree.toDouble)).ceil.toInt.max(minThreshold)
-
+    val events = elements.size
     val attributes = elements.headOption.map(_.data.length).getOrElse(0)
+    // We divide the threshold by 2 to account for our use of tumbling windows.
+    val threshold = (events.toDouble / (2.0 * degree.toDouble)).ceil.toInt.max(minThreshold)
 
-    // Count heavy hitters in single attributes.
-    val heavy = Vector.fill(attributes)(new mutable.HashMap[Domain, Int].withDefaultValue(0))
+    val counts = Array.fill(attributes)(new mutable.HashMap[Domain, Int].withDefaultValue(0))
     for (record <- elements)
       for ((value, i) <- record.data.zipWithIndex)
-        heavy(i)(value) += 1
+        counts(i)(value) += 1
 
     for (i <- 0 until attributes)
-      for ((value, count) <- heavy(i) if count < threshold)
-        heavy(i).remove(value)
+      for ((value, count) <- counts(i) if count < threshold)
+        counts(i).remove(value)
 
-    // Count all tuples that contain at least one heavy hitter.
-    val counts = new mutable.HashMap[Vector[Option[Domain]], Int].withDefaultValue(0)
-    for (record <- elements) {
-      val key = Vector.tabulate(attributes)(i => if (heavy(i) contains record.data(i)) Some(record.data(i)) else None)
-      counts(key) += 1
-    }
-
-    out.collect((context.window.getStart, key, Statistics(attributes, records, heavy.map(_.toMap), counts.toMap)))
+    out.collect((context.window.getStart, key, Statistics(events, counts.map(_.toArray))))
   }
 }
 

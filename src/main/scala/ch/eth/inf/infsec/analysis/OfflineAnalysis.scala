@@ -16,25 +16,18 @@ import scala.io.Source
 object OfflineAnalysis {
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private def extraHeavyHittersToString(stats: Statistics): String = {
+  private def heavyHittersWithCountsToString(stats: Statistics): String = {
     val builder = new mutable.StringBuilder()
     var sep1 = ""
-    for (heavy <- stats.heavy) {
+    for (heavy <- stats.heavyCounts) {
       builder.append(sep1)
-      sep1 = "|"
+      sep1 = ";"
       var sep2 = ""
       for ((value, count) <- heavy) {
-        builder.append(sep2).append(count).append(',').append(value)
+        builder.append(sep2).append(value).append(',').append(count)
         sep2 = ","
       }
     }
-
-    for ((key, count) <- stats.counts) {
-      builder.append(';').append(count)
-      for (value <- key)
-        builder.append(',').append(if (value.isDefined) value.get.toString else "")
-    }
-
     builder.toString()
   }
 
@@ -81,7 +74,7 @@ object OfflineAnalysis {
     else None
 
     val collectHeavy = parameters.getBoolean("collect-heavy", true)
-    val collectExtra = parameters.getBoolean("collect-extra", false)
+    val heavyWithCounts = parameters.getBoolean("with-counts", false)
     val minThreshold = parameters.getInt("threshold", 0)
 
     val env = StreamExecutionEnvironment.getExecutionEnvironment
@@ -124,11 +117,11 @@ object OfflineAnalysis {
         if (collectHeavy) {
           TraceStatistics.analyzeRelations(filteredStream, windowSize, degree, minThreshold)
             .mapWith { case (startTime, relation, stats) =>
-              val heavyHitters = if (collectExtra)
-                  extraHeavyHittersToString(stats)
+              val heavyHitters = if (heavyWithCounts)
+                  heavyHittersWithCountsToString(stats)
                 else
                   stats.heavyHitters.map(_.mkString(",")).mkString(";")
-              s"${startTime / 1000},$relation,${stats.records};$heavyHitters"
+              s"${startTime / 1000},$relation,${stats.events};$heavyHitters"
             }
         } else {
           TraceStatistics.analyzeRelationFrequencies(filteredStream, windowSize)

@@ -68,7 +68,7 @@ Required arguments: --log, --out
 --heavy <file>              See above. If any of these is set, compute statistics for individual slices.
 
 --collect-heavy true|false  Whether heavy hitters should be collected (default: true)
---collect-extra true|false  Whether frequencies of all heavy hitters and containing tuples should be collected (default: false)
+--with-counts true|false    Whether frequencies of all heavy hitters should be collected (default: false)
 --threshold <N>             Minimum threshold for heavy hitter classification (default: 0)
 
 
@@ -78,12 +78,8 @@ Output format for slice statistics (if --rates or --shares is set):
 Output format for global statistics (--collect-heavy true):
 <start time of window>,<relation>,<count>;<heavy hitter for attribute #0>,...;<heavy hitter for attribute #1>,...;...
 
-Output format for global statistics with extra heavy hitter information (--collect-extra true):
-<start time of window>,<relation>,<count>;<heavy hitters for attribute #0>|...;<tuple counts>
-where <heavy hitters> has the format
-<count #1>,<value #1>,<count #2>,<value #2>,...
-and <tuple counts> has the format
-<count #1>,<value #1 of attribute #0>,...;<count #2>,<value #2 of attribute #0>,...;...
+Output format for global statistics with heavy hitters frequencies (--collect-heavy true --with-counts true):
+<start time of window>,<relation>,<count>;<heavy hitter for attribute #0>,<count>,<heavy hitter>,<count>,...;...
 
 The count for the empty relation name refers to the number of time-points.
 
