@@ -99,11 +99,15 @@ if [[ ! -d ${FLINK_DIR} ]]; then
         exit 1
     fi
 
-    echo "Building from source"
+    echo "Building Flink from source"
+
+    echo "1. Building base"
     if ! (cd ${FLINK_DIR_SRC} && mvn clean install -DskipTests -Dfast > /dev/null); then
         echo "Building Flink from source failed"
         exit 1
     fi
+
+    echo "2. Building dist"
     if ! (cd ${FLINK_DIR_SRC}/flink-dist && mvn clean install > /dev/null); then
         echo "Building Flink from source failed"
         exit 1
@@ -113,6 +117,8 @@ if [[ ! -d ${FLINK_DIR} ]]; then
         echo "Moving built flink to working dir failed"
         exit 1
     fi
+
+    echo "Flink: Build finished"
 fi
 
 LDCC_LOG="ldcc.csv"
@@ -162,30 +168,39 @@ if [[ (! -f $LDCC_SAMPLE) || (! -f $LDCC_SAMPLE_PAST) || ./nokia/cut_log.py -nt 
 fi
 
 
-RATES="rates-trace.csv"
-HEAVY="heavy-trace.csv"
-COMPUTED_STATISTICS="ldcc_statistics.csv"
-if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
-    if [[ ((! -f $HEAVY) || (! -f $RATES)) ]]; then
-        HEAVY_RAW="heavy_raw.csv"
-        RATES_RAW="rates_raw.csv"
-
-        echo "Splitting statistics"
-        if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${RATES_RAW} ${HEAVY_RAW}; then
-            rm "$HEAVY_RAW" "$RATES_RAW"
-            exit 1
-        fi
-
-        sed '1d' $RATES_RAW > $RATES
-        sed '1d' $HEAVY_RAW > $HEAVY
-
-        rm $HEAVY_RAW
-        rm $RATES_RAW
-    fi
-else
-    echo "Computed statistics missing"
-    exit -1
+STATISTICS_FOLDER="statistics"
+if [[ (! -d ${STATISTICS_FOLDER}) ]]; then
+    echo "Statistics not found"
+    exit 1
 fi
+
+windows="2 4 10 20"
+for window in windows; do
+    RATES="rates-trace-$window.csv"
+    HEAVY="heavy-trace-$window.csv"
+    COMPUTED_STATISTICS="ldcc_statistics_$window-windows.csv"
+    if [[ (-f ${STATISTICS_FOLDER}/${COMPUTED_STATISTICS}) ]]; then
+        if [[ ((! -f ${STATISTICS_FOLDER}/${HEAVY}) || (! -f ${STATISTICS_FOLDER}/${RATES})) ]]; then
+            HEAVY_RAW="heavy_raw.csv"
+            RATES_RAW="rates_raw.csv"
+
+            echo "Splitting statistics"
+            if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${RATES_RAW} ${HEAVY_RAW}; then
+                rm "$HEAVY_RAW" "$RATES_RAW"
+                exit 1
+            fi
+
+            sed '1d' $RATES_RAW > $RATES
+            sed '1d' $HEAVY_RAW > $HEAVY
+
+            rm $HEAVY_RAW
+            rm $RATES_RAW
+        fi
+    else
+        echo "Computed statistics missing"
+        exit -1
+    fi
+done
 
 
 echo "Preparing working directories ..."
