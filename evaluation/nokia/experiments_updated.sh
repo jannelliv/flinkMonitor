@@ -72,19 +72,22 @@ for formula in $FORMULAS; do
 
         for window in $WINDOWS; do
             TRACE_DIR="$TRACE_DIR/$window"
+            echo "   $window windows":
 
             for stat in $STATS; do
+                echo "    $stat statistics":
                 TRACE_FILE="$TRACE_DIR/log-trace-$stat.csv"
 
                 if [[ ! (-d "$TRACE_DIR") || ! (-f "$TRACE_FILE") ]]; then
                     mkdir -p $TRACE_DIR
-                    echo "Generating trace files for: f=${formula}, p=${numcpus}, w=${window}"
-                    taskset -c $AUX_CPU_LIST  "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --windows $window --parallelism $numcpus --analysis true
+                    GEN_REPORT="$REPORT_DIR/${JOB_NAME}_trace_gen.txt"
+                    echo "   Generating trace files for: f=${formula}, p=${numcpus}, w=${window}"
+                    taskset -c $AUX_CPU_LIST  "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --windows $window --parallelism $numcpus --analysis true &> $GEN_REPORT
                     #if ! "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --windows $window --parallelism $numcpus --analysis true; then
                     #    echo "Trace files could not be generated"
                     #    exit -1
                     #fi
-                    echo "Trace files generated"
+                    echo "   Trace files generated"
                 fi
                 for acc in $ACCELERATIONS; do
                     echo "      Acceleration $acc:"
@@ -141,8 +144,6 @@ for formula in $FORMULAS; do
                 wait
             done
         done
-
-        "$FLINK_BIN/stop-cluster.sh" > /dev/null
     done
 
     end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
@@ -151,7 +152,11 @@ for formula in $FORMULAS; do
     echo "Scraping metrics from $start_time to $end_time ..."
     (cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time "nokia-${formula}")
 
-      "$WORK_DIR/visual/stop.sh"
+    echo "Stopping Flink"
+    "$FLINK_BIN/stop-cluster.sh" > /dev/null
+
+    echo "Stopping Prometheus"
+    "$WORK_DIR/visual/stop.sh"
 
     echo
     echo "Evaluation complete for formula: ${formula}!"

@@ -184,7 +184,7 @@ object StreamMonitoring {
         new KeyedMonpolyPrinter[Int],
         process,
         if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
-        256).setParallelism(processors).setMaxParallelism(8).name("Monitor").uid("monitor")
+        256).setParallelism(processors).setMaxParallelism(processors).name("Monitor").uid("monitor")
 
       //Single node
 
@@ -207,7 +207,7 @@ object StreamMonitoring {
             .setParallelism(1).name("Print sink").uid("print-sink")
       }
 
-      Rescaler.create(jobName, "127.0.0.1")
+      Rescaler.create(jobName, "127.0.0.1", processors)
       Thread.sleep(3000)
       env.execute(jobName)
     }

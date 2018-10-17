@@ -1,6 +1,6 @@
 package ch.eth.inf.infsec.tools
 
-import java.io.{BufferedReader, InputStreamReader, PrintWriter}
+import java.io.{BufferedReader, InputStreamReader}
 import java.net.{InetSocketAddress, ServerSocket, Socket}
 
 import javax.xml.bind.DatatypeConverter
@@ -24,12 +24,13 @@ object Rescaler extends Serializable {
 
     private var clientSocket: Socket = _
 
-    private var out: PrintWriter = _
+    private var parallelism: Int = -1
     private var in: BufferedReader = _
 
-    def init(jobName: String, jmAddress: String, jmPort: Int = 6123): Unit = {
+    def init(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
       try {
         server = new ServerSocket(10103)
+        this.parallelism = parallelism
 
         config.setString("jobmanager.rpc.address", jmAddress)
         client = new RestClusterClient[String](config, "RemoteExecutor")
@@ -52,14 +53,14 @@ object Rescaler extends Serializable {
             line = in.readLine()
             clientSocket.close()
           } catch {
-            case e: Exception => run()
+            case _: Exception => run()
           }
           if(line == null) run()
 
           if(line.matches("^(\\w)+:(\\d)+$")){
             val tuple = line.split(":")
             tuple(0) match {
-              case "parallelism" => processRescale(jobName, Integer.parseInt(tuple(1)))
+              case "parallelism" => processRescale(jobName, parallelism)
               case _ => throw new Exception("Unrecognized command")
             }
           }
@@ -121,9 +122,9 @@ object Rescaler extends Serializable {
 
 
 
-  def create(jobName: String, jmAddress: String, jmPort: Int = 6123): Unit = {
+  def create(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
     val rescaler = new Rescaler()
-    rescaler.init(jobName, jmAddress, jmPort)
+    rescaler.init(jobName, jmAddress, parallelism, jmPort)
   }
 
   class RescaleInitiator extends Serializable {

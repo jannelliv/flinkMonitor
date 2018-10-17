@@ -184,7 +184,7 @@ class Loader:
 
     def read_replayer_delay(self, key, path):
         try:
-            with open(path, 'r') as f:
+            with open(str(path), 'r') as f:
                 first_line = f.readline()
                 skip_rows = 1 if first_line and first_line.startswith("Client connected:") else 0
             df = pd.read_csv(path, sep='\\s+', header=None, names=self.delay_header, index_col=0, skiprows=skip_rows)
@@ -207,7 +207,7 @@ class Loader:
 
     def read_memory(self, key, monitor_index, path):
         try:
-            with open(path, 'r') as f:
+            with open(str(path), 'r') as f:
                 first_line = f.readline()
                 if not first_line or ';' not in first_line:
                     self.warn_invalid_file(path)
@@ -221,6 +221,7 @@ class Loader:
         self.memory_data.append(memory)
 
     def read_file(self, path):
+        print(path)
         metrics_match = self.metrics_pattern.fullmatch(path.name)
         if metrics_match:
             key = (
@@ -235,6 +236,7 @@ class Loader:
                 int(metrics_match.group(9) or 0),
                 int(metrics_match.group(10))
                 )
+            print("Read metrics")
             self.read_metrics(key, path)
             return
 
@@ -255,6 +257,7 @@ class Loader:
                 int(delay_match.group(9) or 0),
                 int(delay_match.group(10))
                 )
+            print("Read replayer")
             self.read_replayer_delay(key, path)
             return
 
@@ -273,6 +276,7 @@ class Loader:
                 int(time_match.group(10))
                 )
             monitor_index = int(time_match.group(11) or 0)
+            print("Read memory")
             self.read_memory(key, monitor_index, path)
             return
 
@@ -368,24 +372,24 @@ if __name__ == '__main__':
         # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="all.csv")
 
         # PLOT1
-        gen_nproc_export = summary.select(experiment='gen',checkpointing=True)
-        gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
+        #gen_nproc_export = summary.select(experiment='gen',checkpointing=True)
+        #gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
 
         # PLOT2
         nokia_nproc = summary.select(experiment='nokia', statistics=False)
         nokia_nproc.export('max', 'peak', 'average', 'memory', path="plot-nokia.csv")
 
         # PLOT3
-        nokia_series = series.select(experiment='nokia', checkpointing=False, repetition=2, statistics=False)
+        nokia_series = series.select(experiment='nokia', checkpointing=False, repetition=1, statistics=False)
         nokia_series.export('peak', path="plot-nokia-time-f.csv")
 
         # PLOT4
-        nokia_series = series.select(experiment='nokia', checkpointing=True, repetition=2, statistics=False)
+        nokia_series = series.select(experiment='nokia', checkpointing=True, repetition=1, statistics=False)
         nokia_series.export('peak', path="plot-nokia-time-t.csv")
     
         # PLOT5
-        genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
+        #genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
+        #genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
 
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
