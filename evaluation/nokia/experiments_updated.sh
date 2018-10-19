@@ -4,12 +4,12 @@ WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
 REPETITIONS=1
-FORMULAS="ins-1-2 script1"
+FORMULAS="script1"
 ACCELERATIONS="3000"
 PROCESSORS="2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
-WINDOWS="2 4 10 20"
+WINDOWS="4"
 STATS="predictive reactive"
 REPLAYER_QUEUE=1200
 
@@ -53,12 +53,8 @@ done
 for formula in $FORMULAS; do
     echo "Evaluating $formula:"
 
-    "$WORK_DIR/visual/start.sh"
-
     STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
     start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
-
-    TRACE_DIR="$WORK_DIR/traces/$formula/degrees"
 
     echo "Flink with adaptivity:"
     for procs in $PROCESSORS; do
@@ -66,12 +62,12 @@ for formula in $FORMULAS; do
         cpulist=${procs#*/}
         echo "  $numcpus processors:"
 
-        TRACE_DIR="$TRACE_DIR/$numcpus/windows"
+        BASE_DIR="$WORK_DIR/traces/$formula/degrees/$numcpus/windows"
 
         taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
 
         for window in $WINDOWS; do
-            TRACE_DIR="$TRACE_DIR/$window"
+            TRACE_DIR="$BASE_DIR/$window"
             echo "   $window windows":
 
             for stat in $STATS; do
@@ -100,7 +96,7 @@ for formula in $FORMULAS; do
                         sleep 2
 
 
-                        JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${acc}_${i}"
+                        JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${window}_${acc}_${i}_${stat}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
@@ -127,23 +123,32 @@ for formula in $FORMULAS; do
 
         taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
 
-        for acc in $ACCELERATIONS; do
-            echo "      Acceleration $acc:"
-            for i in $(seq 1 $REPETITIONS); do
-                echo "        Repetition $i ..."
-                JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
-                DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
-                TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+        for window in $WINDOWS; do
+            echo "   $window windows":
 
-                rm "$VERDICT_FILE" 2> /dev/null
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
-                "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE -nofilteremptytp" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
-                wait
+            for stat in $STATS; do
+             echo "    $stat statistics":
+                for acc in $ACCELERATIONS; do
+                    echo "      Acceleration $acc:"
+                    for i in $(seq 1 $REPETITIONS); do
+                        echo "        Repetition $i ..."
+                        JOB_NAME="nokia_flink_${numcpus}_${formula}_${window}_${acc}_${i}_${stat}"
+                        DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                        PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
+                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+
+                        rm "$VERDICT_FILE" 2> /dev/null
+                        taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                        taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
+                        "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE -nofilteremptytp" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                        wait
+                    done
+                done
             done
         done
+
+        taskset -c $cpulist "$FLINK_BIN/stop-cluster.sh" > /dev/null
     done
 
     end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
@@ -154,9 +159,6 @@ for formula in $FORMULAS; do
 
     echo "Stopping Flink"
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
-
-    echo "Stopping Prometheus"
-    "$WORK_DIR/visual/stop.sh"
 
     echo
     echo "Evaluation complete for formula: ${formula}!"
