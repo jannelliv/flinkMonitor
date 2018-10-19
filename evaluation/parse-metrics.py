@@ -38,11 +38,28 @@ for i in range(len(data_record['all'])):
         except:
             monitor_map={}
         m = int(data_record['all'][i]['data']['result'][j]['metric']['subtask_index'])
-        sample_map = {}
-        sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
-        for t in range(0,sample_num):
-            ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
-            sample_map[ts] = int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+        #print("Job: %s, monitor: %d " % (job, m))
+
+        try:
+            sample_map = monitor_map[m]
+            sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
+            #print("sample map already exists for monitor: %d in job: %s" % (m, job))
+
+            #for key, value in sample_map.items():
+            #    print("Ts: %d, value: %d" % (key, value))
+
+            for t in range(0,sample_num):
+                ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
+            #    print("Ts: %d, value: %d" % (ts, int(data_record['all'][i]['data']['result'][j]['values'][t][1])))
+                sample_map[ts] = int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+        except:
+            sample_map = {}
+            sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
+
+            for t in range(0,sample_num):
+                ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
+                sample_map[ts] = int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+
         monitor_map[m]=sample_map
         job_map_record[job]=monitor_map
 
@@ -52,11 +69,26 @@ def extract(data):
     for i in range(len(data['all'])):
         for j in range(len(data['all'][i]['data']['result'])):
             job = str(data['all'][i]['data']['result'][j]['metric']['job_name'])
-            sample_num = len(data['all'][i]['data']['result'][j]['values'])
-            sample_map = {}
-            for t in range(sample_num):
-                ts             = int(data['all'][i]['data']['result'][j]['values'][t][0])
-                sample_map[ts] = int(data['all'][i]['data']['result'][j]['values'][t][1])
+            try:
+                sample_map = job_map_latency[job]
+                #print("Job already has latency stats")
+
+                #for key, value in sample_map.items():
+                #    print("Ts: %d, value: %d" % (key, value))
+
+                sample_num = len(data['all'][i]['data']['result'][j]['values'])
+                for t in range(sample_num):
+                    ts             = int(data['all'][i]['data']['result'][j]['values'][t][0])
+                    value          = int(data['all'][i]['data']['result'][j]['values'][t][1])
+                    #print("TS: %d, Value: %d" % (ts, value))
+                    sample_map[ts] = value
+            except:
+                sample_map = {}
+                sample_num = len(data['all'][i]['data']['result'][j]['values'])
+                for t in range(sample_num):
+                    ts             = int(data['all'][i]['data']['result'][j]['values'][t][0])
+                    sample_map[ts] = int(data['all'][i]['data']['result'][j]['values'][t][1])
+
             job_map_latency[job] = sample_map
     return job_map_latency
 
@@ -96,33 +128,41 @@ for job in common_jobs:
     writer.writerow(['timestamp', 'peak', 'max', 'average']+ map(lambda x: "monitor"+str(x), range(0,ms)))
     
     index = 0
-    peak_list= d2l(job_map_peak[job])
-    max_list = d2l(job_map_max[job])
-    avg_list = d2l(job_map_avg[job])
-    for i in range(0,len(job_map_max[job])):
-        skip=False
-        ts_p, peak = peak_list[i]
-        ts_m, max  = max_list[i]
-        ts_a, avg  = avg_list[i]
-        assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
-        ts = min(ts_p,ts_m,ts_a)
-        r = [ts,peak,max,avg]
-        for m in range(ms):
-            try:
-                ts_r, rec = d2l(job_map_record[job][m])[i]
-                if ts < ts_r:
-                    skip=True
+    #Gets lists from dicts
+    peak_list = d2l(job_map_peak[job])
+    max_list  = d2l(job_map_max[job])
+    avg_list  = d2l(job_map_avg[job])
+    try:
+        index = job.index("ft")
+        print(job)
+        for i in range(0,len(job_map_max[job])):
+            skip=False
+            ts_p, peak = peak_list[i]
+            ts_m, max  = max_list[i]
+            ts_a, avg  = avg_list[i]
+            assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
+            ts = min(ts_p,ts_m,ts_a)
+            r = [ts,peak,max,avg]
+            for m in range(ms):
+                try:
+                    #print("job: %s, m: %d, i: %d" % (job, m, i))
+                    ts_r, rec = d2l(job_map_record[job][m])[i]
+                    if ts < ts_r:
+                        skip=True
+                        #print("Skipping")
+                        break
+                    if ts > ts_r:
+                        continue
+                    r = r + [rec]
+                except IndexError:
+                    # number of samples misaligned
+                    print("Number of samples misaligned")
                     break
-                if ts > ts_r:
-                    continue
-                r = r + [rec] 
-            except IndexError:
-                # number of samples misaligned
-                break
-        if skip:
-            continue
-
-        writer.writerow(r)
+            if skip:
+                continue
+            writer.writerow(r)
+    except:
+        print("")
     output_file.close()
 
 f_max.close()
