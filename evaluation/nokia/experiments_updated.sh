@@ -3,13 +3,15 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
+format="+%Y-%m-%dT%H:%M:%S.%3NZ"
+
 REPETITIONS=1
-FORMULAS="script1"
+FORMULAS="ins-1-2 script1"
 ACCELERATIONS="3000"
 PROCESSORS="2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
-WINDOWS="4"
+WINDOWS="2 4"
 STATS="predictive reactive"
 REPLAYER_QUEUE=1200
 
@@ -90,23 +92,28 @@ for formula in $FORMULAS; do
                     for i in $(seq 1 $REPETITIONS); do
                         echo "        Repetition $i ..."
 
-                        kill -9 $(lsof -t -i:$RESCALER_PORT) &> /dev/null
-                        kill -9 $(lsof -t -i:$STREAM_PORT) &> /dev/null
-                        kill -9 $(lsof -t -i:$PROXY_PORT) &> /dev/null
-                        sleep 2
-
-
-                        JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${window}_${acc}_${i}_${stat}"
+                        JOB_NAME="nokia_flink_ft_${numcpus}_${formula}_${window}_${stat}_${acc}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                         rm "$VERDICT_FILE" 2> /dev/null
+                        start_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$TRACE_FILE" 2> "$DELAY_REPORT" &
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
                         "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE -nofilteremptytp" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
+                        end_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
+
+                        start_utc=$(echo "$start_exp" | xargs -I J date "$format" --utc -d J)
+                        end_utc=$(echo "$end_exp" | xargs -I J date "$format" --utc -d J)
+
+                        start_s=$(echo "$start_exp" | xargs -I J date '+%s'  -d J)
+                        end_s=$(echo "$end_exp" | xargs -I J date '+%s'  -d J)
+
+                        diff_s=$((end_s-start_s))
+                        echo "        Experiment ran for $diff_s ms"
                     done
                 done
             done
@@ -132,17 +139,28 @@ for formula in $FORMULAS; do
                     echo "      Acceleration $acc:"
                     for i in $(seq 1 $REPETITIONS); do
                         echo "        Repetition $i ..."
-                        JOB_NAME="nokia_flink_${numcpus}_${formula}_${window}_${acc}_${i}_${stat}"
+                        JOB_NAME="nokia_flink_${numcpus}_${formula}_${window}_${stat}_${acc}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                         rm "$VERDICT_FILE" 2> /dev/null
+                        start_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
                         "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE -nofilteremptytp" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
+                        end_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
+
+                        start_utc=$(echo "$start_exp" | xargs -I J date "$format" --utc -d J)
+                        end_utc=$(echo "$end_exp" | xargs -I J date "$format" --utc -d J)
+
+                        start_s=$(echo "$start_exp" | xargs -I J date '+%s'  -d J)
+                        end_s=$(echo "$end_exp" | xargs -I J date '+%s'  -d J)
+
+                        diff_s=$((end_s-start_s))
+                        echo "        Experiment ran for $diff_s ms"
                     done
                 done
             done

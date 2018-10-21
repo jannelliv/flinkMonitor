@@ -49,8 +49,8 @@ class Data:
         self.name = name
         self.df = df
 
-    def select(self, experiment=ANY, tool=ANY, checkpointing=ANY, statistics=ANY, processors=ANY, formula=ANY, heavy_hitters=ANY, event_rate=ANY, index_rate=ANY, repetition=ANY):
-        view = self.df.loc[(experiment, tool, checkpointing, statistics, processors, formula, heavy_hitters, event_rate, index_rate, repetition), :]
+    def select(self, experiment=ANY, tool=ANY, adaptivity=ANY, processors=ANY, formula=ANY, window=ANY, event_rate=ANY, repetition=ANY, statistics=ANY):
+        view = self.df.loc[(experiment, tool, adaptivity, processors, formula, window, event_rate, repetition, statistics), :]
         return Data(self.name, view)
 
     def export(self, *columns, drop_levels=[], path=None):
@@ -137,9 +137,9 @@ class Data:
 
 
 class Loader:
-    job_levels = ['experiment', 'tool', 'checkpointing', 'statistics', 'processors', 'formula', 'heavy_hitters', 'event_rate', 'index_rate', 'repetition']
+    job_levels = ['experiment', 'tool', 'adaptivity', 'processors', 'formula', 'window', 'event_rate', 'repetition', 'statistics']
 
-    job_regex = r"(nokia|gen|genh)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
+    job_regex = r"(nokia|gen)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)_(\d+)?(?:_(\d+))_(\d+)(?:_(predictive|reactive))?"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
@@ -221,22 +221,19 @@ class Loader:
         self.memory_data.append(memory)
 
     def read_file(self, path):
-        print(path)
         metrics_match = self.metrics_pattern.fullmatch(path.name)
         if metrics_match:
             key = (
                 metrics_match.group(1),
                 metrics_match.group(2),
                 bool(metrics_match.group(3)),
-                bool(metrics_match.group(4)),
-                int(metrics_match.group(5)),
-                metrics_match.group(6).replace('_', '-'),
-                int(metrics_match.group(7) or 0),
+                int(metrics_match.group(4) or 0),
+                metrics_match.group(5).replace('_', '-'),
+                int(metrics_match.group(6) or 0),
+                int(metrics_match.group(7)),
                 int(metrics_match.group(8)),
-                int(metrics_match.group(9) or 0),
-                int(metrics_match.group(10))
+                str(metrics_match.group(9) or "static")
                 )
-            print("Read metrics")
             self.read_metrics(key, path)
             return
 
@@ -249,15 +246,13 @@ class Loader:
                 delay_match.group(1),
                 delay_match.group(2),
                 bool(delay_match.group(3)),
-                bool(delay_match.group(4)),
-                int(delay_match.group(5) or 1),
-                delay_match.group(6),
-                int(delay_match.group(7) or 0),
+                int(delay_match.group(4) or 0),
+                delay_match.group(5).replace('_', '-'),
+                int(delay_match.group(6) or 0),
+                int(delay_match.group(7)),
                 int(delay_match.group(8)),
-                int(delay_match.group(9) or 0),
-                int(delay_match.group(10))
+                (delay_match.group(9) or "static")
                 )
-            print("Read replayer")
             self.read_replayer_delay(key, path)
             return
 
@@ -267,16 +262,14 @@ class Loader:
                 time_match.group(1),
                 time_match.group(2),
                 bool(time_match.group(3)),
-                bool(time_match.group(4)),
-                int(time_match.group(5) or 1),
-                time_match.group(6),
-                int(time_match.group(7) or 0),
-                int(time_match.group(8)),
-                int(time_match.group(9) or 0),
-                int(time_match.group(10))
+                int(time_match.group(4) or 0),
+                time_match.group(5).replace('_', '-'),
+                int(time_match.group(6) or 0),
+                int(time_match.group(7)),
+                int(time_match.group(8) or 0),
+                (time_match.group(9) or "static")
                 )
-            monitor_index = int(time_match.group(11) or 0)
-            print("Read memory")
+            monitor_index = int(time_match.group(10) or 0)
             self.read_memory(key, monitor_index, path)
             return
 
@@ -376,15 +369,15 @@ if __name__ == '__main__':
         #gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
 
         # PLOT2
-        nokia_nproc = summary.select(experiment='nokia', statistics=False)
+        nokia_nproc = summary.select(experiment='nokia', adaptivity=True)
         nokia_nproc.export('max', 'peak', 'average', 'memory', path="plot-nokia.csv")
 
         # PLOT3
-        nokia_series = series.select(experiment='nokia', checkpointing=False, repetition=1, statistics=False)
+        nokia_series = series.select(experiment='nokia', adaptivity=False, repetition=1)
         nokia_series.export('peak', path="plot-nokia-time-f.csv")
 
         # PLOT4
-        nokia_series = series.select(experiment='nokia', checkpointing=True, repetition=1, statistics=False)
+        nokia_series = series.select(experiment='nokia', adaptivity=True, repetition=1)
         nokia_series.export('peak', path="plot-nokia-time-t.csv")
     
         # PLOT5

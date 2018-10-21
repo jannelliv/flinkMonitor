@@ -71,10 +71,10 @@ def extract(data):
             job = str(data['all'][i]['data']['result'][j]['metric']['job_name'])
             try:
                 sample_map = job_map_latency[job]
-                #print("Job already has latency stats")
+                #print("Job %s already has stats" % job)
 
                 #for key, value in sample_map.items():
-                #    print("Ts: %d, value: %d" % (key, value))
+                    #print("Ts: %d, value: %d" % (key, value))
 
                 sample_num = len(data['all'][i]['data']['result'][j]['values'])
                 for t in range(sample_num):
@@ -132,37 +132,40 @@ for job in common_jobs:
     peak_list = d2l(job_map_peak[job])
     max_list  = d2l(job_map_max[job])
     avg_list  = d2l(job_map_avg[job])
-    try:
-        index = job.index("ft")
-        print(job)
-        for i in range(0,len(job_map_max[job])):
-            skip=False
-            ts_p, peak = peak_list[i]
-            ts_m, max  = max_list[i]
-            ts_a, avg  = avg_list[i]
-            assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
-            ts = min(ts_p,ts_m,ts_a)
-            r = [ts,peak,max,avg]
-            for m in range(ms):
-                try:
-                    #print("job: %s, m: %d, i: %d" % (job, m, i))
-                    ts_r, rec = d2l(job_map_record[job][m])[i]
-                    if ts < ts_r:
-                        skip=True
-                        #print("Skipping")
-                        break
-                    if ts > ts_r:
-                        continue
-                    r = r + [rec]
-                except IndexError:
-                    # number of samples misaligned
-                    print("Number of samples misaligned")
+    #try:
+    #    index = job.index("ft")
+    length = len(job_map_max[job])-1
+    print("File length of job %s: %d" % (job, length))
+    for i in range(0,length):
+        skip=False
+        ts_p, peak = peak_list[i]
+        ts_m, max  = max_list[i]
+        ts_a, avg  = avg_list[i]
+        assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
+        ts = min(ts_p,ts_m,ts_a)
+        r = [ts,peak,max,avg]
+        for m in range(ms):
+            try:
+                #print("job: %s, m: %d, i: %d" % (job, m, i))
+                ts_r, rec = d2l(job_map_record[job][m])[i]
+                if ts < ts_r:
+                    skip=True
+                    #print("Skipping")
                     break
-            if skip:
-                continue
-            writer.writerow(r)
-    except:
-        print("")
+                if ts > ts_r:
+                    continue
+                r = r + [rec]
+            except IndexError:
+                # number of samples misaligned
+                print("Number of samples misaligned")
+                print("Len: %d vs Len: %d" % (len(job_map_max[job]), len(d2l(job_map_record[job][m]))))
+                print("Job: %s, m: %d, i: %d" % (job, m, i))
+                break
+        if skip:
+            continue
+        writer.writerow(r)
+    #except:
+    #    ()
     output_file.close()
 
 f_max.close()
