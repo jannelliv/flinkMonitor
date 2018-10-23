@@ -33,7 +33,14 @@ class HypercubeSlicer(
 
   private var seeds: Array[Array[Int]] = {
     val random = new Random(seed)
-    Array.fill(shares.length){Array.fill(dimensions){random.nextInt()}}
+    // We enforce equal seeds for equal share combinations. This reduces the amount of duplication
+    // if a variable is not sliced even in the "light" case.
+    val distinctShares = shares.distinct
+    val distinctSeeds = Array.fill(distinctShares.length){Array.fill(dimensions){random.nextInt()}}
+    Array.tabulate(shares.length){ i =>
+      val j = distinctShares.indexOf(shares(i))
+      distinctSeeds(j)
+    }
   }
 
   private var strides = calcStrides
