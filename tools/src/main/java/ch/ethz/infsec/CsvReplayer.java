@@ -193,6 +193,7 @@ public class CsvReplayer {
         private final LinkedBlockingQueue<OutputItem> queue;
 
         private boolean successful = false;
+        private boolean sentCommand = false;
 
         private DatabaseBuffer databaseBuffer = null;
         private long firstTimestamp;
@@ -235,11 +236,11 @@ public class CsvReplayer {
 
         private void processRecord(String line) throws InterruptedException {
             if(line.trim().startsWith(">")) {
-                emitBuffer(databaseBuffer, false);
+                if(databaseBuffer != null) emitBuffer(databaseBuffer, false);
                 databaseBuffer = factory.createDatabaseBuffer(0, 0);
                 databaseBuffer.addCommand(line, "command");
-                emitBuffer(databaseBuffer, false);
-                databaseBuffer = null;
+                emitCommandBuffer(databaseBuffer);
+                sentCommand = true;
             }else {
                 String relation;
                 long timepoint;
@@ -275,7 +276,8 @@ public class CsvReplayer {
                     firstTimestamp = timestamp;
                     currentTimepoint = timepoint;
                 } else if (timepoint != currentTimepoint) {
-                    emitBuffer(databaseBuffer, false);
+                    if(!sentCommand) emitBuffer(databaseBuffer, false);
+                    sentCommand =  false;
 
                     long nextEmission;
                     if (timeMultiplier > 0.0) {
@@ -289,6 +291,11 @@ public class CsvReplayer {
 
                 databaseBuffer.addEvent(line, relation, currentIndex);
             }
+        }
+
+
+        private void emitCommandBuffer(DatabaseBuffer databaseBuffer) throws InterruptedException {
+            queue.put(databaseBuffer);
         }
 
         private void emitBuffer(DatabaseBuffer databaseBuffer, boolean isLast) throws InterruptedException {

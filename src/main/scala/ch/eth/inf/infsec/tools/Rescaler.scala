@@ -78,7 +78,9 @@ object Rescaler extends Serializable {
       try {
         rescaleFuture.get
       } catch {
-        case _: Exception => throw new Exception("Could not rescale job " + jobId + '.')
+        case e: Exception =>
+          e.printStackTrace()
+          throw new Exception("Could not rescale job " + jobId + '.')
       }
       logger.info("Rescaled job " + jobId + ". Its new parallelism is " + p + '.')
       println("Rescaled job " + jobId + ". Its new parallelism is " + p + '.')

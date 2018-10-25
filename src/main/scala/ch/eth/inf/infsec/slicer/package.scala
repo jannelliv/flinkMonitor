@@ -55,10 +55,7 @@ package object slicer {
       val it = domain.iterator
       val sb = new StringBuilder
       while (it.hasNext) {
-        it.next() match {
-          case StringValue(s) =>  sb ++= "\"%s\"".format(s)
-          case IntegralValue(i) => sb ++= "%d".format(i)
-        }
+        sb ++= it.next().toString
         if (it.hasNext) sb ++= ","
       }
       sb.mkString

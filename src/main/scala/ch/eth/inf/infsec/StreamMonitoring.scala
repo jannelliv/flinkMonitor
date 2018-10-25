@@ -208,7 +208,7 @@ object StreamMonitoring {
       }
 
       Rescaler.create(jobName, "127.0.0.1", processors)
-      Thread.sleep(3000)
+      Thread.sleep(2000)
       env.execute(jobName)
     }
   }

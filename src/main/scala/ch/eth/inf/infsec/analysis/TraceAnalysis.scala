@@ -159,6 +159,9 @@ object TraceAnalysis {
       extractParts(heavyTrace, ratesTrace, windowSize)
 
       val slicers = processParts
+      val defaultSlicers = new mutable.MutableList[String]
+      val defaultSlicer = getDefaultSlicer()
+      slicers.foreach(_ => defaultSlicers += defaultSlicer)
       //deleteIfExists(createFile(outputDir, "slicers"))
       //val outputFile = createFile(outputDir, "slicers")
       //writeTempFile(outputFile, slicers)
@@ -169,6 +172,7 @@ object TraceAnalysis {
         val logTrace:   Path = new File("%s/%s".format(analysisDir.toString, "ldcc_sample.csv")).toPath
         createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-predictive.csv"), slicers, predictive = true)
         createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-reactive.csv"), slicers, predictive = false)
+        createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-static.csv"), defaultSlicers, predictive = true)
       }
     }
 
@@ -197,6 +201,7 @@ object TraceAnalysis {
           boundary += windowSize
           if(slicers.nonEmpty && slicersInserted <= windows -2) {
             writer.println(">set_slicer %s<".format(slicers.head))
+            println(">set_slicer %s<".format(slicers.head))
             slicersInserted += 1
             slicers = slicers.tail
           }
@@ -224,6 +229,11 @@ object TraceAnalysis {
     def getSlicer(heavy: String, rates: String): String = {
       val arguments = Array[String]("--heavy", heavy, "--rates", rates)
       val params = ParameterTool.fromArgs(arguments)
+      SlicingSpecification.mkSlicer(params, formula, degree).stringify()
+    }
+
+    def getDefaultSlicer(): String = {
+      val params = ParameterTool.fromArgs(Array[String]())
       SlicingSpecification.mkSlicer(params, formula, degree).stringify()
     }
   }
