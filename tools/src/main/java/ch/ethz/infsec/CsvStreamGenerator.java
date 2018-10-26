@@ -6,37 +6,50 @@ import org.apache.commons.math3.random.RandomGenerator;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.util.HashMap;
+import java.util.Map;
 
 public class CsvStreamGenerator {
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: -S|-L|-T [-e <event rate>] [-i <index rate>] [-x <violations>] [-w <window size>]\n" +
+                "Usage: {-S | -L | -T | -P <pattern>} [-e <event rate>] [-i <index rate>]\n" +
+                "       [-x <violations>] [-w <window size>]\n" +
                 "       [-pA <A ratio>] [-pB <B ratio>] [-z <Zipf exponents>] <seconds>\n");
         System.exit(1);
     }
 
     public static void main(String[] args) {
-        PositiveNegativeGenerator.VariableGraph variableGraph = null;
+        EventPattern eventPattern = null;
         int eventRate = 10;
         int indexRate = 1;
         float relativeViolations = 0.01f;
         int windowSize = 10;
         float baseRatio = 0.33f;
         float positiveRatio = 0.33f;
-        double zipfExponents[] = {};
+        Map<String, Double> zipfExponents = new HashMap<>();
         int streamLength = -1;
 
         try {
             for (int i = 0; i < args.length; ++i) {
                 switch (args[i]) {
                     case "-S":
-                        variableGraph = PositiveNegativeGenerator.VariableGraph.STAR;
+                        eventPattern = new BasicEventPattern.Star();
                         break;
                     case "-L":
-                        variableGraph = PositiveNegativeGenerator.VariableGraph.LINEAR;
+                        eventPattern = new BasicEventPattern.Linear();
                         break;
                     case "-T":
-                        variableGraph = PositiveNegativeGenerator.VariableGraph.TRIANGLE;
+                        eventPattern = new BasicEventPattern.Triangle();
+                        break;
+                    case "-P":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        try {
+                            eventPattern = CustomEventPattern.parse(args[++i]);
+                        } catch (InvalidEventPatternException e) {
+                            invalidArgument();
+                        }
                         break;
                     case "-e":
                         if (i + 1 == args.length) {
@@ -79,9 +92,12 @@ public class CsvStreamGenerator {
                             invalidArgument();
                         }
                         String exponents[] = args[++i].split(",");
-                        zipfExponents = new double[exponents.length];
-                        for (int j = 0; j < exponents.length; ++j) {
-                            zipfExponents[j] = Double.parseDouble(exponents[j]);
+                        for (String exponent : exponents) {
+                            String parts[] = exponent.split("=", 2);
+                            if (parts.length != 2) {
+                                invalidArgument();
+                            }
+                            zipfExponents.put(parts[0], Double.parseDouble(parts[1]));
                         }
                         break;
                     default:
@@ -94,18 +110,17 @@ public class CsvStreamGenerator {
         } catch (NumberFormatException e) {
             invalidArgument();
         }
-        if (variableGraph == null || streamLength <= 0) {
+        if (eventPattern == null || streamLength <= 0) {
             invalidArgument();
         }
 
-        float violationProbability = relativeViolations / (float)eventRate;
+        float violationProbability = relativeViolations / (float) eventRate;
 
         RandomGenerator random = new JDKRandomGenerator(314159265);
-        PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate);
-        generator.setVariableGraph(variableGraph);
-        for (int i = 0; i < zipfExponents.length; ++i) {
-            if (zipfExponents[i] > 0.0) {
-                generator.setZipfExponent(i, zipfExponents[i]);
+        PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate, eventPattern);
+        for (Map.Entry<String, Double> entry : zipfExponents.entrySet()) {
+            if (entry.getValue() > 0.0) {
+                generator.setZipfExponent(entry.getKey(), entry.getValue());
             }
         }
         generator.setEventDistribution(baseRatio, positiveRatio, violationProbability);
