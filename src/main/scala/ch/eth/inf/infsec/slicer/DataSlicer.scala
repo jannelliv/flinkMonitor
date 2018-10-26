@@ -30,18 +30,18 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
 
   override def process(record: Record, f: ((Int, Record)) => Unit) {
     record match {
-      case CommandRecord(record.command, record.parameters) => processCommand(record.asInstanceOf[CommandRecord], f)
-      case EventRecord(record.timestamp, record.label, record.data) =>   processEvent(record.asInstanceOf[EventRecord], f)
+      case CommandRecord(record.command, record.parameters) => processCommand(record, f)
+      case EventRecord(record.timestamp, record.label, record.data) =>   processEvent(record, f)
     }
   }
 
   def updateState(state: Array[Byte]): Unit = ()
 
-  def setSlicer(record: CommandRecord): Unit = {
+  def setSlicer(record: Record): Unit = {
     pendingSlicer = record.parameters
   }
 
-  def processCommand(record: CommandRecord, f: ((Int, Record)) => Unit): Unit ={
+  def processCommand(record: Record, f: ((Int, Record)) => Unit): Unit ={
     var i = 0
 
     setSlicer(record)
@@ -52,7 +52,7 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
     }
   }
 
-  def processEvent(record: EventRecord, f: ((Int, Record)) => Unit): Unit = {
+  def processEvent(record: Record, f: ((Int, Record)) => Unit): Unit = {
     if (atoms == null) {
       atoms = formula.atoms.toArray
       valuation = Array.fill(formula.freeVariables.size)(null)

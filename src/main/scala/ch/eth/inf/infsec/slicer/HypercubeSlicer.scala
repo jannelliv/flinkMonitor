@@ -164,7 +164,7 @@ class HypercubeSlicer(
     slice == expectedSlice
   }
 
-  override def setSlicer(record: trace.CommandRecord): Unit = super.setSlicer(record)
+  override def setSlicer(record: trace.Record): Unit = super.setSlicer(record)
 
   override def getState(): State  = {
     if (pendingSlicer != null)

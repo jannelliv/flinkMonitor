@@ -84,7 +84,7 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
       MonpolyParsers.Command.parse(line) match {
         case Parsed.Success(record, _) =>
           f(record)
-        case _ => println("Could not parse: " + line)
+        case _ => println("Could not parse line: " + line)
       }
     }
   }

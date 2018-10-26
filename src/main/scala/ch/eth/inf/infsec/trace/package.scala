@@ -32,41 +32,57 @@ package object trace {
 
   type Timestamp = Long
 
-  trait Record extends Serializable{
-    val timestamp: Timestamp
-    val parameters: String
-    val command: String
-    val label: String
-    val data: Tuple
-
-    def isEndMarker: Boolean
-    override def toString: String
+  case class Record(timestamp: Timestamp, label: String, data: Tuple, command: String, parameters: String) {
+    def isEndMarker: Boolean = {
+      this match {
+        case EventRecord(_,_,_) => label.isEmpty
+        case CommandRecord(_,_) => false
+        case _ => false
+      }
+    }
+    override def toString: String = {
+      this match {
+        case EventRecord(_,_,_) => if (isEndMarker) s"@$timestamp <end>" else s"@$timestamp $label(${data.mkString(", ")})"
+        case CommandRecord(_,_) => ""
+        case _ => ""
+      }
+    }
   }
 
-  case class CommandRecord(command: String, parameters: String) extends Record {
+  class CommandRecord(cmd: String, param: String) {
     def isEndMarker: Boolean = false
-    val timestamp: Timestamp = 0l
-    val label: Null = null
-    val data: Null = null
+    val command: String = cmd
+    val parameters: String = param
+    val timestamp: Timestamp = -1l
 
-    override def toString: String = label
+    override def toString: String = ""
   }
 
-  case class EventRecord(timestamp: Timestamp, label: String, data: Tuple)  extends Record {
+  class EventRecord(ts: Timestamp, lab: String, d: Tuple) {
     def isEndMarker: Boolean = label.isEmpty
-    val parameters: Null = null
-    val command: Null = null
+    val timestamp: Timestamp = ts
+    val label: String = lab
+    val data: Tuple = d
 
     override def toString: String =
       if (isEndMarker) s"@$timestamp <end>" else s"@$timestamp $label(${data.mkString(", ")})"
   }
 
-  /*case class Record(timestamp: Timestamp, label: String, data: Tuple) extends Serializable {
-    def isEndMarker: Boolean = label.isEmpty
 
-    override def toString: String =
-      if (isEndMarker) s"@$timestamp <end>" else s"@$timestamp $label(${data.mkString(", ")})"
-  }*/
+
+  //Can't use null values for unused parameters, otherwise Flink can't serialize
+  object EventRecord{
+    def apply(timestamp: Timestamp, label: String, data: Tuple): Record = Record(timestamp, label, data, "", "")
+
+    def unapply(record: Record): Option[(Timestamp, String, Tuple)] = if(record.timestamp != -1l) Some((record.timestamp, record.label, record.data)) else None
+
+  }
+
+  object CommandRecord{
+    def apply(command: String, parameters: String): Record = Record(-1l, "", emptyTuple, command, parameters)
+
+    def unapply(record: Record): Option[(String, String)] = if(record.timestamp == -1l) Some((record.command, record.parameters)) else None
+  }
 
   object Record {
     def markEnd(timestamp: Timestamp): Record = EventRecord(timestamp, "", emptyTuple)
