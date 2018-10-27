@@ -134,7 +134,7 @@ for job in common_jobs:
     avg_list  = d2l(job_map_avg[job])
     #try:
     #    index = job.index("ft")
-    length = len(job_map_max[job])-1
+    length = len(job_map_max[job])-2
     print("File length of job %s: %d" % (job, length))
     for i in range(0,length):
         skip=False

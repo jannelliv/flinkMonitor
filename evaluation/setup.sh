@@ -174,7 +174,7 @@ if [[ (! -d ${STATISTICS_FOLDER}) ]]; then
     exit 1
 fi
 
-windows="2 4 10 20"
+windows="2 4 8 10"
 for window in $windows; do
     RATES="${STATISTICS_FOLDER}/rates-trace-$window.csv"
     HEAVY="${STATISTICS_FOLDER}/heavy-trace-$window.csv"

@@ -139,7 +139,7 @@ class Data:
 class Loader:
     job_levels = ['experiment', 'tool', 'adaptivity', 'processors', 'formula', 'window', 'event_rate', 'repetition', 'statistics']
 
-    job_regex = r"(nokia|gen)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)_(\d+)?(?:_(\d+))_(\d+)(?:_(predictive|reactive))?"
+    job_regex = r"(nokia|gen)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_(\d+))?(?:_(\d+))_(\d+)(?:_(predictive|reactive|static))?"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
@@ -221,8 +221,10 @@ class Loader:
         self.memory_data.append(memory)
 
     def read_file(self, path):
+        print(path)
         metrics_match = self.metrics_pattern.fullmatch(path.name)
         if metrics_match:
+            print("metrics")
             key = (
                 metrics_match.group(1),
                 metrics_match.group(2),
@@ -232,7 +234,7 @@ class Loader:
                 int(metrics_match.group(6) or 0),
                 int(metrics_match.group(7)),
                 int(metrics_match.group(8)),
-                str(metrics_match.group(9) or "static")
+                str(metrics_match.group(9) or "none")
                 )
             self.read_metrics(key, path)
             return
@@ -251,7 +253,7 @@ class Loader:
                 int(delay_match.group(6) or 0),
                 int(delay_match.group(7)),
                 int(delay_match.group(8)),
-                (delay_match.group(9) or "static")
+                (delay_match.group(9) or "none")
                 )
             self.read_replayer_delay(key, path)
             return
@@ -267,7 +269,7 @@ class Loader:
                 int(time_match.group(6) or 0),
                 int(time_match.group(7)),
                 int(time_match.group(8) or 0),
-                (time_match.group(9) or "static")
+                (time_match.group(9) or "none")
                 )
             monitor_index = int(time_match.group(10) or 0)
             self.read_memory(key, monitor_index, path)
@@ -369,7 +371,7 @@ if __name__ == '__main__':
         #gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
 
         # PLOT2
-        nokia_nproc = summary.select(experiment='nokia', adaptivity=True)
+        nokia_nproc = summary.select(experiment='nokia')
         nokia_nproc.export('max', 'peak', 'average', 'memory', path="plot-nokia.csv")
 
         # PLOT3

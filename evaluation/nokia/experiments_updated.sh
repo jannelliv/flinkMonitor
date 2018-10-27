@@ -130,39 +130,33 @@ for formula in $FORMULAS; do
 
         taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
 
-        for window in $WINDOWS; do
-            echo "   $window windows":
 
-            for stat in $STATS; do
-             echo "    $stat statistics":
-                for acc in $ACCELERATIONS; do
-                    echo "      Acceleration $acc:"
-                    for i in $(seq 1 $REPETITIONS); do
-                        echo "        Repetition $i ..."
-                        JOB_NAME="nokia_flink_${numcpus}_${formula}_${window}_${stat}_${acc}_${i}"
-                        DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                        PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
-                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+        for acc in $ACCELERATIONS; do
+            echo "      Acceleration $acc:"
+            for i in $(seq 1 $REPETITIONS); do
+                echo "        Repetition $i ..."
+                JOB_NAME="nokia_flink_${numcpus}_${formula}_${acc}_${i}"
+                DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
+                TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                        rm "$VERDICT_FILE" 2> /dev/null
-                        start_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
-                        taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                        taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
-                        "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE -nofilteremptytp" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
-                        wait
-                        end_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
+                rm "$VERDICT_FILE" 2> /dev/null
+                start_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
+                "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -load $STATE_FILE -nofilteremptytp" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                wait
+                end_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
-                        start_utc=$(echo "$start_exp" | xargs -I J date "$format" --utc -d J)
-                        end_utc=$(echo "$end_exp" | xargs -I J date "$format" --utc -d J)
+                start_utc=$(echo "$start_exp" | xargs -I J date "$format" --utc -d J)
+                end_utc=$(echo "$end_exp" | xargs -I J date "$format" --utc -d J)
 
-                        start_s=$(echo "$start_exp" | xargs -I J date '+%s'  -d J)
-                        end_s=$(echo "$end_exp" | xargs -I J date '+%s'  -d J)
+                start_s=$(echo "$start_exp" | xargs -I J date '+%s'  -d J)
+                end_s=$(echo "$end_exp" | xargs -I J date '+%s'  -d J)
 
-                        diff_s=$((end_s-start_s))
-                        echo "        Experiment ran for $diff_s ms"
-                    done
-                done
+                diff_s=$((end_s-start_s))
+                echo "        Experiment ran for $diff_s ms"
             done
         done
 
