@@ -3,6 +3,7 @@
 import csv
 import sys
 import json
+
 from pprint import pprint
 
 """
@@ -37,8 +38,9 @@ for i in range(len(data_record['all'])):
             monitor_map=job_map_record[job]
         except:
             monitor_map={}
+
         m = int(data_record['all'][i]['data']['result'][j]['metric']['subtask_index'])
-        #print("Job: %s, monitor: %d " % (job, m))
+        offset = 0
 
         try:
             sample_map = monitor_map[m]
@@ -47,21 +49,21 @@ for i in range(len(data_record['all'])):
 
             #for key, value in sample_map.items():
             #    print("Ts: %d, value: %d" % (key, value))
-
-            for t in range(0,sample_num):
-                ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
-            #    print("Ts: %d, value: %d" % (ts, int(data_record['all'][i]['data']['result'][j]['values'][t][1])))
-                sample_map[ts] = int(data_record['all'][i]['data']['result'][j]['values'][t][1])
         except:
             sample_map = {}
             sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
 
-            for t in range(0,sample_num):
-                ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
-                sample_map[ts] = int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+        for t in range(0,sample_num):
+            ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
+            value =   int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+            sample_map[ts] = value - offset
+            offset = value
 
         monitor_map[m]=sample_map
         job_map_record[job]=monitor_map
+
+
+
 
 
 def extract(data):
@@ -125,36 +127,41 @@ for job in common_jobs:
     output_file = open("metrics_"+job+".csv", 'w')
     writer = csv.writer(output_file)
     ms = len(job_map_record[job])
-    writer.writerow(['timestamp', 'peak', 'max', 'average']+ map(lambda x: "monitor"+str(x), range(0,ms)))
+    writer.writerow(['timestamp', 'peak', 'max', 'average', 'sum_tp']+ map(lambda x: "monitor_tp"+str(x), range(0,ms)))
     
     index = 0
     #Gets lists from dicts
     peak_list = d2l(job_map_peak[job])
     max_list  = d2l(job_map_max[job])
     avg_list  = d2l(job_map_avg[job])
+
     #try:
     #    index = job.index("ft")
     length = len(job_map_max[job])-2
-    print("File length of job %s: %d" % (job, length))
+    offset = 0
+
     for i in range(0,length):
         skip=False
         ts_p, peak = peak_list[i]
-        ts_m, max  = max_list[i]
+        ts_m, max_n  = max_list[i]
         ts_a, avg  = avg_list[i]
         assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
         ts = min(ts_p,ts_m,ts_a)
-        r = [ts,peak,max,avg]
+        r = [ts,peak,max_n,avg]
+        records = []
         for m in range(ms):
             try:
-                #print("job: %s, m: %d, i: %d" % (job, m, i))
                 ts_r, rec = d2l(job_map_record[job][m])[i]
+                ts_r += offset
                 if ts < ts_r:
                     skip=True
-                    #print("Skipping")
+                    offset -= 1
                     break
                 if ts > ts_r:
+                    records = records + [0]
+                    offset += 1
                     continue
-                r = r + [rec]
+                records = records + [rec]
             except IndexError:
                 # number of samples misaligned
                 print("Number of samples misaligned")
@@ -163,6 +170,8 @@ for job in common_jobs:
                 break
         if skip:
             continue
+        sum_tp = sum(records)
+        r = r + [sum_tp] + records
         writer.writerow(r)
     #except:
     #    ()

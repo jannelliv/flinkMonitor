@@ -168,7 +168,7 @@ class Loader:
         except Exception as e:
             raise Exception("Error while reading file " + str(path)) from e
 
-        if df.shape[0] > 0 and df.index.name == 'timestamp' and set(df.columns) >= {'peak', 'max', 'average'}:
+        if df.shape[0] > 0 and df.index.name == 'timestamp' and set(df.columns) >= {'peak', 'max', 'average', 'sum_tp'}:
             df.loc[:, 'peak'].replace(to_replace=0, inplace=True, method='ffill')
 
             summary = df.tail(1)
@@ -372,7 +372,7 @@ if __name__ == '__main__':
 
         # PLOT2
         nokia_nproc = summary.select(experiment='nokia')
-        nokia_nproc.export('max', 'peak', 'average', 'memory', path="plot-nokia.csv")
+        nokia_nproc.export('max', 'peak', 'average', 'current_events', 'memory', 'sum_tp', path="plot-nokia.csv")
 
         # PLOT3
         nokia_series = series.select(experiment='nokia', adaptivity=False, repetition=1)
