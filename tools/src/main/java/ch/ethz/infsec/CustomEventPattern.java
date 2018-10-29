@@ -37,7 +37,7 @@ class CustomEventPattern implements EventPattern {
 
         final Matcher matcher = specificationPattern.matcher(pattern);
         while (matcher.regionStart() < pattern.length()) {
-            if (!matcher.lookingAt()) {
+            if (!matcher.lookingAt() || matcher.group(2) == null) {
                 throw new InvalidEventPatternException("Syntax error in event pattern");
             }
             events.add(matcher.group(1));
