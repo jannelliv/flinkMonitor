@@ -49,10 +49,10 @@ Option summary:
             is the non-negative exponent of the Zipf distribution.
 
 
-The stream generator prints a random trace of timestamped events to the
-standard output. The trace has an indicated length of the given number of
-seconds. However, the whole trace is produced at once and not as a real-time
-stream. Simultaneous events are grouped into time-points, which are also called
+The trace generator prints a random trace of timestamped events to the standard
+output. The trace has an indicated length of the given number of seconds.
+However, the whole trace is produced at once and not as a real-time stream.
+Simultaneous events are grouped into time-points, which are also called
 indexes. The number of indexes per trace second is specified using option -i
 (default: 1). The total number of events per second is given by option -e
 (default: 10).
