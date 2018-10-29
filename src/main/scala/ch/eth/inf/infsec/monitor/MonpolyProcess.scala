@@ -95,9 +95,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
   override def initSnapshot(): Unit = {
     var command = ""
-    if(pendingSlicer) {
-      command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
-    }
+    if(pendingSlicer) command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
     else command = SAVE_STATE_COMMAND.format(tempStateFile.toString)
     writer.write(command)
     writer.flush()
@@ -116,7 +114,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       if (line == null || line.startsWith(GET_INDEX_PREFIX)) {
         more = false
       } else {
-        println("Monpoly Result: " + line)
         // TODO(JS): Check that line is a verdict before adding it to the buffer.
         buffer += line
       }

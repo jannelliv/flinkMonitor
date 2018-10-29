@@ -284,8 +284,6 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       }
     }
     emitterThread.start()
-
-    println("Opened EPO")
   }
 
   override def close(): Unit = {
@@ -382,7 +380,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
       resultLock.synchronized {
         for (result: PendingResult <- resultQueue) {
-          assert(!gotSnapshot)
+          gotSnapshot = false
           result match {
             case OutputItem(_) => results.add(result)
             case OutputSeparatorItem() => results.add(result)
