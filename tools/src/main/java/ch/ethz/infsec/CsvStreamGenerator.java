@@ -13,7 +13,7 @@ public class CsvStreamGenerator {
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
                 "Usage: {-S | -L | -T | -P <pattern>} [-e <event rate>] [-i <index rate>]\n" +
-                "       [-x <violations>] [-w <window size>]\n" +
+                "       [-t <timestamp>] [-x <violations>] [-w <window size>]\n" +
                 "       [-pA <A ratio>] [-pB <B ratio>] [-z <Zipf exponents>] <seconds>\n");
         System.exit(1);
     }
@@ -108,7 +108,7 @@ public class CsvStreamGenerator {
                             }
                         }
                         break;
-                    case  "-t":
+                    case "-t":
                         if (i + 1 == args.length) {
                             invalidArgument();
                         }

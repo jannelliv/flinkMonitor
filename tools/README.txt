@@ -4,7 +4,7 @@ Trace Generator
 Usage:
 
 ./generator.sh {-S | -L | -T | -P <pattern>}
-               [-e <event rate>] [-i <index rate>]
+               [-e <event rate>] [-i <index rate>] [-t <timestamp>]
                [-x <violation ratio>] [-w <interval>]
                [-pA <event ratio A>] [-pB <event ratio B>]
                [-z <Zipf exponents>] <trace length>
@@ -28,6 +28,9 @@ Option summary:
     -i <index rate>
             The number of indexes (time-points) per second.
 
+    -t <timestamp>
+            The initial timestamp used for the first events.
+
     -x <violation ratio>
             The frequency of violations, relative to the total number of
             events.
@@ -45,8 +48,11 @@ Option summary:
     -z <Zipf exponents>
             Selects the Zipf distribution instead the uniform distribution for
             some variables. The argument is a comma-separated list of
-            assignments <var>=<exp>, where var is the name of variable, and exp
-            is the non-negative exponent of the Zipf distribution.
+            assignments <var>=<exp>[+<off>], where var is the name of variable,
+            exp is the non-negative exponent of the Zipf distribution, and
+            <off> is an optional offset. For example, if <off> is 100, the
+            distribution has support {101, 102, ...}, with 101 being the most
+            frequent value.
 
 
 The trace generator prints a random trace of timestamped events to the standard
@@ -101,13 +107,15 @@ The built-in patterns are as follows:
 
 By default, attribute values are chosen uniformly between 0 and 999 999 999. It
 is also possible to use a Zipf distribution per variable. The exponents are
-passed as an argument after option -z. For example,
+passed as an argument after option -z, together with optional offsets. For
+example,
 
-    ./generator.sh -T -z "x=1.5,z=2" 10
+    ./generator.sh -T -z "x=1.5,z=2+100" 10
 
 generates events according to the triangle pattern, where attributes with
-variable x follow a Zipf distribution with exponent 1.5, and those with
-variable z have exponent 2. Variable y has a uniform distribution.
+variable x follow a Zipf distribution with exponent 1.5 starting at value 1.
+Attributes with variable z follow a Zipf distribution with exponent 2 starting
+at value 101 (100 + 1). Variable y has a uniform distribution.
 
 Note that violations always use uniform values to prevent accidental matchings.
 For the same reason, Zipf-distributed values of C events start at 1 000 001.
@@ -117,7 +125,8 @@ a single event:
 
     <event name>, tp=<index>, ts=<timestamp>, x0=<attribute #0>, x1=...
 
-Indexes and timestamps start at zero.
+Indexes and timestamps start at zero. A different starting timestamp can be set
+with option -t.
 
 
 Replayer
