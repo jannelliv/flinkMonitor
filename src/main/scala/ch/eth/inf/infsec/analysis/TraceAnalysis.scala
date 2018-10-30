@@ -219,7 +219,7 @@ object TraceAnalysis {
     def produceSlicersForExperiment(startTs: Int, endTs: Int): Unit = {
       setupWorkingDirectory()
 
-      val windowSize = (endTs - startTs) / this.windows
+      val windowSize = Math.ceil((endTs - startTs) / this.windows).toInt
 
       produceSlicersOfTrace(endTs, windowSize, insertIntoTrace = true)
 
@@ -315,13 +315,16 @@ object TraceAnalysis {
 
     val inputDir = new File(params.get("inputDir")).toPath
     val outputDir = new File(params.get("outputDir")).toPath
+    val formulaDir = params.get("formulaDir", "nokia")
+    val startTs = params.getInt("startTs", 1282921200)
+    val endTs = params.getInt("endTs", 1283101200)
     val f = params.get("formula")
 
-    val formula = parseFormula("%s/nokia/%s.mfotl".format(params.get("inputDir"), f))
+    val formula = parseFormula("%s/%s/%s.mfotl".format(params.get("inputDir"), formulaDir, f))
 
     println("Preparing files for configuration: parallelism=%d, windows=%d".format(degrees,windows))
     val prep = new AnalysisPreparation(inputDir, outputDir, formula, degrees, windows)
-    prep.produceSlicersForExperiment(startTs = 1282921200, endTs = 1283101200)
+    prep.produceSlicersForExperiment(startTs, endTs)
 
   }
 
