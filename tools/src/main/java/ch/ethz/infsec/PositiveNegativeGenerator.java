@@ -18,6 +18,7 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
 
     private final IntegerDistribution[] distributions;
     private final IntegerDistribution[] violationDistributions;
+    private final int[] shifts;
     private final int[] negativeShifts;
 
     private float baseRatio = 0.33f;
@@ -56,8 +57,8 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
         return indexes;
     }
 
-    PositiveNegativeGenerator(RandomGenerator random, int eventRate, int indexRate, EventPattern eventPattern) {
-        super(random, eventRate, indexRate);
+    PositiveNegativeGenerator(RandomGenerator random, int eventRate, int indexRate, long firstTimestamp, EventPattern eventPattern) {
+        super(random, eventRate, indexRate, firstTimestamp);
 
         this.eventPattern = eventPattern;
         variableMap = new HashMap<>();
@@ -75,6 +76,7 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
         final int variables = variableMap.size();
         distributions = new IntegerDistribution[variables];
         violationDistributions = new IntegerDistribution[variables];
+        shifts = new int[variables];
         negativeShifts = new int[variables];
         for (int i = 0; i < variables; ++i) {
             distributions[i] = new UniformIntegerDistribution(random, 0, 999_999_999);
@@ -82,10 +84,11 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
         }
     }
 
-    void setZipfExponent(String variable, double exponent) {
+    void setZipfExponent(String variable, double exponent, int offset) {
         final int index = variableMap.get(variable);
         distributions[index] = new ZipfDistribution(random, 1_000_000_000, exponent);
-        negativeShifts[index] = NEGATIVE_SKEW_SHIFT;
+        shifts[index] = offset;
+        negativeShifts[index] = offset + NEGATIVE_SKEW_SHIFT;
     }
 
     void setEventDistribution(float baseRatio, float positiveRatio, float violationProbability) {
@@ -128,7 +131,7 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
     private int[] nextValues() {
         final int[] values = new int[variableMap.size()];
         for (int i = 0; i < values.length; ++i) {
-            values[i] = distributions[i].sample();
+            values[i] = distributions[i].sample() + shifts[i];
         }
         return values;
     }
@@ -141,7 +144,7 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
             if (negative) {
                 values[i] = distributions[j].sample() + negativeShifts[j];
             } else {
-                values[i] = distributions[j].sample();
+                values[i] = distributions[j].sample() + shifts[i];
             }
         }
         return values;

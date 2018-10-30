@@ -27,6 +27,8 @@ public class CsvStreamGenerator {
         float baseRatio = 0.33f;
         float positiveRatio = 0.33f;
         Map<String, Double> zipfExponents = new HashMap<>();
+        Map<String, Integer> zipfOffsets = new HashMap<>();
+        long firstTimestamp = 0;
         int streamLength = -1;
 
         try {
@@ -97,8 +99,20 @@ public class CsvStreamGenerator {
                             if (parts.length != 2) {
                                 invalidArgument();
                             }
-                            zipfExponents.put(parts[0], Double.parseDouble(parts[1]));
+                            if (parts[1].contains("+")) {
+                                String subparts[] = parts[1].split("\\+", 2);
+                                zipfExponents.put(parts[0], Double.parseDouble(subparts[0]));
+                                zipfOffsets.put(parts[0], Integer.parseInt(subparts[1]));
+                            } else {
+                                zipfExponents.put(parts[0], Double.parseDouble(parts[1]));
+                            }
                         }
+                        break;
+                    case  "-t":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        firstTimestamp = Long.parseLong(args[++i]);
                         break;
                     default:
                         if (streamLength > 0) {
@@ -117,10 +131,10 @@ public class CsvStreamGenerator {
         float violationProbability = relativeViolations / (float) eventRate;
 
         RandomGenerator random = new JDKRandomGenerator(314159265);
-        PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate, eventPattern);
+        PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate, firstTimestamp, eventPattern);
         for (Map.Entry<String, Double> entry : zipfExponents.entrySet()) {
             if (entry.getValue() > 0.0) {
-                generator.setZipfExponent(entry.getKey(), entry.getValue());
+                generator.setZipfExponent(entry.getKey(), entry.getValue(), zipfOffsets.getOrDefault(entry.getKey(), 0));
             }
         }
         generator.setEventDistribution(baseRatio, positiveRatio, violationProbability);
