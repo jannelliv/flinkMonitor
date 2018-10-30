@@ -135,11 +135,12 @@ Replayer
 Usage:
 
 ./replayer.sh [-v | -vv] [-a <acceleration>] [-q <buffer size>] [-m]
-              [-t <interval>] [-o <host>:<port>] <file>
+              [-t <interval>] [-o <host>:<port>] [<file>]
 
 Option summary:
 
-    <file>  Input file with the event log in modified CSV format.
+    <file>  Input file with the event log in modified CSV format. If no file
+            name is given, reads from stdin.
 
     -v      Writes a compact report every second to stderr (see below).
 
