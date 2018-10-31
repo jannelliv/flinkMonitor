@@ -4,7 +4,8 @@ cmd=$1
 shift
 
 case "$cmd" in
-  generator|Generator ) $BASE_DIR/generator.sh $@;;
-  replayer|Replayer ) $BASE_DIR/replayer.sh $@;;
-  * ) echo "invalid command";;
+  generator|Generator ) $BASE_DIR/generator.sh "$@";;
+  replayer|Replayer ) $BASE_DIR/replayer.sh "$@";;
+  oracle|Oracle ) $BASE_DIR/generator.sh "$@" -osig ./tmp.sig -oformula ./tmp.mfotl; monpoly -sig ./tmp.sig -formula ./tmp.mfotl;;
+  * ) echo "Invalid command. Try 'generator', 'replayer' or 'oracle'";;
 esac

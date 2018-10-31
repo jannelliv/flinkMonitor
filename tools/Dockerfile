@@ -1,8 +1,9 @@
-FROM ubuntu:18.04
+FROM infsec/monpoly
 
-RUN apt-get update && apt-get install --no-install-recommends -y \ 
+RUN sudo apt-get update && sudo apt-get install --no-install-recommends -y \
+    openjdk-8-jdk \
     maven \
-    && rm -rf /var/lib/apt/lists/*
+    && sudo rm -rf /var/lib/apt/lists/*
 
 USER root
 ENV WDIR /home/ubuntu
