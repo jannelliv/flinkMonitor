@@ -6,6 +6,7 @@ import org.apache.commons.math3.random.RandomGenerator;
 import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -30,6 +31,8 @@ public class CsvStreamGenerator {
         Map<String, Integer> zipfOffsets = new HashMap<>();
         long firstTimestamp = 0;
         int streamLength = -1;
+        String sigFilename = null;
+        String formulaFilename = null;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -114,6 +117,18 @@ public class CsvStreamGenerator {
                         }
                         firstTimestamp = Long.parseLong(args[++i]);
                         break;
+                    case "-osig":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        sigFilename = args[++i];
+                        break;
+                    case "-oformula":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        formulaFilename = args[++i];
+                        break;
                     default:
                         if (streamLength >= 0) {
                             invalidArgument();
@@ -144,6 +159,26 @@ public class CsvStreamGenerator {
         generator.setPositiveWindow(windowSize);
         generator.setNegativeWindow(windowSize);
         generator.initialize();
+
+        if (sigFilename != null) {
+            try (PrintWriter writer = new PrintWriter(sigFilename)) {
+                writer.print(generator.getSignature());
+            } catch (IOException e) {
+                e.printStackTrace(System.err);
+                System.exit(1);
+            }
+        }
+        if (formulaFilename != null) {
+            try (PrintWriter writer = new PrintWriter(formulaFilename)) {
+                writer.println(generator.getFormula());
+            } catch (IOException e) {
+                e.printStackTrace(System.err);
+                System.exit(1);
+            }
+        }
+        if (sigFilename != null || formulaFilename != null) {
+            return;
+        }
 
         BufferedWriter outputWriter = new BufferedWriter(new OutputStreamWriter(System.out));
         int numberOfIndices = streamLength * indexRate;

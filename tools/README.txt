@@ -1,3 +1,20 @@
+Building
+========
+
+The following software packages must be installed to build and run the
+benchmark tools:
+
+  - Java JDK version 8 or later <https://openjdk.java.net>
+  - a current version of Apache Maven <https://maven.apache.org>
+
+Run
+
+    $ mvn package
+
+from the directory that contains this README file. After completion, the tools
+can be run using the provided Shell scripts generator.sh and replayer.sh.
+
+
 Stream Generator
 ================
 
