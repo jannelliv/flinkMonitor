@@ -217,4 +217,43 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
 
         appendEventUsingSchedule(builder, timestamp, eventPattern.getNegativeEvent(), negativeVariables, negativeQueue);
     }
+
+    String getSignature() {
+        StringBuilder signature = new StringBuilder();
+        for (String event : new String[] {eventPattern.getBaseEvent(), eventPattern.getPositiveEvent(), eventPattern.getNegativeEvent()}) {
+            signature.append(event).append('(');
+            final int arity = eventPattern.getArguments(event).size();
+            for (int i = 0; i < arity; ++i) {
+                if (i > 0) {
+                    signature.append(',');
+                }
+                signature.append("int");
+            }
+            signature.append(")\n");
+        }
+        return signature.toString();
+    }
+
+    private String makeAtom(String event) {
+        StringBuilder atom = new StringBuilder();
+        atom.append(event).append('(');
+        int i = 0;
+        for (String variable : eventPattern.getArguments(event)) {
+            if (i++ > 0) {
+                atom.append(',');
+            }
+            atom.append(variable);
+        }
+        atom.append(')');
+        return atom.toString();
+    }
+
+    String getFormula() {
+        return String.format("(ONCE [0,%d) %s) IMPLIES %s IMPLIES ALWAYS [0,%d) NOT %s",
+                positiveWindow,
+                makeAtom(eventPattern.getBaseEvent()),
+                makeAtom(eventPattern.getPositiveEvent()),
+                negativeWindow,
+                makeAtom(eventPattern.getNegativeEvent()));
+    }
 }
