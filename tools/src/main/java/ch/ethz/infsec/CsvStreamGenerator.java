@@ -14,7 +14,7 @@ public class CsvStreamGenerator {
         System.err.print("Error: Invalid argument.\n" +
                 "Usage: {-S | -L | -T | -P <pattern>} [-e <event rate>] [-i <index rate>]\n" +
                 "       [-t <timestamp>] [-x <violations>] [-w <window size>]\n" +
-                "       [-pA <A ratio>] [-pB <B ratio>] [-z <Zipf exponents>] <seconds>\n");
+                "       [-pA <A ratio>] [-pB <B ratio>] [-z <Zipf exponents>] [<seconds>]\n");
         System.exit(1);
     }
 
@@ -115,16 +115,19 @@ public class CsvStreamGenerator {
                         firstTimestamp = Long.parseLong(args[++i]);
                         break;
                     default:
-                        if (streamLength > 0) {
+                        if (streamLength >= 0) {
                             invalidArgument();
                         }
                         streamLength = Integer.parseInt(args[i]);
+                        if (streamLength < 0) {
+                            invalidArgument();
+                        }
                 }
             }
         } catch (NumberFormatException e) {
             invalidArgument();
         }
-        if (eventPattern == null || streamLength <= 0) {
+        if (eventPattern == null) {
             invalidArgument();
         }
 
@@ -146,8 +149,14 @@ public class CsvStreamGenerator {
         int numberOfIndices = streamLength * indexRate;
 
         try {
-            for (int i = 0; i < numberOfIndices; ++i) {
-                outputWriter.write(generator.nextDatabase());
+            if (streamLength >= 0) {
+                for (int i = 0; i < numberOfIndices; ++i) {
+                    outputWriter.write(generator.nextDatabase());
+                }
+            } else {
+                while (true) {
+                    outputWriter.write(generator.nextDatabase());
+                }
             }
             outputWriter.flush();
         } catch (IOException e) {
