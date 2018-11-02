@@ -13,7 +13,7 @@ import scala.collection.mutable
 import scala.io.Source
 
 object TraceAnalysis {
-  class AnalysisPreparation(analysisDir: Path, outputDir: Path, formula: Formula, var degree: Int, windows: Int){
+  class AnalysisPreparation(trace: String, statisticsDir: String, analysisDir: Path, outputDir: Path, formula: Formula, var degree: Int, windows: Int){
     private var tmpHeavyDir: Path = _
     private var tmpRatesDir: Path = _
 
@@ -64,7 +64,7 @@ object TraceAnalysis {
 
       var line: String = null
       var boundary = 0
-      var startTs = 0
+      var startTs = -1
       var currTs = 0
 
       var writer: PrintWriter = null
@@ -75,7 +75,7 @@ object TraceAnalysis {
         arr = line.split(",")
         currTs = arr(0).toInt
 
-        if(startTs == 0){
+        if(startTs == -1){
           startTs = currTs
           boundary = startTs + windowSize
           writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, startTs.toString)))
@@ -84,7 +84,7 @@ object TraceAnalysis {
         val value = ratesMap.getOrElseUpdate((arr(1), arr(2), arr(3)), 0)
         ratesMap.put((arr(1), arr(2), arr(3)), value + 1)
 
-        if(currTs > boundary){
+        if(currTs >= boundary){
           boundary += windowSize
           writeMapToFile(writer, ratesMap)
           ratesMap = new mutable.HashMap[(String, String, String), Int]().withDefaultValue(0)
@@ -98,7 +98,7 @@ object TraceAnalysis {
     }
 
     def extractTraceParts(input: Path, dir: Path, windowSize: Int): Unit = {
-      var startTs = 0
+      var startTs = -1
       var currTs: Int = 0
       var boundary = 0
       val reader = Files.newBufferedReader(input)
@@ -110,13 +110,13 @@ object TraceAnalysis {
       while (line != null && line.trim != "") {
         currTs = line.split(",")(0).toInt
 
-        if(startTs == 0){
+        if(startTs == -1){
           startTs = currTs
           boundary = startTs + windowSize
           writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, startTs.toString)))
         }
 
-        if(currTs > boundary && line != null){
+        if(currTs >= boundary && line != null){
           boundary += windowSize
           writer.close()
           writer = new PrintWriter(Files.newBufferedWriter(createTmpFile(dir, currTs.toString)))
@@ -153,8 +153,8 @@ object TraceAnalysis {
     }
 
     def produceSlicersOfTrace(timestamp: Int, windowSize: Int, insertIntoTrace: Boolean): Unit = {
-      val heavyTrace = Paths.get("%s/statistics/%s".format(analysisDir.toString, "heavy-trace-%d.csv".format(windows)))
-      val ratesTrace = Paths.get("%s/statistics/%s".format(analysisDir.toString, "rates-trace-%d.csv".format(windows)))
+      val heavyTrace = Paths.get("%s/%s/%s".format(analysisDir.toString, statisticsDir, "heavy-trace-%d.csv".format(windows)))
+      val ratesTrace = Paths.get("%s/%s/%s".format(analysisDir.toString, statisticsDir, "rates-trace-%d.csv".format(windows)))
 
       extractParts(heavyTrace, ratesTrace, windowSize)
 
@@ -162,14 +162,14 @@ object TraceAnalysis {
       val defaultSlicers = new mutable.MutableList[String]
       val defaultSlicer = getDefaultSlicer()
       slicers.foreach(_ => defaultSlicers += defaultSlicer)
-      //deleteIfExists(createFile(outputDir, "slicers"))
-      //val outputFile = createFile(outputDir, "slicers")
-      //writeTempFile(outputFile, slicers)
+      deleteIfExists(createFile(outputDir, "slicers"))
+      val outputFile = createFile(outputDir, "slicers")
+      writeTempFile(outputFile, slicers)
 
       if(slicers.size != windows) throw new Exception("Error: %d windows and %d slicers".format(windows, slicers.size))
 
       if (insertIntoTrace) {
-        val logTrace:   Path = new File("%s/%s".format(analysisDir.toString, "ldcc_sample.csv")).toPath
+        val logTrace:   Path = new File("%s/%s".format(analysisDir.toString, trace)).toPath
         createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-predictive.csv"), slicers, predictive = true)
         createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-reactive.csv"), slicers, predictive = false)
         createSlicedCopyOfTrace(windowSize, logTrace, createFile(outputDir, "log-trace-static.csv"), defaultSlicers, predictive = true)
@@ -180,7 +180,7 @@ object TraceAnalysis {
       var slicersInserted = 0
       var slicers = slicerIt
       var currTs = 0
-      var startTs = 0
+      var startTs = -1
       var boundary = 0
 
       val reader = Files.newBufferedReader(input)
@@ -190,7 +190,7 @@ object TraceAnalysis {
       while (line != null) {
         currTs = line.split(",")(2).split("=")(1).trim.toInt
 
-        if(startTs == 0){
+        if(startTs == -1){
           startTs = currTs
           boundary = startTs + windowSize
           if(predictive)
@@ -201,6 +201,7 @@ object TraceAnalysis {
           boundary += windowSize
           if(slicers.nonEmpty && slicersInserted <= windows -2) {
             writer.println(">set_slicer %s<".format(slicers.head))
+            writer.println(">split_save %s<".format("state"))
             println(">set_slicer %s<".format(slicers.head))
             slicersInserted += 1
             slicers = slicers.tail
@@ -263,7 +264,9 @@ object TraceAnalysis {
       throw new Exception("%s does not exist or is not a directory".format(dir.toString))
   }
 
-  val arr = Array("select", "insert", "update", "delete", "script_start", "script_end", "script_svn", "script_md5", "commit")
+  //TODO: generalize this
+  //val arr = Array("select", "insert", "update", "delete", "script_start", "script_end", "script_svn", "script_md5", "commit")
+  val arr = Array("A", "B", "C")
 
   def getRatesFromFile(file: Path): String = {
     val ratesMap = new mutable.HashMap[String, Int]().withDefaultValue(0)
@@ -315,15 +318,17 @@ object TraceAnalysis {
 
     val inputDir = new File(params.get("inputDir")).toPath
     val outputDir = new File(params.get("outputDir")).toPath
+    val statisticsDir = params.get("statisticsDir", "statistics")
     val formulaDir = params.get("formulaDir", "nokia")
     val startTs = params.getInt("startTs", 1282921200)
     val endTs = params.getInt("endTs", 1283101200)
+    val trace = params.get("trace", "ldcc_sample.csv")
     val f = params.get("formula")
 
     val formula = parseFormula("%s/%s/%s.mfotl".format(params.get("inputDir"), formulaDir, f))
 
-    println("Preparing files for configuration: parallelism=%d, windows=%d".format(degrees,windows))
-    val prep = new AnalysisPreparation(inputDir, outputDir, formula, degrees, windows)
+    println("Preparing files for configuration: parallelism=%d, windows=%d, startTs=%d, endTs=%d".format(degrees,windows,startTs,endTs))
+    val prep = new AnalysisPreparation(trace, statisticsDir, inputDir, outputDir, formula, degrees, windows)
     prep.produceSlicersForExperiment(startTs, endTs)
 
   }

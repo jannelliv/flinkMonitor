@@ -137,9 +137,11 @@ class Data:
 
 
 class Loader:
-    job_levels = ['experiment', 'tool', 'adaptivity', 'processors', 'formula', 'window', 'event_rate', 'repetition', 'statistics']
+    job_levels = ['experiment', 'tool', 'adaptivity', 'processors', 'formula', 'window', 'acceleration', 'repetition', 'statistics']
 
-    job_regex = r"(nokia|gen)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_(\d+))?(?:_(\d+))_(\d+)(?:_(predictive|reactive|static))?"
+    job_regex = r"(nokia|synth)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_(\d+))?(?:_(\d+))_(\d+)(?:_(predictive|reactive|static))?"
+    #synth_flink_ft_2_triangle_2_predictive_8_3_job.txt
+    #job_regex = r"(nokia|synth)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_(\d+))?(?:_(predictive|reactive|static))?(?:_(\d+))_(\d+)"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
@@ -156,7 +158,7 @@ class Loader:
     memory_data = []
 
     def warn_skipped_path(self, path):
-        #warn("Skipped " + str(path))
+        #print("Skipped " + str(path))
         pass
 
     def warn_invalid_file(self, path):
@@ -195,7 +197,27 @@ class Loader:
             df.loc[:, df.columns.intersection(['current_latency', 'peak', 'max', 'average'])] *= 1000.0
             df.loc[:, 'peak'].replace(to_replace=0, inplace=True, method='ffill')
 
-            summary = df.loc[:, ['peak', 'max', 'average']].tail(1)
+            summary = df.loc[:, ['current_events', 'peak', 'max', 'average']].tail(1)
+            self.summary_keys.append(key)
+            self.summary_data.append(summary)
+
+            series = df.copy()
+            self.series_keys.append(key)
+            self.series_data.append(series)
+        else:
+            self.warn_invalid_file(path)
+
+    def read_replayer_events(self, key, path):
+        try:
+            with open(str(path), 'r') as f:
+                first_line = f.readline()
+                skip_rows = 1 if first_line and first_line.startswith("Client connected:") else 0
+            df = pd.read_csv(path, sep='\\s+', header=None, names=self.delay_header, index_col=0, skiprows=skip_rows)
+        except Exception as e:
+            raise Exception("Error while reading file " + str(path)) from e
+
+        if df.shape[0] > 0:
+            summary = df.loc[:, ['current_events']].tail(1)
             self.summary_keys.append(key)
             self.summary_data.append(summary)
 
@@ -208,11 +230,15 @@ class Loader:
     def read_memory(self, key, monitor_index, path):
         try:
             with open(str(path), 'r') as f:
-                first_line = f.readline()
-                if not first_line or ';' not in first_line:
-                    self.warn_invalid_file(path)
-                    return
-                memory_usage = np.int32(first_line.split(';', 1)[1])
+                memory_usages = []
+                lines = f.readlines()
+                for line in lines:
+                    if not line or ';' not in line:
+                        self.warn_invalid_file(path)
+                        return
+                    memory_usages += [np.int32(line.split(';', 1)[1])]
+
+                memory_usage = max(memory_usages)
         except Exception as e:
             raise Exception("Error while reading file " + str(path)) from e
 
@@ -221,10 +247,8 @@ class Loader:
         self.memory_data.append(memory)
 
     def read_file(self, path):
-        print(path)
         metrics_match = self.metrics_pattern.fullmatch(path.name)
         if metrics_match:
-            print("metrics")
             key = (
                 metrics_match.group(1),
                 metrics_match.group(2),
@@ -234,8 +258,8 @@ class Loader:
                 int(metrics_match.group(6) or 0),
                 int(metrics_match.group(7)),
                 int(metrics_match.group(8)),
-                str(metrics_match.group(9) or "none")
-                )
+                (metrics_match.group(9) or "none")
+            )
             self.read_metrics(key, path)
             return
 
@@ -243,6 +267,18 @@ class Loader:
         if delay_match:
             if delay_match.group(2) != 'monpoly':
                 # NOTE: We silently ignore replayer data for non-Monpoly experiments.
+                key = (
+                    delay_match.group(1),
+                    delay_match.group(2),
+                    bool(delay_match.group(3)),
+                    int(delay_match.group(4) or 0),
+                    delay_match.group(5).replace('_', '-'),
+                    int(delay_match.group(6) or 0),
+                    int(delay_match.group(7)),
+                    int(delay_match.group(8)),
+                    (delay_match.group(9) or "none")
+                )
+                self.read_replayer_events(key, path)
                 return
             key = (
                 delay_match.group(1),
@@ -254,7 +290,7 @@ class Loader:
                 int(delay_match.group(7)),
                 int(delay_match.group(8)),
                 (delay_match.group(9) or "none")
-                )
+            )
             self.read_replayer_delay(key, path)
             return
 
@@ -270,7 +306,7 @@ class Loader:
                 int(time_match.group(7)),
                 int(time_match.group(8) or 0),
                 (time_match.group(9) or "none")
-                )
+            )
             monitor_index = int(time_match.group(10) or 0)
             self.read_memory(key, monitor_index, path)
             return
@@ -361,31 +397,64 @@ if __name__ == '__main__':
 
         # gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
         # gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
-        
+
         # # ALL
+        # gen_nproc_export = summary.select()
         # gen_nproc_export = summary.select()
         # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="all.csv")
 
-        # PLOT1
-        #gen_nproc_export = summary.select(experiment='gen',checkpointing=True)
-        #gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
+        # NOKIA EXPERIMENTS
+        synth_summary = summary.select(experiment='nokia')
+        synth_summary.export('max', 'peak', 'average', 'current_events', 'memory', path="plot-nokia.csv")
 
-        # PLOT2
-        nokia_nproc = summary.select(experiment='nokia')
-        nokia_nproc.export('max', 'peak', 'average', 'current_events', 'memory', 'sum_tp', path="plot-nokia.csv")
+        synth_plot_tp = summary.select(experiment='nokia', adaptivity=False)
+        synth_plot_tp.export('processors', 'sum_tp', 'acceleration', path="plots_nokia-tp_nonad.csv")
+        synth_plot_tp.plot('processors', 'sum_tp', column_levels=['acceleration'], title="Plot throughput Nonad", path="nokia-plots-tp-nonad.pdf")
+
+        synth_plot_tp = summary.select(experiment='nokia', adaptivity=True)
+        synth_plot_tp.export('processors', 'statistics', 'sum_tp', 'acceleration', path="plots_tp_ad.csv")
+        synth_plot_tp.plot('processors', 'sum_tp', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="nokia-plots-tp-ad.pdf")
 
         # PLOT3
-        nokia_series = series.select(experiment='nokia', adaptivity=False, repetition=1)
-        nokia_series.export('peak', path="plot-nokia-time-f.csv")
+        synth_series = series.select(experiment='nokia', adaptivity=False)
+        synth_series.export('peak', path="plot-nokia-time-f.csv")
+        synth_series.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="nokia-plots-peak-latency-nonad.pdf")
+
+        synth_series = series.select(experiment='nokia', adaptivity=True)
+        synth_series.export('peak', path="plot-nokia-time-t.csv")
+        synth_series.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency Adaptive", path="nokia-plots-peak-latency-ad.pdf")
+
+        # PLOT2
+        #nokia_nproc = summary.select(experiment='nokia')
+        #nokia_nproc.export('max', 'peak', 'average', 'current_events', 'memory', 'sum_tp', path="plot-nokia.csv")
+
+        # PLOT3
+        #nokia_series = series.select(experiment='nokia', adaptivity=False, repetition=1)
+        #nokia_series.export('peak', path="plot-nokia-time-f.csv")
 
         # PLOT4
-        nokia_series = series.select(experiment='nokia', adaptivity=True, repetition=1)
-        nokia_series.export('peak', path="plot-nokia-time-t.csv")
-    
-        # PLOT5
-        #genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        #genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
+        #nokia_series = series.select(experiment='nokia', adaptivity=True, repetition=1)
+        #nokia_series.export('peak', path="plot-nokia-time-t.csv")
 
+        #SYNTHETIC EXPERIMENTS
+        synth_summary = summary.select(experiment='synth')
+        synth_summary.export('max', 'peak', 'average', 'acceleration',  'memory', path="plot-synth.csv")
+
+        synth_plot_tp = summary.select(experiment='synth', adaptivity=False)
+        synth_plot_tp.export('processors', 'sum_tp', 'acceleration', path="plots_tp_nonad.csv")
+        synth_plot_tp.plot('processors', 'sum_tp', column_levels=['acceleration'], title="Plot throughput Nonad", path="synth-plots-tp-nonad.pdf")
+
+        synth_plot_tp = summary.select(experiment='synth', adaptivity=True)
+        synth_plot_tp.export('processors', 'statistics', 'sum_tp', 'acceleration', path="plots_tp_ad.csv")
+        synth_plot_tp.plot('processors', 'sum_tp', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="synth-plots-tp-ad.pdf")
+
+        synth_series = series.select(experiment='synth', adaptivity=False)
+        synth_series.export('peak', path="plot-synth-time-f.csv")
+        synth_series.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="synth-plots-peak-latency-nonad.pdf")
+
+        synth_series = series.select(experiment='synth', adaptivity=True)
+        synth_series.export('peak', path="plot-synth-time-t.csv")
+        synth_series.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency Adaptive", path="synth-plots-peak-latency-ad.pdf")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)

@@ -17,11 +17,11 @@ REPLAYER_QUEUE=1200
 STARTTS=0
 ENDTS=238
 
-
 echo "=== Synthetic experiments ==="
 
 SIGFILE="$WORK_DIR/synthetic/synth.sig"
-FORMULADIR="$WORK_DIR/synthetic/"
+FORMULADIR="$WORK_DIR/synthetic"
+PURE_TRACE="synth_trace.csv"
 
 echo "Monpoly standalone:"
 for formula in $FORMULAS; do
@@ -38,7 +38,7 @@ for formula in $FORMULAS; do
             TIME_REPORT="$REPORT_DIR/synth_monpoly_${formula}_${acc}_${i}_time.txt"
 
             rm "$VERDICT_FILE" 2> /dev/null
-            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" \
+            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -m "$WORK_DIR/$PURE_TRACE" 2> "$DELAY_REPORT" \
                 | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$WORK_DIR/monpoly" -sig $SIGFILE -formula "$FORMULADIR/$formula.mfotl" -negate > "$VERDICT_FILE"
         done
     done
@@ -74,7 +74,7 @@ for formula in $FORMULAS; do
                     mkdir -p $TRACE_DIR
                     GEN_REPORT="$REPORT_DIR/${JOB_NAME}_trace_gen.txt"
                     echo "   Generating trace files for: f=${formula}, p=${numcpus}, w=${window}"
-                    taskset -c $AUX_CPU_LIST  "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --formulaDir "synthetic" --startTs $STARTTS --endTs $ENDTS --windows $window --parallelism $numcpus --analysis true &> $GEN_REPORT
+                    taskset -c $AUX_CPU_LIST  "$WORK_DIR/monitor.sh" --formula $formula --trace $PURE_TRACE --statisticsDir "statistics_synth" --inputDir $WORK_DIR --outputDir $TRACE_DIR --formulaDir "synthetic" --startTs $STARTTS --endTs $ENDTS --windows $window --parallelism $numcpus --analysis true &> $GEN_REPORT
                     #if ! "$WORK_DIR/monitor.sh" --formula $formula --inputDir $WORK_DIR --outputDir $TRACE_DIR --windows $window --parallelism $numcpus --analysis true; then
                     #    echo "Trace files could not be generated"
                     #    exit -1
@@ -86,11 +86,16 @@ for formula in $FORMULAS; do
                     for i in $(seq 1 $REPETITIONS); do
                         echo "        Repetition $i ..."
 
-                        JOB_NAME="synth_flink_ft_${numcpus}_${formula}_${window}_${stat}_${acc}_${i}"
+                        JOB_NAME="synth_flink_ft_${numcpus}_${formula}_${window}_${acc}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         PROXY_LOG="$REPORT_DIR/${JOB_NAME}_proxy.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+
+                        kill -9 $(lsof -t -i:$RESCALER_PORT) &> /dev/null
+                        kill -9 $(lsof -t -i:$STREAM_PORT) &> /dev/null
+                        kill -9 $(lsof -t -i:$PROXY_PORT) &> /dev/null
+                        sleep 2
 
                         rm "$VERDICT_FILE" 2> /dev/null
                         start_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
@@ -98,6 +103,7 @@ for formula in $FORMULAS; do
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
                         "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -a -o $TIME_REPORT $WORK_DIR/monpoly -negate -nofilteremptytp" --sig $SIGFILE --formula "$FORMULADIR/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
+
                         end_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
                         start_utc=$(echo "$start_exp" | xargs -I J date "$format" --utc -d J)
@@ -135,9 +141,15 @@ for formula in $FORMULAS; do
                 TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                 JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
+                kill -9 $(lsof -t -i:$RESCALER_PORT) &> /dev/null
+                kill -9 $(lsof -t -i:$STREAM_PORT) &> /dev/null
+                kill -9 $(lsof -t -i:$PROXY_PORT) &> /dev/null
+                sleep 2
+
+
                 rm "$VERDICT_FILE" 2> /dev/null
                 start_exp=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/$PURE_TRACE" 2> "$DELAY_REPORT" &
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/proxy.sh" -i localhost:$STREAM_PORT -o $PROXY_PORT 2> "$PROXY_LOG" &
                 "$WORK_DIR/monitor.sh" --format csv --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$PROXY_PORT --monitor "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $WORK_DIR/monpoly -negate -nofilteremptytp" --sig $SIGFILE --formula "$FORMULADIR/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                 wait

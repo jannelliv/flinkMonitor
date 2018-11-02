@@ -115,6 +115,35 @@ non_common_jobs = non_common_jobs.union(set(job_map_peak.keys())-common_jobs)
 print("Skipping the "+ str(len(non_common_jobs)) +" jobs not in common: " + str(non_common_jobs))
 
 
+def recalculateMax(latency):
+    max_l = 0
+    length = len(latency)
+    for i in range(0, length):
+        ts, tmp  = latency[i]
+        max_l = max([max_l, tmp])
+        latency[i] = (ts, max_l)
+
+    return latency
+
+
+def recalculateAverage(peak, average):
+    avg_l = 0
+    sum = 0
+    length = len(average)
+    offset = 0
+    for i in range(1, length+1):
+        ts, tmp  = peak[i-1]
+        sum += tmp
+        if sum == 0:
+            offset += 1
+        if tmp > 0:
+            avg_l = sum / (i - offset)
+
+        average[i-1] = (ts, avg_l)
+
+    return average
+
+
 def d2l(d):
     dictlist = []
     for key, value in d.iteritems():
@@ -122,6 +151,23 @@ def d2l(d):
         dictlist.append(temp)
     dictlist.sort(key=lambda x: x[0])
     return dictlist
+
+def matchupLists(l1, l2):
+    length = min([len(l1), len(l2)])
+
+    for i in range(0,length):
+        ts_1, a = l1[i]
+        ts_2, b = l2[i]
+
+        if ts_1 < ts_2:
+            l2[i] = ts_2 - 1, b
+        if ts_2 < ts_1:
+            l1[i] = ts_1 -1, a
+
+    return l1, l2
+
+
+
 
 for job in common_jobs:
     output_file = open("metrics_"+job+".csv", 'w')
@@ -132,8 +178,18 @@ for job in common_jobs:
     index = 0
     #Gets lists from dicts
     peak_list = d2l(job_map_peak[job])
-    max_list  = d2l(job_map_max[job])
-    avg_list  = d2l(job_map_avg[job])
+    max_list  = recalculateMax(d2l(job_map_max[job]))
+    avg_list  = recalculateAverage(peak_list, d2l(job_map_avg[job]))
+
+    job_record_dict = {}
+
+    for m in range(ms):
+        l = d2l(job_map_record[job][m])
+        l, peak_list = matchupLists(l, peak_list)
+        l, max_list = matchupLists(l, max_list)
+        l, avg_list = matchupLists(l, avg_list)
+        job_record_dict[m]= l
+
 
     #try:
     #    index = job.index("ft")
@@ -151,15 +207,16 @@ for job in common_jobs:
         records = []
         for m in range(ms):
             try:
-                ts_r, rec = d2l(job_map_record[job][m])[i]
+                ts_r, rec = job_record_dict[m][i]
                 ts_r += offset
                 if ts < ts_r:
                     skip=True
-                    offset -= 1
+                    print("TS Mismatch: " + job)
+                    exit(-1)
                     break
                 if ts > ts_r:
-                    records = records + [0]
-                    offset += 1
+                    print("TS Mismatch: " + job)
+                    exit(-1)
                     continue
                 records = records + [rec]
             except IndexError:
