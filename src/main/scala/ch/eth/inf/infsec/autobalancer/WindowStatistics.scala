@@ -8,6 +8,10 @@ import ch.eth.inf.infsec.trace.{Domain, Record, Timestamp}
 
 object Helpers
 {
+    def fuseGen[K,V](a : scala.collection.mutable.Map[K,V],b : scala.collection.mutable.Map[K,V], default : V, add : ((V,V) => V)): scala.collection.mutable.Map[K,V] = {
+      a ++ b.map { case (k,v) => k -> add(v,a.getOrElse(k,default))}
+    }
+
     def fuse(a:scala.collection.mutable.Map[(Int,Domain),Int],b:scala.collection.mutable.Map[(Int,Domain),Int]):scala.collection.mutable.Map[(Int,Domain),Int] = {
       a ++ b.map { case (k,v) => k -> (v + a.getOrElse(k,0))}
     }
@@ -15,10 +19,10 @@ object Helpers
       valuePerPosFreq > 0.2
     }
 }
-class WindowStatistics extends Statistics with Serializable{
+class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) extends Statistics with Serializable{
   var lastFrame = 0
-  val timestampDeltaBetweenFrames = 0.033; //Todo: turn into config option
-  val maxFrames = 150; //Todo: turn into config option
+//  val timestampDeltaBetweenFrames = 0.033;
+//  val maxFrames = 150;
   var frames = Array.fill[FrameStatistic](maxFrames)(new FrameStatistic())
   var relations = scala.collection.mutable.Map[String,Int](); //todo: make param
   var heavyHitter = scala.collection.mutable.Map[(String,Int),Set[Domain]]()
@@ -30,22 +34,24 @@ class WindowStatistics extends Statistics with Serializable{
     //            then we subtract and add like we did with relations
     //    ... this gets complicated, postpone until needed
     //recomputes relation sizes
-    relations = relations.map(rel => (rel._1,frames.foldRight(0)((x,acc) => acc + x.relationSize(rel._1))));
+//    relations = relations.map(rel => (rel._1,frames.foldRight(0)((x,acc) => acc + x.relationSize(rel._1))));
+    relations = frames.foldRight(scala.collection.mutable.Map[String,Int]())((f,acc) => Helpers.fuseGen[String,Int](f.relations,acc,0,(a,b) => (a+b)))
     val temp = relations
       .map(rel => (rel._1,frames
         .foldRight(scala.collection.mutable.Map[(Int,Domain),Int]())((x,acc) => Helpers.fuse(acc,x.getRelInfo(rel._1)))
-        .map(elm => (elm._1,elm._2 / rel._2))
+        .map(elm => (elm._1,elm._2 / rel._2.toDouble))
         .filter(x => Helpers.heavyHitterFreq(x._2))))
     heavyHitter = scala.collection.mutable.Map[(String,Int),Set[Domain]]()
     temp.foreach(x => {
       x._2.foreach( y => {
+        heavyHitter.getOrElseUpdate((x._1,y._1._1),Set[Domain]())
         heavyHitter(x._1, y._1._1) += y._1._2
       })
     })
   }
   def nextFrame() : Unit = {
     lastFrame += 1
-    if(lastFrame > maxFrames)
+    if(lastFrame >= maxFrames)
       lastFrame = 0
     recomputeFrameInfo()
     frames(lastFrame).clearFrame()
@@ -55,17 +61,19 @@ class WindowStatistics extends Statistics with Serializable{
   }
 
   override def heavyHitters(relation: String, attribute: Int): Set[Domain] = {
-    heavyHitter(relation,attribute)
+    heavyHitter.getOrElse((relation,attribute),Set[Domain]())
   }
 
   //todo: the timestamp is atm nonsense, needs fixing
   var frameTimestamp:Double = 0//new trace.Timestamp();
   var first = true;
   def addEvent(event : Record) : Unit = {
-    if(first)
+    if(first) {
       frameTimestamp = event.timestamp
+      first = false
+    }
     frames(lastFrame).addEvent(event)
-    while(event.timestamp > frameTimestamp + timestampDeltaBetweenFrames) {
+    while(event.timestamp >= frameTimestamp + timestampDeltaBetweenFrames) {
       nextFrame()
       frameTimestamp = frameTimestamp + timestampDeltaBetweenFrames
     }
@@ -78,7 +86,7 @@ class FrameStatistic extends Serializable
   var valueOccurances = scala.collection.mutable.Map[String,scala.collection.mutable.Map[(Int,Domain),Int]]();
   //      var isProcessed = false; - todo: process opt, so that we store count first, then transform into freq once after we are done
 
-  //clears the frame's contentsb so that it as good as new
+  //clears the frame's contents so that it as good as new
   def clearFrame() : Unit = {
     relations = relations.map(x => (x._1,0))
   }
