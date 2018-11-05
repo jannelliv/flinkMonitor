@@ -1,13 +1,13 @@
 package ch.eth.inf.infsec
 
 import java.io.Serializable
+import java.util.stream.Collector
 
-import ch.eth.inf.infsec.autobalancer.WindowStatistics
+import ch.eth.inf.infsec.autobalancer.{DeciderFlatMap, WindowStatistics}
 import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
 import ch.eth.inf.infsec.slicer.{ColissionlessKeyGenerator, Statistics}
 import ch.eth.inf.infsec.trace._
-import org.apache.flink.api.common.functions.MapFunction
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.IdPartitioner
@@ -165,18 +165,8 @@ object StreamMonitoring {
 
 
 
-
     //assumes in-order atm
-    val observedTrace = parsedTrace.map(new MapFunction[Record,Record] {
-      val statistics = new WindowStatistics()
-      override def map(x:Record) = {
-      if (!x.isEndMarker) {
-        statistics.addEvent(x)
-      }
-
-      x
-    }
-    });//.name("ObservedTrace").uid("observed-trace");
+    val observedTrace = parsedTrace.flatMap (new DeciderFlatMap);//.name("ObservedTrace").uid("observed-trace");
 
     val slicedTrace = observedTrace
       .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")

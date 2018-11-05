@@ -55,6 +55,7 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
             " --monpoly false"
         )))
       .redirectError(Redirect.INHERIT)
+        .redirectOutput(Redirect.INHERIT)
       .start()
 
   }
