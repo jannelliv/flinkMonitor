@@ -201,7 +201,6 @@ object TraceAnalysis {
           boundary += windowSize
           if(slicers.nonEmpty && slicersInserted <= windows -2) {
             writer.println(">set_slicer %s<".format(slicers.head))
-            writer.println(">split_save %s<".format("state"))
             println(">set_slicer %s<".format(slicers.head))
             slicersInserted += 1
             slicers = slicers.tail

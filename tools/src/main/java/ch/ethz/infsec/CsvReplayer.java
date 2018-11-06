@@ -194,6 +194,7 @@ public class CsvReplayer {
 
         private boolean successful = false;
         private boolean sentCommand = false;
+        private long lastTimeStamp = 0l;
 
         private DatabaseBuffer databaseBuffer = null;
         private long firstTimestamp;
@@ -237,7 +238,15 @@ public class CsvReplayer {
         private void processRecord(String line) throws InterruptedException {
             if(line.trim().startsWith(">")) {
                 if(databaseBuffer != null) emitBuffer(databaseBuffer, false);
-                databaseBuffer = factory.createDatabaseBuffer(0, 0);
+
+                long nextEmission;
+                if (timeMultiplier > 0.0) {
+                    nextEmission = Math.round((double) (lastTimeStamp - firstTimestamp) / timeMultiplier * 1000.0);
+                } else {
+                    nextEmission = 0;
+                }
+
+                databaseBuffer = factory.createDatabaseBuffer(0, nextEmission);
                 databaseBuffer.addCommand(line, "command");
                 emitCommandBuffer(databaseBuffer);
                 sentCommand = true;
@@ -269,6 +278,7 @@ public class CsvReplayer {
                 if (currentIndex < 0)
                     currentIndex = line.length();
                 timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
+                lastTimeStamp = timestamp;
                 currentIndex += 1;
 
                 if (databaseBuffer == null) {

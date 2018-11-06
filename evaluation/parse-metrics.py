@@ -194,30 +194,24 @@ for job in common_jobs:
     #try:
     #    index = job.index("ft")
     length = len(job_map_max[job])-2
-    offset = 0
+    offset = {}
 
     for i in range(0,length):
         skip=False
         ts_p, peak = peak_list[i]
         ts_m, max_n  = max_list[i]
         ts_a, avg  = avg_list[i]
-        assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
+
+        #assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
         ts = min(ts_p,ts_m,ts_a)
         r = [ts,peak,max_n,avg]
         records = []
         for m in range(ms):
             try:
                 ts_r, rec = job_record_dict[m][i]
-                ts_r += offset
-                if ts < ts_r:
-                    skip=True
-                    print("TS Mismatch: " + job)
-                    exit(-1)
-                    break
-                if ts > ts_r:
-                    print("TS Mismatch: " + job)
-                    exit(-1)
-                    continue
+                if not m in offset:
+                    offset[m] = 0
+                ts_r += offset[m]
                 records = records + [rec]
             except IndexError:
                 # number of samples misaligned
