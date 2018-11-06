@@ -426,9 +426,8 @@ class Loader:
         raw_slices.name = 'total_events'
         slices = self.average_repetitions(raw_slices).to_frame()
 
-        raw_series = pd.concat(self.series_data, sort=True, keys=self.series_keys, names=self.job_levels)
-        #series = self.average_repetitions(raw_series)
-        series = raw_series[raw_series['current_events'] > 0]
+        series = pd.concat(self.series_data, sort=True, keys=self.series_keys, names=self.job_levels)
+        #series = raw_series[raw_series['current_events'] > 0]
         series.sort_index(inplace=True)
 
         return Data("Summary", summary), Data("Slices", slices), Data("Time series", series), Data("Runtime", runtime), Data("Throughput", throughput)

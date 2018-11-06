@@ -152,23 +152,6 @@ def d2l(d):
     dictlist.sort(key=lambda x: x[0])
     return dictlist
 
-def matchupLists(l1, l2):
-    length = min([len(l1), len(l2)])
-
-    for i in range(0,length):
-        ts_1, a = l1[i]
-        ts_2, b = l2[i]
-
-        if ts_1 < ts_2:
-            l2[i] = ts_2 - 1, b
-        if ts_2 < ts_1:
-            l1[i] = ts_1 -1, a
-
-    return l1, l2
-
-
-
-
 for job in common_jobs:
     output_file = open("metrics_"+job+".csv", 'w')
     writer = csv.writer(output_file)
@@ -183,14 +166,6 @@ for job in common_jobs:
 
     job_record_dict = {}
 
-    for m in range(ms):
-        l = d2l(job_map_record[job][m])
-        l, peak_list = matchupLists(l, peak_list)
-        l, max_list = matchupLists(l, max_list)
-        l, avg_list = matchupLists(l, avg_list)
-        job_record_dict[m]= l
-
-
     #try:
     #    index = job.index("ft")
     length = len(job_map_max[job])
@@ -202,13 +177,13 @@ for job in common_jobs:
         ts_m, max_n  = max_list[i]
         ts_a, avg  = avg_list[i]
 
-        #assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
-        ts = min(ts_p,ts_m,ts_a)
+        assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
+        ts = max(ts_p,ts_m,ts_a)
         r = [ts,peak,max_n,avg]
         records = []
         for m in range(ms):
             try:
-                ts_r, rec = job_record_dict[m][i]
+                ts_r, rec = d2l(job_map_record[job][m])[i]
                 if not m in offset:
                     offset[m] = 0
                 ts_r += offset[m]
