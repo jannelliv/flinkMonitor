@@ -193,7 +193,7 @@ for job in common_jobs:
 
     #try:
     #    index = job.index("ft")
-    length = len(job_map_max[job])-2
+    length = len(job_map_max[job])
     offset = {}
 
     for i in range(0,length):
@@ -214,11 +214,11 @@ for job in common_jobs:
                 ts_r += offset[m]
                 records = records + [rec]
             except IndexError:
+                records = records + [0]
                 # number of samples misaligned
-                print("Number of samples misaligned")
-                print("Len: %d vs Len: %d" % (len(job_map_max[job]), len(d2l(job_map_record[job][m]))))
-                print("Job: %s, m: %d, i: %d" % (job, m, i))
-                break
+                #print("Number of samples misaligned")
+                #print("Len: %d vs Len: %d" % (len(job_map_max[job]), len(d2l(job_map_record[job][m]))))
+                #print("Job: %s, m: %d, i: %d" % (job, m, i))
         if skip:
             continue
         sum_tp = sum(records)
