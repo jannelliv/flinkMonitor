@@ -165,8 +165,9 @@ object StreamMonitoring {
 
 
 
+    //todo: proper arguments
     //assumes in-order atm
-    val observedTrace = parsedTrace.flatMap (new DeciderFlatMap);//.name("ObservedTrace").uid("observed-trace");
+    val observedTrace = parsedTrace.flatMap (new DeciderFlatMap[Double](0,_ => 0, (_,_) => 0, (_,_) => 0));//.name("ObservedTrace").uid("observed-trace");
 
     val slicedTrace = observedTrace
       .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
