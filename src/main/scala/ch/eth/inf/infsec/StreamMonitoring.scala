@@ -147,11 +147,15 @@ object StreamMonitoring {
       env.setMaxParallelism(1)
       env.setParallelism(1)
 
+      var source: CustomSourceFunction = null
+
       //Single node
       val textStream = in match {
-        case Some(Left((h, p))) => LatencyTrackingExtensions.addSourceWithProvidedMarkers(
+        case Some(Left((h, p))) =>
+          source = new CustomSourceFunction(h, p, "\n", 0)
+          LatencyTrackingExtensions.addSourceWithProvidedMarkers(
           env,
-          new SocketTextStreamFunction(h, p, "\n", 0),
+          source,
           "Socket source")
           .uid("socket-source")
         case Some(Right(f)) =>
@@ -207,7 +211,7 @@ object StreamMonitoring {
             .setParallelism(1).name("Print sink").uid("print-sink")
       }
 
-      Rescaler.create(jobName, "127.0.0.1", processors)
+      Rescaler.create(source, jobName, "127.0.0.1", processors)
       Thread.sleep(2000)
       env.execute(jobName)
     }
