@@ -3,7 +3,6 @@ package ch.eth.inf.infsec.tools
 import java.io.{BufferedReader, InputStreamReader}
 import java.net.{InetSocketAddress, ServerSocket, Socket}
 
-import ch.eth.inf.infsec.CustomSourceFunction
 import javax.xml.bind.DatatypeConverter
 import org.apache.flink.api.common.JobID
 import org.apache.flink.client.cli.CliArgsException
@@ -24,16 +23,14 @@ object Rescaler extends Serializable {
     private val config: Configuration = new Configuration()
 
     private var clientSocket: Socket = _
-    private var source: CustomSourceFunction = _
 
     private var parallelism: Int = -1
     private var in: BufferedReader = _
 
-    def init(source: CustomSourceFunction, jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
+    def init(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
       try {
         server = new ServerSocket(10103)
         this.parallelism = parallelism
-        if(source != null) this.source = source
 
         config.setString("jobmanager.rpc.address", jmAddress)
         client = new RestClusterClient[String](config, "RemoteExecutor")
@@ -65,12 +62,6 @@ object Rescaler extends Serializable {
             tuple(0) match {
               case "parallelism" =>
                 processRescale(jobName, parallelism)
-                if(source != null){
-                  println("Setting pending to source")
-                  source.setPendingSlicer()
-                }else{
-                  println("source is null")
-                }
               case _ => throw new Exception("Unrecognized command")
             }
           }
@@ -134,9 +125,9 @@ object Rescaler extends Serializable {
 
 
 
-  def create(source: CustomSourceFunction, jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
+  def create(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
     val rescaler = new Rescaler()
-    rescaler.init(source, jobName, jmAddress, parallelism, jmPort)
+    rescaler.init(jobName, jmAddress, parallelism, jmPort)
   }
 
   class RescaleInitiator extends Serializable {

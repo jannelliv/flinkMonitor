@@ -126,10 +126,11 @@ def recalculateMax(latency):
     return latency
 
 
-def recalculateAverage(peak, average):
+def recalculateAverage(peak):
+    average = []
     avg_l = 0
     sum = 0
-    length = len(average)
+    length = len(peak)
     offset = 0
     for i in range(1, length+1):
         ts, tmp  = peak[i-1]
@@ -139,7 +140,7 @@ def recalculateAverage(peak, average):
         if tmp > 0:
             avg_l = sum / (i - offset)
 
-        average[i-1] = (ts, avg_l)
+        average += [(ts, avg_l)]
 
     return average
 
@@ -162,7 +163,7 @@ for job in common_jobs:
     #Gets lists from dicts
     peak_list = d2l(job_map_peak[job])
     max_list  = recalculateMax(d2l(job_map_max[job]))
-    avg_list  = recalculateAverage(peak_list, d2l(job_map_avg[job]))
+    avg_list  = recalculateAverage(peak_list)
 
     job_record_dict = {}
 
@@ -177,7 +178,7 @@ for job in common_jobs:
         ts_m, max_n  = max_list[i]
         ts_a, avg  = avg_list[i]
 
-        assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
+        #assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
         ts = max(ts_p,ts_m,ts_a)
         r = [ts,peak,max_n,avg]
         records = []
