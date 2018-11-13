@@ -49,8 +49,8 @@ class Data:
         self.name = name
         self.df = df
 
-    def select(self, experiment=ANY, tool=ANY, adaptivity=ANY, processors=ANY, formula=ANY, window=ANY, event_rate=ANY, repetition=ANY, statistics=ANY):
-        view = self.df.loc[(experiment, tool, adaptivity, processors, formula, window, event_rate, repetition, statistics), :]
+    def select(self, experiment=ANY, tool=ANY, adaptivity=ANY, processors=ANY, formula=ANY, window=ANY, acceleration=ANY, repetition=ANY, statistics=ANY):
+        view = self.df.loc[(experiment, tool, adaptivity, processors, formula, window, acceleration, repetition, statistics), :]
         return Data(self.name, view)
 
     def export(self, *columns, drop_levels=[], path=None):
@@ -425,7 +425,6 @@ class Loader:
         raw_slices.index.rename('monitor', level=-1, inplace=True)
         raw_slices.name = 'total_events'
         slices = self.average_repetitions(raw_slices).to_frame()
-
         series = pd.concat(self.series_data, sort=True, keys=self.series_keys, names=self.job_levels)
         #series = raw_series[raw_series['peak'] > 0]
         series.sort_index(inplace=True)
@@ -550,114 +549,127 @@ if __name__ == '__main__':
         #nokia_plot_runtime_comparative = runtime.select(experiment='nokia', tool='flink', adaptivity=True)
         #nokia_plot_runtime_comparative.plot('processors', 'runtime', series_levels=['statistics'], column_levels=['windows'],  title="Runtime Comparative", path="plot-runtime-comparative.pdf")
 
+        plots = "synth"
 
-        #nokia_summary = summary.select(experiment='nokia')
-        #nokia_summary.export('max', 'peak', 'average', 'acceleration', 'memory', path="plot-summary.csv")
-        #nokia_summary_ad= summary.select(experiment='nokia', adaptivity=True)
-        #nokia_summary_ad.plot('window', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-ad.pdf")
-        #nokia_summary_nonad= summary.select(experiment='nokia', adaptivity=False)
-        #nokia_summary_nonad.plot('processors', 'peak', title="Latency-Nonadaptive", path="plot-peak-lat-nonad.pdf")
+        if plots == "nokia":
+            acceleration=3000
+            nokia_summary = summary.select(experiment='nokia', acceleration=acceleration)
+            nokia_summary.export('max', 'peak', 'average', 'acceleration', 'memory', path="plot-summary.csv")
+            nokia_summary_ad= summary.select(experiment='nokia', adaptivity=True, acceleration=acceleration)
+            nokia_summary_ad.plot('window', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-ad.pdf")
+            nokia_summary_nonad= summary.select(experiment='nokia', adaptivity=False)
+            nokia_summary_nonad.plot('processors', 'peak', title="Latency-Nonadaptive", path="plot-peak-lat-nonad.pdf")
+
+            #nokia_plot_tp_proc_ad = summary.select(experiment='nokia', adaptivity=False)
+            #nokia_plot_tp_proc_ad.export('processors', 'current_events', 'acceleration', path="plot-tp-proc-nonad.csv")
+            #nokia_plot_tp_proc_ad.plot('processors', 'current_events', series_levels=['acceleration'], title="Plot throughput Nonad", path="plot-tp-proc-nonad.pdf")
+
+            #nokia_plot_tp_proc_nonad = summary.select(experiment='nokia', adaptivity=True)
+            #nokia_plot_tp_proc_nonad.export('processors', 'statistics', 'current_events', 'acceleration', path="plot-tp-proc-ad.csv")
+            #nokia_plot_tp_proc_nonad.plot('processors', 'current_events', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="plot-tp-proc-ad.pdf")
+
+            nokia_plot_peak_lat_nonad = series.select(experiment='nokia', adaptivity=False, repetition=1, acceleration=acceleration)
+            nokia_plot_peak_lat_nonad.export('peak', path="plot-peak-lat-trace-nonad.csv")
+            nokia_plot_peak_lat_nonad.plot('timestamp', 'peak', column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-trace-nonad.pdf")
+
+            nokia_plot_peak_lat_ad = series.select(experiment='nokia', adaptivity=True, repetition=1, acceleration=acceleration)
+            nokia_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad.csv")
+            nokia_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-ad.pdf")
+
+            #nokia_plot_tp_comparative= series.select(experiment='nokia', tool='flink')
+            #nokia_plot_tp_comparative.plot('timestamp', 'average', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Latency Comparative", path="plot-avg-lat-comparative.pdf")
+            #nokia_plot_tp_comparative.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Throughput Comparative", path="plot-tp-comparative.pdf")
+
+            nokia_plot_tp_ad = throughput.select(experiment='nokia', tool='flink', adaptivity=True, acceleration=acceleration)
+            #nokia_plot_tp_ad.export('max_tp', path="plot-tp-ad.csv")
+            #nokia_plot_tp_ad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-ad.pdf")
+            nokia_plot_tp_ad.export('avg_tp', path="plot-tp-avg-ad.csv")
+            nokia_plot_tp_ad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-avg-ad.pdf")
+
+            nokia_plot_tp_nonad = throughput.select(experiment='nokia', adaptivity=False, acceleration=acceleration)
+            #nokia_plot_tp_nonad.export('max_tp', path="plot-tp-max-nonad.csv")
+            #nokia_plot_tp_nonad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Max Throughput Non-Adaptive", path="plot-tp-max-nonad.pdf")
+            nokia_plot_tp_nonad.export('avg_tp', path="plot-tp-avg-nonad.csv")
+            nokia_plot_tp_nonad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Avg Throughput Non-Adaptive", path="plot-tp-avg-nonad.pdf")
+
+            nokia_plot_tp = throughput.select(experiment='nokia', tool='flink', acceleration=acceleration)
+            nokia_plot_tp.export('avg_tp', path="plot-tp.csv")
+            nokia_plot_runtime = runtime.select(experiment='nokia', tool='flink', acceleration=acceleration)
+            nokia_plot_runtime.export('runtime', path="plot-runtime.csv")
+
+            nokia_plot_runtime_ad = runtime.select(experiment='nokia', tool='flink', adaptivity=True, acceleration=acceleration)
+            nokia_plot_runtime_ad.export('runtime', path="plot-runtime-ad.csv")
+            nokia_plot_runtime_ad.plot('window', 'runtime', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-runtime-ad.pdf")
+            nokia_plot_runtime_nonad = runtime.select(experiment='nokia', tool='flink', adaptivity=False, acceleration=acceleration)
+            nokia_plot_runtime_nonad.export('runtime', path="plot-runtime-non-ad.csv")
+            nokia_plot_runtime_nonad.plot('processors', 'runtime', series_levels=['acceleration'], title="Runtime Non Adaptive", path="plot-runtime-nonad.pdf")
+
+        elif plots == "synth":
+            #SYNTHETIC EXPERIMENTS
+            synth_summary = summary.select(experiment='synth')
+            synth_summary.export('max', 'peak', 'average', 'acceleration', 'memory', path="plot-summary.csv")
+            synth_summary_ad= summary.select(experiment='synth', adaptivity=True)
+            synth_summary_ad.plot('window', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-ad.pdf")
+            synth_summary_nonad= summary.select(experiment='synth', adaptivity=False)
+            synth_summary_nonad.plot('processors', 'peak', title="Latency-Nonadaptive", path="plot-peak-lat-nonad.pdf")
 
 
-        ##nokia_plot_tp_proc_ad = summary.select(experiment='nokia', adaptivity=False)
-        ##nokia_plot_tp_proc_ad.export('processors', 'current_events', 'acceleration', path="plot-tp-proc-nonad.csv")
-        ##nokia_plot_tp_proc_ad.plot('processors', 'current_events', series_levels=['acceleration'], title="Plot throughput Nonad", path="plot-tp-proc-nonad.pdf")
+            synth_plot_tp_proc_ad = summary.select(experiment='synth', adaptivity=False)
+            synth_plot_tp_proc_ad.export('processors', 'current_events', 'acceleration', path="plot-tp-proc-nonad.csv")
+            synth_plot_tp_proc_ad.plot('processors', 'current_events', series_levels=['acceleration'], title="Plot throughput Nonad", path="plot-tp-proc-nonad.pdf")
 
-        ##nokia_plot_tp_proc_nonad = summary.select(experiment='nokia', adaptivity=True)
-        ##nokia_plot_tp_proc_nonad.export('processors', 'statistics', 'current_events', 'acceleration', path="plot-tp-proc-ad.csv")
-        ##nokia_plot_tp_proc_nonad.plot('processors', 'current_events', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="plot-tp-proc-ad.pdf")
+            synth_plot_tp_proc_nonad = summary.select(experiment='synth', adaptivity=True)
+            synth_plot_tp_proc_nonad.export('processors', 'statistics', 'current_events', 'acceleration', path="plot-tp-proc-ad.csv")
+            synth_plot_tp_proc_nonad.plot('processors', 'current_events', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="plot-tp-proc-ad.pdf")
 
-        #nokia_plot_peak_lat_nonad = series.select(experiment='nokia', adaptivity=False)
-        #nokia_plot_peak_lat_nonad.export('peak', path="plot-peak-lat-trace-nonad.csv")
-        #nokia_plot_peak_lat_nonad.plot('timestamp', 'peak', column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-trace-nonad.pdf")
+            #synth_plot_tp_trace_nonad = series.select(experiment='synth', adaptivity=False)
+            #synth_plot_tp_trace_nonad.export('current_events', path="plot-tp-trace-nonad.csv")
+            #synth_plot_tp_trace_nonad.plot('timestamp', 'current_events', series_levels=['acceleration'], column_levels=['processors'], title="TP NonAdaptive", path="plot-tp-trace-nonad.pdf")
 
-        #nokia_plot_peak_lat_ad = series.select(experiment='nokia', adaptivity=True)
-        #nokia_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad.csv")
-        #nokia_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-ad.pdf")
+            #synth_plot_tp_trace_ad = series.select(experiment='synth', adaptivity=True)
+            #synth_plot_tp_trace_ad.export('current_ events', path="plot-tp_trace-ad.csv")
+            #synth_plot_tp_trace_ad.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['processors', 'acceleration'],  title="Tp-Adaptive", path="plot-tp-trace-ad.pdf")
 
-        ##nokia_plot_tp_comparative= series.select(experiment='nokia', tool='flink')
-        ##nokia_plot_tp_comparative.plot('timestamp', 'average', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Latency Comparative", path="plot-avg-lat-comparative.pdf")
-        ##nokia_plot_tp_comparative.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Throughput Comparative", path="plot-tp-comparative.pdf")
+            synth_plot_peak_lat_nonad = series.select(experiment='synth', adaptivity=False)
+            synth_plot_peak_lat_nonad.export('peak', path="plot-peak-lat-trace-nonad.csv")
+            synth_plot_peak_lat_nonad.plot('timestamp', 'peak', column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-trace-nonad.pdf")
 
-        #nokia_plot_tp_ad = throughput.select(experiment='nokia', tool='flink', adaptivity=True)
-        #nokia_plot_tp_ad.export('max_tp', path="plot-tp-ad.csv")
-        #nokia_plot_tp_ad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-ad.pdf")
-        #nokia_plot_tp_ad.export('avg_tp', path="plot-tp-avg-ad.csv")
-        #nokia_plot_tp_ad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-avg-ad.pdf")
+            synth_plot_peak_lat_ad = series.select(experiment='synth', adaptivity=True)
+            synth_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad.csv")
+            synth_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-ad.pdf")
 
-        #nokia_plot_tp_nonad = throughput.select(experiment='nokia', adaptivity=False)
-        #nokia_plot_tp_nonad.export('max_tp', path="plot-tp-max-nonad.csv")
-        #nokia_plot_tp_nonad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Max Throughput Non-Adaptive", path="plot-tp-max-nonad.pdf")
-        #nokia_plot_tp_nonad.export('avg_tp', path="plot-tp-avg-nonad.csv")
-        #nokia_plot_tp_nonad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Avg Throughput Non-Adaptive", path="plot-tp-avg-nonad.pdf")
+            #synth_plot_peak_lat_ad = series.select(experiment='synth', adaptivity=True, window=8, processors=8)
+            #synth_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad-8-8.csv")
+            #synth_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-8-8-ad.pdf")
 
-        #nokia_plot_runtime_ad = runtime.select(experiment='nokia', tool='flink', adaptivity=True)
-        #nokia_plot_runtime_ad.export('runtime', path="plot-runtime-ad.csv")
-        #nokia_plot_runtime_ad.plot('window', 'runtime', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-runtime-ad.pdf")
-        #nokia_plot_runtime_nonad = runtime.select(experiment='nokia', tool='flink', adaptivity=False)
-        #nokia_plot_runtime_nonad.export('runtime', path="plot-runtime-non-ad.csv")
-        #nokia_plot_runtime_nonad.plot('processors', 'runtime', series_levels=['acceleration'], title="Runtime Non Adaptive", path="plot-runtime-nonad.pdf")
+            synth_plot_tp_comparative= series.select(experiment='synth', tool='flink')
+            synth_plot_tp_comparative.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Latency Comparative", path="plot-peak-lat-comparative.pdf")
 
+            synth_plot_latency= series.select(experiment='synth', tool='flink', repetition=1, window=4, acceleration=8)
+            synth_plot_latency.export('peak', path="plot-latency-trace.csv")
+            synth_plot_latency.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency Comparative", path="plot-peak-lat-comparative-w=4-a=8.pdf")
 
-        #SYNTHETIC EXPERIMENTS
-        synth_summary = summary.select(experiment='synth')
-        synth_summary.export('max', 'peak', 'average', 'acceleration', 'memory', path="plot-summary.csv")
-        synth_summary_ad= summary.select(experiment='synth', adaptivity=True)
-        synth_summary_ad.plot('window', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-ad.pdf")
-        synth_summary_nonad= summary.select(experiment='synth', adaptivity=False)
-        synth_summary_nonad.plot('processors', 'peak', title="Latency-Nonadaptive", path="plot-peak-lat-nonad.pdf")
+            synth_plot_tp_ad = throughput.select(experiment='synth', tool='flink', adaptivity=True)
+            synth_plot_tp_ad.export('max_tp', path="plot-tp-ad.csv")
+            synth_plot_tp_ad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-ad.pdf")
+            synth_plot_tp_ad.export('avg_tp', path="plot-tp-avg-ad.csv")
+            synth_plot_tp_ad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-avg-ad.pdf")
 
+            synth_plot_tp_nonad = throughput.select(experiment='synth', adaptivity=False)
+            synth_plot_tp_nonad.export('max_tp', path="plot-tp-max-nonad.csv")
+            synth_plot_tp_nonad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Max Throughput Non-Adaptive", path="plot-tp-max-nonad.pdf")
+            synth_plot_tp_nonad.export('avg_tp', path="plot-tp-avg-nonad.csv")
+            synth_plot_tp_nonad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Avg Throughput Non-Adaptive", path="plot-tp-avg-nonad.pdf")
 
-        synth_plot_tp_proc_ad = summary.select(experiment='synth', adaptivity=False)
-        synth_plot_tp_proc_ad.export('processors', 'current_events', 'acceleration', path="plot-tp-proc-nonad.csv")
-        synth_plot_tp_proc_ad.plot('processors', 'current_events', series_levels=['acceleration'], title="Plot throughput Nonad", path="plot-tp-proc-nonad.pdf")
+            synth_plot_tp = throughput.select(experiment='synth', tool='flink')
+            synth_plot_tp.export('avg_tp', path="plot-tp.csv")
 
-        synth_plot_tp_proc_nonad = summary.select(experiment='synth', adaptivity=True)
-        synth_plot_tp_proc_nonad.export('processors', 'statistics', 'current_events', 'acceleration', path="plot-tp-proc-ad.csv")
-        synth_plot_tp_proc_nonad.plot('processors', 'current_events', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="plot-tp-proc-ad.pdf")
-
-        #synth_plot_tp_trace_nonad = series.select(experiment='synth', adaptivity=False)
-        #synth_plot_tp_trace_nonad.export('current_events', path="plot-tp-trace-nonad.csv")
-        #synth_plot_tp_trace_nonad.plot('timestamp', 'current_events', series_levels=['acceleration'], column_levels=['processors'], title="TP NonAdaptive", path="plot-tp-trace-nonad.pdf")
-
-        #synth_plot_tp_trace_ad = series.select(experiment='synth', adaptivity=True)
-        #synth_plot_tp_trace_ad.export('current_ events', path="plot-tp_trace-ad.csv")
-        #synth_plot_tp_trace_ad.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['processors', 'acceleration'],  title="Tp-Adaptive", path="plot-tp-trace-ad.pdf")
-
-        synth_plot_peak_lat_nonad = series.select(experiment='synth', adaptivity=False)
-        synth_plot_peak_lat_nonad.export('peak', path="plot-peak-lat-trace-nonad.csv")
-        synth_plot_peak_lat_nonad.plot('timestamp', 'peak', column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-trace-nonad.pdf")
-
-        synth_plot_peak_lat_ad = series.select(experiment='synth', adaptivity=True)
-        synth_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad.csv")
-        synth_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-ad.pdf")
-
-        synth_plot_peak_lat_ad = series.select(experiment='synth', adaptivity=True, window=8, processors=8)
-        synth_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad-8-8.csv")
-        synth_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-8-8-ad.pdf")
-
-        synth_plot_tp_comparative= series.select(experiment='synth', tool='flink')
-        synth_plot_tp_comparative.plot('timestamp', 'average', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Latency Comparative", path="plot-avg-lat-comparative.pdf")
-        synth_plot_tp_comparative.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Throughput Comparative", path="plot-tp-comparative.pdf")
-
-        synth_plot_tp_ad = throughput.select(experiment='synth', tool='flink', adaptivity=True)
-        synth_plot_tp_ad.export('max_tp', path="plot-tp-ad.csv")
-        synth_plot_tp_ad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-ad.pdf")
-        synth_plot_tp_ad.export('avg_tp', path="plot-tp-avg-ad.csv")
-        synth_plot_tp_ad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-avg-ad.pdf")
-
-        synth_plot_tp_nonad = throughput.select(experiment='synth', adaptivity=False)
-        synth_plot_tp_nonad.export('max_tp', path="plot-tp-max-nonad.csv")
-        synth_plot_tp_nonad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Max Throughput Non-Adaptive", path="plot-tp-max-nonad.pdf")
-        synth_plot_tp_nonad.export('avg_tp', path="plot-tp-avg-nonad.csv")
-        synth_plot_tp_nonad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Avg Throughput Non-Adaptive", path="plot-tp-avg-nonad.pdf")
-
-        synth_plot_runtime_ad = runtime.select(experiment='synth', tool='flink', adaptivity=True)
-        synth_plot_runtime_ad.export('runtime', path="plot-runtime-ad.csv")
-        synth_plot_runtime_ad.plot('window', 'runtime', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-runtime-ad.pdf")
-        synth_plot_runtime_nonad = runtime.select(experiment='synth', tool='flink', adaptivity=False)
-        synth_plot_runtime_nonad.export('runtime', path="plot-runtime-non-ad.csv")
-        synth_plot_runtime_nonad.plot('processors', 'runtime', series_levels=['acceleration'], title="Runtime Non Adaptive", path="plot-runtime-nonad.pdf")
+            synth_plot_runtime_ad = runtime.select(experiment='synth', tool='flink')
+            synth_plot_runtime_ad.export('runtime', path="plot-runtime-ad.csv")
+            synth_plot_runtime_ad.plot('window', 'runtime', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-runtime-ad.pdf")
+            synth_plot_runtime_nonad = runtime.select(experiment='synth', tool='flink', adaptivity=False)
+            synth_plot_runtime_nonad.export('runtime', path="plot-runtime-non-ad.csv")
+            synth_plot_runtime_nonad.plot('processors', 'runtime', series_levels=['acceleration'], title="Runtime Non Adaptive", path="plot-runtime-nonad.pdf")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)
