@@ -37,15 +37,15 @@ class CsvFormatTest extends FunSuite with Matchers {
       "withdraw, tp = 0, ts = 1, u = u105, a = 21" :: Nil
 
     CsvFormat.createParser().processAll(List(input1)) should contain theSameElementsInOrderAs List(
-      Record(1, "withdraw", Tuple("u183", 42)),
+      EventRecord(1, "withdraw", Tuple("u183", 42)),
       Record.markEnd(1)
     )
 
     CsvFormat.createParser().processAll(input2) should contain theSameElementsInOrderAs List(
-      Record(1, "withdraw", Tuple("u183", 42)),
-      Record(1, "withdraw", Tuple("u440", 1)),
-      Record(1, "login", Tuple("u321")),
-      Record(1, "withdraw", Tuple("u105", 21)),
+      EventRecord(1, "withdraw", Tuple("u183", 42)),
+      EventRecord(1, "withdraw", Tuple("u440", 1)),
+      EventRecord(1, "login", Tuple("u321")),
+      EventRecord(1, "withdraw", Tuple("u105", 21)),
       Record.markEnd(1)
     )
   }
@@ -59,14 +59,14 @@ class CsvFormatTest extends FunSuite with Matchers {
       "withdraw, tp = 2, ts = 3, u = u383, a = 67\n"
 
     CsvFormat.createParser().processAll(input.split("\n")) should contain theSameElementsInOrderAs List(
-      Record(1, "withdraw", Tuple("u109", 32)),
-      Record(1, "withdraw", Tuple("u438", 55)),
+      EventRecord(1, "withdraw", Tuple("u109", 32)),
+      EventRecord(1, "withdraw", Tuple("u438", 55)),
       Record.markEnd(1),
-      Record(1, "withdraw", Tuple("u642", 58)),
+      EventRecord(1, "withdraw", Tuple("u642", 58)),
       Record.markEnd(1),
-      Record(3, "login", Tuple("u321")),
-      Record(3, "withdraw", Tuple("u285", 60)),
-      Record(3, "withdraw", Tuple("u383", 67)),
+      EventRecord(3, "login", Tuple("u321")),
+      EventRecord(3, "withdraw", Tuple("u285", 60)),
+      EventRecord(3, "withdraw", Tuple("u383", 67)),
       Record.markEnd(3)
     )
   }

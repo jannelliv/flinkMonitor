@@ -21,18 +21,13 @@ echo "Installing missing components"
 
 CHECKSUM_FILE="checksum.tmp"
 
-JDK_DIR="jdk1.8.0_172"
+JDK_DIR="jdk1.8.0_181"
 if [[ ! -d $JDK_DIR ]]; then
-    JDK_ARCHIVE="server-jre-8u172-linux-x64.tar.gz"
+    JDK_ARCHIVE="server-jre-8u181-linux-x64.tar.gz"
     if [[ ! -f $JDK_ARCHIVE ]]; then
         echo "Downloading JRE ..."
-        if ! curl -LR#O -H "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u172-b11/a58eab1ec242421181065cdc37240b08/server-jre-8u172-linux-x64.tar.gz; then
+        if ! curl -LR#O -H "Cookie: oraclelicense=accept-securebackup-cookie" download.oracle.com/otn-pub/java/jdk/8u181-b13/96a7b8442fe848ef90c96a2fad6ed6d1/${JDK_ARCHIVE}; then
             echo "[ERROR] Could not download the JRE."
-            exit 1
-        fi
-        echo "3d0a5db2300423a1fd6ee25c229dbd5320d79204c73844337f5b6a082d58541f  server-jre-8u172-linux-x64.tar.gz" > "$CHECKSUM_FILE"
-        if ! sha256sum -c "$CHECKSUM_FILE"; then
-            echo "[ERROR] File corrupted."
             exit 1
         fi
     fi
@@ -43,26 +38,87 @@ if [[ ! -d $JDK_DIR ]]; then
     fi
 fi
 
+#SCALA_DIR="scala-2.11.8"
+#if [[ ! -d $SCALA_DIR ]]; then
+#    SCALA_ARCHIVE="scala-2.11.8.tgz"
+#    if [[ ! -f $SCALA_ARCHIVE ]]; then
+#        echo "Downloading Scala ..."
+#        if ! curl -LR#O downloads.lightbend.com/scala/2.11.8/${SCALA_ARCHIVE}; then
+#            echo "[ERROR] Could not download scala."
+#            exit 1
+#        fi
+#    fi
+#    echo "Extracting scala ..."
+#    if ! tar -xzf "$SCALA_ARCHIVE"; then
+#        echo "[ERROR] Could not extract scala."
+#        exit 1
+#    fi
+#fi
+
+export JAVA_HOME="$TARGET_DIR/$JDK_DIR"
+#export SCALA_HOME="$TARGET_DIR/$SCALA_DIR"
+echo $JAVA_HOME
+#echo $SCALA_HOME
+
 FLINK_DIR="flink-1.5.0"
-if [[ ! -d $FLINK_DIR ]]; then
-    FLINK_ARCHIVE="flink-1.5.0-bin-scala_2.11.tgz"
-    if [[ ! -f $FLINK_ARCHIVE ]]; then
+FLINK_DIR_SRC="flink-1.5.0-src"
+if [[ ! -d ${FLINK_DIR} ]]; then
+    FLINK_ARCHIVE="flink-1.5.0-src.tgz"
+    if [[ ! -f ${FLINK_ARCHIVE} ]]; then
         echo "Downloading Flink ..."
-        if ! curl -LR#O http://www-eu.apache.org/dist/flink/flink-1.5.0/flink-1.5.0-bin-scala_2.11.tgz; then
+        if ! curl -LR#O archive.apache.org/dist/flink/flink-1.5.0/${FLINK_ARCHIVE}; then
             echo "[ERROR] Could not download Flink."
             exit 1
         fi
-        echo "0664149acc2facb7193160e1e0c1cec571300f2c22adeb01e2e605871cda2d47c9dab16731c7168f389f5b0eff9e7484ff6206898bc13c3be8b9d0027d36d14f  flink-1.5.0-bin-scala_2.11.tgz" > "$CHECKSUM_FILE"
-        if ! sha512sum -c "$CHECKSUM_FILE"; then
-            echo "[ERROR] File corrupted."
+    fi
+
+    if [[ ! -f ${FLINK_DIR_SRC} ]]; then
+        mkdir -p ${FLINK_DIR_SRC}
+        echo "Extracting Flink ..."
+        if ! tar -xzf "$FLINK_ARCHIVE" -C ${FLINK_DIR_SRC} --strip-components 1; then
+            echo "[ERROR] Could not extract Flink."
+            rm -r ${FLINK_DIR_SRC}
+            rm ${FLINK_ARCHIVE}
             exit 1
         fi
     fi
-    echo "Extracting Flink ..."
-    if ! tar -xzf "$FLINK_ARCHIVE"; then
-        echo "[ERROR] Could not extract Flink."
+
+
+    FLINK_EDIT_FOLDER="flink-edit"
+    FLINK_EDIT_FILE="RescalingHandlers.java"
+    FLINK_EDIT_PATH="flink-runtime/src/main/java/org/apache/flink/runtime/rest/handler/job/rescaling"
+
+    if [[ ! -d "$FLINK_EDIT_FOLDER" || ! -f "$FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE" ]]; then
+        echo "Edited Flink file does not exist"
         exit 1
     fi
+
+    echo "Copying modified Flink file"
+    if ! cp "$FLINK_EDIT_FOLDER/$FLINK_EDIT_FILE" "$FLINK_DIR_SRC/$FLINK_EDIT_PATH"; then
+        echo "File could not be copied to location: $FLINK_EDIT_PATH"
+        exit 1
+    fi
+
+    echo "Building Flink from source"
+
+    echo "1. Building base"
+    if ! (cd ${FLINK_DIR_SRC} && mvn clean install -DskipTests -Dfast > /dev/null); then
+        echo "Building Flink from source failed"
+        exit 1
+    fi
+
+    echo "2. Building dist"
+    if ! (cd ${FLINK_DIR_SRC}/flink-dist && mvn clean install > /dev/null); then
+        echo "Building Flink from source failed"
+        exit 1
+    fi
+
+    if ! mv ${FLINK_DIR_SRC}/flink-dist/target/flink-1.5.0-bin/flink-1.5.0 $FLINK_DIR; then
+        echo "Moving built flink to working dir failed"
+        exit 1
+    fi
+
+    echo "Flink: Build finished"
 fi
 
 LDCC_LOG="ldcc.csv"
@@ -112,16 +168,50 @@ if [[ (! -f $LDCC_SAMPLE) || (! -f $LDCC_SAMPLE_PAST) || ./nokia/cut_log.py -nt 
 fi
 
 
+STATISTICS_FOLDER="$TARGET_DIR/statistics"
+if [[ (! -d ${STATISTICS_FOLDER}) ]]; then
+    echo "Statistics not found"
+    exit 1
+fi
+
+windows="2 4 8 10"
+for window in $windows; do
+    RATES="${STATISTICS_FOLDER}/rates-trace-$window.csv"
+    HEAVY="${STATISTICS_FOLDER}/heavy-trace-$window.csv"
+    COMPUTED_STATISTICS="${STATISTICS_FOLDER}/ldcc_statistics_$window-windows.csv"
+    if [[ (-f ${COMPUTED_STATISTICS}) ]]; then
+        if [[ ((! -f ${HEAVY}) || (! -f ${RATES})) ]]; then
+            HEAVY_RAW="${STATISTICS_FOLDER}/heavy_raw.csv"
+            RATES_RAW="${STATISTICS_FOLDER}/rates_raw.csv"
+
+            echo "Splitting statistics"
+            if ! ./nokia/split_statistics.py ${COMPUTED_STATISTICS} ${RATES_RAW} ${HEAVY_RAW}; then
+                rm "$HEAVY_RAW" "$RATES_RAW"
+                exit 1
+            fi
+
+            sed '1d' $RATES_RAW > $RATES
+            sed '1d' $HEAVY_RAW > $HEAVY
+
+            rm $HEAVY_RAW
+            rm $RATES_RAW
+        fi
+    else
+        echo "Computed statistics missing"
+        exit -1
+    fi
+done
+
+
 echo "Preparing working directories ..."
 mkdir -p checkpoints
 mkdir -p output
 mkdir -p reports
 
 
-export JAVA_HOME="$TARGET_DIR/jdk1.8.0_172"
-
 DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
+PROXY_JAR="ReplayerProxy-assembly-0.1.0-SNAPSHOT.jar"
 MONPOLY_BIN="monpoly"
 MISSING_FILE=0
 
@@ -161,13 +251,35 @@ if [[ ! -f $TOOL_JAR ]]; then
     fi
 fi
 
+PROXY_DIR="mt-csv-proxy"
+if [[ ! -f $PROXY_JAR ]]; then
+    PROXY_INSTALL="fail"
+    echo "[WARNING] $PROXY_JAR does not exist. Building..."
+    if [[ ! -z $(which mvn) ]]; then
+        if [[ ! -z $(which git) ]]; then
+            git clone https://bitbucket.org/FreddiB/mt-csv-proxy/
+        fi
+        `cd "${PROXY_DIR}"; sbt assembly 2> /dev/null > /dev/null`
+        if [[ $? -eq 0 ]]; then
+            if  cp ${PROXY_DIR}/target/scala-2.10/ReplayerProxy-assembly-0.1.0-SNAPSHOT.jar .; then
+                PROXY_INSTALL="success"
+                echo "$PROXY_JAR installed from source"
+            fi
+        fi
+    fi
+    if [[ $PROXY_INSTALL = "fail" ]]; then
+            echo "Cannot build jar locally. Please copy the evaluation proxy jar into the current directory."
+            MISSING_FILE=1
+    fi
+fi
+
 MONPOLY_DIR="mt-monpoly"
 if [[ ! -x $MONPOLY_BIN ]]; then
     MONPOLY_INSTALL="fail"
     echo "[WARNING] $MONPOLY_BIN does not exist or is not executable. Compiling..."
     if [[ ! -d $MONPOLY_DIR ]]; then
         if [[ ! -z $(which git) ]]; then
-            git clone -b slicer-integration https://bitbucket.org/FreddiB/mt-monpoly/
+            git clone https://bitbucket.org/FreddiB/mt-monpoly/
         fi
     fi
     if [[ ! -z $(which opam) ]]; then
@@ -185,6 +297,12 @@ if [[ ! -x $MONPOLY_BIN ]]; then
         MISSING_FILE=1
     fi
 fi
+
+chmod +x "$SCRIPT_DIR/nokia/cut_log.py"
+chmod +x "$SCRIPT_DIR/nokia/split_statistics.py"
+chmod +x "$SCRIPT_DIR/monitor.sh"
+chmod +x "$SCRIPT_DIR/proxy.sh"
+chmod +x "$SCRIPT_DIR/replayer.sh"
 
 [[ $MISSING_FILE = 0 ]] || exit 1
 

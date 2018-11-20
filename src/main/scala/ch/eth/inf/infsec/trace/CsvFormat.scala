@@ -29,13 +29,20 @@ class CsvParser extends Processor[String, Record] with Serializable {
   }
 
   override def process(line: String, f: Record => Unit) {
-    val (timepoint, timestamp, relation, tuple) = CsvParser.parseLine(line)
-    if (timepoint != currentTimepoint) {
+    if(line.startsWith(">")) {
+      //Important, terminate previous timepoint
       terminate(f)
-      currentTimepoint = timepoint
-      currentTimestamp = timestamp
+      val (command, parameters ) = CsvParser.parseCommand(line)
+      f(CommandRecord(command, parameters))
+    } else {
+      val (timepoint, timestamp, relation, tuple) = CsvParser.parseLine(line)
+      if (timepoint != currentTimepoint) {
+        terminate(f)
+        currentTimepoint = timepoint
+        currentTimestamp = timestamp
+      }
+      f(EventRecord(timestamp, relation, tuple))
     }
-    f(Record(timestamp, relation, tuple))
   }
 
   override def terminate(f: Record => Unit) {
@@ -68,6 +75,12 @@ object CsvParser {
       value.toLong
     else
       value
+  }
+
+  def parseCommand(line: String): (String, String) = {
+    val arr = line.replaceAll("^>|<$", "").split(" ")
+
+    (arr(0), arr(1))
   }
 
   def parseLine(line: String): (Long, Long, String, Tuple) = {

@@ -2,14 +2,14 @@ package ch.eth.inf.infsec.benchmark
 
 import ch.eth.inf.infsec.policy._
 import ch.eth.inf.infsec.slicer.HypercubeSlicer
-import ch.eth.inf.infsec.trace.{IntegralValue, Record}
+import ch.eth.inf.infsec.trace.{IntegralValue, Record, EventRecord}
 
 import scala.util.Random
 
 object SlicingBenchmark {
   val random = new Random(1234)
 
-  def mkRecord: Record = Record(10203L, "P",
+  def mkRecord: Record = EventRecord(10203L, "P",
     Array(
       IntegralValue(random.nextInt()),
       IntegralValue(random.nextInt()),

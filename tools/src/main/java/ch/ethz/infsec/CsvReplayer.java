@@ -30,6 +30,8 @@ public class CsvReplayer {
 
         abstract void addEvent(String csvLine, String relation, int indexBeforeData);
 
+        abstract void addCommand(String csvLine, String relation);
+
         abstract int getNumberOfEvents();
 
         @Override
@@ -81,17 +83,35 @@ public class CsvReplayer {
         }
 
         @Override
+        void addCommand(String csvLine, String relation) {
+            StringBuilder commandBuilder = relations.get(relation);
+            if (commandBuilder == null) {
+                commandBuilder = new StringBuilder();
+                relations.put(relation, commandBuilder);
+            }
+            commandBuilder.append(csvLine);
+        }
+
+        @Override
         int getNumberOfEvents() {
             return numberOfEvents;
         }
 
         @Override
         void write(Writer writer) throws IOException {
-            writer.append('@').append(Long.toString(timestamp));
-            for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
-                writer.append(' ').append(entry.getKey()).append(entry.getValue());
+            StringBuilder command = relations.get("command");
+            if(command != null){
+                relations.remove("command");
+                writer.append(command);
+                writer.append('\n');
             }
-            writer.append('\n');
+            if(relations.size() > 0){
+                writer.append('@').append(Long.toString(timestamp));
+                for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
+                    writer.append(' ').append(entry.getKey()).append(entry.getValue());
+                }
+                writer.append('\n');
+            }
         }
     }
 
@@ -104,6 +124,11 @@ public class CsvReplayer {
 
         @Override
         void addEvent(String csvLine, String relation, int indexBeforeData) {
+            lines.add(csvLine);
+        }
+
+        @Override
+        void addCommand(String csvLine, String relation) {
             lines.add(csvLine);
         }
 
@@ -168,6 +193,8 @@ public class CsvReplayer {
         private final LinkedBlockingQueue<OutputItem> queue;
 
         private boolean successful = false;
+        private boolean sentCommand = false;
+        private long lastTimeStamp = 0l;
 
         private DatabaseBuffer databaseBuffer = null;
         private long firstTimestamp;
@@ -209,53 +236,76 @@ public class CsvReplayer {
         }
 
         private void processRecord(String line) throws InterruptedException {
-            String relation;
-            long timepoint;
-            long timestamp;
-
-            int startIndex;
-            int currentIndex = 0;
-
-            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-            startIndex = currentIndex;
-            currentIndex = line.indexOf(',', startIndex);
-            relation = line.substring(startIndex, currentIndex).trim();
-            currentIndex += 1;
-
-            currentIndex = line.indexOf('=', currentIndex) + 1;
-            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-            startIndex = currentIndex;
-            currentIndex = line.indexOf(',', startIndex);
-            timepoint = Long.valueOf(line.substring(startIndex, currentIndex).trim());
-            currentIndex += 1;
-
-            currentIndex = line.indexOf('=', currentIndex) + 1;
-            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-            startIndex = currentIndex;
-            currentIndex = line.indexOf(',', startIndex);
-            if (currentIndex < 0)
-                currentIndex = line.length();
-            timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
-            currentIndex += 1;
-
-            if (databaseBuffer == null) {
-                databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
-                firstTimestamp = timestamp;
-                currentTimepoint = timepoint;
-            } else if (timepoint != currentTimepoint) {
-                emitBuffer(databaseBuffer, false);
+            if(line.trim().startsWith(">")) {
+                if(databaseBuffer != null) emitBuffer(databaseBuffer, false);
 
                 long nextEmission;
                 if (timeMultiplier > 0.0) {
-                    nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+                    nextEmission = Math.round((double) (lastTimeStamp - firstTimestamp) / timeMultiplier * 1000.0);
                 } else {
                     nextEmission = 0;
                 }
-                databaseBuffer = factory.createDatabaseBuffer(timestamp, nextEmission);
-                currentTimepoint = timepoint;
-            }
 
-            databaseBuffer.addEvent(line, relation, currentIndex);
+                databaseBuffer = factory.createDatabaseBuffer(0, nextEmission);
+                databaseBuffer.addCommand(line, "command");
+                emitCommandBuffer(databaseBuffer);
+                sentCommand = true;
+            }else {
+                String relation;
+                long timepoint;
+                long timestamp;
+
+                int startIndex;
+                int currentIndex = 0;
+
+                while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+                startIndex = currentIndex;
+                currentIndex = line.indexOf(',', startIndex);
+                relation = line.substring(startIndex, currentIndex).trim();
+                currentIndex += 1;
+
+                currentIndex = line.indexOf('=', currentIndex) + 1;
+                while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+                startIndex = currentIndex;
+                currentIndex = line.indexOf(',', startIndex);
+                timepoint = Long.valueOf(line.substring(startIndex, currentIndex).trim());
+                currentIndex += 1;
+
+                currentIndex = line.indexOf('=', currentIndex) + 1;
+                while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+                startIndex = currentIndex;
+                currentIndex = line.indexOf(',', startIndex);
+                if (currentIndex < 0)
+                    currentIndex = line.length();
+                timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
+                lastTimeStamp = timestamp;
+                currentIndex += 1;
+
+                if (databaseBuffer == null) {
+                    databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
+                    firstTimestamp = timestamp;
+                    currentTimepoint = timepoint;
+                } else if (timepoint != currentTimepoint) {
+                    if(!sentCommand) emitBuffer(databaseBuffer, false);
+                    sentCommand =  false;
+
+                    long nextEmission;
+                    if (timeMultiplier > 0.0) {
+                        nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+                    } else {
+                        nextEmission = 0;
+                    }
+                    databaseBuffer = factory.createDatabaseBuffer(timestamp, nextEmission);
+                    currentTimepoint = timepoint;
+                }
+
+                databaseBuffer.addEvent(line, relation, currentIndex);
+            }
+        }
+
+
+        private void emitCommandBuffer(DatabaseBuffer databaseBuffer) throws InterruptedException {
+            queue.put(databaseBuffer);
         }
 
         private void emitBuffer(DatabaseBuffer databaseBuffer, boolean isLast) throws InterruptedException {

@@ -1,5 +1,6 @@
 package ch.eth.inf.infsec.trace
 
+import ch.eth.inf.infsec.monitor.{CommandItem, EventItem, MonpolyRequest}
 import ch.eth.inf.infsec.{Processor, StatelessProcessor}
 import fastparse.WhitespaceApi
 import fastparse.noApi._
@@ -32,6 +33,11 @@ object MonpolyParsers {
       (Letter | Digit | CharIn("_[]/:-.!")).rep(min = 1).!
     )
 
+    val CommandString: P[String] = P(
+        (Letter | Digit | CharIn("_[]/:\"-.,!(){}")).rep(min = 1).!
+    )
+
+
     val Value: P[Domain] = P( Integer.map(IntegralValue(_)) | String.map(StringValue(_)) )
   }
 
@@ -42,10 +48,16 @@ object MonpolyParsers {
 
   private val Database: P[Seq[(String, Seq[Tuple])]] = P( (Token.String ~/ Relation).rep )
 
+  val Command: P[Record] = P(
+    (Token.Whitespace ~/ ">" ~/ Token.String ~/ Token.CommandString ~/ "<" ~/ Token.Whitespace ~/ End).map {
+      case (s, param) => CommandRecord(s, param)
+  })
+
   val Event: P[(Long, Seq[Record])] = P(
-    (Token.Whitespace ~/ "@" ~/ Token.IntegerDot ~/ Database ~/ Token.Whitespace ~/ End).map { case (ts, db) =>
-      (ts, db.flatMap { case (rel, data) =>
-        data.map(t => Record(ts, rel, t))
+    (Token.Whitespace ~/ "@" ~/ Token.IntegerDot ~/ Database ~/ Token.Whitespace ~/ End).map {
+      case (ts, db) =>
+      (ts, db.flatMap {
+        case (rel, data) => data.map(t => EventRecord(ts, rel, t))
       })
   })
 
@@ -60,20 +72,38 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
   // What if the relation is just a proposition?
 
   // TODO(JS): This skips over unreadable lines. Should we add a strict mode?
-  override def process(line: String, f: Record => Unit): Unit = MonpolyParsers.Event.parse(line) match {
-    case Parsed.Success((timestamp, records), _) =>
-      records.foreach(f)
-      f(Record.markEnd(timestamp))
-    case _ => ()
+  override def process(line: String, f: Record => Unit): Unit = {
+    var skipped = false
+    MonpolyParsers.Event.parse(line) match {
+      case Parsed.Success((timestamp, records), _) =>
+        records.foreach(f)
+        f(Record.markEnd(timestamp))
+      case _ => skipped = true
+    }
+    if(skipped) {
+      MonpolyParsers.Command.parse(line) match {
+        case Parsed.Success(record, _) =>
+          f(record)
+        case _ => println("Could not parse line: " + line)
+      }
+    }
   }
 
   override def terminate(f: Record => Unit): Unit = ()
 }
 
-class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean)
-    extends StatelessProcessor[String, String] with Serializable {
+class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
+    extends Processor[String, String] with Serializable {
+  override type State = Array[Byte]
+
+  private var currentSlicer : Array[Byte] = _
+  private var pendingSlicer : Array[Byte] = _
 
   private var pred: Tuple => Boolean = mkFilter(0)
+
+  def updateProcessingFunction(f: Int => Tuple => Boolean): Unit = {
+    mkFilter = f
+  }
 
   override def setParallelInstanceIndex(instance: Int): Unit = {
     pred = mkFilter(instance)
@@ -86,7 +116,6 @@ class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean)
       out.append(". (time point ")
       out.append(timepoint)
       out.append("):")
-
       var nonEmpty = false
       if (rel.size == 1 && rel.head.isEmpty) {
         out.append(" true")
@@ -101,17 +130,32 @@ class MonpolyVerdictFilter(mkFilter: Int => Tuple => Boolean)
           nonEmpty = true
         }
       }
-
-      if (nonEmpty)
+      if (nonEmpty) {
         f(out.toString())
+      }else println("EMPTY, SHOULD NOT HAPPEN (FREQUENTLY)")
 
     case _ => ()
   }
 
   override def terminate(f: String => Unit): Unit = ()
+
+  override def getState: Array[Byte] = {
+    if(this.pendingSlicer != null) this.pendingSlicer
+    else this.currentSlicer
+  }
+
+  override def restoreState(state: Option[Array[Byte]]): Unit = {
+    state match {
+      case Some(x) => this.currentSlicer = x
+      case None =>
+    }
+  }
+
+  def setCurrent(slicer: Array[Byte]): Unit = this.currentSlicer = slicer
+  def updatePending(slicer: Array[Byte]): Unit = this.pendingSlicer = slicer
 }
 
-class MonpolyPrinter extends Processor[Record, String] with Serializable {
+class MonpolyPrinter extends Processor[Record, MonpolyRequest] with Serializable {
   protected var buffer = new ArrayBuffer[Record]()
 
   override type State = Vector[Record]
@@ -126,13 +170,32 @@ class MonpolyPrinter extends Processor[Record, String] with Serializable {
     }
   }
 
-  override def process(record: Record, f: String => Unit) {
+  override def process(record: Record, f: MonpolyRequest => Unit) {
+    record match {
+      case CommandRecord(record.command, record.parameters) => processCommand(record, f)
+      case EventRecord(record.timestamp, record.label, record.data) => processEvent(record, f)
+    }
+  }
+
+  def processEvent(record: Record, f: MonpolyRequest => Unit): Unit = {
     buffer += record
     if (record.isEndMarker)
       terminate(f)
   }
 
-  override def terminate(f: String => Unit) {
+  def processCommand(record: Record, f: MonpolyRequest => Unit) {
+    buffer += record
+
+    if (buffer.nonEmpty) {
+      val str = new mutable.StringBuilder()
+      str.append('>').append(buffer.head.command).append(" ").append(buffer.head.parameters).append('<')
+      str.append('\n')
+      f(CommandItem(str.toString()))
+      buffer.clear()
+    }
+  }
+
+  override def terminate(f: MonpolyRequest => Unit) {
     if (buffer.nonEmpty) {
       val str = new mutable.StringBuilder()
       str.append('@').append(buffer.head.timestamp)
@@ -149,7 +212,7 @@ class MonpolyPrinter extends Processor[Record, String] with Serializable {
         }
       }
       str.append('\n')
-      f(str.toString())
+      f(EventItem(str.toString()))
       buffer.clear()
     }
   }
@@ -167,7 +230,7 @@ object MonpolyPrinter {
   }
 }
 
-class KeyedMonpolyPrinter[K] extends Processor[(K, Record), String] with Serializable {
+class KeyedMonpolyPrinter[K] extends Processor[(K, Record), MonpolyRequest] with Serializable {
   private val internalPrinter = new MonpolyPrinter
 
   @transient @volatile private var numberOfEvents: Long = 0
@@ -181,13 +244,13 @@ class KeyedMonpolyPrinter[K] extends Processor[(K, Record), String] with Seriali
     numberOfEvents = 0
   }
 
-  override def process(in: (K, Record), f: String => Unit): Unit = {
+  override def process(in: (K, Record), f: MonpolyRequest => Unit): Unit = {
     if (!in._2.isEndMarker)
       numberOfEvents += 1
     internalPrinter.process(in._2, f)
   }
 
-  override def terminate(f: String => Unit): Unit = internalPrinter.terminate(f)
+  override def terminate(f: MonpolyRequest => Unit): Unit = internalPrinter.terminate(f)
 
   // TODO(JS): This doesn't really belong here.
   override def getCustomCounter: Long = numberOfEvents
