@@ -64,6 +64,8 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) ex
     heavyHitter.getOrElse((relation,attribute),Set[Domain]())
   }
 
+  var justHadRollover = false;
+
   //todo: the timestamp is atm nonsense, needs fixing
   var frameTimestamp:Double = 0//new trace.Timestamp();
   var first = true;
@@ -73,10 +75,16 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) ex
       first = false
     }
     frames(lastFrame).addEvent(event)
+    justHadRollover = false
     while(event.timestamp >= frameTimestamp + timestampDeltaBetweenFrames) {
       nextFrame()
       frameTimestamp = frameTimestamp + timestampDeltaBetweenFrames
+      justHadRollover = true
     }
+  }
+
+  def hadRollover() : Boolean = {
+    return justHadRollover;
   }
 }
 class FrameStatistic extends Serializable

@@ -1,12 +1,101 @@
 package ch.eth.inf.infsec.autobalancer
 
-import ch.eth.inf.infsec.trace.Record
-import ch.eth.inf.infsec.trace.Tuple
+import ch.eth.inf.infsec.StreamMonitoring
+import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
+import ch.eth.inf.infsec.trace.{MonpolyParsers, Record, Tuple}
 import org.apache.flink.api.common.functions.FlatMapFunction
 import org.apache.flink.util.Collector
 
+import scala.collection.mutable.ArrayBuffer
+import ch.eth.inf.infsec.policy.Formula
+import fastparse.noApi._
 
-class DeciderFlatMap[SlicingStrategy](firstSlicing : SlicingStrategy, getSlicingStrategy : WindowStatistics => SlicingStrategy, slicingCost : (SlicingStrategy,WindowStatistics) => Double, adaptationCost : (SlicingStrategy,WindowStatistics) => Double) extends FlatMapFunction[Record,Record] {
+//problem: how to solve "final bit of stream needs to be processed to"
+//proposed solution: "end of stream message"
+
+
+
+class DeciderFlatMapSimple(degree : Int, formula : Formula) extends DeciderFlatMap[HypercubeSlicer](5,false) {
+  override def firstSlicing: HypercubeSlicer = {
+    HypercubeSlicer.optimize(
+      formula, StreamMonitoring.floorLog2(degree),Statistics.constant)
+  }
+  override def getSlicingStrategy(ws : WindowStatistics) : HypercubeSlicer = {
+    HypercubeSlicer.optimize(
+      formula, StreamMonitoring.floorLog2(degree), ws)
+  }
+
+  override def slicingCost(strat: HypercubeSlicer, events: ArrayBuffer[Record]): Double = {
+    //todo: emulate on the record, account for the one with the highest output
+    val arr = strat.processAll(events)
+    val retArr = ArrayBuffer[Int](degree)
+    for(v <- arr) {
+      retArr(v._1) += 1
+    }
+    var max = 0
+    for(v <- retArr) {
+      if(v > max)
+        max = v
+    }
+    max
+  }
+
+  override def adaptationCost(strat: HypercubeSlicer, ws: WindowStatistics): Double = {
+    return 10; //todo: make non static
+  }
+  override def generateMessage(strat: HypercubeSlicer): Record = {
+    MonpolyParsers.Event.parse(strat.stringify()) match {
+      case Parsed.Success((_, records), _) =>
+        records(0)
+    }
+  }
+}
+
+
+abstract class DeciderFlatMap[SlicingStrategy](windowSize : Double,
+                                      isBuffering : Boolean)
+  extends FlatMapFunction[Record,Record] {
+  //we are really sad because these things should be parameters, but since this is java we make them members instead
+  def firstSlicing : SlicingStrategy
+  def getSlicingStrategy(ws : WindowStatistics) : SlicingStrategy
+  def slicingCost(strat:SlicingStrategy,events:ArrayBuffer[Record]) : Double
+  def adaptationCost(strat:SlicingStrategy,ws:WindowStatistics) : Double
+  def generateMessage(strat: SlicingStrategy) : Record
+
+
+  val windowStatistics = new WindowStatistics(1,windowSize)
+  var lastSlicing = firstSlicing
+  var eventBuffer = ArrayBuffer[Record]()
+  override def flatMap(event:Record,c:Collector[Record]): Unit = {
+    if (!event.isEndMarker) {
+      windowStatistics.addEvent(event)
+    }
+    eventBuffer += event
+    if(windowStatistics.hadRollover()) {
+      val sliceCandidate = getSlicingStrategy(windowStatistics)
+      if(slicingCost(sliceCandidate,eventBuffer) + adaptationCost(sliceCandidate,windowStatistics) < slicingCost(lastSlicing,eventBuffer)) {
+        lastSlicing = sliceCandidate
+        c.collect(generateMessage(lastSlicing))
+      }
+      if(isBuffering)
+      {
+        for(v <- eventBuffer)
+        {
+          c.collect(v)
+        }
+      }
+      eventBuffer.clear()
+    }else{
+      if(!isBuffering)
+      {
+        c.collect(event)
+      }
+    }
+  }
+}
+
+
+/*class DeciderFlatMap[SlicingStrategy](firstSlicing : SlicingStrategy, getSlicingStrategy : WindowStatistics => SlicingStrategy, slicingCost : (SlicingStrategy,WindowStatistics) => Double, adaptationCost : (SlicingStrategy,WindowStatistics) => Double) extends FlatMapFunction[Record,Record] {
   val windowStatistics = new WindowStatistics(150,0.0333333)
   val decisionMakingDelta = 1; //measured in events, todo: make param
   var dmdLeft = decisionMakingDelta
@@ -64,7 +153,7 @@ class DeciderFlatMap[SlicingStrategy](firstSlicing : SlicingStrategy, getSlicing
           heavyString += p._1._1 + "," + p._1._2.toString() + "," + u.toString()
         }
       }
-      Record(0,"",Tuple())
+      Record(0,"",Tuple(),"","")
   }
 
   override def flatMap(event:Record,c:Collector[Record]): Unit = {
@@ -87,5 +176,5 @@ class DeciderFlatMap[SlicingStrategy](firstSlicing : SlicingStrategy, getSlicing
       c.collect(event)
     }
   }
-}
+}*/
 
