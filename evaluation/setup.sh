@@ -1,193 +1,138 @@
 #!/usr/bin/env bash
 
-# Assumption: the setup script is in the <git repo>/experiments
-# together with other important files. 
-SCRIPT_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
-TARGET_DIR=`pwd`
+target_dir="$(pwd)"
 
-read -p "Install the evaluation components to $TARGET_DIR? (Y/n) " -s -n 1 choice
-echo
-if [[ $choice = "n" || $choice = "N" ]]; then exit 1; fi
+info() {
+    echo "[setup] $1"
+}
 
-
-echo "Updating evaluation files ..."
-if ! rsync -a --exclude setup.sh "$SCRIPT_DIR/" . ; then
-    echo "[ERROR] Could not update evaluation files."
+fatal_error() {
+    echo "[setup] ERROR: $1"
     exit 1
+}
+
+required_tools=("curl" "git" "opam" "mvn" "python3")
+for tool in "${required_tools[@]}"; do
+    which "$tool" > /dev/null || fatal_error "$tool is not installed"
+done
+
+### OCaml #####################################################################
+
+ocaml_compiler="4.07.0"
+export OPAMROOT="$target_dir/opam"
+if [[ -d "$OPAMROOT" ]]; then
+    info "opam environment exists, skipping"
+    info "delete $OPAMROOT to reinstall"
+else
+    info "initialising OCaml environment"
+    opam init --compiler="$ocaml_compiler" --no-setup || fatal_error "opam init failed"
+fi
+eval $(opam config env)
+
+### MonPoly ###################################################################
+
+monpoly_dir="$target_dir/monpoly"
+monpoly_url="https://bitbucket.org/jshs/monpoly"
+if [[ -d "$monpoly_dir" ]]; then
+    info "monpoly directory exists, skipping"
+    info "delete $monpoly_dir to reinstall"
+    [[ -x "$monpoly_dir/monpoly" ]] || info "WARNING: monpoly executable not found, please build manually"
+else
+    info "cloning the monpoly repository"
+    git clone "$monpoly_url" "$monpoly_dir" || fatal_error "could not clone the monpoly repository"
+    (cd "$monpoly_dir" && make) || fatal_error "could not build monpoly"
 fi
 
+### Java ######################################################################
 
-echo "Installing missing components"
+jdk_dir="$target_dir/jdk-10.0.2"
+jdk_url="https://download.java.net/java/GA/jdk10/10.0.2/19aef61b38124481863b1413dce1855f/13/openjdk-10.0.2_linux-x64_bin.tar.gz"
+if [[ -d "$jdk_dir" ]]; then
+    info "JDK directory exists, skipping"
+    info "delete $jdk_dir to reinstall"
+else
+    info "downloading the JDK"
+    jdk_archive="$target_dir/openjdk.tar.gz"
+    [[ ! -a "$jdk_archive" ]] || fatal_error "would overwrite $jdk_archive"
+    curl -fLR# -o "$jdk_archive" "$jdk_url" || fatal_error "could not download the JDK"
+    (cd "$target_dir" && tar -xzf "$jdk_archive") || fatal_error "could not extract JDK archive"
+    rm "$jdk_archive"
+fi
+export JAVA_HOME="$jdk_dir"
 
-CHECKSUM_FILE="checksum.tmp"
+### Parallel online monitor ###################################################
 
-JDK_DIR="jdk1.8.0_172"
-if [[ ! -d $JDK_DIR ]]; then
-    JDK_ARCHIVE="server-jre-8u172-linux-x64.tar.gz"
-    if [[ ! -f $JDK_ARCHIVE ]]; then
-        echo "Downloading JRE ..."
-        if ! curl -LR#O -H "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/8u172-b11/a58eab1ec242421181065cdc37240b08/server-jre-8u172-linux-x64.tar.gz; then
-            echo "[ERROR] Could not download the JRE."
-            exit 1
-        fi
-        echo "3d0a5db2300423a1fd6ee25c229dbd5320d79204c73844337f5b6a082d58541f  server-jre-8u172-linux-x64.tar.gz" > "$CHECKSUM_FILE"
-        if ! sha256sum -c "$CHECKSUM_FILE"; then
-            echo "[ERROR] File corrupted."
-            exit 1
-        fi
-    fi
-    echo "Extracting JRE ..."
-    if ! tar -xzf "$JDK_ARCHIVE"; then
-        echo "[ERROR] Could not extract the JRE."
-        exit 1
+monitor_dir="$target_dir/scalable-online-monitor"
+monitor_url="https://bitbucket.org/krle/scalable-online-monitor"
+monitor_branch="autobalancer"
+if [[ -d "$monitor_dir" ]]; then
+    info "project directory exists, skipping"
+    info "delete $monitor_dir to reinstall"
+    [[ -a "$monitor_dir/target/parallel-online-monitoring-1.0-SNAPSHOT.jar" ]] || info "WARNING: monitor jar not found, please build manually"
+    [[ -a "$monitor_dir/tools/target/evaluation-tools-1.0-SNAPSHOT.jar" ]] || info "WARNING: tool jar not found, please build manually"
+else
+    info "cloning the project repository (initial branch: $monitor_branch)"
+    git clone --branch "$monitor_branch" "$monitor_url" "$monitor_dir" || fatal_error "could not clone the project repository"
+    info "building the project"
+    (cd "$monitor_dir" && mvn package -P build-jar) || fatal_error "could not build the scalable online monitor"
+    (cd "$monitor_dir/tools" && mvn package) || fatal_error "could not build the evaluation tools"
+fi
+
+### Flink #####################################################################
+
+flink_dir="$target_dir/flink"
+flink_url="https://github.com/jshs/flink/releases/download/relaxed-rescaling-1.5.0/flink-1.5-relaxed-rescaling.tar.gz"
+if [[ -d "$flink_dir" ]]; then
+    info "Flink directory exists, skipping"
+    info "delete $flink_dir to reinstall"
+else
+    info "downloading Flink"
+    flink_archive="$target_dir/flink.tar.gz"
+    [[ ! -a "$flink_archive" ]] || fatal_error "would overwrite flink.tar.gz"
+    curl -fLR# -o "$flink_archive" "$flink_url" || fatal_error "could not download Flink"
+    (cd "$target_dir" && tar -xzf "$flink_archive") || fatal_error "could not extract Flink archive"
+    rm "$flink_archive"
+fi
+
+# Configuration
+info "replacing the Flink configuration"
+cp "$monitor_dir/evaluation/flink-conf.yaml" "$flink_dir/conf" || fatal_error "could not copy the Flink configuration"
+
+### Nokia log #################################################################
+
+ldcc_file="$target_dir/ldcc.csv"
+ldcc_url="http://sourceforge.net/projects/monpoly/files/ldcc.tar"
+if [[ -a "$ldcc_file" ]]; then
+    info "nokia log file exists, skipping"
+else
+    info "downloading the nokia log file"
+    ldcc_archive="$target_dir/ldcc.tar"
+    [[ ! -a "$ldcc_archive" ]] || fatal_error "would overwrite ldcc.tar"
+    [[ ! -a "$ldcc_file.gz" ]] || fatal_error "would overwrite $ldcc_file.gz"
+    curl -fLR# -o "$ldcc_archive" "$ldcc_url" || fatal_error "could not download the nokia log"
+    info "extracting the nokia log file"
+    (tar -xOf "$ldcc_archive" ldcc.csv.gz > "$ldcc_file.gz" && gunzip "$ldcc_file.gz") || fatal_error "could not extract the nokia log"
+    rm "$ldcc_archive"
+    chmod a-w "$ldcc_file"
+fi
+
+ldcc_sample="$target_dir/ldcc_sample.csv"
+ldcc_sample_past="$target_dir/ldcc_sample_past.csv"
+if [[ (! -a "$ldcc_sample") || (! -a "$ldcc_sample_past") || "$monitor_dir/evaluation/nokia/cut_log.py" -nt "$ldcc_sample" ]]; then
+    info "cutting the Nokia log file"
+    if ! "$monitor_dir/evaluation/nokia/cut_log.py" "$ldcc_file" "$ldcc_sample_past" "$ldcc_sample"; then
+        rm "$ldcc_sample" "$ldcc_sample_past"
+        fatal_error "could not cut the Nokia log"
     fi
 fi
 
-FLINK_DIR="flink-1.5.0"
-if [[ ! -d $FLINK_DIR ]]; then
-    FLINK_ARCHIVE="flink-1.5.0-bin-scala_2.11.tgz"
-    if [[ ! -f $FLINK_ARCHIVE ]]; then
-        echo "Downloading Flink ..."
-        if ! curl -LR#O http://www-eu.apache.org/dist/flink/flink-1.5.0/flink-1.5.0-bin-scala_2.11.tgz; then
-            echo "[ERROR] Could not download Flink."
-            exit 1
-        fi
-        echo "0664149acc2facb7193160e1e0c1cec571300f2c22adeb01e2e605871cda2d47c9dab16731c7168f389f5b0eff9e7484ff6206898bc13c3be8b9d0027d36d14f  flink-1.5.0-bin-scala_2.11.tgz" > "$CHECKSUM_FILE"
-        if ! sha512sum -c "$CHECKSUM_FILE"; then
-            echo "[ERROR] File corrupted."
-            exit 1
-        fi
-    fi
-    echo "Extracting Flink ..."
-    if ! tar -xzf "$FLINK_ARCHIVE"; then
-        echo "[ERROR] Could not extract Flink."
-        exit 1
-    fi
-fi
+### Working and output directories ############################################
 
-LDCC_LOG="ldcc.csv"
-if [[ ! -f $LDCC_LOG ]]; then
-    LDCC_ARCHIVE="ldcc.tar"
-    if [[ ! -f $LDCC_ARCHIVE ]]; then
-        echo "Downloading the LDCC (Nokia) log file ..."
-        if ! curl -LR#O http://sourceforge.net/projects/monpoly/files/ldcc.tar; then
-            echo "[ERROR] Could not download the LDCC log file."
-            exit 1
-        fi
-    fi
-    echo "Extracting the LDCC (Nokia) log file ..."
-    if ! (tar -xf "$LDCC_ARCHIVE" "$LDCC_LOG.gz" && gunzip "$LDCC_LOG.gz"); then
-        echo "[ERROR] Could not extract the LDCC log file."
-        exit 1
-    fi
-    echo "34d794778dbbc0652b409a41be994c726678d3d123f887703acf47d0002903b5  ldcc.csv" > "$CHECKSUM_FILE"
-    if ! sha256sum -c "$CHECKSUM_FILE"; then
-        echo "[ERROR] File corrupted."
-        exit 1
-    fi
-    chmod a-w "$LDCC_LOG"
-    rm "$LDCC_ARCHIVE"
-fi
-
-if [[ -f $CHECKSUM_FILE ]]; then
-    rm "$CHECKSUM_FILE"
-fi
-
-
-echo "Installing the Flink configuration ..."
-if ! cp flink-conf.yaml "$FLINK_DIR/conf"; then
-    echo "[ERROR] Could not install the Flink configuration."
-    exit 1
-fi
-
-LDCC_SAMPLE="ldcc_sample.csv"
-LDCC_SAMPLE_PAST="ldcc_sample_past.csv"
-if [[ (! -f $LDCC_SAMPLE) || (! -f $LDCC_SAMPLE_PAST) || ./nokia/cut_log.py -nt $LDCC_SAMPLE ]]; then
-    echo "Cutting the LDCC log file. This may take some time ..."
-    if ! ./nokia/cut_log.py "$LDCC_LOG" "$LDCC_SAMPLE_PAST" "$LDCC_SAMPLE"; then
-        rm "$LDCC_SAMPLE" "$LDCC_SAMPLE_PAST"
-        echo "[ERROR] Cutting failed."
-        exit 1
-    fi
-fi
-
-
-echo "Preparing working directories ..."
+info "creating working directories"
 mkdir -p checkpoints
 mkdir -p output
 mkdir -p reports
 
+###############################################################################
 
-export JAVA_HOME="$TARGET_DIR/jdk1.8.0_172"
-
-DRIVER_JAR="parallel-online-monitoring-1.0-SNAPSHOT.jar"
-TOOL_JAR="evaluation-tools-1.0-SNAPSHOT.jar"
-MONPOLY_BIN="monpoly"
-MISSING_FILE=0
-
-if [[ ! -f $DRIVER_JAR ]]; then
-    DRIVER_INSTALL="fail"
-    echo "[WARNING] $DRIVER_JAR does not exist. Building..."
-    if [[ ! -z $(which mvn) ]]; then
-        `cd "${SCRIPT_DIR}"; cd ..; mvn -P build-jar package 2> /dev/null > /dev/null`
-        if [[ $? -eq 0 ]]; then
-            if  cp ${SCRIPT_DIR}/../target/parallel-online-monitoring-1.0-SNAPSHOT.jar .; then
-                DRIVER_INSTALL="success"
-                echo "$DRIVER_JAR installed from source"
-            fi
-        fi
-    fi
-    if [[ $DRIVER_INSTALL = "fail" ]]; then
-            echo "Cannot build jar locally. Please copy the parallel online monitor jar into the current directory."
-            MISSING_FILE=1
-    fi
-fi
-
-if [[ ! -f $TOOL_JAR ]]; then
-    TOOL_INSTALL="fail"
-    echo "[WARNING] $TOOL_JAR does not exist. Building..."
-    if [[ ! -z $(which mvn) ]]; then
-        `cd "${SCRIPT_DIR}"; cd ../tools; mvn package 2> /dev/null > /dev/null`
-        if [[ $? -eq 0 ]]; then
-            if  cp ${SCRIPT_DIR}/../tools/target/evaluation-tools-1.0-SNAPSHOT.jar .; then
-                TOOL_INSTALL="success"
-                echo "$TOOL_JAR installed from source"
-            fi
-        fi
-    fi
-    if [[ $TOOL_INSTALL = "fail" ]]; then
-            echo "Cannot build jar locally. Please copy the evaluation tool jar into the current directory."
-            MISSING_FILE=1
-    fi
-fi
-
-MONPOLY_DIR="mt-monpoly"
-if [[ ! -x $MONPOLY_BIN ]]; then
-    MONPOLY_INSTALL="fail"
-    echo "[WARNING] $MONPOLY_BIN does not exist or is not executable. Compiling..."
-    if [[ ! -d $MONPOLY_DIR ]]; then
-        if [[ ! -z $(which git) ]]; then
-            git clone -b slicer-integration https://bitbucket.org/FreddiB/mt-monpoly/
-        fi
-    fi
-    if [[ ! -z $(which opam) ]]; then
-        `cd "${MONPOLY_DIR}"; make 2> /dev/null > /dev/null`
-        if [[ $? -eq 0 ]]; then
-            if  cp ${MONPOLY_DIR}/monpoly .; then
-                MONPOLY_INSTALL="success"
-                echo "$MONPOLY_BIN installed from source"
-            fi
-        fi
-    fi
-
-    if [[ $MONPOLY_INSTALL = "fail" ]]; then
-        echo "Please copy the Monpoly binary into the current directory."
-        MISSING_FILE=1
-    fi
-fi
-
-[[ $MISSING_FILE = 0 ]] || exit 1
-
-echo
-echo "Evaluation uses the following programs:"
-sha256sum "$DRIVER_JAR" "$MONPOLY_BIN"
+info "done!"
