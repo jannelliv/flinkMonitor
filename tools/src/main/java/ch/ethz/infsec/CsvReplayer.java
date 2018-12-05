@@ -413,53 +413,127 @@ public class CsvReplayer {
         }
     }
 
+    interface Output {
+        void writeItemAndFlush(OutputItem item) throws IOException;
+    }
+
+    static class StandardOutput implements Output {
+        private final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
+
+        @Override
+        public void writeItemAndFlush(OutputItem item) throws IOException {
+            item.write(writer);
+            writer.flush();
+        }
+    }
+
+    static class SocketOutput implements Output {
+        private final ServerSocket serverSocket;
+        private final boolean reconnect;
+
+        private Socket clientSocket = null;
+        private BufferedWriter writer = null;
+
+        SocketOutput(ServerSocket serverSocket, boolean reconnect) {
+            this.serverSocket = serverSocket;
+            this.reconnect = reconnect;
+        }
+
+        void acquireClient() throws IOException {
+            if (clientSocket != null) {
+                throw new IllegalStateException("Client has already been acquired");
+            }
+            clientSocket = serverSocket.accept();
+            writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
+            System.err.printf("Client connected: %s\n", clientSocket.getInetAddress().getHostAddress());
+        }
+
+        private void closeClient() {
+            if (clientSocket == null) {
+                return;
+            }
+            try {
+                writer.close();
+                clientSocket.close();
+            } catch (IOException ignored) {}
+            writer = null;
+            clientSocket = null;
+        }
+
+        @Override
+        public void writeItemAndFlush(OutputItem item) throws IOException {
+            boolean tryWriting = true;
+            do {
+                try {
+                    item.write(writer);
+                    writer.flush();
+                    tryWriting = false;
+                } catch (IOException e) {
+                    System.err.println("Could not write event");
+                    closeClient();
+                    if (reconnect) {
+                        System.err.println("Waiting for new client ...");
+                        acquireClient();
+                    } else {
+                        throw e;
+                    }
+                }
+            } while (tryWriting);
+        }
+    }
+
     static class OutputWorker implements Runnable {
-        private final BufferedWriter output;
+        private final Output output;
         private final LinkedBlockingQueue<OutputItem> queue;
         private final Reporter reporter;
         private final Thread inputThread;
 
         private boolean successful = false;
 
-        OutputWorker(BufferedWriter output, LinkedBlockingQueue<OutputItem> queue, Reporter reporter, Thread inputThread) {
+        OutputWorker(Output output, LinkedBlockingQueue<OutputItem> queue, Reporter reporter, Thread inputThread) {
             this.output = output;
             this.queue = queue;
             this.reporter = reporter;
             this.inputThread = inputThread;
         }
 
+        private void runInternal() throws InterruptedException, IOException {
+            long startTime = 0L;
+            boolean isFirst = true;
+            OutputItem outputItem;
+            do {
+                if (isFirst) {
+                    outputItem = queue.take();
+                    startTime = System.nanoTime();
+                    isFirst = false;
+                } else {
+                    outputItem = queue.poll();
+                    if (outputItem == null) {
+                        reporter.reportUnderrun();
+                        outputItem = queue.take();
+                    }
+                }
+
+                long now = System.nanoTime();
+                long elapsedMillis = (now - startTime) / 1_000_000L;
+                long waitMillis = outputItem.emissionTime - elapsedMillis;
+                if (waitMillis > 1L) {
+                    Thread.sleep(waitMillis);
+                }
+
+                output.writeItemAndFlush(outputItem);
+                outputItem.reportDelivery(reporter, startTime);
+            } while (!outputItem.isLast);
+/*            while (true) {
+                ((SocketOutput)output).closeClient();  // DEBUG
+                ((SocketOutput)output).acquireClient();  // DEBUG
+            }*/
+            successful = true;
+        }
+
         public void run() {
             try {
-                long startTime = 0L;
-                boolean isFirst = true;
-                OutputItem outputItem;
-                do {
-                    if (isFirst) {
-                        outputItem = queue.take();
-                        startTime = System.nanoTime();
-                        isFirst = false;
-                    } else {
-                        outputItem = queue.poll();
-                        if (outputItem == null) {
-                            reporter.reportUnderrun();
-                            outputItem = queue.take();
-                        }
-                    }
-
-                    long now = System.nanoTime();
-                    long elapsedMillis = (now - startTime) / 1_000_000L;
-                    long waitMillis = outputItem.emissionTime - elapsedMillis;
-                    if (waitMillis > 1L) {
-                        Thread.sleep(waitMillis);
-                    }
-
-                    outputItem.write(output);
-                    output.flush();
-
-                    outputItem.reportDelivery(reporter, startTime);
-                } while (!outputItem.isLast);
-
-                successful = true;
+                runInternal();
             } catch (IOException e) {
                 e.printStackTrace(System.err);
             } catch (InterruptedException e) {
@@ -490,6 +564,7 @@ public class CsvReplayer {
         int outputPort = 0;
         Reporter reporter = new NullReporter();
         int queueCapacity = 1024;
+        boolean reconnect = false;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -532,6 +607,9 @@ public class CsvReplayer {
                         outputHost = parts[0];
                         outputPort = Integer.parseInt(parts[1]);
                         break;
+                    case "-k":
+                        reconnect = true;
+                        break;
                     default:
                         if (args[i].startsWith("-") || inputFilename != null) {
                             invalidArgument();
@@ -557,15 +635,16 @@ public class CsvReplayer {
             }
         }
 
-        BufferedWriter outputWriter;
+        Output output;
         if (outputHost == null) {
-            outputWriter = new BufferedWriter(new OutputStreamWriter(System.out));
+            output = new StandardOutput();
         } else {
             try {
-                ServerSocket serverSocket = new ServerSocket(outputPort, 1, InetAddress.getByName(outputHost));
-                Socket outputSocket = serverSocket.accept();
-                System.err.printf("Client connected: %s\n", outputSocket.getInetAddress().getHostAddress());
-                outputWriter = new BufferedWriter(new OutputStreamWriter(outputSocket.getOutputStream()));
+                int backlog = reconnect ? -1 : 1;
+                ServerSocket serverSocket = new ServerSocket(outputPort, backlog, InetAddress.getByName(outputHost));
+                SocketOutput socketOutput = new SocketOutput(serverSocket, reconnect);
+                socketOutput.acquireClient();
+                output = socketOutput;
             } catch (IOException e) {
                 System.err.print("Error: " + e.getMessage() + "\n");
                 System.exit(1);
@@ -581,7 +660,7 @@ public class CsvReplayer {
         InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, timestampInterval, databaseBufferFactory, queue);
         Thread inputThread = new Thread(inputWorker);
         inputThread.start();
-        OutputWorker outputWorker = new OutputWorker(outputWriter, queue, reporter, inputThread);
+        OutputWorker outputWorker = new OutputWorker(output, queue, reporter, inputThread);
         Thread outputThread = new Thread(outputWorker);
         outputThread.start();
 
