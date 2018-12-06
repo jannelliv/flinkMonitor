@@ -45,16 +45,16 @@ fi
 
 ### Java ######################################################################
 
-jdk_dir="$target_dir/jdk-10.0.2"
-jdk_url="https://download.java.net/java/GA/jdk10/10.0.2/19aef61b38124481863b1413dce1855f/13/openjdk-10.0.2_linux-x64_bin.tar.gz"
+jdk_dir="$target_dir/jdk1.8.0_192"
+jdk_url="https://download.oracle.com/otn-pub/java/jdk/8u192-b12/750e1c8617c5452694857ad95c3ee230/jdk-8u192-linux-x64.tar.gz"
 if [[ -d "$jdk_dir" ]]; then
     info "JDK directory exists, skipping"
     info "delete $jdk_dir to reinstall"
 else
     info "downloading the JDK"
-    jdk_archive="$target_dir/openjdk.tar.gz"
+    jdk_archive="$target_dir/jdk.tar.gz"
     [[ ! -a "$jdk_archive" ]] || fatal_error "would overwrite $jdk_archive"
-    curl -fLR# -o "$jdk_archive" "$jdk_url" || fatal_error "could not download the JDK"
+    curl -fLR# -H "Cookie: oraclelicense=accept-securebackup-cookie" -o "$jdk_archive" "$jdk_url" || fatal_error "could not download the JDK"
     (cd "$target_dir" && tar -xzf "$jdk_archive") || fatal_error "could not extract JDK archive"
     rm "$jdk_archive"
 fi
@@ -120,6 +120,7 @@ ldcc_sample="$target_dir/ldcc_sample.csv"
 ldcc_sample_past="$target_dir/ldcc_sample_past.csv"
 if [[ (! -a "$ldcc_sample") || (! -a "$ldcc_sample_past") || "$monitor_dir/evaluation/nokia/cut_log.py" -nt "$ldcc_sample" ]]; then
     info "cutting the Nokia log file"
+    rm "$ldcc_sample" "$ldcc_sample_past"
     if ! "$monitor_dir/evaluation/nokia/cut_log.py" "$ldcc_file" "$ldcc_sample_past" "$ldcc_sample"; then
         rm "$ldcc_sample" "$ldcc_sample_past"
         fatal_error "could not cut the Nokia log"
