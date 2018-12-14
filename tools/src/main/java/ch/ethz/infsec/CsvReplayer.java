@@ -12,7 +12,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class CsvReplayer {
     static abstract class OutputItem {
         final long emissionTime;
-        boolean isLast = false;
 
         OutputItem(long emissionTime) {
             this.emissionTime = emissionTime;
@@ -21,6 +20,26 @@ public class CsvReplayer {
         abstract void write(Writer writer) throws IOException;
 
         abstract void reportDelivery(Reporter reporter, long startTime);
+    }
+
+    static final class TerminalItem extends OutputItem {
+        final boolean resurrect;
+
+        TerminalItem(boolean resurrect) {
+            super(-1);
+            this.resurrect = resurrect;
+        }
+
+        @Override
+        void write(Writer writer) {
+        }
+
+        @Override
+        void reportDelivery(Reporter reporter, long startTime) {
+            if (!resurrect) {
+                reporter.reportEnd();
+            }
+        }
     }
 
     static abstract class DatabaseBuffer extends OutputItem {
@@ -142,6 +161,28 @@ public class CsvReplayer {
         }
     }
 
+    static final class CommandItem extends OutputItem {
+        private final String command;
+
+        CommandItem(String command) {
+            super(-1);
+            this.command = command;
+        }
+
+        boolean requiresReconnect() {
+            return command.startsWith(">set_slicer ");
+        }
+
+        @Override
+        public void write(Writer writer) throws IOException {
+            writer.write(command + "\n");
+        }
+
+        @Override
+        void reportDelivery(Reporter reporter, long startTime) {
+        }
+    }
+
     interface DatabaseBufferFactory {
         DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime);
     }
@@ -170,7 +211,7 @@ public class CsvReplayer {
         private boolean successful = false;
 
         private DatabaseBuffer databaseBuffer = null;
-        private long firstTimestamp;
+        private long firstTimestamp = -1;
         private long currentTimepoint;
 
         private long absoluteStartMillis = -1;
@@ -188,14 +229,17 @@ public class CsvReplayer {
             try {
                 String line;
                 while ((line = input.readLine()) != null) {
-                    processRecord(line);
+                    if (line.startsWith(">")) {
+                        processCommand(line);
+                    } else {
+                        processRecord(line);
+                    }
                 }
-
-                if (databaseBuffer == null) {
-                    databaseBuffer = factory.createDatabaseBuffer(0, -1);
+                emitBuffer();
+                if (timestampInterval > 0) {
+                    queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
                 }
-                emitBuffer(databaseBuffer, true);
-
+                queue.put(new TerminalItem(false));
                 successful = true;
             } catch (IOException e) {
                 e.printStackTrace(System.err);
@@ -206,6 +250,15 @@ public class CsvReplayer {
 
         boolean isSuccessful() {
             return successful;
+        }
+
+        private void processCommand(String line) throws InterruptedException {
+            emitBuffer();
+            CommandItem commandItem = new CommandItem(line);
+            queue.put(commandItem);
+            if (commandItem.requiresReconnect()) {
+                queue.put(new TerminalItem(true));
+            }
         }
 
         private void processRecord(String line) throws InterruptedException {
@@ -238,12 +291,13 @@ public class CsvReplayer {
             timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
             currentIndex += 1;
 
-            if (databaseBuffer == null) {
-                databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
+            if (firstTimestamp < 0) {
                 firstTimestamp = timestamp;
                 currentTimepoint = timepoint;
-            } else if (timepoint != currentTimepoint) {
-                emitBuffer(databaseBuffer, false);
+                databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
+            }
+            if (timepoint != currentTimepoint) {
+                emitBuffer();
 
                 long nextEmission;
                 if (timeMultiplier > 0.0) {
@@ -258,7 +312,10 @@ public class CsvReplayer {
             databaseBuffer.addEvent(line, relation, currentIndex);
         }
 
-        private void emitBuffer(DatabaseBuffer databaseBuffer, boolean isLast) throws InterruptedException {
+        private void emitBuffer() throws InterruptedException {
+            if (databaseBuffer == null) {
+                return;
+            }
             long emissionTime = databaseBuffer.emissionTime;
 
             if (timestampInterval > 0) {
@@ -271,19 +328,10 @@ public class CsvReplayer {
                     queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
                     nextTimestampToEmit += timestampInterval;
                 }
-            } else {
-                if (isLast) {
-                    databaseBuffer.isLast = true;
-                }
             }
 
             queue.put(databaseBuffer);
-
-            if (timestampInterval > 0 && isLast) {
-                TimestampItem item = new TimestampItem(emissionTime, absoluteStartMillis);
-                item.isLast = true;
-                queue.put(item);
-            }
+            databaseBuffer = null;
         }
     }
 
@@ -291,6 +339,8 @@ public class CsvReplayer {
         void reportUnderrun();
 
         void reportDelivery(DatabaseBuffer databaseBuffer, long startTime);
+
+        void reportEnd();
     }
 
     static class NullReporter implements Reporter {
@@ -300,6 +350,10 @@ public class CsvReplayer {
 
         @Override
         public void reportDelivery(DatabaseBuffer databaseBuffer, long startTime) {
+        }
+
+        @Override
+        public void reportEnd() {
         }
 
         @Override
@@ -351,16 +405,14 @@ public class CsvReplayer {
             delaySum += currentDelay;
             maxDelay = Math.max(maxDelay, currentDelay);
             maxDelaySinceLastReport = Math.max(maxDelaySinceLastReport, currentDelay);
+        }
 
-            if (databaseBuffer.isLast) {
-                doReport();
-                running = false;
-            }
+        @Override
+        public synchronized void reportEnd() {
+            running = false;
         }
 
         private synchronized void doReport() {
-            if (!running) return;
-
             long now = System.nanoTime();
 
             double totalSeconds = (double) (now - startTime) / 1e9;
@@ -415,6 +467,8 @@ public class CsvReplayer {
 
     interface Output {
         void writeItemAndFlush(OutputItem item) throws IOException;
+
+        void waitForReconnect() throws IOException;
     }
 
     static class StandardOutput implements Output {
@@ -424,6 +478,10 @@ public class CsvReplayer {
         public void writeItemAndFlush(OutputItem item) throws IOException {
             item.write(writer);
             writer.flush();
+        }
+
+        @Override
+        public void waitForReconnect() {
         }
     }
 
@@ -480,6 +538,15 @@ public class CsvReplayer {
                 }
             } while (tryWriting);
         }
+
+        @Override
+        public void waitForReconnect() throws IOException {
+            if (reconnect) {
+                closeClient();
+                System.err.println("Waiting for new client ...");
+                acquireClient();
+            }
+        }
     }
 
     static class OutputWorker implements Runnable {
@@ -502,32 +569,34 @@ public class CsvReplayer {
             boolean isFirst = true;
             OutputItem outputItem;
             do {
-                if (isFirst) {
-                    outputItem = queue.take();
-                    startTime = System.nanoTime();
-                    isFirst = false;
-                } else {
-                    outputItem = queue.poll();
-                    if (outputItem == null) {
-                        reporter.reportUnderrun();
+                do {
+                    if (isFirst) {
                         outputItem = queue.take();
+                        startTime = System.nanoTime();
+                        isFirst = false;
+                    } else {
+                        outputItem = queue.poll();
+                        if (outputItem == null) {
+                            reporter.reportUnderrun();
+                            outputItem = queue.take();
+                        }
                     }
-                }
 
-                long now = System.nanoTime();
-                long elapsedMillis = (now - startTime) / 1_000_000L;
-                long waitMillis = outputItem.emissionTime - elapsedMillis;
-                if (waitMillis > 1L) {
-                    Thread.sleep(waitMillis);
-                }
+                    long now = System.nanoTime();
+                    long elapsedMillis = (now - startTime) / 1_000_000L;
+                    long waitMillis = outputItem.emissionTime - elapsedMillis;
+                    if (waitMillis > 1L) {
+                        Thread.sleep(waitMillis);
+                    }
 
-                output.writeItemAndFlush(outputItem);
-                outputItem.reportDelivery(reporter, startTime);
-            } while (!outputItem.isLast);
-/*            while (true) {
-                ((SocketOutput)output).closeClient();  // DEBUG
-                ((SocketOutput)output).acquireClient();  // DEBUG
-            }*/
+                    output.writeItemAndFlush(outputItem);
+                    outputItem.reportDelivery(reporter, startTime);
+                } while (!(outputItem instanceof TerminalItem));
+
+                if (((TerminalItem) outputItem).resurrect) {
+                    output.waitForReconnect();
+                }
+            } while (((TerminalItem) outputItem).resurrect);
             successful = true;
         }
 
@@ -670,7 +739,7 @@ public class CsvReplayer {
                 outputThread.interrupt();
             }
             outputThread.join();
-            reporterThread.join(1000);
+            reporterThread.join(2000);
         } catch (InterruptedException ignored) {
         }
 
