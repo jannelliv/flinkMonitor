@@ -18,16 +18,16 @@ done
 
 ### OCaml #####################################################################
 
-ocaml_compiler="4.07.0"
-export OPAMROOT="$target_dir/opam"
-if [[ -d "$OPAMROOT" ]]; then
-    info "opam environment exists, skipping"
-    info "delete $OPAMROOT to reinstall"
-else
-    info "initialising OCaml environment"
-    opam init --compiler="$ocaml_compiler" --no-setup || fatal_error "opam init failed"
-fi
-eval $(opam config env)
+# ocaml_compiler="4.07.0"
+# export OPAMROOT="$target_dir/opam"
+# if [[ -d "$OPAMROOT" ]]; then
+#     info "opam environment exists, skipping"
+#     info "delete $OPAMROOT to reinstall"
+# else
+#     info "initialising OCaml environment"
+#     opam init --compiler="$ocaml_compiler" --no-setup || fatal_error "opam init failed"
+# fi
+# eval $(opam config env)
 
 ### MonPoly ###################################################################
 
@@ -45,8 +45,8 @@ fi
 
 ### Java ######################################################################
 
-jdk_dir="$target_dir/jdk1.8.0_192"
-jdk_url="https://download.oracle.com/otn-pub/java/jdk/8u192-b12/750e1c8617c5452694857ad95c3ee230/jdk-8u192-linux-x64.tar.gz"
+jdk_dir="$target_dir/jdk1.8.0_201"
+jdk_url="https://download.oracle.com/otn-pub/java/jdk/8u201-b09/42970487e3af4f5aa5bca3f542482c60/jdk-8u201-linux-x64.tar.gz"
 if [[ -d "$jdk_dir" ]]; then
     info "JDK directory exists, skipping"
     info "delete $jdk_dir to reinstall"
