@@ -18,16 +18,16 @@ done
 
 ### OCaml #####################################################################
 
-# ocaml_compiler="4.07.0"
-# export OPAMROOT="$target_dir/opam"
-# if [[ -d "$OPAMROOT" ]]; then
-#     info "opam environment exists, skipping"
-#     info "delete $OPAMROOT to reinstall"
-# else
-#     info "initialising OCaml environment"
-#     opam init --compiler="$ocaml_compiler" --no-setup || fatal_error "opam init failed"
-# fi
-# eval $(opam config env)
+ocaml_compiler="4.07.0"
+export OPAMROOT="$target_dir/opam"
+if [[ -d "$OPAMROOT" ]]; then
+    info "opam environment exists, skipping"
+    info "delete $OPAMROOT to reinstall"
+else
+    info "initialising OCaml environment"
+    opam init --compiler="$ocaml_compiler" --no-setup || fatal_error "opam init failed"
+fi
+eval $(opam config env)
 
 ### MonPoly ###################################################################
 
