@@ -47,6 +47,13 @@ package object trace {
         case _ => ""
       }
     }
+
+    def toMonpoly: String = {
+      this match {
+        case EventRecord(_,_,_) => if (isEndMarker) "" else s"@$timestamp $label(${data.mkString(", ")})"
+        case CommandRecord(a,b) => s">$a $b"
+      }
+    }
   }
 
   class CommandRecord(cmd: String, param: String) {
