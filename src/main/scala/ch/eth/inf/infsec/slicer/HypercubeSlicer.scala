@@ -8,6 +8,11 @@ import scala.collection.mutable
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
+/*
+flink-1.5.0/bin/flink run parallel-online-monitoring-1.0-SNAPSHOT.jar --in localhost:9999 --format "monpoly -negate" --out ~/IdeaProjects/scalable-online-monitor/testing/resultsNew/results.log --sig nokia/ldcc.sig --formula nokia/runtime.mfotl --processors 4 --job Test3
+
+ */
+
 class HypercubeSlicer(
                        val formula: Formula,
                        var heavy: IndexedSeq[(Int, Set[Domain])],
@@ -160,7 +165,6 @@ class HypercubeSlicer(
       expectedSlice += theStrides(variableID) * Math.floorMod(hash(value, theSeeds(variableID)), theShares(variableID))
       i += 1
     }
-
     slice == expectedSlice
   }
 
@@ -189,7 +193,7 @@ class HypercubeSlicer(
     }
   }
 
-  private def parseSlicer(slicer: String): Unit = {
+  def parseSlicer(slicer: String): Unit = {
     val res = parser.parseSlicer(slicer)
     heavy = res._1
     shares = res._2

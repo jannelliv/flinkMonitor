@@ -117,13 +117,80 @@ object StreamMonitoring {
     }
   }
 
+  def calculateSlicing(params: ParameterTool): Unit =
+  {
+    val degree = params.getInt("degree",4)
+    formulaFile = params.get("formula")
+    val formulaSource = Source.fromFile(formulaFile).mkString
+    formula = Policy.read(formulaSource) match {
+      case Left(err) =>
+        logger.error("Cannot parse the formula: " + err)
+        sys.exit(1)
+      case Right(phi) => phi
+    }
+    var dfms = new DeciderFlatMapSimple(degree,formula,Double.MaxValue)
+    val file = params.get("file")
+    val content = Source.fromFile(file).mkString.split("\n").map(_.trim)
+    val parser = MonpolyFormat.createParser()
+   // var arr = scala.collection.mutable.ArrayBuffer[Record]()
+    val arr = parser.processAll(content)
+
+    val slicer = params.get("slicer",null)
+    var strategy : HypercubeSlicer = null
+    if(slicer == null) {
+      arr.foreach(x => {
+        if (!x.isEndMarker)
+          dfms.windowStatistics.addEvent(x)
+      })
+      dfms.windowStatistics.nextFrame()
+      strategy = dfms.getSlicingStrategy(dfms.windowStatistics)
+    }else{
+      val res = new SlicerParser().parseSlicer(slicer)
+      strategy = new HypercubeSlicer(formula,res._1,res._2,1234)
+      strategy.parseSlicer(slicer)
+    }
+    val strategyStr = strategy.stringify()
+    val writer = new java.io.PrintWriter("strategyOutput")
+    writer.println(strategyStr)
+    writer.close()
+    val outs = strategy.processAll(arr)
+    val sortedOuts = scala.collection.mutable.Map[Int,scala.collection.mutable.ArrayBuffer[Record]]()
+    outs.foreach(x => {
+        if(!sortedOuts.contains(x._1))
+          sortedOuts += ((x._1,scala.collection.mutable.ArrayBuffer[Record]()))
+        sortedOuts(x._1) += x._2
+    })
+    var printer = new KeyedMonpolyPrinter[Int]
+    sortedOuts.foreach(x => {
+      val w2 = new java.io.PrintWriter("slicedOutput"+x._1)
+      x._2.foreach(rec => {
+        printer.process((x._1,rec),y => w2.println(y.in))
+      })
+      w2.close()
+    })
+    val w3 = new PrintWriter("otherStuff")
+    w3.println("relationSet size: "+dfms.windowStatistics.relations.size)
+    w3.println("heavy hitter size: "+dfms.windowStatistics.heavyHitter.values.size)
+    w3.println("heavy hitters:")
+    dfms.windowStatistics.heavyHitter.foreach(x => {
+      w3.println(x)
+    })
+    w3.println("relation sizes:")
+    dfms.windowStatistics.relations.foreach(x => {
+      w3.println(x._1 + " - " + x._2 + "(relation) " + dfms.windowStatistics.relationSize(x._1) + "(relationSize)")
+    })
+    w3.close()
+  }
+
   def main(args: Array[String]) {
     val params = ParameterTool.fromArgs(args)
 
     val analysis = params.getBoolean("analysis", false)
+    val calcSlice = params.getBoolean("calcSlice",false)
 
     if (analysis) TraceAnalysis.prepareSimulation(params)
-    else {
+    else if(calcSlice) calculateSlicing(params)
+    else{
       init(params)
 
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
