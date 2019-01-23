@@ -256,15 +256,17 @@ object StreamMonitoring {
 
       // Parallel node
       // TODO(JS): Timeout? Capacity?
-      val verdicts = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, String, String](
+      val verdicts = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, MonpolyRequest, MonpolyRequest](
         slicer,
         slicedTrace,
         new KeyedMonpolyPrinter[Int],
         process,
-        if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
+        if (isMonpoly) new LiftProcessor(new MonpolyVerdictFilter(slicer.mkVerdictFilter)) else StatelessProcessor.identity,
         256).setParallelism(processors).setMaxParallelism(processors).name("Monitor").uid("monitor")
 
       //Single node
+
+
 
       out match {
         case Some(Left((h, p))) =>

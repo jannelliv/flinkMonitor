@@ -85,6 +85,13 @@ package object trace {
 
   }
 
+  /*
+  Known commands:
+  set_slicer <slicerstring>  -  sets the next slicer to be used
+  gapt - Get Average Processing Time from monpoly processes
+  gaptr <timedelta> - Get Average Processing Time Answer, to be combined and redirected to the start
+  */
+
   object CommandRecord{
     def apply(command: String, parameters: String): Record = Record(-1l, "", emptyTuple, command, parameters)
 

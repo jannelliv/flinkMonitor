@@ -432,7 +432,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     // TODO(JS): Implement timeout
     val tuple = streamRecord.getValue.asInstanceOf[(Int, Record)]
     tuple._2 match {
-      case CommandRecord(_, parameters) =>
+      case CommandRecord("set_slicer", parameters) =>
         postprocessing.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
         pendingSlicer = parameters
       case _ => ()

@@ -92,6 +92,27 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
   override def terminate(f: Record => Unit): Unit = ()
 }
 
+class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRequest,MonpolyRequest] with Serializable{
+  override type State = proc.State
+
+  override def isStateful: Boolean = proc.isStateful
+
+  override def getState: State = proc.getState
+
+  override def restoreState(state: Option[State]): Unit = proc.restoreState(state)
+
+  override def process(in: MonpolyRequest, f: MonpolyRequest => Unit): Unit = {
+    in match {
+      case c@CommandItem(a) => f(c)
+      case EventItem(b) => proc.process(b,x => f(EventItem(x)))
+    }
+  }
+
+  override def terminate(f: MonpolyRequest => Unit): Unit = {
+    proc.terminate(x => f(EventItem(x)))
+  }
+}
+
 class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
     extends Processor[String, String] with Serializable {
   override type State = Array[Byte]
