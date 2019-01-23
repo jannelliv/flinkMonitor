@@ -11,11 +11,11 @@ shift
 
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 source "$WORK_DIR/config.sh"
-exec java -cp "$MONITOR_JAR" -calcSlice true -degree $num_slices "$@"
+exec java -cp "$MONITOR_JAR" -calcSlice true -format csv  -degree $num_slices "$@"
 
 for i in `seq 0 $((num_slices-1))`; do
     mv slicedOutput${i} ${output}${i}
 done
-mv strategyOutput ${output}_startegy
+mv strategyOutput ${output}_strategy
 mv otherStuff ${output}_stats
 
