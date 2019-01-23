@@ -15,7 +15,7 @@ import fastparse.noApi._
 
 
 
-class DeciderFlatMapSimple(degree : Int, formula : Formula) extends DeciderFlatMap[HypercubeSlicer](5,false) {
+class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double) extends DeciderFlatMap[HypercubeSlicer](windowSize,false) {
   override def firstSlicing: HypercubeSlicer = {
     HypercubeSlicer.optimize(
       formula, StreamMonitoring.floorLog2(degree),Statistics.constant)
@@ -28,7 +28,7 @@ class DeciderFlatMapSimple(degree : Int, formula : Formula) extends DeciderFlatM
   override def slicingCost(strat: HypercubeSlicer, events: ArrayBuffer[Record]): Double = {
     //todo: emulate on the record, account for the one with the highest output
     val arr = strat.processAll(events)
-    val retArr = ArrayBuffer[Int](degree)
+    val retArr = ArrayBuffer.fill(degree)(0)
     for(v <- arr) {
       retArr(v._1) += 1
     }

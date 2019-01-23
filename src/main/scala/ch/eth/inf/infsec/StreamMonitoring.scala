@@ -1,14 +1,13 @@
 package ch.eth.inf.infsec
 
-import java.io.Serializable
-import java.util.stream.Collector
+import java.io.{PrintWriter}
 
-import ch.eth.inf.infsec.autobalancer.{DeciderFlatMapSimple, WindowStatistics}
-import ch.eth.inf.infsec.slicer.{ColissionlessKeyGenerator, Statistics}
+import ch.eth.inf.infsec.autobalancer.{DeciderFlatMapSimple}
+import ch.eth.inf.infsec.slicer.{HypercubeSlicer, SlicerParser}
 import ch.eth.inf.infsec.analysis.TraceAnalysis
 import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess, MonpolyRequest}
 import ch.eth.inf.infsec.policy.{Formula, Policy}
-import ch.eth.inf.infsec.tools.Rescaler
+import ch.eth.inf.infsec.tools.{Rescaler}
 import ch.eth.inf.infsec.tools.Rescaler.RescaleInitiator
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
@@ -174,9 +173,13 @@ object StreamMonitoring {
         .setMaxParallelism(1)
         .setParallelism(1)
 
+
+
       //todo: proper arguments
       //assumes in-order atm
-      val observedTrace = parsedTrace.flatMap (new DeciderFlatMapSimple(slicer.degree,formula));//.name("ObservedTrace").uid("observed-trace");
+      val observedTrace = parsedTrace.flatMap (new DeciderFlatMapSimple(slicer.degree,formula,5)).setMaxParallelism(1)
+        .setMaxParallelism(1)
+        .setParallelism(1)//.name("ObservedTrace").uid("observed-trace");
 
       val slicedTrace = observedTrace
         .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
