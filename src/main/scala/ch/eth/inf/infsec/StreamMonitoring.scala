@@ -1,13 +1,13 @@
 package ch.eth.inf.infsec
 
-import java.io.{PrintWriter}
+import java.io.PrintWriter
 
-import ch.eth.inf.infsec.autobalancer.{DeciderFlatMapSimple}
+import ch.eth.inf.infsec.autobalancer.DeciderFlatMapSimple
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, SlicerParser}
 import ch.eth.inf.infsec.analysis.TraceAnalysis
-import ch.eth.inf.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess, MonpolyRequest}
+import ch.eth.inf.infsec.monitor._
 import ch.eth.inf.infsec.policy.{Formula, Policy}
-import ch.eth.inf.infsec.tools.{Rescaler}
+import ch.eth.inf.infsec.tools.Rescaler
 import ch.eth.inf.infsec.tools.Rescaler.RescaleInitiator
 import ch.eth.inf.infsec.trace._
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
@@ -240,11 +240,11 @@ object StreamMonitoring {
         .setMaxParallelism(1)
         .setParallelism(1)
 
-
+      val injectedTrace = parsedTrace.flatMap(new ProcessorFunction(new OutsideInfluence()))
 
       //todo: proper arguments
       //assumes in-order atm
-      val observedTrace = parsedTrace.flatMap (new DeciderFlatMapSimple(slicer.degree,formula,5)).setMaxParallelism(1)
+      val observedTrace = injectedTrace.flatMap (new DeciderFlatMapSimple(slicer.degree,formula,5)).setMaxParallelism(1)
         .setMaxParallelism(1)
         .setParallelism(1)//.name("ObservedTrace").uid("observed-trace");
 
@@ -256,7 +256,7 @@ object StreamMonitoring {
 
       // Parallel node
       // TODO(JS): Timeout? Capacity?
-      val verdicts = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, MonpolyRequest, MonpolyRequest](
+      val verdictsAndOtherThings = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, MonpolyRequest, MonpolyRequest](
         slicer,
         slicedTrace,
         new KeyedMonpolyPrinter[Int],
@@ -266,7 +266,7 @@ object StreamMonitoring {
 
       //Single node
 
-
+      val verdicts = verdictsAndOtherThings.flatMap(new KnowledgeExtract())
 
       out match {
         case Some(Left((h, p))) =>
