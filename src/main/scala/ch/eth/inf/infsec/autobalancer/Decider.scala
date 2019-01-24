@@ -2,7 +2,7 @@ package ch.eth.inf.infsec.autobalancer
 
 import ch.eth.inf.infsec.StreamMonitoring
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
-import ch.eth.inf.infsec.trace.{MonpolyParsers, Record, Tuple}
+import ch.eth.inf.infsec.trace.{CommandRecord, EventRecord, MonpolyParsers, Record, Tuple}
 import org.apache.flink.api.common.functions.FlatMapFunction
 import org.apache.flink.util.Collector
 
@@ -15,7 +15,7 @@ import fastparse.noApi._
 
 
 
-class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double) extends DeciderFlatMap[HypercubeSlicer](windowSize,false) {
+class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double) extends DeciderFlatMap[HypercubeSlicer](degree,windowSize,false) {
   override def firstSlicing: HypercubeSlicer = {
     HypercubeSlicer.optimize(
       formula, StreamMonitoring.floorLog2(degree),Statistics.constant)
@@ -52,7 +52,7 @@ class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double)
 }
 
 
-abstract class DeciderFlatMap[SlicingStrategy](windowSize : Double,
+abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double,
                                       isBuffering : Boolean)
   extends FlatMapFunction[Record,Record] {
   //we are really sad because these things should be parameters, but since this is java we make them members instead
@@ -62,35 +62,67 @@ abstract class DeciderFlatMap[SlicingStrategy](windowSize : Double,
   def adaptationCost(strat:SlicingStrategy,ws:WindowStatistics) : Double
   def generateMessage(strat: SlicingStrategy) : Record
 
+  var avgMaxProcessingTime = 0
+  var tempAvgMaxProcessingTime = 0
+  var tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest = 0
 
   val windowStatistics = new WindowStatistics(1,windowSize)
   var lastSlicing = firstSlicing
   var eventBuffer = ArrayBuffer[Record]()
+
+  var triggeredAdapt = false
   override def flatMap(event:Record,c:Collector[Record]): Unit = {
-    if (!event.isEndMarker) {
-      windowStatistics.addEvent(event)
+    if(triggeredAdapt) {
+      triggeredAdapt = false
+      c.collect(CommandRecord("gsdt",""))
     }
-    eventBuffer += event
-    if(windowStatistics.hadRollover()) {
-      val sliceCandidate = getSlicingStrategy(windowStatistics)
-      if(slicingCost(sliceCandidate,eventBuffer) + adaptationCost(sliceCandidate,windowStatistics) < slicingCost(lastSlicing,eventBuffer)) {
-        lastSlicing = sliceCandidate
-        c.collect(generateMessage(lastSlicing))
-      }
-      if(isBuffering)
-      {
-        for(v <- eventBuffer)
-        {
-          c.collect(v)
+    event match {
+      case CommandRecord(com,params) => {
+        if(com == "gaptr") {
+          tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest += 1
+          if(tempAvgMaxProcessingTime < params.toInt) {
+            tempAvgMaxProcessingTime = params.toInt
+          }
+          if(tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest == degree) {
+            avgMaxProcessingTime = tempAvgMaxProcessingTime
+          }
+        } else if(com == "gsdtr") {
+          //function approximation code
+        }else{
+          c.collect(event)
         }
       }
-      eventBuffer.clear()
-    }else{
-      if(!isBuffering)
-      {
-        c.collect(event)
+      case EventRecord(_,_,_) => {
+        if (!event.isEndMarker) {
+          windowStatistics.addEvent(event)
+        }
+        eventBuffer += event
+        if(windowStatistics.hadRollover()) {
+          val sliceCandidate = getSlicingStrategy(windowStatistics)
+          if(slicingCost(sliceCandidate,eventBuffer) + adaptationCost(sliceCandidate,windowStatistics) < slicingCost(lastSlicing,eventBuffer)) {
+            lastSlicing = sliceCandidate
+            triggeredAdapt = true
+            c.collect(generateMessage(lastSlicing))
+          }else{
+            c.collect(CommandRecord("gapt",""))
+          }
+          if(isBuffering)
+          {
+            for(v <- eventBuffer)
+            {
+              c.collect(v)
+            }
+          }
+          eventBuffer.clear()
+        }else{
+          if(!isBuffering)
+          {
+            c.collect(event)
+          }
+        }
       }
     }
+
   }
 }
 

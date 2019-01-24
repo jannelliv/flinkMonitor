@@ -88,8 +88,10 @@ package object trace {
   /*
   Known commands:
   set_slicer <slicerstring>  -  sets the next slicer to be used
-  gapt - Get Average Processing Time from monpoly processes
-  gaptr <timedelta> - Get Average Processing Time Answer, to be combined and redirected to the start
+  gapt - Get Average Monpoly Processing Time from monpoly operators
+  gaptr <timedelta in ms> - Get Average Processing Time Answer, to be combined and redirected to the start
+  gsdt - Get Shutdown Time taken for last shutdown from monpoly operators
+  gsdtr <time in ms> - Get Shutdown Time taken response, to be combined and redirected to the start
   */
 
   object CommandRecord{

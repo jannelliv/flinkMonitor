@@ -34,10 +34,20 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
   private val logger = LoggerFactory.getLogger(getClass)
 
+  private var lastShutdownInitiatedTime : Long = 0
+  private var lastShutdownCompletedTime : Long = 0
+  def handleReopenTime() : Unit = {
+    lastShutdownCompletedTime = System.currentTimeMillis()
+    //if we didn't do a  shutdown before, we want the delta to be 0
+    if(lastShutdownInitiatedTime == 0) {
+      lastShutdownCompletedTime = 0
+    }
+  }
 
   override def open(): Unit = {
     createTempFile()
     open(command)
+    handleReopenTime
     println("Opened Monpoly")
   }
 
@@ -54,6 +64,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     } finally {
       Files.delete(tempStateFile)
     }
+    handleReopenTime
     println("Opened Monpoly with single state")
   }
 
@@ -77,6 +88,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     } finally {
       for(file <- tempStateFiles) {Files.delete(file) }
     }
+    handleReopenTime
     println("Opened Monpoly after rescale")
   }
 
@@ -113,6 +125,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def initSnapshot(): Unit = {
+    lastShutdownInitiatedTime = System.currentTimeMillis()
     var command = ""
     if(pendingSlicer) command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
     else command = SAVE_STATE_COMMAND.format(tempStateFile.toString)
@@ -148,7 +161,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
           if(com.in.startsWith(">gapt"))
           {
             buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
-          }else{
+          }else if(com.in.startsWith(">gsdt") {
+            buffer += CommandItem(">gsdtr "+(lastShutdownCompletedTime-lastShutdownInitiatedTime).toString()+"<")
+          }else {
             buffer += com
           }
         }
