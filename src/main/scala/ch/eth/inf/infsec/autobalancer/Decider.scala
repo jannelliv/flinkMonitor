@@ -37,17 +37,18 @@ class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double)
       if(v > max)
         max = v
     }
-    max
+    max * avgMaxProcessingTime
   }
 
   override def adaptationCost(strat: HypercubeSlicer, ws: WindowStatistics): Double = {
-    return 10; //todo: make non static
+    return shutdownTime; //todo: make dependent on mem
   }
   override def generateMessage(strat: HypercubeSlicer): Record = {
-    MonpolyParsers.Event.parse(strat.stringify()) match {
-      case Parsed.Success((_, records), _) =>
-        records(0)
-    }
+    /*MonpolyParsers.Command.parse(strat.stringify()) match {
+      case Parsed.Success(s, _) =>
+        s
+    }*/
+    CommandRecord("set_slicer",strat.stringify())
   }
 }
 
@@ -62,13 +63,15 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   def adaptationCost(strat:SlicingStrategy,ws:WindowStatistics) : Double
   def generateMessage(strat: SlicingStrategy) : Record
 
-  var avgMaxProcessingTime = 0
-  var tempAvgMaxProcessingTime = 0
-  var tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest = 0
+  var avgMaxProcessingTime : Long = 0
+  var tempAvgMaxProcessingTime : Long = 0
+  var tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest : Long = 0
 
   val windowStatistics = new WindowStatistics(1,windowSize)
   var lastSlicing = firstSlicing
   var eventBuffer = ArrayBuffer[Record]()
+
+  var shutdownTime : Long = 10
 
   var triggeredAdapt = false
   override def flatMap(event:Record,c:Collector[Record]): Unit = {
@@ -80,14 +83,15 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
       case CommandRecord(com,params) => {
         if(com == "gaptr") {
           tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest += 1
-          if(tempAvgMaxProcessingTime < params.toInt) {
-            tempAvgMaxProcessingTime = params.toInt
+          if(tempAvgMaxProcessingTime < params.toLong) {
+            tempAvgMaxProcessingTime = params.toLong
           }
           if(tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest == degree) {
             avgMaxProcessingTime = tempAvgMaxProcessingTime
           }
         } else if(com == "gsdtr") {
           //function approximation code
+          shutdownTime = params.toLong
         }else{
           c.collect(event)
         }
