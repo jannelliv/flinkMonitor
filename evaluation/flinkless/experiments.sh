@@ -537,7 +537,7 @@ if [[ ${SKIP_GENERATE} == "false" ]]; then
                             # baseline
                             debug "              Slicing log part ${a} with strategy 0 (baseline)"
                             out="$OUTPUT_DIR/${log}_${numcpus}_baseline_slice"
-                            name=$(log_name "$adaptations" "$f" "$er" "$ir" 0)
+                            name=$(log_name "$num" "$f" "$er" "$ir" 0)
                             log0=$(log_path $name)
                             strategy="$(cat ${log0}_${numcpus}_slice_strategy)"
                             slice "$f" "$numcpus" "$in" "$out" "$strategy"
@@ -594,7 +594,7 @@ info "=== Running flinkless experiments ==="
                                 for part in `seq 0 $adaptations`; do
                                     info "            Running (repetition: ${r}, part: ${part}, slice: ${slice})"
                                     
-                                    name=$(log_baseline_name "$adaptations" "$f" "$er" "$ir" "$part" "$slice" "$numcpus")
+                                    name=$(log_baseline_name "$num" "$f" "$er" "$ir" "$part" "$slice" "$numcpus")
                                     log=$(log_path $name)
                                     time=$(monitor "${log}")
                                     add_time $part $r $time
@@ -616,14 +616,14 @@ info "=== Running flinkless experiments ==="
 
                                 # run monpoly
                                 info "            Running (repetition: ${r}, part: 0, slice: ${slice})"
-                                name=$(log_name "$adaptations" "$f" "$er" "$ir" "0" "$slice" "$numcpus")
+                                name=$(log_name "$num" "$f" "$er" "$ir" "0" "$slice" "$numcpus")
                                 log=$(log_path $name)
                                 debug "Monitoring ${log}"
                                 time=$(monitor "${log}")
                                 add_time "0" $r "- , $time" # - stands for no preceeding merge 
                                 
                                 # split state (also stops monpoly)
-                                name=$(log_name "$adaptations" "$f" "$er" "$ir" "1")
+                                name=$(log_name "$num" "$f" "$er" "$ir" "1")
                                 log=$(log_path $name)
                                 debug "Splitting state according to the strategy ${log}_${numcpus}_slice_strategy"
                                 runtime=0
@@ -640,7 +640,7 @@ info "=== Running flinkless experiments ==="
                                 for r in $(seq 1 $REPETITIONS); do
 
                                     # merge state (also starts monpoly)
-                                    log=$(log_name "$adaptations" "$f" "$er" "$ir" "$part")
+                                    log=$(log_name "$num" "$f" "$er" "$ir" "$part")
                                     state=$(eval echo "${CHECKPOINT_DIR}/${log}_${numcpus}_slice{0..$((numcpus-1))}_state-${slice}.bin,")
                                     debug "Merging states ${state}"
                                     runtime=0
@@ -649,14 +649,14 @@ info "=== Running flinkless experiments ==="
                                     
                                     # run monpoly
                                     info "            Running (repetition: ${r}, part: ${part}, slice: ${slice})"
-                                    name=$(log_name "$adaptations" "$f" "$er" "$ir" "$part" "$slice" "$numcpus")
+                                    name=$(log_name "$num" "$f" "$er" "$ir" "$part" "$slice" "$numcpus")
                                     log=$(log_path $name)
                                     debug "Monitoring ${log}"
                                     time=$(monitor "${log}")
                                     add_time $part $r $time
 
                                     # split state (also stops monpoly)
-                                    name=$(log_name "$adaptations" "$f" "$er" "$ir" $((part+1)))
+                                    name=$(log_name "$num" "$f" "$er" "$ir" $((part+1)))
                                     log=$(log_path $name)
                                     debug "Splitting state according to the strategy ${log}_${numcpus}_slice_strategy"
                                     runtime=0
@@ -675,7 +675,7 @@ info "=== Running flinkless experiments ==="
                             for r in $(seq 1 $REPETITIONS); do
 
                                 # merge state (also starts monpoly)
-                                log=$(log_name "$adaptations" "$f" "$er" "$ir" "$adaptations")
+                                log=$(log_name "$num" "$f" "$er" "$ir" "$adaptations")
                                 state=$(eval echo "${CHECKPOINT_DIR}/${log}_${numcpus}_slice{0..$((numcpus-1))}_state-${slice}.bin,")
                                 debug "Merging states ${state}"
                                 runtime=0
@@ -684,7 +684,7 @@ info "=== Running flinkless experiments ==="
 
                                 # run monpoly
                                 info "            Running (repetition: ${r}, part: ${adaptations}, slice: ${slice})"
-                                name=$(log_name "$adaptations" "$f" "$er" "$ir" "$adaptations" "$slice" "$numcpus")
+                                name=$(log_name "$num" "$f" "$er" "$ir" "$adaptations" "$slice" "$numcpus")
                                 log=$(log_path $name)
                                 debug "Monitoring ${log}"
                                 time=$(monitor "${log}")
