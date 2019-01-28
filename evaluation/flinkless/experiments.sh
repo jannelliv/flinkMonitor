@@ -552,25 +552,25 @@ info "=== Running flinkless experiments ==="
                         info "        Strategy: ${num}"
                         
                         export IFS=$TIFS
-                        # info "          Baseline monitoring"
-                        # for slice in `seq 0 $((numcpus-1))`; do
-                        #     for r in $(seq 1 $REPETITIONS); do
+                        info "          Baseline monitoring"
+                        for slice in `seq 0 $((numcpus-1))`; do
+                            for r in $(seq 1 $REPETITIONS); do
                             
-                        #         start_monpoly $f 
+                                start_monpoly $f 
 
-                        #         for part in `seq 0 $adaptations`; do
-                        #             info "            Running (repetition: ${r}, part: ${part}, slice: ${slice})"
+                                for part in `seq 0 $adaptations`; do
+                                    info "            Running (repetition: ${r}, part: ${part}, slice: ${slice})"
                                     
-                        #             name=$(log_baseline_name "$adaptations" "$f" "$er" "$ir" "$part" "$slice" "$numcpus")
-                        #             log=$(log_path $name)
-                        #             time=$(monitor "${log}")
-                        #             add_time $part $r $time
-                        #         done
+                                    name=$(log_baseline_name "$adaptations" "$f" "$er" "$ir" "$part" "$slice" "$numcpus")
+                                    log=$(log_path $name)
+                                    time=$(monitor "${log}")
+                                    add_time $part $r $time
+                                done
 
-                        #         stop_monpoly
+                                stop_monpoly
 
-                        #     done
-                        # done
+                            done
+                        done
 
                         info "          Adaptive monitoring"
 
