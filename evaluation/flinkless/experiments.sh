@@ -4,14 +4,14 @@
 
 # EXPERIMENT PARAMETERS:
 REPETITIONS=1
-FORMULAS="-S -L -T"
+FORMULAS="-T" #"-S -L -T"
 EVENT_RATES="500" #"2000 2500 3000 3500 4000 5000 6000 8000"
 INDEX_RATES="1"
 LOG_LENGTH="1000"
 # HEAVY_SETS_NO_STATS="h0 h1"
 # HEAVY_SETS_STATS="h1"
 PROCESSORS="4/0-5,24-29 8/0-9,24-33" # 16/0-8,12-20,24-32,36-44"
-NUM_ADAPTATIONS='1/1/ ;-pA 0.01 -pB 0.495#1/2/ ;-z "x=10+1000,y=0,z=0,w=0"#1/3/-z "x=10+1000,y=0,z=0,w=0";' #1/4/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+2000,y=0,z=0,w=0"#1/5/-z "x=10+1000,y=0,z=0,w=0";-z "x=2+1000,y=0,z=0,w=0"#1/6/-z "x=10+1000,y=0,z=0,w=0";-z "x=0,y=10+1000,z=0,w=0"#1/7/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+1000,y=10+2000,z=0,w=0"' 
+NUM_ADAPTATIONS='1/1/ ;-pA 0.01 -pB 0.495#1/2/ ;-z "x=10+1000,y=0,z=0,w=0"' #1/3/-z "x=10+1000,y=0,z=0,w=0";#1/4/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+2000,y=0,z=0,w=0"#1/5/-z "x=10+1000,y=0,z=0,w=0";-z "x=2+1000,y=0,z=0,w=0"#1/6/-z "x=10+1000,y=0,z=0,w=0";-z "x=0,y=10+1000,z=0,w=0"#1/7/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+1000,y=10+2000,z=0,w=0"' 
 WINDOW=10
 VIOLATIONS=0.1
 
@@ -180,8 +180,6 @@ function write_times (){
         echo "${K}, ${TIMEMAP[$K]}" >> $file
     done
 
-    unset TIMEMAP
-    declare -A TIMEMAP
 }
 
 function add_slice_time (){
@@ -214,8 +212,7 @@ function write_slice_times (){
         echo "${K}, ${TIMEMAP[$K]}" >> $file
     done
 
-    unset TIMEMAP
-    declare -A TIMEMAP
+   
 }
 
 
@@ -623,7 +620,7 @@ info "=== Running flinkless experiments ==="
                                 log=$(log_path $name)
                                 debug "Monitoring ${log}"
                                 time=$(monitor "${log}")
-                                add_time "0" $r "- , $time" # - stands from no preceeding merge 
+                                add_time "0" $r "- , $time" # - stands for no preceeding merge 
                                 
                                 # split state (also stops monpoly)
                                 name=$(log_name "$adaptations" "$f" "$er" "$ir" "1")
@@ -700,6 +697,8 @@ info "=== Running flinkless experiments ==="
 
                         report="${REPORT_DIR}/$(report_name ${f} ${er} ${ir} ${num} ${numcpus})"
                         write_times $report $numcpus
+                        unset TIMEMAP
+                        declare -A TIMEMAP
                     done
                 done
             done
