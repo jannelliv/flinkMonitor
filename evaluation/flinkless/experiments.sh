@@ -4,14 +4,14 @@
 
 # EXPERIMENT PARAMETERS:
 REPETITIONS=1
-FORMULAS="-T" #"-S -L -T"
-EVENT_RATES="500" #"2000 2500 3000 3500 4000 5000 6000 8000"
-INDEX_RATES="1"
-LOG_LENGTH="1000"
+FORMULAS="-S -L -T"
+EVENT_RATES="2000 2500 3000 3500 4000 5000 6000 8000"
+INDEX_RATES="1 100"
+LOG_LENGTH="100"
 # HEAVY_SETS_NO_STATS="h0 h1"
 # HEAVY_SETS_STATS="h1"
-PROCESSORS="4/0-5,24-29 8/0-9,24-33" # 16/0-8,12-20,24-32,36-44"
-NUM_ADAPTATIONS='1/1/ ;-pA 0.01 -pB 0.495#1/2/ ;-z "x=10+1000,y=0,z=0,w=0"' #1/3/-z "x=10+1000,y=0,z=0,w=0";#1/4/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+2000,y=0,z=0,w=0"#1/5/-z "x=10+1000,y=0,z=0,w=0";-z "x=2+1000,y=0,z=0,w=0"#1/6/-z "x=10+1000,y=0,z=0,w=0";-z "x=0,y=10+1000,z=0,w=0"#1/7/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+1000,y=10+2000,z=0,w=0"' 
+PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
+NUM_ADAPTATIONS='1/1/ ;-pA 0.01 -pB 0.495#1/2/ ;-z "x=10+1000,y=0,z=0,w=0"#1/3/-z "x=10+1000,y=0,z=0,w=0";#1/4/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+2000,y=0,z=0,w=0"#1/5/-z "x=10+1000,y=0,z=0,w=0";-z "x=2+1000,y=0,z=0,w=0"#1/6/-z "x=10+1000,y=0,z=0,w=0";-z "x=0,y=10+1000,z=0,w=0"#1/7/-z "x=10+1000,y=0,z=0,w=0";-z "x=10+1000,y=10+2000,z=0,w=0"' 
 WINDOW=10
 VIOLATIONS=0.1
 
@@ -498,12 +498,12 @@ if [[ ${SKIP_GENERATE} == "false" ]]; then
     #TODO: use a flag for this
     TIFS=$IFS
     for f in $FORMULAS; do
-        debug "  Generating logs for the formula ${f})"
+        info "  Generating logs for the formula ${f})"
         for er in $EVENT_RATES; do
-            debug "    Generating logs with event rates ${er})"
+            info "    Generating logs with event rates ${er})"
             for ir in $INDEX_RATES; do
                 export IFS="#"
-                debug "      Generating logs with index rates ${ir})"
+                info "      Generating logs with index rates ${ir})"
                 for ads in $NUM_ADAPTATIONS; do
 
                     tmp=${ads%/*}
@@ -514,28 +514,28 @@ if [[ ${SKIP_GENERATE} == "false" ]]; then
                     strategies=${tmp#*/}
 
                     length=$(( LOG_LENGTH/(adaptations+1) ))
-                    debug "        Generating logs for strategy ${num}"          
+                    info "        Generating logs for strategy ${num}"          
                     export IFS=$TIFS
                     for a in `seq 0 $adaptations`; do
 
                         # Generate logs
-                        debug "          Generating log part ${a} (out of {0..${adaptations}})"
+                        info "          Generating log part ${a} (out of {0..${adaptations}})"
                         strategy=$(echo $strategies | cut -d ";" -f $((a+1)))
                         log=$(make_log "$f" "$er" "$ir" "$a" "$num" "$length" "$strategy")
-
+                        info "            Slicing..."
                         for procs in $PROCESSORS; do
                             numcpus=${procs%/*}
                             cpulist=${procs#*/}
-                            debug "          Slicing log part ${a} into ${numcpus} slices"
+                            debug "            Slicing log part ${a} into ${numcpus} slices"
                             # Slice the logs 
                             # optimally
-                            debug "            Slicing log part ${a} with strategy ${a}"
+                            debug "              Slicing log part ${a} with strategy ${a}"
                             in=$(log_path "${log}")
                             out=$(log_path "${log}_${numcpus}_slice")
                             slice "$f" "$numcpus" "$in" "$out"
 
                             # baseline
-                            debug "            Slicing log part ${a} with strategy 0 (baseline)"
+                            debug "              Slicing log part ${a} with strategy 0 (baseline)"
                             out="$OUTPUT_DIR/${log}_${numcpus}_baseline_slice"
                             name=$(log_name "$adaptations" "$f" "$er" "$ir" 0)
                             log0=$(log_path $name)
