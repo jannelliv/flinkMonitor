@@ -106,19 +106,19 @@ EOF
 
 function debug() {
     if [[ ${DEBUG} == "true" ]]; then
-        echo "[DEBUG]" "$@"
+        echo "[DEBUG]" "$@" 1>&2
     fi
 }
 
 function info() {
     if [[ ${SILENT} != "true" ]]; then
-        echo "[INFO]" "$@"
+        echo "[INFO]" "$@" 1>&2
     fi
 }
 
 function error() {
     if [[ ${SILENT} != "true" ]]; then
-        echo "[ERROR]" "$@"
+        echo "[ERROR]" "$@" 1>&2
     fi
     exit 0
 }
@@ -142,23 +142,39 @@ function add_time (){
     local rep=$2
     local time=$3
 
-    local result=${TIMEMAP[$part]}
 
     local key="${part}, ${rep}"
-    if [ -z $result ]; then
+
+    debug "Putting $time in TIMEMAP at (${key})"
+
+    local result=${TIMEMAP[$key]}
+
+    debug "Current TIMEMAP[(${key})]=${result}"
+
+    
+    if [ -z "$result" ]; then
         TIMEMAP[$key]="$time"
     else 
         TIMEMAP[$key]="${result}, $time"
     fi
-    
+
+    local result=${TIMEMAP[$key]}
+
+    debug "New TIMEMAP[(${key})]=${result}"
+
+
 }
 
 function write_times (){
     local file=$1
     local numcpus=$2
 
-    echo -n "Part, Repetition, $(eval echo  "Baseline{0..$((numcpus-2))},") Baseline$((numcpus-1)), " > $file 
-    echo "Monitor0, Split, $(eval echo "Merge,\ Monitor{1..$((numcpus-2))},\ Split,") Merge, Monitor$((numcpus-1))" >> $file
+    local header="Part, Repetition, $(eval echo  "Baseline{0..$((numcpus-1))},")"
+    local header=${header%?}
+    for slice in `seq 0 $((numcpus-1))`; do
+        header="${header}, Merge${slice}, Monitor${slice}, Split${slice}"
+    done 
+    echo ${header} > $file
 
     for K in "${!TIMEMAP[@]}"; do
         echo "${K}, ${TIMEMAP[$K]}" >> $file
@@ -175,7 +191,7 @@ function add_slice_time (){
     local result=${TIMEMAP[$part]}
 
     local key="${part}"
-    if [ -z $result ]; then
+    if [ -z "$result" ]; then
         TIMEMAP[$key]="$time"
     else 
         TIMEMAP[$key]="${result}, $time"
@@ -191,8 +207,8 @@ function write_slice_times (){
         numcpus=${procs%/*}
         header="${header}, ${numcpus}cpus"
     done 
-                          
-    echo $header > $file
+               
+    echo "${header}" > $file
 
     for K in "${!TIMEMAP[@]}"; do
         echo "${K}, ${TIMEMAP[$K]}" >> $file
@@ -332,7 +348,22 @@ function monitor() {
 
     [ -z ${verdict} ] && verdict="/dev/null"
 
-    local time=$((( $TIME_COMMAND -f '%e' cat $log > ${IN_PIPE}; ) 1> ${verdict}; ) 2>&1; )
+    local ts1=$(date +%s%N)
+    
+    cat $log > ${IN_PIPE}
+
+    echo ">get_pos<" > ${IN_PIPE}
+
+    local loaded=""
+    while [[ "$loaded" != *"Current timepoint"* ]]; do 
+        read loaded < ${OUT_PIPE}
+    done
+    debug "Finished monitoring (${loaded})"
+
+
+    local ts2=$(date +%s%N)
+    local delta=$((ts2 - ts1))
+    local time=`bc <<< "scale=2; $delta/1000000000"`
     
     #returns time
     echo $time
@@ -343,6 +374,7 @@ function monitor() {
 function split() {
     local strategy=$1
     local state=$2
+    local result=$3
 
     if [ ! -z "$strategy" ]; then
 
@@ -362,11 +394,11 @@ function split() {
 
     fi
 
-    sleep 1
     # debug "Stopping MonPoly"
     [ ! -z $PID ] || error "MonPoly is not running"
     exec 3>&-
     wait $PID 2> /dev/null
+    exec 4<&-
 
     if [ ! -z "$strategy" ]; then
 
@@ -375,7 +407,7 @@ function split() {
         local time=`bc <<< "scale=2; $delta/1000000000"`
 
         #returns time
-        echo $time 
+        eval $result="$time"
     fi
     
     # debug "Deleteing pipes"
@@ -387,6 +419,7 @@ function split() {
 function merge() {
     local formula=$1
     local state=$2
+    local result=$3
 
     
     local fma=""
@@ -405,7 +438,6 @@ function merge() {
         ;;
     esac
 
-    
     # debug "Creating pipes..."
     #create in pipe
     [ -p ${IN_PIPE} ] && error "Pipe ${IN_PIPE} already exists"
@@ -419,12 +451,11 @@ function merge() {
 
     if [ -z "${state}" ]; then
 
-        echo 
         #start background monpoly with the pipes
-        "$MONPOLY" -negate -sig "$WORK_DIR/flinkless/synth.sig" -formula "$WORK_DIR/flinkless/$fma" -nonewlastts -nofilteremptytp < ${IN_PIPE} > /dev/null &
+        "$MONPOLY" -negate -sig "$WORK_DIR/flinkless/synth.sig" -formula "$WORK_DIR/flinkless/$fma" -nonewlastts -nofilteremptytp < ${IN_PIPE} > ${OUT_PIPE} &
         PID=$(echo $!)
         exec 3> ${IN_PIPE}
-        
+        exec 4< ${OUT_PIPE}
 
     else 
         # debug "Merging states ${state}"
@@ -432,24 +463,29 @@ function merge() {
         #start background monpoly with the pipes and state
 
         local ts1=$(date +%s%N)
-
         local state=${state%?}
         local state=${state//[[:blank:]]/}
-        "$MONPOLY" -negate -sig "$WORK_DIR/flinkless/synth.sig" -formula "$WORK_DIR/flinkless/$fma" -nonewlastts -nofilteremptytp -combine "${state}" < ${IN_PIPE} > /dev/null &
+        # debug "Running" "$MONPOLY" -negate -sig "$WORK_DIR/flinkless/synth.sig" -formula "$WORK_DIR/flinkless/$fma" -nonewlastts -nofilteremptytp -combine "${state}" 
+        "$MONPOLY" -negate -sig "$WORK_DIR/flinkless/synth.sig" -formula "$WORK_DIR/flinkless/$fma" -nonewlastts -nofilteremptytp -combine "${state}" < ${IN_PIPE} > ${OUT_PIPE} &
         PID=$(echo $!)
         exec 3> ${IN_PIPE}
+        exec 4< ${OUT_PIPE}
+        
+        local loaded=""
+        while [[ "$loaded" != *"Loaded"* ]]; do 
+            read loaded < ${OUT_PIPE}
+        done
+
+        debug "$loaded (and merged)"
 
         local ts2=$(date +%s%N)
         local delta=$((ts2 - ts1))
         local time=`bc <<< "scale=2; $delta/1000000000"`
 
         #returns time
-        echo $time 
-        
+        eval $result="$time" 
 
     fi
-        
-
 
 }
 
@@ -587,14 +623,15 @@ info "=== Running flinkless experiments ==="
                                 log=$(log_path $name)
                                 debug "Monitoring ${log}"
                                 time=$(monitor "${log}")
-                                add_time "0" $r $time
+                                add_time "0" $r "- , $time" # - stands from no preceeding merge 
                                 
                                 # split state (also stops monpoly)
                                 name=$(log_name "$adaptations" "$f" "$er" "$ir" "1")
                                 log=$(log_path $name)
                                 debug "Splitting state according to the strategy ${log}_${numcpus}_slice_strategy"
-                                time=$(split "${log}_${numcpus}_slice_strategy" "${CHECKPOINT_DIR}/${name}_${numcpus}_slice${slice}_state")
-                                add_time "0" $r $time
+                                runtime=0
+                                split "${log}_${numcpus}_slice_strategy" "${CHECKPOINT_DIR}/${name}_${numcpus}_slice${slice}_state" runtime
+                                add_time "0" $r "$runtime" 
 
                             done              
                         done
@@ -609,9 +646,10 @@ info "=== Running flinkless experiments ==="
                                     log=$(log_name "$adaptations" "$f" "$er" "$ir" "$part")
                                     state=$(eval echo "${CHECKPOINT_DIR}/${log}_${numcpus}_slice{0..$((numcpus-1))}_state-${slice}.bin,")
                                     debug "Merging states ${state}"
-                                    time=$(merge "$f" "$state")
-                                    add_time $part $r $time
-
+                                    runtime=0
+                                    merge "$f" "$state" runtime
+                                    add_time $part $r $runtime
+                                    
                                     # run monpoly
                                     info "            Running (repetition: ${r}, part: ${part}, slice: ${slice})"
                                     name=$(log_name "$adaptations" "$f" "$er" "$ir" "$part" "$slice" "$numcpus")
@@ -624,8 +662,9 @@ info "=== Running flinkless experiments ==="
                                     name=$(log_name "$adaptations" "$f" "$er" "$ir" $((part+1)))
                                     log=$(log_path $name)
                                     debug "Splitting state according to the strategy ${log}_${numcpus}_slice_strategy"
-                                    time=$(split "${log}_${numcpus}_slice_strategy" "${CHECKPOINT_DIR}/${name}_${numcpus}_slice${slice}_state")
-                                    add_time $part $r $time
+                                    runtime=0
+                                    split "${log}_${numcpus}_slice_strategy" "${CHECKPOINT_DIR}/${name}_${numcpus}_slice${slice}_state" runtime
+                                    add_time $part $r $runtime
                                 
                                 done 
                         
@@ -642,8 +681,9 @@ info "=== Running flinkless experiments ==="
                                 log=$(log_name "$adaptations" "$f" "$er" "$ir" "$adaptations")
                                 state=$(eval echo "${CHECKPOINT_DIR}/${log}_${numcpus}_slice{0..$((numcpus-1))}_state-${slice}.bin,")
                                 debug "Merging states ${state}"
-                                time=$(merge "$f" "$state")
-                                add_time $adaptations $r $time
+                                runtime=0
+                                merge "$f" "$state" runtime
+                                add_time $adaptations $r $runtime
 
                                 # run monpoly
                                 info "            Running (repetition: ${r}, part: ${adaptations}, slice: ${slice})"
@@ -651,7 +691,7 @@ info "=== Running flinkless experiments ==="
                                 log=$(log_path $name)
                                 debug "Monitoring ${log}"
                                 time=$(monitor "${log}")
-                                add_time $adaptations $r $time
+                                add_time $adaptations $r "$time, - " # - stands for no subsequent split
 
                                 stop_monpoly 
                             
