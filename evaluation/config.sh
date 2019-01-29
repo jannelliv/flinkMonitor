@@ -12,6 +12,7 @@ TOOL_JAR="$PROJECT_DIR/tools/target/evaluation-tools-1.0-SNAPSHOT.jar"
 CHECKPOINT_DIR="$ROOT_DIR/checkpoints"
 OUTPUT_DIR="$ROOT_DIR/output"
 REPORT_DIR="$ROOT_DIR/reports"
+EXEC_LOG_DIR="$ROOT_DIR/logs"
 
 TIME_COMMAND=/usr/bin/time
 
