@@ -70,14 +70,24 @@ function parse_options() {
                 SKIP_MONITOR=true
                 ;;
             -n|-N|--name)
+                if [ ! -z "$1" ]; then 
+                    EXP_NAME=$1 
+                else 
+                    echo "Invalid argument was provided: ${option}"
+                    usage
+                    exit 1
+                fi
                 shift
-                [ ! -z "$1" ] && EXP_NAME=$1 || 
-                echo "Invalid argument was provided: ${option}"; usage ; exit 1
                 ;;
             -p|-P|--parallelism)
+                if [ ! -z "$1" ]; then 
+                    PARALLELISM=$1 
+                else 
+                    echo "Invalid argument was provided: ${option}" 
+                    usage 
+                    exit 1
+                fi
                 shift
-                [ ! -z "$1" ] && PARALLELISM=$1 || 
-                echo "Invalid argument was provided: ${option}"; usage ; exit 1
                 ;;
             *)
                 echo "Invalid argument was provided: ${option}"
