@@ -135,9 +135,9 @@ parse_options "$@"
 if [[ ${SKIP_GENERATE} == "false" ]]; then
 
     info "=== Generating logs ==="
-    rm -f $OUTPUT_DIR/*
-    rm -f $EXEC_LOG_DIR/*
-
+    find $OUTPUT_DIR -type f -delete
+    find $EXEC_LOG_DIR -type f -delete
+    
     parallel --no-notice -P $PARALLELISM "$WORK_DIR/flinkless/run.sh" -g ::: `eval echo $FORMULAS` ::: `eval echo $EVENT_RATES` ::: `eval echo $INDEX_RATES` ::: "$NUM_ADAPTATIONS" ::: "$PROCESSORS" ::: "$LOG_LENGTH" ::: "$WINDOW" > "${EXEC_LOG_DIR}/execution.log" 2>&1 
     #echo parallel --no-notice -P $PARALLELISM "$WORK_DIR/flinkless/run.sh" -g ::: `eval echo $FORMULAS` ::: `eval echo $EVENT_RATES` ::: `eval echo $INDEX_RATES` ::: "$NUM_ADAPTATIONS" ::: "$PROCESSORS" ::: "$LOG_LENGTH" ::: "$WINDOW" #> "${EXEC_LOG_DIR}/execution.log"
     
@@ -150,9 +150,9 @@ info "=== Running flinkless experiments ==="
 
     rm -f ${IN_PIPE}*
     rm -f ${OUT_PIPE}*
-    rm -f $REPORT_DIR/*
-    rm -f $CHECKPOINT_DIR/*
-    rm -f $EXEC_LOG_DIR/*
+    find $REPORT_DIR -type f -delete
+    find $CHECKPOINT_DIR -type f -delete
+    find $EXEC_LOG_DIR -type f -delete
 
     CPUs=""
     for procs in $PROCESSORS; do
