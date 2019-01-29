@@ -3,11 +3,11 @@
 # Experiments that run MonPoly without Flink
 
 # EXPERIMENT PARAMETERS:
-REPETITIONS=1
+REPETITIONS=3
 FORMULAS="-S -L -T"
-EVENT_RATES="2000 2500" #  3000 3500 4000 5000 6000 8000"
-INDEX_RATES="100"
-LOG_LENGTH="100"
+EVENT_RATES="2000 2500 3000 3500 4000 5000 6000 8000"
+INDEX_RATES="1 100"
+LOG_LENGTH="1000"
 PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 NUM_ADAPTATIONS='2/1/-x 0.1;-x 0.1;-pA 0.01 -pB 0.495 -x 0.1#2/2/-x 0.1;-x 0.1;-pA 0.495 -pB 0.495 -x 0.005#2/3/-x 0.1;-x 0.1;-pA 0.01 -pB 0.01 -x 0.1#2/4/-x 0.1;-x 0.1;-z "x=10+1000,y=0,z=0,w=0" -x 0.1#2/5/-x 0.1;-z "x=10+1000,y=0,z=0,w=0" -x 0.1; -x 0.1#2/6/-x 0.1;-z "x=10+1000,y=0,z=0,w=0" -x 0.1;-z "x=10+2000,y=0,z=0,w=0" -x 0.1#2/7/-x 0.1;-z "x=10+1000,y=0,z=0,w=0" -x 0.1;-z "x=2+1000,y=0,z=0,w=0" -x 0.1#2/8/-x 0.1;-z "x=10+1000,y=0,z=0,w=0" -x 0.1;-z "x=0,y=10+1000,z=0,w=0" -x 0.1#2/9/-x 0.1;-z "x=10+1000,y=0,z=0,w=0" -x 0.1;-z "x=10+1000,y=10+2000,z=0,w=0" -x 0.1'
 WINDOW=10
