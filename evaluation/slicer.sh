@@ -14,9 +14,9 @@ source "$WORK_DIR/config.sh"
 
 tmpdir="$$"
 mkdir -p "${ROOT_DIR}/${tmpdir}"
-pushd "${ROOT_DIR}/${tmpdir}"
+pushd "${ROOT_DIR}/${tmpdir}" > /dev/null 
 java -jar "$MONITOR_JAR" -calcSlice true -degree $num_slices "$@"
-popd
+popd > /dev/null
 
 for i in `seq 0 $((num_slices-1))`; do
     mv "${ROOT_DIR}/${tmpdir}/slicedOutput${i}" "${output}${i}"

@@ -267,6 +267,8 @@ function make_log() {
 
     strategy=$(echo $strategy | sed s/\"//g)
     "$WORK_DIR/generator.sh" $formula -e $er -i $ir -t $start -w $WINDOW $strategy $length | "$WORK_DIR/replayer.sh" -a 0 -m > $log 
+    
+    debug "$WORK_DIR/generator.sh" $formula -e $er -i $ir -t $start -w $WINDOW $strategy $length
 
     echo "${name}"
 }
@@ -621,12 +623,12 @@ if [[ ${SKIP_MONITOR} == "false" ]]; then
         
             done
 
-            #cleaning up the states
-            for slice in `seq 0 $((numcpus-1))`; do
-                log=$(log_name "$num" "$f" "$er" "$ir" "$part")
-                states=$(eval echo "${CHECKPOINT_DIR}/${log}_${numcpus}_slice{0..$((numcpus-1))}_state-${slice}.bin ")
-                rm $states
-            done
+            # #cleaning up the states
+            # for slice in `seq 0 $((numcpus-1))`; do
+            #     log=$(log_name "$num" "$f" "$er" "$ir" "$part")
+            #     states=$(eval echo "${CHECKPOINT_DIR}/${log}_${numcpus}_slice{0..$((numcpus-1))}_state-${slice}.bin ")
+            #     rm $states
+            # done
                    
 
         done
