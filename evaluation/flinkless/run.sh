@@ -268,8 +268,6 @@ function make_log() {
     strategy=$(echo $strategy | sed s/\"//g)
     "$WORK_DIR/generator.sh" $formula -e $er -i $ir -t $start -w $WINDOW $strategy $length | "$WORK_DIR/replayer.sh" -a 0 -m > $log 
     
-    debug "$WORK_DIR/generator.sh" $formula -e $er -i $ir -t $start -w $WINDOW $strategy $length
-
     echo "${name}"
 }
 
