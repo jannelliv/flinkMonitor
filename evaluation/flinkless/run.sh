@@ -265,10 +265,14 @@ function make_log() {
     local name=$(log_name "$adaptations" "$formula" "$er" "$ir" "$part")
     local log=$(log_path $name)
 
-    strategy=$(echo $strategy | sed s/\"//g)
-    "$WORK_DIR/generator.sh" $formula -e $er -i $ir -t $start -w $WINDOW $strategy $length | "$WORK_DIR/replayer.sh" -a 0 -m > $log 
-    
+    if [ -f "$log" ]; then
+        debug "           Log exists, skipping..."
+    else
+        strategy=$(echo $strategy | sed s/\"//g)
+        "$WORK_DIR/generator.sh" $formula -e $er -i $ir -t $start -w $WINDOW $strategy $length | "$WORK_DIR/replayer.sh" -a 0 -m > $log 
+    fi
     echo "${name}"
+    
 }
 
 function slice() {
@@ -294,11 +298,29 @@ function slice() {
         ;;
     esac
 
-    if [ -z "$strategy" ]; then 
-        "$WORK_DIR/slicer.sh" "$output" "$num" -formula "$WORK_DIR/flinkless/$fma"  -file "$log"
+    gen=""
+    for i in `seq 0 $((num-1))`; do 
+        if [ ! -f "${output}${i}" ]; then
+            gen="yes"
+            break
+        fi
+    done
+
+    if [ ! -f "${output}_strategy" ]; then
+        gen="yes"
+    fi
+
+
+    if [ -z "$gen" ]; then
+        debug "                Slices exist, skipping..."
     else
-        "$WORK_DIR/slicer.sh" "$output" "$num" -formula "$WORK_DIR/flinkless/$fma"  -file "$log" -slicer "$strategy"
-    fi 
+
+        if [ -z "$strategy" ]; then 
+            "$WORK_DIR/slicer.sh" "$output" "$num" -formula "$WORK_DIR/flinkless/$fma"  -file "$log"
+        else
+            "$WORK_DIR/slicer.sh" "$output" "$num" -formula "$WORK_DIR/flinkless/$fma"  -file "$log" -slicer "$strategy"
+        fi 
+    fi
 
 }
 
