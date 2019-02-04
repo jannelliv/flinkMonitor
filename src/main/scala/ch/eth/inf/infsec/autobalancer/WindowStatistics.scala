@@ -57,7 +57,7 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) ex
     frames(lastFrame).clearFrame()
   }
   override def relationSize(relation: String): Double = {
-    relations(relation)
+    relations.getOrElse(relation,0).asInstanceOf[Int]
   }
 
   override def heavyHitters(relation: String, attribute: Int): Set[Domain] = {

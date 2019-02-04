@@ -48,7 +48,7 @@ class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializab
     }
   }
 
-  def sendSocketAddressCommand(f: Record => Unit) : String = {
+  def sendSocketAddressCommand(f: Record => Unit) : Unit = {
     f(CommandRecord("OutsideInfluenceAddress",machineIp+":"+portId.toString))
   }
 
@@ -81,7 +81,7 @@ class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializab
 
   }
 
-  abstract private class SocketHandlingThread extends Thread {
+  abstract class SocketHandlingThread extends Thread {
     @volatile var running = true
 
     def startup(): Unit

@@ -161,7 +161,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
           if(com.in.startsWith(">gapt"))
           {
             buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
-          }else if(com.in.startsWith(">gsdt") {
+          }else if(com.in.startsWith(">gsdt")) {
             buffer += CommandItem(">gsdtr "+(lastShutdownCompletedTime-lastShutdownInitiatedTime).toString()+"<")
           }else {
             buffer += com

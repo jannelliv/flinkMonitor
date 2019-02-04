@@ -93,23 +93,24 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
 }
 
 class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRequest,MonpolyRequest] with Serializable{
-  override type State = proc.State
+  val proc2 = proc
+  override type State = proc2.State
 
-  override def isStateful: Boolean = proc.isStateful
+  override def isStateful: Boolean = proc2.isStateful
 
-  override def getState: State = proc.getState
+  override def getState: State = proc2.getState
 
-  override def restoreState(state: Option[State]): Unit = proc.restoreState(state)
+  override def restoreState(state: Option[State]): Unit = proc2.restoreState(state)
 
   override def process(in: MonpolyRequest, f: MonpolyRequest => Unit): Unit = {
     in match {
       case c@CommandItem(a) => f(c)
-      case EventItem(b) => proc.process(b,x => f(EventItem(x)))
+      case EventItem(b) => proc2.process(b,x => f(EventItem(x)))
     }
   }
 
   override def terminate(f: MonpolyRequest => Unit): Unit = {
-    proc.terminate(x => f(EventItem(x)))
+    proc2.terminate(x => f(EventItem(x)))
   }
 }
 

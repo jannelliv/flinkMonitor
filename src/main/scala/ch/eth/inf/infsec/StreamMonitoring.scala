@@ -130,10 +130,12 @@ object StreamMonitoring {
     }
     var dfms = new DeciderFlatMapSimple(degree,formula,Double.MaxValue)
     val file = params.get("file")
-    val content = Source.fromFile(file).mkString.split("\n").map(_.trim)
+    var content = Source.fromFile(file).mkString.split("\n").map(_.trim)
     val parser = MonpolyFormat.createParser()
    // var arr = scala.collection.mutable.ArrayBuffer[Record]()
-    val arr = parser.processAll(content)
+    var arr = parser.processAll(content)
+    //explicit nulling to aid the JVM in GCing
+    content = null
 
     val slicer = params.get("slicer",null)
     var strategy : HypercubeSlicer = null
@@ -153,13 +155,17 @@ object StreamMonitoring {
     val writer = new java.io.PrintWriter("strategyOutput")
     writer.println(strategyStr)
     writer.close()
-    val outs = strategy.processAll(arr)
-    val sortedOuts = scala.collection.mutable.Map[Int,scala.collection.mutable.ArrayBuffer[Record]]()
+    var outs = strategy.processAll(arr)
+    //explicit nulling to aid the JVM in GCing
+    arr = null
+    var sortedOuts = scala.collection.mutable.Map[Int,scala.collection.mutable.ArrayBuffer[Record]]()
     outs.foreach(x => {
         if(!sortedOuts.contains(x._1))
           sortedOuts += ((x._1,scala.collection.mutable.ArrayBuffer[Record]()))
         sortedOuts(x._1) += x._2
     })
+    //explicit nulling to aid the JVM in GCing
+    outs = null
     var printer = new KeyedMonpolyPrinter[Int]
     sortedOuts.foreach(x => {
       val w2 = new java.io.PrintWriter("slicedOutput"+x._1)
@@ -168,6 +174,7 @@ object StreamMonitoring {
       })
       w2.close()
     })
+    sortedOuts = null
     val w3 = new PrintWriter("otherStuff")
     w3.println("relationSet size: "+dfms.windowStatistics.relations.size)
     w3.println("heavy hitter size: "+dfms.windowStatistics.heavyHitter.values.size)
@@ -266,7 +273,7 @@ object StreamMonitoring {
 
       //Single node
 
-      val verdicts = verdictsAndOtherThings.flatMap(new KnowledgeExtract())
+      val verdicts = verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract()))
 
       out match {
         case Some(Left((h, p))) =>
