@@ -6,6 +6,7 @@ import pathlib
 import re
 import sys
 import textwrap
+import os
 
 import numpy as np
 import pandas as pd
@@ -143,15 +144,32 @@ class Loader:
     #add part, repetition and slice
     job_levels_full = job_levels + ['part', 'slice', 'repetition']
 
+    log_levels      = ['experiment', 'formula', 'event_rate', 'index_rate', 'strategy', 'part', 'processors']
+    log_levels_full = ['experiment', 'formula', 'event_rate', 'index_rate', 'strategy', 'processors', 'part', 'slice']
+    
+    levels = ['experiment', 'formula', 'event_rate', 'index_rate', 'strategy', 'processors', 'part']
+
+
     job_regex = r"(nokia|gen|genh|genadaptive)_(-S|-L|-T)_(\d+)_(\d+)_(\d+)_(\d+)"
     slices_pattern = re.compile(job_regex)
+
+    #<experiment>_<strategy>_<formula>_<ER>_<IR>_part<part>_<numcpus>_slice<slicenum>
+    log_regex = r"(nokia|gen|genh|genadaptive)_(\d+)_(-S|-L|-T)_(\d+)_(\d+)_part(\d+)"
+    logs_pattern = re.compile(log_regex)
+
+    num_cpus = [4, 8, 16]
+
     
     slices_header = ['baseline', 'merge', 'monitor', 'split']
     slices_header_full = slices_header + ['adaptive', 'overhead']
     
+    slice_size_header_full = ['baseline_num','slice_num']
 
     slices_keys = []
     slices_data = []
+
+    log_keys = []
+    log_data = []
 
     def warn_skipped_path(self, path):
         #warn("Skipped " + str(path))
@@ -178,20 +196,49 @@ class Loader:
 
         else:
             self.warn_invalid_file(path)
+    
+    def read_logs(self, key, path):
+        for cpus in self.num_cpus:
+            data=[]
+            for c in range(0,cpus):
+                tuple_num=int(os.popen('grep -o "(" ' + os.fspath(path) + '_' + str(cpus) + '_slice' + str(c) + ' | wc -l').read())
+                tuple_baseline_num=int(os.popen('grep -o "(" ' + os.fspath(path) + '_' + str(cpus) + '_baseline_slice' + str(c) + ' | wc -l').read())
+                data.append([tuple_baseline_num,tuple_num])
+                
+            data_df = pd.DataFrame(data, columns=self.slice_size_header_full)
+            data_df.index.name = 'slice'
+            self.log_keys.append((key[0], key[1], key[2], key[3], key[4], key[5], cpus))
+            self.log_data.append(data_df)
 
+    
 
     def read_file(self, path):
+        #monitor times
         metrics_match = self.slices_pattern.fullmatch(path.name)
         if metrics_match:
             key = (
-                metrics_match.group(1),
-                metrics_match.group(2),
-                int(metrics_match.group(3)),
-                int(metrics_match.group(4)),
-                int(metrics_match.group(5)),
-                int(metrics_match.group(6))
+                metrics_match.group(1), # experiment
+                metrics_match.group(2), # formula 
+                int(metrics_match.group(3)), # ER
+                int(metrics_match.group(4)), # IR
+                int(metrics_match.group(5)), # strategy
+                int(metrics_match.group(6))  # numcpus
                 )
             self.read_slices(key, path)
+            return
+
+        #slice sizes
+        log_match = self.logs_pattern.fullmatch(path.name)
+        if log_match:
+            key = (
+                log_match.group(1),      # experiment
+                log_match.group(3),      # formula
+                int(log_match.group(4)), # ER
+                int(log_match.group(5)), # IR
+                int(log_match.group(2)), # strategy
+                int(log_match.group(6))  # part
+                )
+            self.read_logs(key, path)
             return
 
         self.warn_skipped_path(path)
@@ -222,31 +269,43 @@ class Loader:
         return df.groupby(level=group_levels).max()
 
     def process(self):
-        names = self.job_levels+['part', 'repetition']
 
-        raw = pd.concat(self.slices_data, keys=self.slices_keys, names=self.job_levels, sort=True)
-        raw.index.rename(names)
+        # Monitor times
+        slices=pd.DataFrame([], columns=self.slices_header_full, index=pd.MultiIndex(levels=[[],[],[],[],[],[],[]], labels=[[],[],[],[],[],[],[]], names=self.levels))
+        if len(self.slices_data) != 0:
+            names = self.job_levels+['part', 'repetition']
 
-        raw=raw.drop(axis=0,labels=0,level=6)
+            raw = pd.concat(self.slices_data, keys=self.slices_keys, names=self.job_levels, sort=True)
+            raw.index.rename(names)
 
-        raw=raw.apply(pd.to_numeric)
-        
-        cpus = raw.index.levels[5].max()
-        df_dict = {}
-        for i in range(0,cpus):
-            tmp = raw.loc[:, ['Baseline'+str(i), 'Merge'+str(i),'Monitor'+str(i),'Split'+str(i)]]
-            tmp = tmp.rename(columns=dict(list(zip(tmp.columns.tolist(),self.slices_header))))
-            df_dict[i]=tmp
-        
-        raw = pd.concat(df_dict.values(), keys=df_dict.keys(), axis=0, names=['slice']+names, sort=True)
-        raw = raw.reorder_levels(self.job_levels_full)
-        slices = raw.dropna(axis=0, how = 'all')
-        slices = self.average_repetitions(slices)
-        slices = self.max_slice(slices)
-        slices['adaptive']=slices[['merge','monitor','split']].sum(axis=1)
-        slices['overhead']=slices[['merge','split']].sum(axis=1)
+            raw=raw.drop(axis=0,labels=0,level=6)
 
-        return Data("Slices", slices)
+            raw=raw.apply(pd.to_numeric)
+            
+            cpus = raw.index.levels[5].max()
+            df_dict = {}
+            for i in range(0,cpus):
+                tmp = raw.loc[:, ['Baseline'+str(i), 'Merge'+str(i),'Monitor'+str(i),'Split'+str(i)]]
+                tmp = tmp.rename(columns=dict(list(zip(tmp.columns.tolist(),self.slices_header))))
+                df_dict[i]=tmp
+            
+            raw = pd.concat(df_dict.values(), keys=df_dict.keys(), axis=0, names=['slice']+names, sort=True)
+            raw = raw.reorder_levels(self.job_levels_full)
+            slices = raw.dropna(axis=0, how = 'all')
+            slices = self.average_repetitions(slices)
+            slices = self.max_slice(slices)
+            slices['adaptive']=slices[['merge','monitor','split']].sum(axis=1)
+            slices['overhead']=slices[['merge','split']].sum(axis=1)
+
+        # Slice sizes
+        slice_sizes=pd.DataFrame([], columns=self.slice_size_header_full, index=pd.MultiIndex(levels=[[],[],[],[],[],[],[]], labels=[[],[],[],[],[],[],[]], names=self.levels))
+        if len(self.log_data) != 0:
+            raw_slices = pd.concat(self.log_data, keys=self.log_keys, names=self.log_levels, sort=True)
+            raw_slices=raw_slices.apply(pd.to_numeric)
+            raw_slices = raw_slices.reorder_levels(self.log_levels_full)
+            slice_sizes = self.max_slice(raw_slices)
+         
+        return (Data("Monitor times", slices), Data("Slice sizes", slice_sizes))
 
     @classmethod
     def load(cls, paths):
@@ -259,75 +318,28 @@ class Loader:
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         paths = map(pathlib.Path, sys.argv[1:])
-        slices = Loader.load(paths)
+        (times,slices) = Loader.load(paths)
 
         #ADAPTIVE
         #Index: ['experiment', 'formula', 'event_rate', 'index_rate', 'strategy', 'processors', 'part']
         #Columns: ['baseline', 'merge', 'monitor', 'split', 'adaptive']
 
-        gen_adapt_strat = slices.select(experiment='genadaptive', part=2)
+        # times
+        gen_adapt_strat = times.select(experiment='genadaptive', part=2)
         gen_adapt_strat.plot('strategy', ['baseline', 'adaptive'], series_levels=['event_rate','index_rate'], column_levels=['formula'], title="Time x-strategy" , path="gen_adapt_strat.pdf")
         
-        gen_adapt_nproc = slices.select(experiment='genadaptive', part=2)
+        gen_adapt_nproc = times.select(experiment='genadaptive', part=2)
         gen_adapt_nproc.plot('processors', ['baseline', 'adaptive'], series_levels=['event_rate','index_rate'], column_levels=['formula'], title="Time x-processors" , path="gen_adapt_nproc.pdf")
         
-        gen_adapt_strat.export('baseline', 'adaptive', path="gen_adapt_strat.csv")
+        gen_adapt_strat.export('baseline', 'adaptive', 'overhead', path="gen_adapt_strat.csv")
+
+        # slices
+        gen_adapt_size = slices.select(experiment='genadaptive', part=2)
+        gen_adapt_size.plot('strategy', ['baseline_num', 'slice_num'], series_levels=['event_rate','index_rate'], column_levels=['formula'], title="Time x-strategy" , path="gen_adapt_size.pdf")
         
+        gen_adapt_size.export('baseline_num', 'slice_num', path="gen_adapt_size.csv")
 
-        # SYNTHETIC
-        # gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
-        # gen_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
-
-        # gen_memory = summary.select(experiment='gen', checkpointing=False, statistics=False, index_rate=1000)
-        # gen_memory.plot('event_rate', 'memory', series_levels=['tool', 'processors'], column_levels=['formula'], title="Max. monitor memory (synthetic, 1000)" , path="gen_memory.pdf")
-
-        # gen_formulas = summary.select(experiment='gen', tool='flink', checkpointing=True, statistics=False)
-        # gen_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas.pdf")
-
-        # # NOKIA
-        # nokia_nproc = summary.select(experiment='nokia', statistics=False)
-        # nokia_nproc.plot('event_rate', ['peak', 'max', 'average'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
-
-        # nokia_formulas = summary.select(experiment='nokia', tool='flink', checkpointing=True, statistics=False)
-        # nokia_formulas.plot('event_rate', ['peak', 'max', 'average'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
-
-        # nokia_series = series.select(experiment='nokia', statistics=False)
-        # nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
-
-        # # SLICES
-        # gen_slices = slices.select(experiment='gen', tool='flink', checkpointing=False, index_rate=1000)
-        # gen_slices.plot('processors', 'total_events', column_levels=['formula'], box_plot='monitor', title="Slice sizes (synthetic)", path="gen_slices.pdf")
-
-        # genh_slices = slices.select(experiment='genh', tool='flink', checkpointing=True, event_rate=4000, index_rate=1000)
-        # genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh3_slices.pdf")
-
-
-        # gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
-        # gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
         
-        # # ALL
-        # gen_nproc_export = summary.select()
-        # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="all.csv")
-
-        # # PLOT1
-        # gen_nproc_export = summary.select(experiment='gen',checkpointing=True)
-        # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
-
-        # # PLOT2
-        # nokia_nproc = summary.select(experiment='nokia', statistics=False)
-        # nokia_nproc.export('max', 'peak', 'average', 'memory', path="plot-nokia.csv")
-
-        # # PLOT3
-        # nokia_series = series.select(experiment='nokia', checkpointing=False, repetition=2, statistics=False)
-        # nokia_series.export('peak', path="plot-nokia-time-f.csv")
-
-        # # PLOT4
-        # nokia_series = series.select(experiment='nokia', checkpointing=True, repetition=2, statistics=False)
-        # nokia_series.export('peak', path="plot-nokia-time-t.csv")
-    
-        # # PLOT5
-        # genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        # genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
 
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
