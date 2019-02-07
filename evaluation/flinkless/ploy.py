@@ -147,7 +147,7 @@ class Loader:
     slices_pattern = re.compile(job_regex)
     
     slices_header = ['baseline', 'merge', 'monitor', 'split']
-    slices_header_full = slices_header + ['adaptive']
+    slices_header_full = slices_header + ['adaptive', 'overhead']
     
 
     slices_keys = []
@@ -244,6 +244,7 @@ class Loader:
         slices = self.average_repetitions(slices)
         slices = self.max_slice(slices)
         slices['adaptive']=slices[['merge','monitor','split']].sum(axis=1)
+        slices['overhead']=slices[['merge','split']].sum(axis=1)
 
         return Data("Slices", slices)
 
@@ -267,11 +268,11 @@ if __name__ == '__main__':
         gen_adapt_strat = slices.select(experiment='genadaptive', part=2)
         gen_adapt_strat.plot('strategy', ['baseline', 'adaptive'], series_levels=['event_rate','index_rate'], column_levels=['formula'], title="Time x-strategy" , path="gen_adapt_strat.pdf")
         
-
         gen_adapt_nproc = slices.select(experiment='genadaptive', part=2)
         gen_adapt_nproc.plot('processors', ['baseline', 'adaptive'], series_levels=['event_rate','index_rate'], column_levels=['formula'], title="Time x-processors" , path="gen_adapt_nproc.pdf")
         
-
+        gen_adapt_strat.export('baseline', 'adaptive', path="gen_adapt_strat.csv")
+        
 
         # SYNTHETIC
         # gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
