@@ -15,11 +15,12 @@ object Helpers
     def fuse(a:scala.collection.mutable.Map[(Int,Domain),Int],b:scala.collection.mutable.Map[(Int,Domain),Int]):scala.collection.mutable.Map[(Int,Domain),Int] = {
       a ++ b.map { case (k,v) => k -> (v + a.getOrElse(k,0))}
     }
-    def heavyHitterFreq(valuePerPosFreq:Double) : Boolean = {
-      valuePerPosFreq > 0.2
+    def heavyHitterFreq(valuePerPosFreq:Double, degree : Int) : Boolean = {
+      valuePerPosFreq > (1/(2*(degree.toDouble)))
     }
 }
-class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) extends Statistics with Serializable{
+//todo: degree doesn't really belong here, it'd be better if heavyHitterFreq were given as a function in the constructor
+class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, degree : Int) extends Statistics with Serializable{
   var lastFrame = 0
 //  val timestampDeltaBetweenFrames = 0.033;
 //  val maxFrames = 150;
@@ -40,7 +41,7 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) ex
       .map(rel => (rel._1,frames
         .foldRight(scala.collection.mutable.Map[(Int,Domain),Int]())((x,acc) => Helpers.fuse(acc,x.getRelInfo(rel._1)))
         .map(elm => (elm._1,elm._2 / rel._2.toDouble))
-        .filter(x => Helpers.heavyHitterFreq(x._2))))
+        .filter(x => Helpers.heavyHitterFreq(x._2,degree))))
     heavyHitter = scala.collection.mutable.Map[(String,Int),Set[Domain]]()
     temp.foreach(x => {
       x._2.foreach( y => {
@@ -64,7 +65,7 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) ex
     heavyHitter.getOrElse((relation,attribute),Set[Domain]())
   }
 
-  var justHadRollover = false;
+  var justHadRollover = false
 
   //todo: the timestamp is atm nonsense, needs fixing
   var frameTimestamp:Double = 0//new trace.Timestamp();
@@ -84,7 +85,7 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double) ex
   }
 
   def hadRollover() : Boolean = {
-    return justHadRollover;
+    return justHadRollover
   }
 }
 class FrameStatistic extends Serializable

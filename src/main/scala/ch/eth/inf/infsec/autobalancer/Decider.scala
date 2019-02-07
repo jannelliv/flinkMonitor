@@ -115,7 +115,7 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   var tempAvgMaxProcessingTime : Long = 0
   var tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest : Long = 0
 
-  val windowStatistics = new WindowStatistics(1,windowSize)
+  val windowStatistics = new WindowStatistics(1,windowSize, degree)
   var lastSlicing = firstSlicing
   var sliceCandidate = lastSlicing
   var eventBuffer = ArrayBuffer[Record]()

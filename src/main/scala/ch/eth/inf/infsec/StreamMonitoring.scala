@@ -237,10 +237,10 @@ object StreamMonitoring {
             env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
               .name("File watch source")
               .uid("file-watch-source")
-        else
-          env.readTextFile(f).name("file-source").uid("File source")
-      case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
-    }
+          else
+            env.readTextFile(f).name("file-source").uid("File source")
+        case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
+      }
       val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), new RescaleInitiator().rescale)))
         .name("Parser")
         .uid("input-parser")
