@@ -201,8 +201,8 @@ class Loader:
         for cpus in self.num_cpus:
             data=[]
             for c in range(0,cpus):
-                tuple_num=int(os.popen('grep -o "(" ' + os.fspath(path) + '_' + str(cpus) + '_slice' + str(c) + ' | wc -l').read())
-                tuple_baseline_num=int(os.popen('grep -o "(" ' + os.fspath(path) + '_' + str(cpus) + '_baseline_slice' + str(c) + ' | wc -l').read())
+                tuple_num=int(os.popen('grep -o "(" ' + str(path.absolute()) + '_' + str(cpus) + '_slice' + str(c) + ' | wc -l').read())
+                tuple_baseline_num=int(os.popen('grep -o "(" ' + str(path.absolute()) + '_' + str(cpus) + '_baseline_slice' + str(c) + ' | wc -l').read())
                 data.append([tuple_baseline_num,tuple_num])
                 
             data_df = pd.DataFrame(data, columns=self.slice_size_header_full)
