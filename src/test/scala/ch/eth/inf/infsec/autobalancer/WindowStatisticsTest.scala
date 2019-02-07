@@ -6,7 +6,7 @@ import ch.eth.inf.infsec.trace.Record
 
 class WindowStatisticsTest extends FunSuite with Matchers{
   test("endmarkers are not added") {
-    val ws = new WindowStatistics(5,1.0)
+    val ws = new WindowStatistics(5,1.0,4)
     val rec = Record(0,"",trace.Tuple(),"","")
     rec.isEndMarker shouldBe true
     ws.addEvent(rec)
@@ -18,7 +18,7 @@ class WindowStatisticsTest extends FunSuite with Matchers{
     ws.heavyHitter shouldBe empty
   }
   test("adding adds and cycling empties") {
-     val ws = new WindowStatistics(5,1.0)
+     val ws = new WindowStatistics(5,1.0,4)
     ws.addEvent(Record(0,"a",trace.Tuple(),"",""))
     ws.frames(ws.lastFrame).relations should not be empty
     ws.nextFrame()
@@ -36,7 +36,7 @@ class WindowStatisticsTest extends FunSuite with Matchers{
     ws.relationSize("a") shouldBe 0
   }
   test("moving forward by timestamp works") {
-    val ws = new WindowStatistics(5, 1.0)
+    val ws = new WindowStatistics(5, 1.0,4)
     val ori = ws.lastFrame
     ws.addEvent(Record(0,"a",trace.Tuple(),"",""))
     ws.lastFrame shouldBe ori
@@ -47,7 +47,7 @@ class WindowStatisticsTest extends FunSuite with Matchers{
     ws.addEvent(Record(34,"a",trace.Tuple(),"",""))
     ws.lastFrame shouldBe ((ori+34) % 5)
 
-    val ws2 = new WindowStatistics(5, 3.4)
+    val ws2 = new WindowStatistics(5, 3.4,4)
     val ori2 = ws2.lastFrame
     ws2.addEvent(Record(0,"a",trace.Tuple(),"",""))
     ws2.lastFrame shouldBe ori2
@@ -59,7 +59,7 @@ class WindowStatisticsTest extends FunSuite with Matchers{
 
   test("heavy hitters") {
     //todo: since our definition of heavy hitter may change this test is brittle
-    val ws = new WindowStatistics(5, 10.0)
+    val ws = new WindowStatistics(5, 10.0,4)
     ws.addEvent(Record(0,"a",trace.Tuple(trace.IntegralValue(2)),"",""))
     ws.addEvent(Record(2,"a",trace.Tuple(trace.IntegralValue(3)),"",""))
     ws.addEvent(Record(4,"a",trace.Tuple(trace.IntegralValue(4)),"",""))
