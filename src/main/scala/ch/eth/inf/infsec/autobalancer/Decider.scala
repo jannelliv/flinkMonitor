@@ -9,11 +9,57 @@ import org.apache.flink.util.Collector
 import scala.collection.mutable.ArrayBuffer
 import ch.eth.inf.infsec.policy.Formula
 import fastparse.noApi._
+import org.apache.flink.runtime.state.StateSnapshotContext
 
 //problem: how to solve "final bit of stream needs to be processed to"
 //proposed solution: "end of stream message"
 
 
+trait CostSlicerTracker[SlicingStrategy] {
+  def costFirst : Int
+  def costSecond : Int
+  def reset(_first : SlicingStrategy, _second : SlicingStrategy): Unit
+  def addEvent(event:Record): Unit
+}
+
+class HypercubeCostSlicerTracker(degree : Int) extends CostSlicerTracker[HypercubeSlicer] {
+  var first : HypercubeSlicer = _
+  var second : HypercubeSlicer = _
+
+  var firstArr : ArrayBuffer[Int] = _
+  var secondArr : ArrayBuffer[Int] = _
+
+  def cost(arrayBuffer: ArrayBuffer[Int]) : Int = {
+    var max = 0
+    for(v <- arrayBuffer) {
+      if(v > max)
+        max = v
+    }
+    max
+  }
+
+  def costFirst : Int = cost(firstArr)
+
+  def costSecond : Int = cost(secondArr)
+
+  def reset(_first : HypercubeSlicer, _second : HypercubeSlicer): Unit = {
+    first = _first
+    second = _second
+    firstArr = ArrayBuffer.fill(degree)(0)
+    secondArr = ArrayBuffer.fill(degree)(0)
+  }
+
+  def addEventInternal(event:Record,slicer:HypercubeSlicer,arr:ArrayBuffer[Int]): Unit = {
+    slicer.process(event,x => {
+      arr(x._1) += 1
+    })
+  }
+
+  def addEvent(event:Record): Unit = {
+    addEventInternal(event,first,firstArr)
+    addEventInternal(event,second,secondArr)
+  }
+}
 
 class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double) extends DeciderFlatMap[HypercubeSlicer](degree,windowSize,false) {
   override def firstSlicing: HypercubeSlicer = {
@@ -40,8 +86,10 @@ class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double)
     max * avgMaxProcessingTime
   }
 
+  override var costSlicerTracker: CostSlicerTracker[HypercubeSlicer] = new HypercubeCostSlicerTracker(degree)
+
   override def adaptationCost(strat: HypercubeSlicer, ws: WindowStatistics): Double = {
-    return shutdownTime; //todo: make dependent on mem
+    return shutdownTime
   }
   override def generateMessage(strat: HypercubeSlicer): Record = {
     /*MonpolyParsers.Command.parse(strat.stringify()) match {
@@ -69,7 +117,10 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
 
   val windowStatistics = new WindowStatistics(1,windowSize)
   var lastSlicing = firstSlicing
+  var sliceCandidate = lastSlicing
   var eventBuffer = ArrayBuffer[Record]()
+
+  var costSlicerTracker : CostSlicerTracker[SlicingStrategy]
 
   var shutdownTime : Long = 10
 
@@ -100,24 +151,35 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
         if (!event.isEndMarker) {
           windowStatistics.addEvent(event)
         }
-        eventBuffer += event
+        if(isBuffering) {
+          eventBuffer += event
+        }
         if(windowStatistics.hadRollover()) {
-          val sliceCandidate = getSlicingStrategy(windowStatistics)
-          if(slicingCost(sliceCandidate,eventBuffer) + adaptationCost(sliceCandidate,windowStatistics) < slicingCost(lastSlicing,eventBuffer)) {
-            lastSlicing = sliceCandidate
-            triggeredAdapt = true
-            c.collect(generateMessage(lastSlicing))
-          }else{
-            c.collect(CommandRecord("gapt",""))
-          }
-          if(isBuffering)
-          {
-            for(v <- eventBuffer)
-            {
-              c.collect(v)
+          if(!isBuffering){
+            if(costSlicerTracker.costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,windowStatistics) < costSlicerTracker.costSecond * avgMaxProcessingTime) {
+              lastSlicing = sliceCandidate
+              triggeredAdapt = true
+              c.collect(generateMessage(lastSlicing))
+            }else{
+              c.collect(CommandRecord("gapt",""))
             }
           }
-          eventBuffer.clear()
+          sliceCandidate = getSlicingStrategy(windowStatistics)
+          if(!isBuffering) {
+            costSlicerTracker.reset(sliceCandidate,lastSlicing)
+          }else {
+            if (slicingCost(sliceCandidate, eventBuffer) + adaptationCost(sliceCandidate, windowStatistics) < slicingCost(lastSlicing, eventBuffer)) {
+              lastSlicing = sliceCandidate
+              triggeredAdapt = true
+              c.collect(generateMessage(lastSlicing))
+            } else {
+              c.collect(CommandRecord("gapt", ""))
+            }
+            for (v <- eventBuffer) {
+              c.collect(v)
+            }
+            eventBuffer.clear()
+          }
         }else{
           if(!isBuffering)
           {
