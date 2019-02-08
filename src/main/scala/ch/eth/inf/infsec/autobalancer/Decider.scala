@@ -124,10 +124,12 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
 
   var shutdownTime : Long = 10
 
+  var assumedFutureStableWindowsAmount : Double = 1.0
+
   var triggeredAdapt = false
 
   def makeAdaptDecision(c:Collector[Record]) : Unit = {
-    if(costSlicerTracker.costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,windowStatistics) < costSlicerTracker.costSecond * avgMaxProcessingTime) {
+    if(costSlicerTracker.costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,windowStatistics) / assumedFutureStableWindowsAmount < costSlicerTracker.costSecond * avgMaxProcessingTime) {
       lastSlicing = sliceCandidate
       triggeredAdapt = true
       c.collect(generateMessage(lastSlicing))
@@ -169,7 +171,16 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
           if(!isBuffering){
             makeAdaptDecision(c)
           }
+          var prevSliceCandidate = sliceCandidate
           sliceCandidate = getSlicingStrategy(windowStatistics)
+          if(prevSliceCandidate == sliceCandidate) {
+            //the longer we'd want to switch to the same new canddiate, the more we assume that that it will continue to be optimal
+            assumedFutureStableWindowsAmount = assumedFutureStableWindowsAmount + 1
+          }else{
+            //slow increase, doubling decrease mechanism taken from TCP's adaptive approach
+            //we drastically penalize changing
+            assumedFutureStableWindowsAmount = assumedFutureStableWindowsAmount / 2
+          }
           if(!isBuffering) {
             costSlicerTracker.reset(sliceCandidate,lastSlicing)
           }else {
