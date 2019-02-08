@@ -5,25 +5,32 @@ import java.net.Socket
 
 import ch.eth.inf.infsec.StatelessProcessor
 
-class KnowledgeExtract extends StatelessProcessor[MonpolyRequest,String] with Serializable {
+class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,String] with Serializable {
   @transient private var connectedSocket: Socket = _
   @transient private var outputStream : BufferedWriter = _
 
+  var received = 0
+  var highest = 0.0
 
   override def process(in: MonpolyRequest, f: String => Unit): Unit = {
     in match {
       case CommandItem(a) => {
         //todo: better parsing
         if(a.startsWith(">gaptr ")) {
-            //todo: wait for all, then get highest?
-            //or just send along immediately?
-            //waiting for all and merging seems best
-            //but that requires more info, so we just send immediately
-          try {
-            if (outputStream != null)
-              outputStream.write(a.drop(1).dropRight(1))
-          } catch { //todo: error handling
-            case e: Exception => {}
+          //wait for all, combine and only send highest
+          received = received +1
+          val candidateHighest = a.drop(">gaptr ".length).dropRight(1).toDouble
+          if(candidateHighest > highest)
+            highest = candidateHighest
+          if(received >= degree) {
+            try {
+              if (outputStream != null)
+                outputStream.write("gaptr "+highest.toString)
+            } catch { //todo: error handling
+              case e: Exception => {}
+            }
+            received = 0
+            highest = 0.0
           }
         }else if(a.startsWith(">OutsideInfluenceAddress ")) {
           var addr = a.split("\\s+")(1).dropRight(1)

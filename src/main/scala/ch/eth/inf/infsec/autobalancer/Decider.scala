@@ -112,8 +112,6 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   def generateMessage(strat: SlicingStrategy) : Record
 
   var avgMaxProcessingTime : Long = 0
-  var tempAvgMaxProcessingTime : Long = 0
-  var tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest : Long = 0
 
   val windowStatistics = new WindowStatistics(1,windowSize, degree)
   var lastSlicing = firstSlicing
@@ -154,13 +152,7 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
     event match {
       case CommandRecord(com,params) => {
         if(com == "gaptr") {
-          tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest += 1
-          if(tempAvgMaxProcessingTime < params.toLong) {
-            tempAvgMaxProcessingTime = params.toLong
-          }
-          if(tempAvgMaxProcessingTimeMessagesReceivedSinceLastRequest == degree) {
-            avgMaxProcessingTime = tempAvgMaxProcessingTime
-          }
+          avgMaxProcessingTime = params.toLong
         } else if(com == "gsdtr") {
           //function approximation code
           shutdownTime = params.toLong

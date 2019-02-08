@@ -273,7 +273,7 @@ object StreamMonitoring {
 
       //Single node
 
-      val verdicts = verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract()))
+      val verdicts = verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract(slicer.degree)))
 
       out match {
         case Some(Left((h, p))) =>
