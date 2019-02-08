@@ -125,6 +125,17 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   var shutdownTime : Long = 10
 
   var triggeredAdapt = false
+
+  def makeAdaptDecision(c:Collector[Record]) : Unit = {
+    if(costSlicerTracker.costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,windowStatistics) < costSlicerTracker.costSecond * avgMaxProcessingTime) {
+      lastSlicing = sliceCandidate
+      triggeredAdapt = true
+      c.collect(generateMessage(lastSlicing))
+    }else{
+      c.collect(CommandRecord("gapt",""))
+    }
+  }
+
   override def flatMap(event:Record,c:Collector[Record]): Unit = {
     if(triggeredAdapt) {
       triggeredAdapt = false
@@ -156,25 +167,13 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
         }
         if(windowStatistics.hadRollover()) {
           if(!isBuffering){
-            if(costSlicerTracker.costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,windowStatistics) < costSlicerTracker.costSecond * avgMaxProcessingTime) {
-              lastSlicing = sliceCandidate
-              triggeredAdapt = true
-              c.collect(generateMessage(lastSlicing))
-            }else{
-              c.collect(CommandRecord("gapt",""))
-            }
+            makeAdaptDecision(c)
           }
           sliceCandidate = getSlicingStrategy(windowStatistics)
           if(!isBuffering) {
             costSlicerTracker.reset(sliceCandidate,lastSlicing)
           }else {
-            if (slicingCost(sliceCandidate, eventBuffer) + adaptationCost(sliceCandidate, windowStatistics) < slicingCost(lastSlicing, eventBuffer)) {
-              lastSlicing = sliceCandidate
-              triggeredAdapt = true
-              c.collect(generateMessage(lastSlicing))
-            } else {
-              c.collect(CommandRecord("gapt", ""))
-            }
+            makeAdaptDecision(c)
             for (v <- eventBuffer) {
               c.collect(v)
             }
