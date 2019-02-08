@@ -2,14 +2,14 @@ package ch.eth.inf.infsec.autobalancer
 
 import ch.eth.inf.infsec.StreamMonitoring
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
-import ch.eth.inf.infsec.trace.{CommandRecord, EventRecord, MonpolyParsers, Record, Tuple}
+import ch.eth.inf.infsec.trace.{CommandRecord, EventRecord, Record}
 import org.apache.flink.api.common.functions.FlatMapFunction
 import org.apache.flink.util.Collector
 
 import scala.collection.mutable.ArrayBuffer
 import ch.eth.inf.infsec.policy.Formula
-import fastparse.noApi._
-import org.apache.flink.runtime.state.StateSnapshotContext
+
+import scala.util.Random
 
 //problem: how to solve "final bit of stream needs to be processed to"
 //proposed solution: "end of stream message"
@@ -126,6 +126,14 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
 
   var assumedFutureStableWindowsAmount : Double = 1.0
 
+  //sampling section
+  val isSampling = false //todo: param
+  var eventsObserved = 0
+  var eventObsTillSample = 0
+  var sampleEventFreqUpperBoundary = 100 //todo: automatically figured out
+  var sampleEventFreqLowerBoundary = 10 //todo: automatically figured out
+  //
+
   var triggeredAdapt = false
 
   def makeAdaptDecision(c:Collector[Record]) : Unit = {
@@ -162,7 +170,16 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
       }
       case EventRecord(_,_,_) => {
         if (!event.isEndMarker) {
-          windowStatistics.addEvent(event)
+          if(!isSampling) {
+            windowStatistics.addEvent(event)
+          }else{
+            if(eventsObserved >= eventObsTillSample){
+              eventsObserved = 0
+              eventObsTillSample = Random.nextInt(sampleEventFreqUpperBoundary+1)+sampleEventFreqLowerBoundary
+            }else{
+              eventsObserved = eventsObserved + 1
+            }
+          }
         }
         if(isBuffering) {
           eventBuffer += event
