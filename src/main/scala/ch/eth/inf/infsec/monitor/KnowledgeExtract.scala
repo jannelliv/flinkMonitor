@@ -9,8 +9,10 @@ class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,S
   @transient private var connectedSocket: Socket = _
   @transient private var outputStream : BufferedWriter = _
 
-  var received = 0
-  var highest = 0.0
+  var receivedGAPTR = 0
+  var highestGAPTR = 0.0
+  var receivedGSDMSR = 0
+  var highestGSDMSR = 0
 
   override def process(in: MonpolyRequest, f: String => Unit): Unit = {
     in match {
@@ -18,19 +20,38 @@ class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,S
         //todo: better parsing
         if(a.startsWith(">gaptr ")) {
           //wait for all, combine and only send highest
-          received = received +1
+          receivedGAPTR = receivedGAPTR + 1
           val candidateHighest = a.drop(">gaptr ".length).dropRight(1).toDouble
-          if(candidateHighest > highest)
-            highest = candidateHighest
-          if(received >= degree) {
+          if (candidateHighest > highestGAPTR)
+            highestGAPTR = candidateHighest
+          if (receivedGAPTR >= degree) {
             try {
               if (outputStream != null)
-                outputStream.write("gaptr "+highest.toString)
+                outputStream.write("gaptr " + highestGAPTR.toString)
             } catch { //todo: error handling
               case e: Exception => {}
             }
-            received = 0
-            highest = 0.0
+            receivedGAPTR = 0
+            highestGAPTR = 0.0
+          }
+        }else if(a.startsWith(">gsdmsr ")) {
+          //wait for all, combine and only send highest
+          //todo: reconsider if we may want to send fitting instead
+          //todo: reconsider if we may want it to be one command instead
+          //todo: consider code-dedup
+          receivedGSDMSR = receivedGSDMSR + 1
+          val candidateHighest = a.drop(">gsdmsr ".length).dropRight(1).toInt
+          if (candidateHighest > highestGSDMSR)
+            highestGSDMSR = candidateHighest
+          if (receivedGSDMSR >= degree) {
+            try {
+              if (outputStream != null)
+                outputStream.write("gsdmsr " + highestGSDMSR.toString)
+            } catch { //todo: error handling
+              case e: Exception => {}
+            }
+            receivedGSDMSR = 0
+            highestGSDMSR = 0
           }
         }else if(a.startsWith(">OutsideInfluenceAddress ")) {
           var addr = a.split("\\s+")(1).dropRight(1)

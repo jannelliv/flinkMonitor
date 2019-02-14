@@ -1,6 +1,6 @@
 package ch.eth.inf.infsec.monitor
 
-import java.nio.file.{Files, Path}
+import java.nio.file.{Files, Path, Paths}
 import java.io.File
 import java.util
 
@@ -124,8 +124,34 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     }
   }
 
-  override def initSnapshot(): Unit = {
+  var memory = ""
+
+  def readResidentialMemory(): Unit = {
+    var pid = MonpolyProcessJavaHelper.getPidOfProcess(process)
+    if(pid != -1) {
+      var lines = Files.readAllLines(Paths.get("/proc/"+pid+"/status"))
+      if(lines != null) {
+        //java collection, so the java way
+        var i = 0
+        while(i < lines.size()) {
+          var l = lines.get(i)
+          if(l.startsWith("VmRSS:")) {
+            memory = l.drop("VmRSS:".length).trim.dropRight("kB".length).trim
+            return
+          }
+          i = i+1
+        }
+      }
+    }
+  }
+
+  def snapshotHelper(): Unit = {
     lastShutdownInitiatedTime = System.currentTimeMillis()
+    readResidentialMemory()
+  }
+
+  override def initSnapshot(): Unit = {
+    snapshotHelper()
     var command = ""
     if(pendingSlicer) command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
     else command = SAVE_STATE_COMMAND.format(tempStateFile.toString)
@@ -134,6 +160,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def initSnapshot(slicer: String): Unit = {
+    snapshotHelper()
     writer.write(SET_SLICER_COMMAND.format(slicer))
     writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
     writer.flush()
@@ -162,7 +189,11 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
           {
             buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
           }else if(com.in.startsWith(">gsdt")) {
-            buffer += CommandItem(">gsdtr "+(lastShutdownCompletedTime-lastShutdownInitiatedTime).toString()+"<")
+            buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")
+          }else if(com.in.startsWith(">gsdms")){
+            if(memory == "")
+              readResidentialMemory()
+            buffer += CommandItem(">gsdmsr " + memory + "<")
           }else {
             buffer += com
           }

@@ -6,7 +6,7 @@ import java.lang.ProcessBuilder.Redirect
 import scala.collection.JavaConversions
 
 abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT] {
-  @transient private var process: Process = _
+  @transient protected var process: Process = _
 
   @transient protected var writer: BufferedWriter = _
   @transient protected var reader: BufferedReader = _

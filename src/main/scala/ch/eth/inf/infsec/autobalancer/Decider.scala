@@ -120,7 +120,7 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
 
   var costSlicerTracker : CostSlicerTracker[SlicingStrategy]
 
-  var shutdownTime : Long = 10
+  var shutdownTime : Double = 10.0
 
   var assumedFutureStableWindowsAmount : Double = 1.0
 
@@ -144,10 +144,13 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
     }
   }
 
+  var shutdownMemory : Long = 0
+
   override def flatMap(event:Record,c:Collector[Record]): Unit = {
     if(triggeredAdapt) {
       triggeredAdapt = false
       c.collect(CommandRecord("gsdt",""))
+      c.collect(CommandRecord("gsdms",""))
     }
     event match {
       case CommandRecord(com,params) => {
@@ -155,7 +158,9 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
           avgMaxProcessingTime = params.toLong
         } else if(com == "gsdtr") {
           //function approximation code
-          shutdownTime = params.toLong
+          shutdownTime = params.toDouble
+        } else if(com == "gsdmsr") {
+          shutdownMemory = params.toLong
         }else{
           c.collect(event)
         }

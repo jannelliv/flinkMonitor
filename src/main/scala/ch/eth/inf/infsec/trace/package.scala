@@ -92,6 +92,8 @@ package object trace {
   gaptr <timedelta in ms> - Get Average Processing Time Answer, to be combined and redirected to the start
   gsdt - Get Shutdown Time taken for last shutdown from monpoly operators
   gsdtr <time in ms> - Get Shutdown Time taken response, to be combined and redirected to the start
+  gsdms - Get residential memory of monpoly at shutdown time (just before shutdown got initiated)
+  gsdmsr <size in kB> - the response to gsdms, to be combined and redirected to the start
   OutsideInfluenceAddresse <ip>:<port> - the ip+port to which to connect to to send things over the backedge.
   */
 
