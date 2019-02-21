@@ -5,7 +5,7 @@ import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
 import ch.eth.inf.infsec.Processor
 import ch.eth.inf.infsec.slicer.HypercubeSlicer
-import ch.eth.inf.infsec.trace.{CommandRecord, MonpolyVerdictFilter, Record}
+import ch.eth.inf.infsec.trace.{CommandRecord, LiftProcessor, MonpolyVerdictFilter, Record}
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
@@ -143,9 +143,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     postProcessState match {
       case Some(x) =>
         slicer.updateState(x.asInstanceOf[Array[Byte]])
-        postprocessing.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
+        postprocessing.asInstanceOf[LiftProcessor].accessInternalProcessor.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
       case None =>
-        postprocessing.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
+        postprocessing.asInstanceOf[LiftProcessor].accessInternalProcessor.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
     }
     postprocessing.setParallelInstanceIndex(subtaskIndex)
 

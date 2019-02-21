@@ -112,6 +112,7 @@ class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRe
   override def terminate(f: MonpolyRequest => Unit): Unit = {
     proc2.terminate(x => f(EventItem(x)))
   }
+  def accessInternalProcessor : Processor[String,String] = proc2
 }
 
 class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)

@@ -22,12 +22,12 @@ trait CostSlicerTracker[SlicingStrategy] {
   def addEvent(event:Record): Unit
 }
 
-class HypercubeCostSlicerTracker(degree : Int) extends CostSlicerTracker[HypercubeSlicer] {
-  var first : HypercubeSlicer = _
-  var second : HypercubeSlicer = _
+class HypercubeCostSlicerTracker(initialSlicer : HypercubeSlicer, degree : Int) extends CostSlicerTracker[HypercubeSlicer] with Serializable {
+  var first : HypercubeSlicer = initialSlicer
+  var second : HypercubeSlicer = initialSlicer
 
-  var firstArr : ArrayBuffer[Int] = _
-  var secondArr : ArrayBuffer[Int] = _
+  var firstArr : ArrayBuffer[Int] = ArrayBuffer.fill(degree)(0)
+  var secondArr : ArrayBuffer[Int] = ArrayBuffer.fill(degree)(0)
 
   def cost(arrayBuffer: ArrayBuffer[Int]) : Int = {
     var max = 0
@@ -86,7 +86,7 @@ class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double)
     max * avgMaxProcessingTime
   }
 
-  override var costSlicerTracker: CostSlicerTracker[HypercubeSlicer] = new HypercubeCostSlicerTracker(degree)
+  override var costSlicerTracker: CostSlicerTracker[HypercubeSlicer] = new HypercubeCostSlicerTracker(firstSlicing, degree)
 
   override def adaptationCost(strat: HypercubeSlicer, ws: WindowStatistics): Double = {
     return shutdownTime
@@ -103,7 +103,7 @@ class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double)
 
 abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double,
                                       isBuffering : Boolean)
-  extends FlatMapFunction[Record,Record] {
+  extends FlatMapFunction[Record,Record] with Serializable {
   //we are really sad because these things should be parameters, but since this is java we make them members instead
   def firstSlicing : SlicingStrategy
   def getSlicingStrategy(ws : WindowStatistics) : SlicingStrategy

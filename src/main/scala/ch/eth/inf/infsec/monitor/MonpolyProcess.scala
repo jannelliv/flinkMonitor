@@ -92,7 +92,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     println("Opened Monpoly after rescale")
   }
 
-  @transient private val indexCommandTimingBuffer = new mutable.Queue[Either[CommandItem,Long]]()
+  private val indexCommandTimingBuffer = new mutable.Queue[Either[CommandItem,Long]]()
   private var processTimeMovingAverage = 0.0
   def yes(x: Long): Unit = {
     processTimeMovingAverage = processTimeMovingAverage * 0.9 + x * 0.1
