@@ -1,20 +1,17 @@
 package ch.eth.inf.infsec.monitor
 
-import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
-import java.lang.ProcessBuilder.Redirect
+import java.io._
 import java.net.{InetAddress, ServerSocket, Socket}
 import java.util.concurrent.LinkedBlockingQueue
 
 import ch.eth.inf.infsec.StatelessProcessor
 import ch.eth.inf.infsec.trace.{CommandRecord, Record}
 
-import scala.collection.JavaConversions
-
 
 
 
 //the fusion of a very simplified ExternalProcessOperator and a Processor
-class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializable {
+class OutsideInfluence(doLog : Boolean) extends StatelessProcessor[Record,Record] with Serializable {
 
   @transient private var serverSocket: ServerSocket = _
   @transient private var connectedSocket: Socket = _
@@ -27,11 +24,10 @@ class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializab
   @transient var machineIp : String = null
   @transient var connectThread : SocketHandlingThread = null
 
-
   def make() : Unit = {
-    serverSocket = new ServerSocket()
-    portId = serverSocket.getLocalPort()
+    serverSocket = new ServerSocket(0)
     machineIp = InetAddress.getLocalHost().getHostAddress()
+    portId = serverSocket.getLocalPort()
 
 
     connectThread = new SocketHandlingThread {
@@ -45,14 +41,29 @@ class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializab
       override def handle() : Unit = {
         readerQueue.put(reader.readLine())
       }
+      override def failOperator(e : Throwable) : Unit = {
+        tempF.write("ran into issue in connectThread: "+e+"\n")
+        tempF.flush()
+      }
     }
+    connectThread.start()
   }
 
   def sendSocketAddressCommand(f: Record => Unit) : Unit = {
     f(CommandRecord("OutsideInfluenceAddress",machineIp+":"+portId.toString))
   }
 
+    var started = false
+    var tempF : FileWriter = null
+
   override def process(in: Record, f: Record => Unit): Unit = {
+    if(!started) {
+      started = true
+      tempF = new FileWriter("OutsideInfluence.log",false)
+    }
+/*    tempF.write(in.in + "\n")
+    tempF.flush()*/
+
     if(machineIp == null) {
       make()
       sendSocketAddressCommand(f)
@@ -60,6 +71,8 @@ class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializab
     if(readerQueue != null) {
       while (!readerQueue.isEmpty) {
         val str = readerQueue.take()
+        tempF.write("got message from queue: "+str+"\n")
+        tempF.flush()
         val split = str.trim().split("\\s+", 2)
         if (split.length == 2)
           f(CommandRecord(split(0), split(1)))
@@ -86,6 +99,7 @@ class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializab
 
     def startup(): Unit
     def handle(): Unit
+    def failOperator(exception: Throwable): Unit
 
     override def run(): Unit = {
       try {
@@ -94,10 +108,10 @@ class OutsideInfluence extends StatelessProcessor[Record,Record] with Serializab
           handle()
       } catch {
         case e: InterruptedException =>
-/*          if (running)
-            failOperator(e)*/
+          if (running)
+            failOperator(e)
         case e: Throwable =>
-//          failOperator(e)
+          failOperator(e)
       }
     }
 

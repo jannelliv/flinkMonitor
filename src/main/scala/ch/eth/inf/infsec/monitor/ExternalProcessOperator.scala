@@ -1,5 +1,6 @@
 package ch.eth.inf.infsec.monitor
 
+import java.io.FileWriter
 import java.util
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
@@ -170,9 +171,19 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     resultState.clear()
 
     writerThread = new ServiceThread {
+/*      var started = false
+      var tempF4 : FileWriter = null
+*/
+
       override def handle(): Unit = {
-        val request = requestQueue.take()
-        processingQueue.put(request)
+/*          if(!started) {
+            started = true
+            tempF4 = new FileWriter("EPOwriterThread.log",false)
+          }
+*/        val request = requestQueue.take()
+/*        tempF4.write(request+"\n")
+        tempF4.flush()
+*/        processingQueue.put(request)
         request match {
           case InputItem(record)   => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
@@ -195,18 +206,38 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
         resultLock.notifyAll()
       }
 
+/*      var started = false
+      var tempF3 : FileWriter = null*/
+
+
       override def handle(): Unit = {
+/*        if(!started) {
+          started = true
+          tempF3 = new FileWriter("EPOreaderThread.log",false)
+        }*/
         val request = processingQueue.take()
+/*        tempF3.write(request+"\n")
+        tempF3.flush()*/
         request match {
           case InputItem(record) =>
             try {
-              process.readResults(buffer)
-              resultLock.synchronized {
-                for (result <- buffer)
+/*              tempF3.write("about to process.readResults(buffer)\n")
+              tempF3.flush()
+*/              process.readResults(buffer)
+/*              tempF3.write("done process.readResults(buffer)\n")
+              tempF3.flush()
+*/              resultLock.synchronized {
+/*                tempF3.write("inside resultLock\n")
+                tempF3.flush()
+*/                for (result <- buffer) {
+//                  tempF3.write(result+"\n")
                   postprocessing.process(
                     result, r => resultQueue.add(OutputItem(outputRecord(record, r))))
+                }
                 resultQueue.add(OutputSeparatorItem())
-                resultLock.notifyAll()
+/*                tempF3.write("OutputSeparatorItem\n")
+                tempF3.flush()
+*/                resultLock.notifyAll()
               }
             } finally {
               buffer.clear()
@@ -241,7 +272,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
             putResult(shutdown)
             running = false
         }
-      }
+/*        tempF3.write("end of request\n")
+        tempF3.flush()
+*/      }
     }
     readerThread.start()
 
@@ -428,12 +461,23 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     enqueueRequest(LatencyMarkerItem(marker))
   }
 
+/*  var started = false
+  var tempF : FileWriter = null*/
+
+
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
+/*    if(!started) {
+      started = true
+      tempF = new FileWriter("EXPOProcessElement.log",false)
+    }
+    tempF.write("("+streamRecord.getValue.asInstanceOf[(Int,Record)]._1+","+streamRecord.getValue.asInstanceOf[(Int,Record)]._2.toMonpoly + ")\n")
+    tempF.write("PendingCount before this: "+pendingCount+"\n")
+    tempF.flush()*/
     // TODO(JS): Implement timeout
     val tuple = streamRecord.getValue.asInstanceOf[(Int, Record)]
     tuple._2 match {
       case CommandRecord("set_slicer", parameters) =>
-        postprocessing.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
+        postprocessing.asInstanceOf[LiftProcessor].accessInternalProcessor.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
         pendingSlicer = parameters
       case _ => ()
     }

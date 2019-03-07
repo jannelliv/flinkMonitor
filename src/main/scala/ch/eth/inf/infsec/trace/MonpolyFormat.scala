@@ -1,5 +1,7 @@
 package ch.eth.inf.infsec.trace
 
+import java.io.FileWriter
+
 import ch.eth.inf.infsec.monitor.{CommandItem, EventItem, MonpolyRequest}
 import ch.eth.inf.infsec.{Processor, StatelessProcessor}
 import fastparse.WhitespaceApi
@@ -102,7 +104,18 @@ class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRe
 
   override def restoreState(state: Option[State]): Unit = proc2.restoreState(state)
 
+/*  var started = false
+  var tempF : FileWriter = null
+*/
+
   override def process(in: MonpolyRequest, f: MonpolyRequest => Unit): Unit = {
+/*    if(!started) {
+      started = true
+      tempF = new FileWriter("LiftProcessor.log",false)
+    }
+    tempF.write(in.in + "\n")
+    tempF.flush()
+*/
     in match {
       case c@CommandItem(a) => f(c)
       case EventItem(b) => proc2.process(b,x => f(EventItem(x)))

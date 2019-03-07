@@ -2,7 +2,7 @@ package ch.eth.inf.infsec
 
 import java.io.PrintWriter
 
-import ch.eth.inf.infsec.autobalancer.DeciderFlatMapSimple
+import ch.eth.inf.infsec.autobalancer.{AllState, DeciderFlatMapSimple}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, SlicerParser}
 import ch.eth.inf.infsec.analysis.TraceAnalysis
 import ch.eth.inf.infsec.monitor._
@@ -20,6 +20,7 @@ import org.apache.flink.core.fs.Path
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.sink.{OutputFormatSinkFunction, PrintSinkFunction, SocketClientSink}
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
+import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator
 import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
 
@@ -247,11 +248,11 @@ object StreamMonitoring {
         .setMaxParallelism(1)
         .setParallelism(1)
 
-      val injectedTrace = parsedTrace.flatMap(new ProcessorFunction(new OutsideInfluence()))
+      val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record]((new OutsideInfluence(true)).asInstanceOf[Processor[Record,Record] with Serializable]))
 
       //todo: proper arguments
       //assumes in-order atm
-      val observedTrace = injectedTrace.flatMap (new DeciderFlatMapSimple(slicer.degree,formula,5)).setMaxParallelism(1)
+      val observedTrace = injectedTrace.flatMap(new ProcessorFunction[Record,Record](new AllState(new DeciderFlatMapSimple(slicer.degree,formula,100)))).setMaxParallelism(1).name("Decider").uid("decider")
         .setMaxParallelism(1)
         .setParallelism(1)//.name("ObservedTrace").uid("observed-trace");
 

@@ -1,6 +1,6 @@
 package ch.eth.inf.infsec.monitor
 
-import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
+import java.io._
 import java.lang.ProcessBuilder.Redirect
 
 import scala.collection.JavaConversions
@@ -23,7 +23,8 @@ abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT]
 
     println(instantiatedCommand.mkString(" "))
     process = new ProcessBuilder(JavaConversions.seqAsJavaList(instantiatedCommand))
-        .redirectError(Redirect.INHERIT)
+//        .redirectError(Redirect.INHERIT)
+        .redirectError(Redirect.appendTo(new File("monpolyProcessError.log")))
         .start()
     writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))
     reader = new BufferedReader(new InputStreamReader(process.getInputStream))
