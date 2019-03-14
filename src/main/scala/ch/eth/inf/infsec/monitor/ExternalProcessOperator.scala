@@ -19,6 +19,7 @@ import org.apache.flink.streaming.api.watermark.Watermark
 import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRecord}
 import org.apache.flink.streaming.runtime.tasks.StreamTask
 import org.apache.flink.util.ExceptionUtils
+import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
@@ -176,20 +177,18 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 */
 
       override def handle(): Unit = {
-/*          if(!started) {
-            started = true
-            tempF4 = new FileWriter("EPOwriterThread.log",false)
-          }
-*/        val request = requestQueue.take()
-/*        tempF4.write(request+"\n")
-        tempF4.flush()
-*/        processingQueue.put(request)
+        val request = requestQueue.take()
+        processingQueue.put(request)
         request match {
           case InputItem(record)   => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
           case LatencyMarkerItem(_) => ()
           case SnapshotRequestItem() =>
+            val logger = LoggerFactory.getLogger(getClass)
+            logger.info("SnapshotRequestItem in writer thread start")
             process.initSnapshot()
+            logger.info("SnapshotRequestItem in writer thread end")
+            processingQueue.foreach(x => logger.info(x.toString))
           case ShutdownItem() =>
             process.shutdown()
             running = false
@@ -206,38 +205,20 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
         resultLock.notifyAll()
       }
 
-/*      var started = false
-      var tempF3 : FileWriter = null*/
-
 
       override def handle(): Unit = {
-/*        if(!started) {
-          started = true
-          tempF3 = new FileWriter("EPOreaderThread.log",false)
-        }*/
         val request = processingQueue.take()
-/*        tempF3.write(request+"\n")
-        tempF3.flush()*/
         request match {
           case InputItem(record) =>
             try {
-/*              tempF3.write("about to process.readResults(buffer)\n")
-              tempF3.flush()
-*/              process.readResults(buffer)
-/*              tempF3.write("done process.readResults(buffer)\n")
-              tempF3.flush()
-*/              resultLock.synchronized {
-/*                tempF3.write("inside resultLock\n")
-                tempF3.flush()
-*/                for (result <- buffer) {
-//                  tempF3.write(result+"\n")
+              process.readResults(buffer)
+              resultLock.synchronized {
+                for (result <- buffer) {
                   postprocessing.process(
                     result, r => resultQueue.add(OutputItem(outputRecord(record, r))))
                 }
                 resultQueue.add(OutputSeparatorItem())
-/*                tempF3.write("OutputSeparatorItem\n")
-                tempF3.flush()
-*/                resultLock.notifyAll()
+                resultLock.notifyAll()
               }
             } finally {
               buffer.clear()
@@ -246,6 +227,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case mark@WatermarkItem(_) => putResult(mark)
           case marker@LatencyMarkerItem(_) => putResult(marker)
           case SnapshotRequestItem() =>
+            LoggerFactory.getLogger(getClass).info("SnapshotRequestItem in reader thread")
             val results = process.readSnapshots()
             if(results.size == 1){
               val result = results.head
@@ -384,16 +366,19 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     // In particular, we _must not_ release the checkpointing lock, which would allow the emitter thread to
     // send pending results downstream. Since the barrier has already been sent to downstream operators at
     // this point, this would result in inconsistent snapshots.
-
     if (waitingRequest != null) {
       requestQueue.put(waitingRequest)
       pendingCount += 1
       waitingRequest = null
     }
+    val logger = LoggerFactory.getLogger(getClass)
+    logger.info("inserting snapshotRequestItem")
     requestQueue.put(SnapshotRequestItem())
 
+    logger.info("aquiring snapshotReady")
     // Wait until the process snapshot has been created.
     snapshotReady.acquire()
+    logger.info("snapshotReady aquired")
     assert(snapshotReady.availablePermits() == 0)
     assert(requestQueue.isEmpty)
 
@@ -406,6 +391,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     resultState.clear()
     processState.clear()
+    logger.info("doing snapshot")
 
     try {
       var gotSnapshot = false
@@ -434,6 +420,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           "Could not add pending results to operator state backend of operator" +
             getOperatorName + ".", e)
     }
+    logger.info("done snapshot")
   }
 
   override def initializeState(context: StateInitializationContext): Unit = {

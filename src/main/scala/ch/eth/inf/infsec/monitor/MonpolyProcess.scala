@@ -112,6 +112,13 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     tempF.flush()*/
 
     //canHandle represents wether this is something for monpoly or for further down in the pipeline
+    if(pendingSlicer) {
+      var tempF = new FileWriter("monpolyError.log",true)
+      tempF.write("we got a message after pending slicer was set:"+request.in+"\n")
+      tempF.flush()
+      tempF.close()
+    }
+
     var canHandle = false
     request match {
       case r@CommandItem(request.in) =>
@@ -135,9 +142,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
         indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
         writer.write(request.in)
-        writer.write(GET_INDEX_COMMAND)
-        // TODO(JS): Do not flush if there are more requests in the queue
-        writer.flush()
       }catch{
         case e:Throwable => {
           var tempF = new FileWriter("monpolyError.log",true)
@@ -148,6 +152,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
         }
       }
     }
+    //TODO(CF): This is inefficient in the case of internal commands, but necessary to get an output because each write needs a matching read
+    writer.write(GET_INDEX_COMMAND)
+    // TODO(JS): Do not flush if there are more requests in the queue
+    writer.flush()
   }
 
   var memory = ""
@@ -207,11 +215,27 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       started2 = true
       tempF2 = new FileWriter("monpolyOut"+(process.hashCode()%10000)+".log",false)
     }*/
-
+    if(pendingSlicer) {
+      var tempF = new FileWriter("monpolyError.log",true)
+      tempF.write("we called readResults after pending slicer was set\n")
+      tempF.flush()
+      tempF.close()
+    }
     var more = true
     do {
-
+      if(pendingSlicer) {
+        var tempF = new FileWriter("monpolyError.log",true)
+        tempF.write("In readResults loop after pending slicer was set\n")
+        tempF.flush()
+        tempF.close()
+      }
       val line = reader.readLine()
+        if(pendingSlicer) {
+        var tempF = new FileWriter("monpolyError.log",true)
+        tempF.write("but it okay because it had data: "+line+"\n")
+        tempF.flush()
+        tempF.close()
+      }
 
 /*      if(line != null) {
         tempF2.write(line+"\n")
@@ -307,6 +331,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def readSnapshot(): Array[Byte] = {
+    var tempF = new FileWriter("monpolyError.log",true)
+    tempF.write("we finish snapshotting\n")
+    tempF.flush()
+    tempF.close()
     val line = reader.readLine()
     if (line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)
@@ -337,6 +365,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
 
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = {
+    var tempF = new FileWriter("monpolyError.log",true)
+    tempF.write("we finish snapshotting\n")
+    tempF.flush()
+    tempF.close()
     val line = reader.readLine()
     if(line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)

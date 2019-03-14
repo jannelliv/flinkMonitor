@@ -393,15 +393,15 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
 
   var shutdownMemory : Long = 0
 
-  var logFile : FileWriter = _
+  @transient  var logFile : FileWriter = _
   def logCommand(com:String,params:String): Unit = {
     if(shouldDumpData) {
-      logFile.write("==== RECEIVED COMMAND: "+com+" "+params+" ====\n")
+          logFile.write("==== RECEIVED COMMAND: "+com+" "+params+" ====\n")
       logFile.flush()
     }
   }
 
-  var started = false
+  @transient  var started = false
   //  var tempF : FileWriter = _
   //  var tempF2 : FileWriter = _
   def flatMap(event:Record,c : Record => Unit): Unit = {
@@ -464,7 +464,8 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
         if(isBuffering) {
           eventBuffer += event
         }else{
-          c(event)
+//          if(!triggeredAdapt) //todo: remove this as it eats events and thus makes results incorrect, only here for testing
+            c(event)
         }
         if(doAdaptStuff && event.isEndMarker) {
           if (shouldAdapt) {
@@ -519,6 +520,11 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   }
 
   def shutdown(): Unit = {
+    if(started) {
+      logFile.close()
+      logFile = null
+    }
+    started = false
   }
 }
 
