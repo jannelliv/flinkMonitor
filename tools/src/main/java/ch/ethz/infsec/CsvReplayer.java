@@ -12,7 +12,6 @@ import java.util.concurrent.LinkedBlockingQueue;
 public class CsvReplayer {
     static abstract class OutputItem {
         final long emissionTime;
-        boolean isLast = false;
 
         OutputItem(long emissionTime) {
             this.emissionTime = emissionTime;
@@ -23,14 +22,32 @@ public class CsvReplayer {
         abstract void reportDelivery(Reporter reporter, long startTime);
     }
 
+    static final class TerminalItem extends OutputItem {
+        final boolean resurrect;
+
+        TerminalItem(boolean resurrect) {
+            super(-1);
+            this.resurrect = resurrect;
+        }
+
+        @Override
+        void write(Writer writer) {
+        }
+
+        @Override
+        void reportDelivery(Reporter reporter, long startTime) {
+            if (!resurrect) {
+                reporter.reportEnd();
+            }
+        }
+    }
+
     static abstract class DatabaseBuffer extends OutputItem {
         DatabaseBuffer(long emissionTime) {
             super(emissionTime);
         }
 
         abstract void addEvent(String csvLine, String relation, int indexBeforeData);
-
-        abstract void addCommand(String csvLine, String relation);
 
         abstract int getNumberOfEvents();
 
@@ -83,35 +100,17 @@ public class CsvReplayer {
         }
 
         @Override
-        void addCommand(String csvLine, String relation) {
-            StringBuilder commandBuilder = relations.get(relation);
-            if (commandBuilder == null) {
-                commandBuilder = new StringBuilder();
-                relations.put(relation, commandBuilder);
-            }
-            commandBuilder.append(csvLine);
-        }
-
-        @Override
         int getNumberOfEvents() {
             return numberOfEvents;
         }
 
         @Override
         void write(Writer writer) throws IOException {
-            StringBuilder command = relations.get("command");
-            if(command != null){
-                relations.remove("command");
-                writer.append(command);
-                writer.append('\n');
+            writer.append('@').append(Long.toString(timestamp));
+            for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
+                writer.append(' ').append(entry.getKey()).append(entry.getValue());
             }
-            if(relations.size() > 0){
-                writer.append('@').append(Long.toString(timestamp));
-                for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
-                    writer.append(' ').append(entry.getKey()).append(entry.getValue());
-                }
-                writer.append('\n');
-            }
+            writer.append('\n');
         }
     }
 
@@ -124,11 +123,6 @@ public class CsvReplayer {
 
         @Override
         void addEvent(String csvLine, String relation, int indexBeforeData) {
-            lines.add(csvLine);
-        }
-
-        @Override
-        void addCommand(String csvLine, String relation) {
             lines.add(csvLine);
         }
 
@@ -167,6 +161,28 @@ public class CsvReplayer {
         }
     }
 
+    static final class CommandItem extends OutputItem {
+        private final String command;
+
+        CommandItem(String command) {
+            super(-1);
+            this.command = command;
+        }
+
+        boolean requiresReconnect() {
+            return command.startsWith(">set_slicer ");
+        }
+
+        @Override
+        public void write(Writer writer) throws IOException {
+            writer.write(command + "\n");
+        }
+
+        @Override
+        void reportDelivery(Reporter reporter, long startTime) {
+        }
+    }
+
     interface DatabaseBufferFactory {
         DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime);
     }
@@ -193,11 +209,9 @@ public class CsvReplayer {
         private final LinkedBlockingQueue<OutputItem> queue;
 
         private boolean successful = false;
-        private boolean sentCommand = false;
-        private long lastTimeStamp = 0l;
 
         private DatabaseBuffer databaseBuffer = null;
-        private long firstTimestamp;
+        private long firstTimestamp = -1;
         private long currentTimepoint;
 
         private long absoluteStartMillis = -1;
@@ -215,14 +229,17 @@ public class CsvReplayer {
             try {
                 String line;
                 while ((line = input.readLine()) != null) {
-                    processRecord(line);
+                    if (line.startsWith(">")) {
+                        processCommand(line);
+                    } else {
+                        processRecord(line);
+                    }
                 }
-
-                if (databaseBuffer == null) {
-                    databaseBuffer = factory.createDatabaseBuffer(0, -1);
+                emitBuffer();
+                if (timestampInterval > 0) {
+                    queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
                 }
-                emitBuffer(databaseBuffer, true);
-
+                queue.put(new TerminalItem(false));
                 successful = true;
             } catch (IOException e) {
                 e.printStackTrace(System.err);
@@ -235,80 +252,70 @@ public class CsvReplayer {
             return successful;
         }
 
-        private void processRecord(String line) throws InterruptedException {
-            if(line.trim().startsWith(">")) {
-                if(databaseBuffer != null) emitBuffer(databaseBuffer, false);
-
-                long nextEmission;
-                if (timeMultiplier > 0.0) {
-                    nextEmission = Math.round((double) (lastTimeStamp - firstTimestamp) / timeMultiplier * 1000.0);
-                } else {
-                    nextEmission = 0;
-                }
-
-                databaseBuffer = factory.createDatabaseBuffer(0, nextEmission);
-                databaseBuffer.addCommand(line, "command");
-                emitCommandBuffer(databaseBuffer);
-                sentCommand = true;
-            }else {
-                String relation;
-                long timepoint;
-                long timestamp;
-
-                int startIndex;
-                int currentIndex = 0;
-
-                while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-                startIndex = currentIndex;
-                currentIndex = line.indexOf(',', startIndex);
-                relation = line.substring(startIndex, currentIndex).trim();
-                currentIndex += 1;
-
-                currentIndex = line.indexOf('=', currentIndex) + 1;
-                while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-                startIndex = currentIndex;
-                currentIndex = line.indexOf(',', startIndex);
-                timepoint = Long.valueOf(line.substring(startIndex, currentIndex).trim());
-                currentIndex += 1;
-
-                currentIndex = line.indexOf('=', currentIndex) + 1;
-                while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-                startIndex = currentIndex;
-                currentIndex = line.indexOf(',', startIndex);
-                if (currentIndex < 0)
-                    currentIndex = line.length();
-                timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
-                lastTimeStamp = timestamp;
-                currentIndex += 1;
-
-                if (databaseBuffer == null) {
-                    databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
-                    firstTimestamp = timestamp;
-                    currentTimepoint = timepoint;
-                } else if (timepoint != currentTimepoint) {
-                    if(!sentCommand) emitBuffer(databaseBuffer, false);
-                    sentCommand =  false;
-
-                    long nextEmission;
-                    if (timeMultiplier > 0.0) {
-                        nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
-                    } else {
-                        nextEmission = 0;
-                    }
-                    databaseBuffer = factory.createDatabaseBuffer(timestamp, nextEmission);
-                    currentTimepoint = timepoint;
-                }
-
-                databaseBuffer.addEvent(line, relation, currentIndex);
+        private void processCommand(String line) throws InterruptedException {
+            emitBuffer();
+            CommandItem commandItem = new CommandItem(line);
+            queue.put(commandItem);
+            if (commandItem.requiresReconnect()) {
+                queue.put(new TerminalItem(true));
             }
         }
 
+        private void processRecord(String line) throws InterruptedException {
+            String relation;
+            long timepoint;
+            long timestamp;
 
-        private void emitCommandBuffer(DatabaseBuffer databaseBuffer) throws InterruptedException {
-            queue.put(databaseBuffer);
+            int startIndex;
+            int currentIndex = 0;
+
+            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+            startIndex = currentIndex;
+            currentIndex = line.indexOf(',', startIndex);
+            relation = line.substring(startIndex, currentIndex).trim();
+            currentIndex += 1;
+
+            currentIndex = line.indexOf('=', currentIndex) + 1;
+            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+            startIndex = currentIndex;
+            currentIndex = line.indexOf(',', startIndex);
+            timepoint = Long.valueOf(line.substring(startIndex, currentIndex).trim());
+            currentIndex += 1;
+
+            currentIndex = line.indexOf('=', currentIndex) + 1;
+            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
+            startIndex = currentIndex;
+            currentIndex = line.indexOf(',', startIndex);
+            if (currentIndex < 0)
+                currentIndex = line.length();
+            timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
+            currentIndex += 1;
+
+            if (firstTimestamp < 0) {
+                firstTimestamp = timestamp;
+                currentTimepoint = timepoint;
+                databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
+            }
+            if (timepoint != currentTimepoint) {
+                emitBuffer();
+
+                long nextEmission;
+                if (timeMultiplier > 0.0) {
+                    nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+                } else {
+                    nextEmission = 0;
+                }
+                databaseBuffer = factory.createDatabaseBuffer(timestamp, nextEmission);
+                currentTimepoint = timepoint;
+            }
+
+            databaseBuffer.addEvent(line, relation, currentIndex);
         }
 
-        private void emitBuffer(DatabaseBuffer databaseBuffer, boolean isLast) throws InterruptedException {
+        private void emitBuffer() throws InterruptedException {
+            if (databaseBuffer == null) {
+                return;
+            }
             long emissionTime = databaseBuffer.emissionTime;
 
             if (timestampInterval > 0) {
@@ -321,19 +328,10 @@ public class CsvReplayer {
                     queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
                     nextTimestampToEmit += timestampInterval;
                 }
-            } else {
-                if (isLast) {
-                    databaseBuffer.isLast = true;
-                }
             }
 
             queue.put(databaseBuffer);
-
-            if (timestampInterval > 0 && isLast) {
-                TimestampItem item = new TimestampItem(emissionTime, absoluteStartMillis);
-                item.isLast = true;
-                queue.put(item);
-            }
+            databaseBuffer = null;
         }
     }
 
@@ -341,6 +339,8 @@ public class CsvReplayer {
         void reportUnderrun();
 
         void reportDelivery(DatabaseBuffer databaseBuffer, long startTime);
+
+        void reportEnd();
     }
 
     static class NullReporter implements Reporter {
@@ -350,6 +350,10 @@ public class CsvReplayer {
 
         @Override
         public void reportDelivery(DatabaseBuffer databaseBuffer, long startTime) {
+        }
+
+        @Override
+        public void reportEnd() {
         }
 
         @Override
@@ -401,16 +405,14 @@ public class CsvReplayer {
             delaySum += currentDelay;
             maxDelay = Math.max(maxDelay, currentDelay);
             maxDelaySinceLastReport = Math.max(maxDelaySinceLastReport, currentDelay);
+        }
 
-            if (databaseBuffer.isLast) {
-                doReport();
-                running = false;
-            }
+        @Override
+        public synchronized void reportEnd() {
+            running = false;
         }
 
         private synchronized void doReport() {
-            if (!running) return;
-
             long now = System.nanoTime();
 
             double totalSeconds = (double) (now - startTime) / 1e9;
@@ -463,26 +465,110 @@ public class CsvReplayer {
         }
     }
 
+    interface Output {
+        void writeItemAndFlush(OutputItem item) throws IOException;
+
+        void waitForReconnect() throws IOException;
+    }
+
+    static class StandardOutput implements Output {
+        private final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
+
+        @Override
+        public void writeItemAndFlush(OutputItem item) throws IOException {
+            item.write(writer);
+            writer.flush();
+        }
+
+        @Override
+        public void waitForReconnect() {
+        }
+    }
+
+    static class SocketOutput implements Output {
+        private final ServerSocket serverSocket;
+        private final boolean reconnect;
+
+        private Socket clientSocket = null;
+        private BufferedWriter writer = null;
+
+        SocketOutput(ServerSocket serverSocket, boolean reconnect) {
+            this.serverSocket = serverSocket;
+            this.reconnect = reconnect;
+        }
+
+        void acquireClient() throws IOException {
+            if (clientSocket != null) {
+                throw new IllegalStateException("Client has already been acquired");
+            }
+            clientSocket = serverSocket.accept();
+            writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
+            System.err.printf("Client connected: %s\n", clientSocket.getInetAddress().getHostAddress());
+        }
+
+        private void closeClient() {
+            if (clientSocket == null) {
+                return;
+            }
+            try {
+                writer.close();
+                clientSocket.close();
+            } catch (IOException ignored) {}
+            writer = null;
+            clientSocket = null;
+        }
+
+        @Override
+        public void writeItemAndFlush(OutputItem item) throws IOException {
+            boolean tryWriting = true;
+            do {
+                try {
+                    item.write(writer);
+                    writer.flush();
+                    tryWriting = false;
+                } catch (IOException e) {
+                    System.err.println("Could not write event");
+                    closeClient();
+                    if (reconnect) {
+                        System.err.println("Waiting for new client ...");
+                        acquireClient();
+                    } else {
+                        throw e;
+                    }
+                }
+            } while (tryWriting);
+        }
+
+        @Override
+        public void waitForReconnect() throws IOException {
+            if (reconnect) {
+                closeClient();
+                System.err.println("Waiting for new client ...");
+                acquireClient();
+            }
+        }
+    }
+
     static class OutputWorker implements Runnable {
-        private final BufferedWriter output;
+        private final Output output;
         private final LinkedBlockingQueue<OutputItem> queue;
         private final Reporter reporter;
         private final Thread inputThread;
 
         private boolean successful = false;
 
-        OutputWorker(BufferedWriter output, LinkedBlockingQueue<OutputItem> queue, Reporter reporter, Thread inputThread) {
+        OutputWorker(Output output, LinkedBlockingQueue<OutputItem> queue, Reporter reporter, Thread inputThread) {
             this.output = output;
             this.queue = queue;
             this.reporter = reporter;
             this.inputThread = inputThread;
         }
 
-        public void run() {
-            try {
-                long startTime = 0L;
-                boolean isFirst = true;
-                OutputItem outputItem;
+        private void runInternal() throws InterruptedException, IOException {
+            long startTime = 0L;
+            boolean isFirst = true;
+            OutputItem outputItem;
+            do {
                 do {
                     if (isFirst) {
                         outputItem = queue.take();
@@ -503,13 +589,20 @@ public class CsvReplayer {
                         Thread.sleep(waitMillis);
                     }
 
-                    outputItem.write(output);
-                    output.flush();
-
+                    output.writeItemAndFlush(outputItem);
                     outputItem.reportDelivery(reporter, startTime);
-                } while (!outputItem.isLast);
+                } while (!(outputItem instanceof TerminalItem));
 
-                successful = true;
+                if (((TerminalItem) outputItem).resurrect) {
+                    output.waitForReconnect();
+                }
+            } while (((TerminalItem) outputItem).resurrect);
+            successful = true;
+        }
+
+        public void run() {
+            try {
+                runInternal();
             } catch (IOException e) {
                 e.printStackTrace(System.err);
             } catch (InterruptedException e) {
@@ -540,6 +633,7 @@ public class CsvReplayer {
         int outputPort = 0;
         Reporter reporter = new NullReporter();
         int queueCapacity = 1024;
+        boolean reconnect = false;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -582,6 +676,9 @@ public class CsvReplayer {
                         outputHost = parts[0];
                         outputPort = Integer.parseInt(parts[1]);
                         break;
+                    case "-k":
+                        reconnect = true;
+                        break;
                     default:
                         if (args[i].startsWith("-") || inputFilename != null) {
                             invalidArgument();
@@ -607,15 +704,16 @@ public class CsvReplayer {
             }
         }
 
-        BufferedWriter outputWriter;
+        Output output;
         if (outputHost == null) {
-            outputWriter = new BufferedWriter(new OutputStreamWriter(System.out));
+            output = new StandardOutput();
         } else {
             try {
-                ServerSocket serverSocket = new ServerSocket(outputPort, 1, InetAddress.getByName(outputHost));
-                Socket outputSocket = serverSocket.accept();
-                System.err.printf("Client connected: %s\n", outputSocket.getInetAddress().getHostAddress());
-                outputWriter = new BufferedWriter(new OutputStreamWriter(outputSocket.getOutputStream()));
+                int backlog = reconnect ? -1 : 1;
+                ServerSocket serverSocket = new ServerSocket(outputPort, backlog, InetAddress.getByName(outputHost));
+                SocketOutput socketOutput = new SocketOutput(serverSocket, reconnect);
+                socketOutput.acquireClient();
+                output = socketOutput;
             } catch (IOException e) {
                 System.err.print("Error: " + e.getMessage() + "\n");
                 System.exit(1);
@@ -631,7 +729,7 @@ public class CsvReplayer {
         InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, timestampInterval, databaseBufferFactory, queue);
         Thread inputThread = new Thread(inputWorker);
         inputThread.start();
-        OutputWorker outputWorker = new OutputWorker(outputWriter, queue, reporter, inputThread);
+        OutputWorker outputWorker = new OutputWorker(output, queue, reporter, inputThread);
         Thread outputThread = new Thread(outputWorker);
         outputThread.start();
 
@@ -641,7 +739,7 @@ public class CsvReplayer {
                 outputThread.interrupt();
             }
             outputThread.join();
-            reporterThread.join(1000);
+            reporterThread.join(2000);
         } catch (InterruptedException ignored) {
         }
 
