@@ -527,7 +527,7 @@ public class CsvReplayer {
 
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m] [-t <interval>] [-o <host>:<port>] <file>\n");
+                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m] [-t <interval>] [-o <host>:<port>] [<file>]\n");
         System.exit(1);
     }
 
@@ -539,7 +539,7 @@ public class CsvReplayer {
         String outputHost = null;
         int outputPort = 0;
         Reporter reporter = new NullReporter();
-        int queueCapacity = 64;
+        int queueCapacity = 1024;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -593,18 +593,18 @@ public class CsvReplayer {
         } catch (NumberFormatException e) {
             invalidArgument();
         }
-        if (inputFilename == null) {
-            invalidArgument();
-            return;
-        }
 
         BufferedReader inputReader;
-        try {
-            inputReader = new BufferedReader(new FileReader(inputFilename));
-        } catch (FileNotFoundException e) {
-            System.err.print("Error: " + e.getMessage() + "\n");
-            System.exit(1);
-            return;
+        if (inputFilename == null) {
+            inputReader = new BufferedReader(new InputStreamReader(System.in));
+        } else {
+            try {
+                inputReader = new BufferedReader(new FileReader(inputFilename));
+            } catch (FileNotFoundException e) {
+                System.err.print("Error: " + e.getMessage() + "\n");
+                System.exit(1);
+                return;
+            }
         }
 
         BufferedWriter outputWriter;

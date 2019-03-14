@@ -7,19 +7,21 @@ abstract class AbstractEventGenerator {
 
     private final int eventsPerIndex;
     private final long timeIncrement;
+    private final long firstTimestamp;
 
     private long currentIndex = -1;
     private long currentEmissionTime = -1;
     private long currentTimestamp = 0;
 
-    AbstractEventGenerator(RandomGenerator random, int eventRate, int indexRate) {
-        if (eventRate < indexRate || indexRate < 1) {
+    AbstractEventGenerator(RandomGenerator random, int eventRate, int indexRate, long firstTimestamp) {
+        if (eventRate < indexRate || indexRate < 1 || firstTimestamp < 0) {
            throw new IllegalArgumentException();
         }
 
         this.random = random;
         this.eventsPerIndex = eventRate / indexRate;
         this.timeIncrement = 1000000000L / indexRate;
+        this.firstTimestamp = firstTimestamp;
     }
 
     abstract void appendNextEvent(StringBuilder builder, long timestamp);
@@ -29,11 +31,11 @@ abstract class AbstractEventGenerator {
     String nextDatabase() {
         ++currentIndex;
         if (currentEmissionTime < 0) {
-            currentEmissionTime = 0;
+            currentEmissionTime = firstTimestamp * 1000000000L;
         } else {
             currentEmissionTime += timeIncrement;
-            currentTimestamp = currentEmissionTime / 1000000000L;
         }
+        currentTimestamp = currentEmissionTime / 1000000000L;
 
         StringBuilder builder = new StringBuilder();
         for (int i = 0; i < eventsPerIndex; ++i) {

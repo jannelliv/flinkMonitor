@@ -5,24 +5,21 @@ import org.apache.commons.math3.distribution.UniformIntegerDistribution;
 import org.apache.commons.math3.distribution.ZipfDistribution;
 import org.apache.commons.math3.random.RandomGenerator;
 
-import java.util.PriorityQueue;
+import java.util.*;
 
-class PositiveNegativeGenerator extends AbstractEventGenerator {
-    private static final String BASE_RELATION = "A";
-    private static final String POSITIVE_RELATION = "B";
-    private static final String NEGATIVE_RELATION = "C";
-
-    private static final String ATTRIBUTE_0 = "x";
-    private static final String ATTRIBUTE_1 = "y";
-
+final class PositiveNegativeGenerator extends AbstractEventGenerator {
     private static final int NEGATIVE_SKEW_SHIFT = 1_000_000;
 
-    public enum VariableGraph { STAR, LINEAR, TRIANGLE }
+    private final EventPattern eventPattern;
+    private final Map<String, Integer> variableMap;
+    private final List<Integer> baseVariables;
+    private final List<Integer> positiveVariables;
+    private final List<Integer> negativeVariables;
 
-    private VariableGraph variableGraph = VariableGraph.STAR;
-    private IntegerDistribution distributions[];
-    private IntegerDistribution violationDistributions[];
-    private boolean hasSkew = false;
+    private final IntegerDistribution[] distributions;
+    private final IntegerDistribution[] violationDistributions;
+    private final int[] shifts;
+    private final int[] negativeShifts;
 
     private float baseRatio = 0.33f;
     private float positiveRatio = 0.33f;
@@ -36,13 +33,11 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
 
     private static final class ScheduledData implements Comparable<ScheduledData> {
         final long timestamp;
-        final int value0;
-        final int value1;
+        final int[] attributes;
 
-        ScheduledData(long timestamp, int value0, int value1) {
+        ScheduledData(long timestamp, int[] attributes) {
             this.timestamp = timestamp;
-            this.value0 = value0;
-            this.value1 = value1;
+            this.attributes = attributes;
         }
 
         @Override
@@ -54,24 +49,46 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
     private final PriorityQueue<ScheduledData> positiveQueue = new PriorityQueue<>();
     private final PriorityQueue<ScheduledData> negativeQueue = new PriorityQueue<>();
 
-    PositiveNegativeGenerator(RandomGenerator random, int eventRate, int indexRate) {
-        super(random, eventRate, indexRate);
+    private static List<Integer> lookupVariables(Map<String, Integer> variableMap, List<String> variables) {
+        List<Integer> indexes = new ArrayList<>(variables.size());
+        for (String variable : variables) {
+            indexes.add(variableMap.get(variable));
+        }
+        return indexes;
+    }
 
-        distributions = new IntegerDistribution[4];
-        violationDistributions = new IntegerDistribution[4];
-        for (int i = 0; i < 4; ++i) {
+    PositiveNegativeGenerator(RandomGenerator random, int eventRate, int indexRate, long firstTimestamp, EventPattern eventPattern) {
+        super(random, eventRate, indexRate, firstTimestamp);
+
+        this.eventPattern = eventPattern;
+        variableMap = new HashMap<>();
+        {
+            int index = 0;
+            for (String variable : eventPattern.getVariables()) {
+                variableMap.put(variable, index++);
+            }
+
+            baseVariables = lookupVariables(variableMap, eventPattern.getArguments(eventPattern.getBaseEvent()));
+            positiveVariables = lookupVariables(variableMap, eventPattern.getArguments(eventPattern.getPositiveEvent()));
+            negativeVariables = lookupVariables(variableMap, eventPattern.getArguments(eventPattern.getNegativeEvent()));
+        }
+
+        final int variables = variableMap.size();
+        distributions = new IntegerDistribution[variables];
+        violationDistributions = new IntegerDistribution[variables];
+        shifts = new int[variables];
+        negativeShifts = new int[variables];
+        for (int i = 0; i < variables; ++i) {
             distributions[i] = new UniformIntegerDistribution(random, 0, 999_999_999);
             violationDistributions[i] = distributions[i];
         }
     }
 
-    void setVariableGraph(VariableGraph variableGraph) {
-        this.variableGraph = variableGraph;
-    }
-
-    void setZipfExponent(int variableIndex, double exponent) {
-        distributions[variableIndex] = new ZipfDistribution(random, 1_000_000_000, exponent);
-        hasSkew = true;
+    void setZipfExponent(String variable, double exponent, int offset) {
+        final int index = variableMap.get(variable);
+        distributions[index] = new ZipfDistribution(random, 1_000_000_000, exponent);
+        shifts[index] = offset;
+        negativeShifts[index] = offset + NEGATIVE_SKEW_SHIFT;
     }
 
     void setEventDistribution(float baseRatio, float positiveRatio, float violationProbability) {
@@ -111,97 +128,132 @@ class PositiveNegativeGenerator extends AbstractEventGenerator {
         return random.nextFloat() < p;
     }
 
-    private int nextValue(int variableIndex) {
-        return distributions[variableIndex].sample();
+    private int[] nextValues() {
+        final int[] values = new int[variableMap.size()];
+        for (int i = 0; i < values.length; ++i) {
+            values[i] = distributions[i].sample() + shifts[i];
+        }
+        return values;
     }
 
-    private int nextViolationValue(int variableIndex) {
-        return violationDistributions[variableIndex].sample();
+    private int[] nextValues(List<Integer> variables) {
+        final int[] values = new int[variables.size()];
+        final boolean negative = (variables == negativeVariables);
+        for (int i = 0; i < values.length; ++i) {
+            int j = variables.get(i);
+            if (negative) {
+                values[i] = distributions[j].sample() + negativeShifts[j];
+            } else {
+                values[i] = distributions[j].sample() + shifts[i];
+            }
+        }
+        return values;
     }
 
-    private int[] nextValues(boolean isViolation, boolean correlated) {
-        int value0, value1, value2, value3;
-        if (isViolation) {
-            value0 = nextViolationValue(0);
-            value1 = nextViolationValue(1);
-            value2 = nextViolationValue(2);
-            value3 = nextViolationValue(3);
-        } else {
-            value0 = nextValue(0);
-            value1 = nextValue(1);
-            value2 = nextValue(2);
-            value3 = nextValue(3);
+    private int[] nextViolationValues() {
+        final int[] values = new int[variableMap.size()];
+        for (int i = 0; i < values.length; ++i) {
+            values[i] = violationDistributions[i].sample();
         }
-
-        int negativeShift;
-        if (!correlated && hasSkew) {
-            negativeShift = NEGATIVE_SKEW_SHIFT;
-        } else {
-            negativeShift = 0;
-        }
-
-        switch (variableGraph) {
-            case STAR:
-                return new int[]{value0, value1, value0, value2, value0 + negativeShift, value3 + negativeShift};
-            case LINEAR:
-                return new int[]{value0, value1, value1, value2, value2 + negativeShift, value3 + negativeShift};
-            case TRIANGLE:
-                return new int[]{value0, value1, value1, value2, value2 + negativeShift, value0 + negativeShift};
-            default:
-                throw new IllegalStateException();
-        }
+        return values;
     }
 
-    private void appendEvent(StringBuilder builder, String relation, int value0, int value1) {
+    private int[] selectAttributes(int[] values, List<Integer> variables) {
+        final int[] selected = new int[variables.size()];
+        for (int i = 0; i < variables.size(); ++i) {
+            int j = variables.get(i);
+            selected[i] = values[j];
+        }
+        return selected;
+    }
+
+    private void appendEvent(StringBuilder builder, String relation, int[] attributes) {
         appendEventStart(builder, relation);
-        appendAttribute(builder, ATTRIBUTE_0, value0);
-        appendAttribute(builder, ATTRIBUTE_1, value1);
+        for (int i = 0; i < attributes.length; ++i) {
+            appendAttribute(builder, "x" + i, attributes[i]);
+        }
     }
 
-    private void appendEventUsingSchedule(StringBuilder builder, PriorityQueue<ScheduledData> queue, long timestamp, String relation, int index0, int index1) {
-        int value0, value1;
+    private void appendEventUsingSchedule(StringBuilder builder, long timestamp, String relation, List<Integer> variables, PriorityQueue<ScheduledData> queue) {
+        int[] attributes;
         ScheduledData scheduledData = queue.peek();
         if (scheduledData != null && scheduledData.timestamp <= timestamp) {
             queue.remove();
-            value0 = scheduledData.value0;
-            value1 = scheduledData.value1;
+            attributes = scheduledData.attributes;
         } else {
-            int[] values = nextValues(false, false);
-            value0 = values[index0];
-            value1 = values[index1];
+            attributes = nextValues(variables);
         }
-        appendEvent(builder, relation, value0, value1);
+        appendEvent(builder, relation, attributes);
     }
 
     @Override
     void appendNextEvent(StringBuilder builder, long timestamp) {
         if (flipCoin(violationProbability)) {
-            int[] values = nextValues(true, true);
+            int[] values = nextViolationValues();
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
             long negativeTimestamp = positiveTimestamp + random.nextInt(negativeWindow);
 
-            appendEvent(builder, BASE_RELATION, values[0], values[1]);
-            positiveQueue.add(new ScheduledData(positiveTimestamp, values[2], values[3]));
-            negativeQueue.add(new ScheduledData(negativeTimestamp, values[4], values[5]));
+            appendEvent(builder, eventPattern.getBaseEvent(), selectAttributes(values, baseVariables));
+            positiveQueue.add(new ScheduledData(positiveTimestamp, selectAttributes(values, positiveVariables)));
+            negativeQueue.add(new ScheduledData(negativeTimestamp, selectAttributes(values, negativeVariables)));
 
             return;
         }
 
         if (flipCoin(baseProbability)) {
-            int[] values = nextValues(false, true);
+            int[] values = nextValues();
             long positiveTimestamp = timestamp + random.nextInt(positiveWindow);
 
-            appendEvent(builder, BASE_RELATION, values[0], values[1]);
-            positiveQueue.add(new ScheduledData(positiveTimestamp, values[2], values[3]));
+            appendEvent(builder, eventPattern.getBaseEvent(), selectAttributes(values, baseVariables));
+            positiveQueue.add(new ScheduledData(positiveTimestamp, selectAttributes(values, positiveVariables)));
 
             return;
         }
 
         if (flipCoin(positiveProbability)) {
-            appendEventUsingSchedule(builder, positiveQueue, timestamp, POSITIVE_RELATION, 2, 3);
+            appendEventUsingSchedule(builder, timestamp, eventPattern.getPositiveEvent(), positiveVariables, positiveQueue);
             return;
         }
 
-        appendEventUsingSchedule(builder, negativeQueue, timestamp, NEGATIVE_RELATION, 4, 5);
+        appendEventUsingSchedule(builder, timestamp, eventPattern.getNegativeEvent(), negativeVariables, negativeQueue);
+    }
+
+    String getSignature() {
+        StringBuilder signature = new StringBuilder();
+        for (String event : new String[] {eventPattern.getBaseEvent(), eventPattern.getPositiveEvent(), eventPattern.getNegativeEvent()}) {
+            signature.append(event).append('(');
+            final int arity = eventPattern.getArguments(event).size();
+            for (int i = 0; i < arity; ++i) {
+                if (i > 0) {
+                    signature.append(',');
+                }
+                signature.append("int");
+            }
+            signature.append(")\n");
+        }
+        return signature.toString();
+    }
+
+    private String makeAtom(String event) {
+        StringBuilder atom = new StringBuilder();
+        atom.append(event).append('(');
+        int i = 0;
+        for (String variable : eventPattern.getArguments(event)) {
+            if (i++ > 0) {
+                atom.append(',');
+            }
+            atom.append(variable);
+        }
+        atom.append(')');
+        return atom.toString();
+    }
+
+    String getFormula() {
+        return String.format("(ONCE [0,%d) %s) IMPLIES %s IMPLIES ALWAYS [0,%d) NOT %s",
+                positiveWindow,
+                makeAtom(eventPattern.getBaseEvent()),
+                makeAtom(eventPattern.getPositiveEvent()),
+                negativeWindow,
+                makeAtom(eventPattern.getNegativeEvent()));
     }
 }
