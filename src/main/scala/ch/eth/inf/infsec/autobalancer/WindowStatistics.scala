@@ -97,7 +97,9 @@ class FrameStatistic extends Serializable
 
   //clears the frame's contents so that it as good as new
   def clearFrame() : Unit = {
-    relations = relations.map(x => (x._1,0))
+    //relations = relations.map(x => (x._1,0))
+    relations = scala.collection.mutable.Map[String,Int]()
+    valueOccurances = scala.collection.mutable.Map[String,scala.collection.mutable.Map[(Int,Domain),Int]]()
   }
   def relationSize(relation: String): Int = {
     relations(relation)
