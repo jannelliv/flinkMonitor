@@ -20,7 +20,7 @@ class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,S
   override def process(in: MonpolyRequest, f: String => Unit): Unit = {
     if(!started) {
       started = true
-      tempF = new FileWriter("knowledgeExtractEvents.log",false)
+      tempF = new FileWriter("knowledgeExtractEvents.log",true)
     }
     tempF.write(in.in + "\n")
     tempF.flush()

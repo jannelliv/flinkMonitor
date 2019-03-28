@@ -358,6 +358,7 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   var adaptComplete = false
 
   def makeAdaptDecision(c : Record => Unit) : Unit = {
+    val prevSlicerForLog = lastSlicing
     //while in the middle of an adapting we don't readapt
     if(shouldAdapt || triggeredAdapt || doAdaptStuff || adaptComplete)
       return
@@ -374,7 +375,7 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
       val realtimeTimestamp = System.currentTimeMillis()
       logFile.write("--------- Status at time: "+realtimeTimestamp+" ---------\n")
       logFile.write("adapting: "+shouldAdapt+"\n")
-      logFile.write("current slicer: "+lastSlicing+"\n")
+      logFile.write("current slicer: "+prevSlicerForLog+"\n")
       if(shouldAdapt) {
         logFile.write("new slicer: "+sliceCandidate.toString+"\n")
       }else{

@@ -253,8 +253,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
           tempF2.flush()*/
           buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
         }else if(com.in.startsWith(">gsdt")) {
-/*          tempF2.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
-          tempF2.flush()*/
+          var tempF = new FileWriter("monpolyError.log",true)
+          tempF.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
+          tempF.flush()
+          tempF.close()
           buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")
         }else if(com.in.startsWith(">gsdms")){
           if(memory == "")
@@ -271,6 +273,7 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
         more = false
       } else if (line.startsWith(GET_INDEX_PREFIX)) {
         more = false
+        buffer += CommandItem(">"+line+"<\n")
 /*        tempF2.write("non-empty buffer: "+(!indexCommandTimingBuffer.isEmpty)+"\n")
         if(indexCommandTimingBuffer.isEmpty) {
           tempF2.write("indexCommandTimingBuffer was empty? On line: "+line+"\n")
