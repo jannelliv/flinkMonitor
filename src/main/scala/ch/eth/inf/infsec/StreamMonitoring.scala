@@ -1,6 +1,7 @@
 package ch.eth.inf.infsec
 
 import java.io.PrintWriter
+import java.util.Properties
 
 import ch.eth.inf.infsec.autobalancer.{AllState, DeciderFlatMapSimple}
 import ch.eth.inf.infsec.slicer.{HypercubeSlicer, SlicerParser}
@@ -25,6 +26,8 @@ import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
 
 import scala.io.Source
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
+
 
 
 object StreamMonitoring {
@@ -78,6 +81,7 @@ object StreamMonitoring {
     }
   }
 
+  var windowSize : Double = 100
   def init(params: ParameterTool) {
     jobName = params.get("job", "Parallel Online Monitor")
 
@@ -116,6 +120,8 @@ object StreamMonitoring {
         sys.exit(1)
       case Right(phi) => phi
     }
+
+    windowSize = params.getInt("windowsize",100)
   }
 
   def calculateSlicing(params: ParameterTool): Unit =
@@ -226,21 +232,28 @@ object StreamMonitoring {
       env.setParallelism(1)
 
       //Single node
-      val textStream = in match {
-        case Some(Left((h, p))) =>
-          LatencyTrackingExtensions.addSourceWithProvidedMarkers(
-          env,
-          new SocketTextStreamFunction(h, p, "\n", 0),
-          "Socket source")
-            .uid("socket-source")
-        case Some(Right(f)) =>
-          if (watchInput)
-            env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
-              .name("File watch source")
-              .uid("file-watch-source")
-          else
-            env.readTextFile(f).name("file-source").uid("File source")
-        case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
+      val isKafka = true
+      var textStream : DataStream[String] = null
+      if(isKafka)
+      {
+        textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
+      }else {
+        textStream = in match {
+          case Some(Left((h, p))) =>
+            LatencyTrackingExtensions.addSourceWithProvidedMarkers(
+              env,
+              new SocketTextStreamFunction(h, p, "\n", 0),
+              "Socket source")
+              .uid("socket-source")
+          case Some(Right(f)) =>
+            if (watchInput)
+              env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
+                .name("File watch source")
+                .uid("file-watch-source")
+            else
+              env.readTextFile(f).name("file-source").uid("File source")
+          case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
+        }
       }
       val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), new RescaleInitiator().rescale)))
         .name("Parser")
@@ -250,12 +263,15 @@ object StreamMonitoring {
 
       val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record]((new OutsideInfluence(true)).asInstanceOf[Processor[Record,Record] with Serializable]))
 
-      //todo: proper arguments
-      //assumes in-order atm
-      val observedTrace = injectedTrace.flatMap(new ProcessorFunction[Record,Record](new AllState(new DeciderFlatMapSimple(slicer.degree,formula,100)))).setMaxParallelism(1).name("Decider").uid("decider")
-        .setMaxParallelism(1)
-        .setParallelism(1)//.name("ObservedTrace").uid("observed-trace");
-
+      var observedTrace : DataStream[Record] = null
+      if(params.has("noDecider")) {
+        observedTrace = injectedTrace
+      }else {
+        //todo: proper arguments
+        observedTrace = injectedTrace.flatMap(new ProcessorFunction[Record, Record](new AllState(new DeciderFlatMapSimple(slicer.degree, formula, windowSize)))).setMaxParallelism(1).name("Decider").uid("decider")
+          .setMaxParallelism(1)
+          .setParallelism(1)
+      }
       val slicedTrace = observedTrace
         .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
         .setMaxParallelism(1)
