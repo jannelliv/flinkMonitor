@@ -469,7 +469,7 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
             c(event)
         }
         if(doAdaptStuff && event.isEndMarker) {
-          if (shouldAdapt) {
+          if (shouldAdapt && !triggeredAdapt) {
             sendAdaptMessage(c,lastSlicing)
             triggeredAdapt = true
           } else {
