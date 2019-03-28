@@ -60,6 +60,43 @@ public class CsvReplayer {
         }
     }
 
+    //bit of a hack, sadly, because Reporter requires a DatabaseBuffer object for .reportDelivery
+    static class SimpleMonpolyWriter extends DatabaseBuffer {
+
+        String line = null;
+        public SimpleMonpolyWriter(long emissionTime) {
+            super(emissionTime);
+        }
+        @Override
+        void write(Writer writer) throws IOException {
+            writer.append(line).append('\n');
+        }
+
+        int events = -1;
+        @Override
+        int getNumberOfEvents(){
+            if(events == -1) {
+                int i = 0;
+                for (int j = 0; j < line.length(); j++) {
+                    if (line.charAt(j) == '(')
+                        i++;
+                }
+                events = i;
+            }
+            return events;
+        }
+
+        @Override
+        void addEvent(String csvLine, String relation, int indexBeforeData) {
+            if(line == null) {
+                line = csvLine;
+            }else{
+                throw new RuntimeException("multiple events per SimpleMonpolyWriter is not supported");
+            }
+        }
+
+    }
+
     static final class MonpolyDatabaseBuffer extends DatabaseBuffer {
         private final long timestamp;
         private final Map<String, StringBuilder> relations = new HashMap<>();
@@ -189,6 +226,12 @@ public class CsvReplayer {
     interface DatabaseBufferFactory {
         DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime);
     }
+    static final class SimpleMonpolyDBFactory implements DatabaseBufferFactory {
+        @Override
+        public DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime){
+            return new SimpleMonpolyWriter(emissionTime);
+        }
+    }
 
     static final class MonpolyDatabaseBufferFactory implements DatabaseBufferFactory {
         @Override
@@ -229,12 +272,15 @@ public class CsvReplayer {
         }
 
         public void run() {
+            boolean monpolyFormat = factory instanceof SimpleMonpolyDBFactory;
             try {
                 String line;
                 while ((line = input.readLine()) != null) {
                     if (line.startsWith(">")) {
                         processCommand(line);
-                    } else {
+                    } else if (monpolyFormat) {
+                        processMonpolyRecord(line);
+                    }else{
                         processRecord(line);
                     }
                 }
@@ -262,6 +308,24 @@ public class CsvReplayer {
             if (commandItem.requiresReconnect()) {
                 queue.put(new TerminalItem(true));
             }
+        }
+
+        private void processMonpolyRecord(String line) throws InterruptedException {
+            long timestamp = Long.valueOf(line.substring(1,line.indexOf(' ')));
+            if (firstTimestamp < 0) {
+                firstTimestamp = timestamp;
+                databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
+            }
+            databaseBuffer.addEvent(line, "",0);
+            emitBuffer();
+
+            long nextEmission;
+            if (timeMultiplier > 0.0) {
+                nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+            } else {
+                nextEmission = 0;
+            }
+            databaseBuffer = factory.createDatabaseBuffer(timestamp, nextEmission);
         }
 
         private void processRecord(String line) throws InterruptedException {
@@ -623,7 +687,7 @@ public class CsvReplayer {
 
     private static void invalidArgument() {
         System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m] [-t <interval>] [-o <host>:<port>] [<file>]\n");
+                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m|-ms] [-t <interval>] [-o <host>:<port>] [<file>]\n");
         System.exit(1);
     }
 
@@ -661,6 +725,9 @@ public class CsvReplayer {
                         break;
                     case "-m":
                         databaseBufferFactory = new MonpolyDatabaseBufferFactory();
+                        break;
+                    case "-ms":
+                        databaseBufferFactory = new SimpleMonpolyDBFactory();
                         break;
                     case "-t":
                         if (++i == args.length) {
