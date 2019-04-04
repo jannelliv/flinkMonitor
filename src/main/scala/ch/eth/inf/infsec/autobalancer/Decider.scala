@@ -357,13 +357,27 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   var doAdaptStuff = false
   var adaptComplete = false
 
+  private var lastShutdownInitiatedTime : Long = 0
+  //todo: reconsider if we might have to put this into monpoly.process for correctness
+  //todo: consider putting this in flatMap instead because we know that at that point the topology is all working. Downside: if we don't get events immediately after topology is up fully, our timing will be wrong.
+  def handleReopenTime() : Unit = {
+    val lastShutdownCompletedTime = System.currentTimeMillis()
+    if(lastShutdownInitiatedTime == 0) {
+      //todo: better startup time based on how long first startup took
+      shutdownTime = 1000
+    }else{
+      shutdownTime = lastShutdownCompletedTime - lastShutdownInitiatedTime
+    }
+  }
+
+
   def makeAdaptDecision(c : Record => Unit) : Unit = {
     val prevSlicerForLog = lastSlicing
     //while in the middle of an adapting we don't readapt
     if(shouldAdapt || triggeredAdapt || doAdaptStuff || adaptComplete)
       return
     doAdaptStuff = true
-    if(costSlicerTracker.costFirst * avgMaxProcessingTime * windowSize + adaptationCost(sliceCandidate,windowStatistics) / assumedFutureStableWindowsAmount < costSlicerTracker.costSecond * avgMaxProcessingTime * windowSize) {
+    if(costSlicerTracker.costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,windowStatistics) / assumedFutureStableWindowsAmount < costSlicerTracker.costSecond * avgMaxProcessingTime) {
       lastSlicing = sliceCandidate
       shouldAdapt = true
       //      triggeredAdapt = true
@@ -381,12 +395,12 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
       }else{
         logFile.write("rejected slicer candidate: "+sliceCandidate+"\n")
       }
-      logFile.write("cost for current: "+costSlicerTracker.costSecond+"\n")
-      logFile.write("cost for new: "+costSlicerTracker.costFirst+"\n")
-      logFile.write("average max processing time: "+avgMaxProcessingTime+"\n")
-      logFile.write("predicted stability: "+assumedFutureStableWindowsAmount+"\n")
-      logFile.write("shutdown memory: "+shutdownMemory+"\n")
-      logFile.write("shutdown time: "+shutdownTime+"\n")
+      logFile.write("cost for current: "+costSlicerTracker.costSecond+" units\n")
+      logFile.write("cost for new: "+costSlicerTracker.costFirst+" units\n")
+      logFile.write("average max processing time: "+avgMaxProcessingTime+" ms/unit\n")
+      logFile.write("predicted stability: "+assumedFutureStableWindowsAmount+" windows\n")
+      logFile.write("shutdown memory: "+shutdownMemory+" kB\n")
+      logFile.write("shutdown time: "+shutdownTime+" ms\n")
       logFile.write("----- End Status at time: "+realtimeTimestamp+" -----\n")
       logFile.flush()
     }
@@ -425,20 +439,20 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
       doAdaptStuff = false
       adaptComplete = false
 
-      c(CommandRecord("gsdt",""))
+//      c(CommandRecord("gsdt",""))
       c(CommandRecord("gsdms",""))
     }
     event match {
       case CommandRecord(com,params) => {
         if(com == "gaptr") {
-          avgMaxProcessingTime = params.toDouble
+          avgMaxProcessingTime = params.toDouble / 1000.0
           if(avgMaxProcessingTime < 0.0001)
             avgMaxProcessingTime = 0.0001
           logCommand(com,params)
-        } else if(com == "gsdtr") {
+/*        } else if(com == "gsdtr") {
           //function approximation code
           shutdownTime = params.toDouble
-          logCommand(com,params)
+          logCommand(com,params)*/
         } else if(com == "gsdmsr") {
           shutdownMemory = params.toLong
           logCommand(com,params)
@@ -516,8 +530,10 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
   }
 
   def startup(): Unit = {
-    if(triggeredAdapt)
+    if(triggeredAdapt) {
       adaptComplete = true
+      handleReopenTime
+    }
   }
 
   def shutdown(): Unit = {
@@ -526,6 +542,7 @@ abstract class DeciderFlatMap[SlicingStrategy](degree : Int, windowSize : Double
       logFile = null
     }
     started = false
+    lastShutdownInitiatedTime = System.currentTimeMillis()
   }
 }
 

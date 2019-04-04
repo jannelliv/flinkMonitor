@@ -34,20 +34,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
   private val logger = LoggerFactory.getLogger(getClass)
 
-  private var lastShutdownInitiatedTime : Long = 0
-  private var lastShutdownCompletedTime : Long = 0
-  def handleReopenTime() : Unit = {
-    lastShutdownCompletedTime = System.currentTimeMillis()
-    //if we didn't do a  shutdown before, we want the delta to be 0
-    if(lastShutdownInitiatedTime == 0) {
-      lastShutdownCompletedTime = 0
-    }
-  }
 
   override def open(): Unit = {
     createTempFile()
     open(command)
-    handleReopenTime
     println("Opened Monpoly")
   }
 
@@ -64,7 +54,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     } finally {
       Files.delete(tempStateFile)
     }
-    handleReopenTime
     println("Opened Monpoly with single state")
   }
 
@@ -88,7 +77,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     } finally {
       for(file <- tempStateFiles) {Files.delete(file) }
     }
-    handleReopenTime
     println("Opened Monpoly after rescale")
   }
 
@@ -130,32 +118,33 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
           tempF.write("we set slicer to true, slicer:"+request.in+"\n")
           tempF.flush()
           tempF.close()
+        }else if(request.in.startsWith(">gapt")) {
+          canHandle = true
         }else{
           indexCommandTimingBuffer.put(Left(r))
         }
       case EventItem(request.in) => canHandle = true
     }
-
-    if(canHandle)
-    {
-      try {
-
-        indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
-        writer.write(request.in)
-      }catch{
-        case e:Throwable => {
-          var tempF = new FileWriter("monpolyError.log",true)
-          tempF.write("ran into error in monpoly at request: "+request.toString+"\nhad pending slicer set?"+pendingSlicer+"\n")
-          tempF.flush()
-          tempF.close()
-          throw e
-        }
+    try {
+      if(canHandle)
+      {
+          indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
+          writer.write(request.in)
+      }
+      //TODO(CF): This is inefficient in the case of internal commands, but necessary to get an output because each write needs a matching read
+      writer.write(GET_INDEX_COMMAND)
+      // TODO(JS): Do not flush if there are more requests in the queue
+      writer.flush()
+    }catch{
+      case e:Throwable => {
+        var tempF = new FileWriter("monpolyError.log",true)
+        tempF.write("ran into error in monpoly at request: "+request.toString+"\nhad pending slicer set?"+pendingSlicer+"\n")
+        tempF.flush()
+        tempF.close()
+        throw e
       }
     }
-    //TODO(CF): This is inefficient in the case of internal commands, but necessary to get an output because each write needs a matching read
-    writer.write(GET_INDEX_COMMAND)
-    // TODO(JS): Do not flush if there are more requests in the queue
-    writer.flush()
+
   }
 
   var memory = ""
@@ -180,7 +169,6 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   def snapshotHelper(): Unit = {
-    lastShutdownInitiatedTime = System.currentTimeMillis()
     readResidentialMemory()
     var tempF = new FileWriter("monpolyError.log",true)
     tempF.write("we started snapshotting\n")
@@ -247,18 +235,19 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
         val com = indexCommandTimingBuffer.poll().left.get
 /*        tempF2.write("command got to other side: "+com+"\n")
         tempF2.flush()*/
-        if(com.in.startsWith(">gapt"))
+/*        if(com.in.startsWith(">gapt"))
         {
 /*          tempF2.write("response: "+">gaptr "+processTimeMovingAverage.toString()+"<\n")
           tempF2.flush()*/
           buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
-        }else if(com.in.startsWith(">gsdt")) {
+/*        }else if(com.in.startsWith(">gsdt")) {
           var tempF = new FileWriter("monpolyError.log",true)
           tempF.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
           tempF.flush()
           tempF.close()
-          buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")
-        }else if(com.in.startsWith(">gsdms")){
+          buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")*/
+        }else*/
+        if(com.in.startsWith(">gsdms")){
           if(memory == "")
             readResidentialMemory()
 /*          tempF2.write(">gsdmsr " + memory + "<\n")
@@ -286,6 +275,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
           tempF2.flush()*/
           yes(System.currentTimeMillis() - k.right.get)
         }
+      }else if(line.startsWith("gaptr")) {
+        buffer += CommandItem(">"+line+"<\n")
       }else{
           // TODO(JS): Check that line is a verdict before adding it to the buffer.
           buffer += EventItem(line)

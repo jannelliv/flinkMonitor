@@ -1,21 +1,46 @@
 package ch.eth.inf.infsec.monitor
 
 import java.io.{BufferedWriter, FileWriter, OutputStream, OutputStreamWriter}
-import java.net.Socket
+import java.net.{InetSocketAddress, Socket}
 
 import ch.eth.inf.infsec.StatelessProcessor
+import org.slf4j.LoggerFactory
+
+
 
 class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,String] with Serializable {
   @transient private var connectedSocket: Socket = _
   @transient private var outputStream : BufferedWriter = _
+  private val logger = LoggerFactory.getLogger(this.getClass)
 
   var receivedGAPTR = 0
   var highestGAPTR = 0.0
   var receivedGSDMSR = 0
   var highestGSDMSR = 0
+  var receivedShutdown = 0
 
   var started = false
   var tempF : FileWriter = null
+
+  def stopJob() : Unit = {
+    try {
+      logger.info("Opening socket to 10103")
+      val client = new Socket()
+      client.connect(new InetSocketAddress("127.0.0.1", 10103))
+      val output = client.getOutputStream
+
+      val command = "cancel:0\n".toCharArray.map(_.toByte)
+
+      output.write(command)
+      output.flush()
+
+      logger.info("Closing socket")
+      output.close()
+      client.close()
+    } catch {
+      case e: Exception => println(e)
+    }
+  }
 
   override def process(in: MonpolyRequest, f: String => Unit): Unit = {
     if(!started) {
@@ -84,7 +109,12 @@ class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,S
             connectedSocket = new Socket(addrSplit(0), addrSplit(1).toInt)
             outputStream = new BufferedWriter(new OutputStreamWriter(connectedSocket.getOutputStream()))
           }
-        }else {
+        }else if(a.toLowerCase.startsWith(">endofstream")) {
+          receivedShutdown += 1
+          if(receivedShutdown == degree) {
+            stopJob()
+          }
+        } else {
           //todo: error
         }
     }

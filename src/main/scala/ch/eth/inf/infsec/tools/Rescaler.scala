@@ -62,11 +62,23 @@ object Rescaler extends Serializable {
             tuple(0) match {
               case "parallelism" =>
                 processRescale(jobName, parallelism)
+              case "cancel" =>
+                processCancel(jobName)
               case _ => throw new Exception("Unrecognized command")
             }
           }
         }
         }}).start()
+    }
+
+    def processCancel(jobName: String): Unit ={
+      val jobId = getJobId(jobName)
+      println("Attempting to cancel job with id: " + jobId.toString)
+      logger.info("Attempting to cancel job with id: " + jobId.toString)
+      client.cancel(jobId)
+      //we likely should never get here
+      println("Cancelled job with id: " + jobId.toString)
+      logger.info("Cancelled job with id: " + jobId.toString)
     }
 
     /** Parts of this code are dependent on the Flink implementation of the Rest client and its dependencies**/
