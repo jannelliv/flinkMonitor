@@ -5,7 +5,7 @@ import java.lang.ProcessBuilder.Redirect
 
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
-import scala.collection.JavaConversions
+import scala.collection.JavaConverters
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
@@ -30,17 +30,17 @@ class FlinkIntegration extends FunSuite with Matchers with BeforeAndAfterAll{
 
   override def beforeAll() {
 
-    ncIN = new ProcessBuilder(JavaConversions.seqAsJavaList(Seq("nc", "-l", "9000")))
+    ncIN = new ProcessBuilder(JavaConverters.seqAsJavaList(Seq("nc", "-l", "9000")))
       .redirectError(Redirect.INHERIT)
       .start()
 
-    ncOUT = new ProcessBuilder(JavaConversions.seqAsJavaList(Seq("nc", "-l", "9001")))
+    ncOUT = new ProcessBuilder(JavaConverters.seqAsJavaList(Seq("nc", "-l", "9001")))
       .redirectError(Redirect.INHERIT)
       .start()
 
 
     flink = new ProcessBuilder(
-      JavaConversions.seqAsJavaList(
+      JavaConverters.seqAsJavaList(
         List("mvn", "exec:java", "-Dexec.mainClass=ch.ethz.infsec.StreamMonitoring",
          "-Dexec.args="+" --processors 4" +
                         s" --sig ${sig}" +
@@ -51,7 +51,7 @@ class FlinkIntegration extends FunSuite with Matchers with BeforeAndAfterAll{
       .start()
 
     monpoly = new ProcessBuilder(
-      JavaConversions.seqAsJavaList(
+      JavaConverters.seqAsJavaList(
         List("monpoly",
             "-sig",sig,
             "-formula",formula,

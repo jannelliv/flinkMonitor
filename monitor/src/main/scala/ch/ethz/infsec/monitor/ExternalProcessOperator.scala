@@ -19,7 +19,7 @@ import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRec
 import org.apache.flink.streaming.runtime.tasks.StreamTask
 import org.apache.flink.util.ExceptionUtils
 
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
 private trait PendingRequest
@@ -135,10 +135,10 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     process.identifier = Some(subtaskIndex.toString)
 
     val processStates = processState.get()
-    preprocessing.restoreState(preprocessingState.get().headOption)
-    postprocessing.restoreState(postprocessingState.get().headOption)
+    preprocessing.restoreState(preprocessingState.get().asScala.headOption)
+    postprocessing.restoreState(postprocessingState.get().asScala.headOption)
 
-    val postProcessState = postprocessingState.get().headOption
+    val postProcessState = postprocessingState.get().asScala.headOption
     postprocessing.restoreState(postProcessState)
     postProcessState match {
       case Some(x) =>
@@ -149,16 +149,16 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     }
     postprocessing.setParallelInstanceIndex(subtaskIndex)
 
-    resultState.get().headOption match {
+    resultState.get().asScala.headOption match {
       case Some(results) =>
         for (item <- results)
           resultQueue.add(item)
       case None => ()
     }
 
-    processStates.headOption match {
+    processStates.asScala.headOption match {
       case Some(_) =>
-        val relevant = processStates.filter(_._1 == subtaskIndex)
+        val relevant = processStates.asScala.filter(_._1 == subtaskIndex)
         if(relevant.size == 1) process.open(relevant.head._2)
         else process.open(relevant)
       case None => process.open()
@@ -379,15 +379,15 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       val results = new ArrayBuffer[PendingResult]()
 
       resultLock.synchronized {
-        for (result: PendingResult <- resultQueue) {
+        for (result: PendingResult <- resultQueue.asScala) {
           gotSnapshot = false
           result match {
-            case OutputItem(_) => results.add(result)
-            case OutputSeparatorItem() => results.add(result)
-            case WatermarkItem(_) => results.add(result)
-            case LatencyMarkerItem(_) => results.add(result)
+            case OutputItem(_) => results += result
+            case OutputSeparatorItem() => results += result
+            case WatermarkItem(_) => results += result
+            case LatencyMarkerItem(_) => results += result
             case SnapshotResultItem(states) =>
-              processState.addAll(states.toList)
+              processState.addAll(states.toList.asJava)
               gotSnapshot = true
             case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
           }

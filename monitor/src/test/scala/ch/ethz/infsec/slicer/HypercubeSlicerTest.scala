@@ -4,13 +4,13 @@ import ch.ethz.infsec.policy._
 import ch.ethz.infsec.trace.{Domain, IntegralValue}
 import ch.ethz.infsec.policy.GenFormula
 import org.scalacheck.{Arbitrary, Gen}
-import org.scalatest.prop.PropertyChecks
+import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import org.scalatest.{FunSuite, Matchers}
 
 import scala.collection.mutable
 import scala.util.Random
 
-class HypercubeSlicerTest extends FunSuite with Matchers with PropertyChecks {
+class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckPropertyChecks {
   val withHeavy: Gen[Int] = Gen.frequency(
     1 -> -1,
     1 -> 0,

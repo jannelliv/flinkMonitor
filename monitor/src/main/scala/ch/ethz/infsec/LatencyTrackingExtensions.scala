@@ -111,10 +111,11 @@ object LatencyTrackingExtensions {
       env: StreamExecutionEnvironment,
       sourceFunction: SourceFunction[String],
       sourceName: String): DataStream[String] = {
-    if (env.getConfig.isClosureCleanerEnabled)
+    // NOTE(JS): ClosureCleaner#ensureSerializable is no longer accessible
+    //if (env.getConfig.isClosureCleanerEnabled)
       ClosureCleaner.clean(sourceFunction, checkSerializable = true)
-    else
-      ClosureCleaner.ensureSerializable(sourceFunction)
+    //else
+    //  ClosureCleaner.ensureSerializable(sourceFunction)
     val typeInfo = implicitly[TypeInformation[String]]
 
     env.getJavaEnv.clean(sourceFunction)
@@ -126,10 +127,11 @@ object LatencyTrackingExtensions {
 
   def addPreciseLatencyTrackingSink[T](stream: DataStream[T], sinkFunction: SinkFunction[T]): DataStreamSink[T] = {
     val env = stream.executionEnvironment
-    if (env.getConfig.isClosureCleanerEnabled)
+    // NOTE(JS): ClosureCleaner#ensureSerializable is no longer accessible
+    //if (env.getConfig.isClosureCleanerEnabled)
       ClosureCleaner.clean(sinkFunction, checkSerializable = true)
-    else
-      ClosureCleaner.ensureSerializable(sinkFunction)
+    //else
+    //  ClosureCleaner.ensureSerializable(sinkFunction)
 
     env.getJavaEnv.clean(sinkFunction)
 

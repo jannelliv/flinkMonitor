@@ -9,7 +9,7 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.util.Collector
 
 import scala.collection.mutable.ArrayBuffer
-import scala.collection.JavaConversions._
+import scala.collection.JavaConverters._
 
 package object infsec {
 
@@ -92,7 +92,7 @@ package object infsec {
 
         checkpointedState = context.getOperatorStateStore.getUnionListState(descriptor)
         if (context.isRestored) {
-          val state =  checkpointedState.get().headOption
+          val state =  checkpointedState.get().asScala.headOption
           processor.restoreState(state)
         }
       }

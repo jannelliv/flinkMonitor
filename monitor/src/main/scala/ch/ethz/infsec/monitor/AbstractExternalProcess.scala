@@ -3,7 +3,7 @@ package ch.ethz.infsec.monitor
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.lang.ProcessBuilder.Redirect
 
-import scala.collection.JavaConversions
+import scala.collection.JavaConverters
 
 abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT] {
   @transient private var process: Process = _
@@ -22,7 +22,7 @@ abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT]
     }
 
     println(instantiatedCommand.mkString(" "))
-    process = new ProcessBuilder(JavaConversions.seqAsJavaList(instantiatedCommand))
+    process = new ProcessBuilder(JavaConverters.seqAsJavaList(instantiatedCommand))
         .redirectError(Redirect.INHERIT)
         .start()
     writer = new BufferedWriter(new OutputStreamWriter(process.getOutputStream))

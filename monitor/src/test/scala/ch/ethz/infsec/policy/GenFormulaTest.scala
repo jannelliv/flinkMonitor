@@ -1,8 +1,15 @@
 package ch.ethz.infsec.policy
 
 import org.scalatest.{FunSuite, Matchers, Inside}
+import org.scalatest.enablers.Emptiness
 
 class GenFormulaTest extends FunSuite with Matchers {
+  // NOTE(JS): No idea why this is not provided automatically ...
+  implicit def emptinessOfSetPrev[V]: Emptiness[Set[Pred[V]]] =
+    new Emptiness[Set[Pred[V]]] {
+      def isEmpty(set: Set[Pred[V]]): Boolean = set.isEmpty
+    }
+
   test("Set of atoms") {
     val px = Pred("p", Var("x"))
     val qy = Pred("q", Var("y"))

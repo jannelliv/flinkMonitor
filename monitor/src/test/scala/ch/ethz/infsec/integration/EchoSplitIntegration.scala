@@ -10,7 +10,7 @@ import ch.ethz.infsec.trace.MonpolyFormat
 import ch.ethz.infsec.policy.Policy
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
-import scala.collection.JavaConversions
+import scala.collection.JavaConverters
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
@@ -35,17 +35,17 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
 
   override def beforeAll(): Unit = {
 
-    ncIN = new ProcessBuilder(JavaConversions.seqAsJavaList(Seq("nc", "-l", "9000")))
+    ncIN = new ProcessBuilder(JavaConverters.seqAsJavaList(Seq("nc", "-l", "9000")))
       .redirectError(Redirect.INHERIT)
       .start()
 
-    ncOUT = new ProcessBuilder(JavaConversions.seqAsJavaList(Seq("nc", "-l", "9001")))
+    ncOUT = new ProcessBuilder(JavaConverters.seqAsJavaList(Seq("nc", "-l", "9001")))
       .redirectError(Redirect.INHERIT)
       .start()
 
 
     flink = new ProcessBuilder(
-      JavaConversions.seqAsJavaList(
+      JavaConverters.seqAsJavaList(
         List("mvn", "exec:java", "-Dexec.mainClass=ch.ethz.infsec.StreamMonitoring",
           "-Dexec.args="+s" --processors ${processors}" +
             s" --sig ${sig}" +
