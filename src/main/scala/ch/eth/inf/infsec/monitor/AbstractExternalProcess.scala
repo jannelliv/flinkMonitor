@@ -21,6 +21,7 @@ abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT]
       case None => command
     }
 
+    println(instantiatedCommand.mkString(" "))
     process = new ProcessBuilder(JavaConversions.seqAsJavaList(instantiatedCommand))
         .redirectError(Redirect.INHERIT)
         .start()

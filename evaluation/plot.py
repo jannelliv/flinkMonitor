@@ -49,8 +49,8 @@ class Data:
         self.name = name
         self.df = df
 
-    def select(self, experiment=ANY, tool=ANY, checkpointing=ANY, statistics=ANY, processors=ANY, formula=ANY, heavy_hitters=ANY, event_rate=ANY, index_rate=ANY, repetition=ANY):
-        view = self.df.loc[(experiment, tool, checkpointing, statistics, processors, formula, heavy_hitters, event_rate, index_rate, repetition), :]
+    def select(self, experiment=ANY, tool=ANY, adaptivity=ANY, processors=ANY, formula=ANY, window=ANY, acceleration=ANY, repetition=ANY, statistics=ANY):
+        view = self.df.loc[(experiment, tool, adaptivity, processors, formula, window, acceleration, repetition, statistics), :]
         return Data(self.name, view)
 
     def export(self, *columns, drop_levels=[], path=None):
@@ -137,12 +137,15 @@ class Data:
 
 
 class Loader:
-    job_levels = ['experiment', 'tool', 'checkpointing', 'statistics', 'processors', 'formula', 'heavy_hitters', 'event_rate', 'index_rate', 'repetition']
+    job_levels = ['experiment', 'tool', 'adaptivity', 'processors', 'formula', 'window', 'acceleration', 'repetition', 'statistics']
 
-    job_regex = r"(nokia|gen|genh)_(monpoly|flink)(_ft)?(_stats)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_h(\d+))?_(\d+)(?:_(\d+))?_(\d+)"
+    job_regex = r"(nokia|synth)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_(\d+))?(?:_(\d+))_(\d+)(?:_(predictive|reactive|static))?"
+    #synth_flink_ft_2_triangle_2_predictive_8_3_job.txt
+    #job_regex = r"(nokia|synth)_(monpoly|flink)(_ft)?(?:_(\d+))?_((?:del|ins)[-_]\d[-_]\d|[a-zA-Z0-9]+)(?:_(\d+))?(?:_(predictive|reactive|static))?(?:_(\d+))_(\d+)"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
+    job_pattern = re.compile(job_regex + r"_job\.txt")
 
     delay_header = ['timestamp', 'current_indices', 'current_events', 'current_latency', 'peak', 'max', 'average']
 
@@ -155,12 +158,48 @@ class Loader:
     memory_keys = []
     memory_data = []
 
+    runtime_keys = []
+    runtime_data = []
+
+    throughput_keys = []
+    throughput_data_tmp = []
+    throughput_data = []
+
+    runtime_map = {}
+
+
     def warn_skipped_path(self, path):
-        #warn("Skipped " + str(path))
+        #print("Skipped " + str(path))
         pass
 
     def warn_invalid_file(self, path):
         warn("Invalid data in file " + str(path))
+
+    def read_runtime(self, key, df):
+        #job_regex = r"Job Runtime: (?:(\d+)) ms"
+        #runtime_pattern = re.compile(job_regex)
+        list = df.index.values
+        first = min(list)
+        last = max(list)
+
+        runtime = last-first
+        data = pd.DataFrame([runtime], columns=['runtime'])
+        self.runtime_map[key] = runtime
+        self.runtime_keys.append(key)
+        self.runtime_data.append(data)
+
+    def read_throughput(self, key, df):
+        #job_regex = r"Job Runtime: (?:(\d+)) ms"
+        #runtime_pattern = re.compile(job_regex)
+        list = df['current_events'].tolist()
+        # TODO: length of this list isn't actual running time
+        sum_tp = sum(list)
+        del list[-1]
+        max_tp = max(list)
+
+        self.throughput_keys.append(key)
+        self.throughput_data_tmp.append((sum_tp, max_tp))
+        self.throughput_data.append("")
 
     def read_metrics(self, key, path):
         try:
@@ -168,7 +207,8 @@ class Loader:
         except Exception as e:
             raise Exception("Error while reading file " + str(path)) from e
 
-        if df.shape[0] > 0 and df.index.name == 'timestamp' and set(df.columns) >= {'peak', 'max', 'average'}:
+        if df.shape[0] > 0 and df.index.name == 'timestamp' and set(df.columns) >= {'peak', 'max', 'average', 'sum_tp'}:
+            self.read_runtime(key, df)
             df.loc[:, 'peak'].replace(to_replace=0, inplace=True, method='ffill')
 
             summary = df.tail(1)
@@ -184,7 +224,7 @@ class Loader:
 
     def read_replayer_delay(self, key, path):
         try:
-            with open(path, 'r') as f:
+            with open(str(path), 'r') as f:
                 first_line = f.readline()
                 skip_rows = 1 if first_line and first_line.startswith("Client connected:") else 0
             df = pd.read_csv(path, sep='\\s+', header=None, names=self.delay_header, index_col=0, skiprows=skip_rows)
@@ -195,7 +235,7 @@ class Loader:
             df.loc[:, df.columns.intersection(['current_latency', 'peak', 'max', 'average'])] *= 1000.0
             df.loc[:, 'peak'].replace(to_replace=0, inplace=True, method='ffill')
 
-            summary = df.loc[:, ['peak', 'max', 'average']].tail(1)
+            summary = df.loc[:, ['current_events', 'peak', 'max', 'average']].tail(1)
             self.summary_keys.append(key)
             self.summary_data.append(summary)
 
@@ -205,14 +245,36 @@ class Loader:
         else:
             self.warn_invalid_file(path)
 
+    def read_replayer_events(self, key, path):
+        try:
+            with open(str(path), 'r') as f:
+                first_line = f.readline()
+                skip_rows = 1 if first_line and first_line.startswith("Client connected:") else 0
+            df = pd.read_csv(path, sep='\\s+', header=None, names=self.delay_header, index_col=0, skiprows=skip_rows)
+        except Exception as e:
+            raise Exception("Error while reading file " + str(path)) from e
+
+        if df.shape[0] > 0:
+            self.read_throughput(key, df)
+            #df.loc[:, ['current_events']].tail(1)
+            #series = df.copy()
+            #self.series_keys.append(key)
+            #self.series_data.append(series)
+        else:
+            self.warn_invalid_file(path)
+
     def read_memory(self, key, monitor_index, path):
         try:
-            with open(path, 'r') as f:
-                first_line = f.readline()
-                if not first_line or ';' not in first_line:
-                    self.warn_invalid_file(path)
-                    return
-                memory_usage = np.int32(first_line.split(';', 1)[1])
+            with open(str(path), 'r') as f:
+                memory_usages = []
+                lines = f.readlines()
+                for line in lines:
+                    if not line or ';' not in line:
+                        self.warn_invalid_file(path)
+                        return
+                    memory_usages += [np.int32(line.split(';', 1)[1])]
+
+                memory_usage = max(memory_usages + [0])
         except Exception as e:
             raise Exception("Error while reading file " + str(path)) from e
 
@@ -227,14 +289,13 @@ class Loader:
                 metrics_match.group(1),
                 metrics_match.group(2),
                 bool(metrics_match.group(3)),
-                bool(metrics_match.group(4)),
-                int(metrics_match.group(5)),
-                metrics_match.group(6).replace('_', '-'),
-                int(metrics_match.group(7) or 0),
+                int(metrics_match.group(4) or 0),
+                metrics_match.group(5).replace('_', '-'),
+                int(metrics_match.group(6) or 0),
+                int(metrics_match.group(7)),
                 int(metrics_match.group(8)),
-                int(metrics_match.group(9) or 0),
-                int(metrics_match.group(10))
-                )
+                (metrics_match.group(9) or "none")
+            )
             self.read_metrics(key, path)
             return
 
@@ -242,21 +303,48 @@ class Loader:
         if delay_match:
             if delay_match.group(2) != 'monpoly':
                 # NOTE: We silently ignore replayer data for non-Monpoly experiments.
+                key = (
+                    delay_match.group(1),
+                    delay_match.group(2),
+                    bool(delay_match.group(3)),
+                    int(delay_match.group(4) or 0),
+                    delay_match.group(5).replace('_', '-'),
+                    int(delay_match.group(6) or 0),
+                    int(delay_match.group(7)),
+                    int(delay_match.group(8)),
+                    (delay_match.group(9) or "none")
+                )
+                self.read_replayer_events(key, path)
                 return
             key = (
                 delay_match.group(1),
                 delay_match.group(2),
                 bool(delay_match.group(3)),
-                bool(delay_match.group(4)),
-                int(delay_match.group(5) or 1),
-                delay_match.group(6),
-                int(delay_match.group(7) or 0),
+                int(delay_match.group(4) or 0),
+                delay_match.group(5).replace('_', '-'),
+                int(delay_match.group(6) or 0),
+                int(delay_match.group(7)),
                 int(delay_match.group(8)),
-                int(delay_match.group(9) or 0),
-                int(delay_match.group(10))
-                )
+                (delay_match.group(9) or "none")
+            )
             self.read_replayer_delay(key, path)
             return
+
+        #job_match = self.job_pattern.fullmatch(path.name)
+        #if job_match:
+        #    key = (
+        #        job_match.group(1),
+        #        job_match.group(2),
+        #        bool(job_match.group(3)),
+        #        int(job_match.group(4) or 0),
+        #        job_match.group(5).replace('_', '-'),
+        #        int(job_match.group(6) or 0),
+        #        int(job_match.group(7)),
+        #        int(job_match.group(8)),
+        #        (job_match.group(9) or "none")
+        #    )
+        #    self.read_runtime(key, path)
+        #    return
 
         time_match = self.time_pattern.fullmatch(path.name)
         if time_match:
@@ -264,15 +352,14 @@ class Loader:
                 time_match.group(1),
                 time_match.group(2),
                 bool(time_match.group(3)),
-                bool(time_match.group(4)),
-                int(time_match.group(5) or 1),
-                time_match.group(6),
-                int(time_match.group(7) or 0),
-                int(time_match.group(8)),
-                int(time_match.group(9) or 0),
-                int(time_match.group(10))
-                )
-            monitor_index = int(time_match.group(11) or 0)
+                int(time_match.group(4) or 0),
+                time_match.group(5).replace('_', '-'),
+                int(time_match.group(6) or 0),
+                int(time_match.group(7)),
+                int(time_match.group(8) or 0),
+                (time_match.group(9) or "none")
+            )
+            monitor_index = int(time_match.group(10) or 0)
             self.read_memory(key, monitor_index, path)
             return
 
@@ -293,8 +380,23 @@ class Loader:
         group_levels.remove('monitor')
         return df.groupby(level=group_levels).max()
 
+    def avg_throughput(self):
+        for i in range(0, len(self.throughput_keys)):
+            sum_tp, avg_tp = self.throughput_data_tmp[i]
+            key = self.throughput_keys[i]
+            runtime = self.runtime_map[key]
+            avg_tp = sum_tp / runtime
+            data = pd.DataFrame([[avg_tp, sum_tp, avg_tp]], columns=['avg_tp', 'sum_tp', 'max_tp'])
+            self.throughput_data[i] = data
+
     def average_repetitions(self, df):
         group_levels = list(df.index.names)
+        group_levels.remove('repetition')
+        return df.groupby(level=group_levels).mean()
+
+    def average_repetitions_sum(self, df):
+        group_levels = list(df.index.names)
+        group_levels.remove(None)
         group_levels.remove('repetition')
         return df.groupby(level=group_levels).mean()
 
@@ -305,19 +407,29 @@ class Loader:
         raw_summary = pd.concat(self.summary_data, sort=True, keys=self.summary_keys, names=self.job_levels)
         raw_summary.reset_index('timestamp', drop=True, inplace=True)
         raw_summary = raw_summary.merge(memory, 'outer', left_index=True, right_index=True)
+
         summary = self.average_repetitions(raw_summary)
         summary.sort_index(inplace=True)
+
+        raw_runtime = pd.concat(self.runtime_data, keys=self.runtime_keys, names=self.job_levels)
+        runtime = self.average_repetitions_sum(raw_runtime)
+        runtime.sort_index(inplace=True)
+
+        self.avg_throughput()
+        raw_throughput = pd.concat(self.throughput_data, keys=self.throughput_keys, names=self.job_levels)
+        throughput = self.average_repetitions_sum(raw_throughput)
+        throughput.sort_index(inplace=True)
 
         monitor_columns = [column for column in list(raw_summary.columns) if column.startswith('monitor')]
         raw_slices = raw_summary.loc[:, monitor_columns].stack()
         raw_slices.index.rename('monitor', level=-1, inplace=True)
         raw_slices.name = 'total_events'
         slices = self.average_repetitions(raw_slices).to_frame()
-
         series = pd.concat(self.series_data, sort=True, keys=self.series_keys, names=self.job_levels)
+        #series = raw_series[raw_series['peak'] > 0]
         series.sort_index(inplace=True)
 
-        return Data("Summary", summary), Data("Slices", slices), Data("Time series", series)
+        return Data("Summary", summary), Data("Slices", slices), Data("Time series", series), Data("Runtime", runtime), Data("Throughput", throughput)
 
     @classmethod
     def load(cls, paths):
@@ -330,7 +442,7 @@ class Loader:
 if __name__ == '__main__':
     if len(sys.argv) >= 2:
         paths = map(pathlib.Path, sys.argv[1:])
-        summary, slices, series = Loader.load(paths)
+        summary, slices, series, runtime, throughput = Loader.load(paths)
 
         # SYNTHETIC
         # gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
@@ -362,31 +474,202 @@ if __name__ == '__main__':
 
         # gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
         # gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
-        
+
         # # ALL
+        # gen_nproc_export = summary.select()
         # gen_nproc_export = summary.select()
         # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="all.csv")
 
-        # PLOT1
-        gen_nproc_export = summary.select(experiment='gen',checkpointing=True)
-        gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
+        # NOKIA EXPERIMENTS
+        #synth_summary = summary.select(experiment='nokia')
+        #synth_summary.export('max', 'peak', 'average', 'current_events', 'memory', path="plot-nokia.csv")
+#
+        #synth_plot_tp = summary.select(experiment='nokia', adaptivity=False)
+        #synth_plot_tp.export('processors', 'sum_tp', 'acceleration', path="plots_nokia-tp_nonad.csv")
+        #synth_plot_tp.plot('processors', 'sum_tp', column_levels=['acceleration'], title="Plot throughput Nonad", path="nokia-plots-tp-nonad.pdf")
+#
+        #synth_plot_tp = summary.select(experiment='nokia', adaptivity=True)
+        #synth_plot_tp.export('processors', 'statistics', 'sum_tp', 'acceleration', path="plots_tp_ad.csv")
+        #synth_plot_tp.plot('processors', 'sum_tp', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="nokia-plots-tp-ad.pdf")
+#
+        ## PLOT3
+        #synth_series = series.select(experiment='nokia', adaptivity=False)
+        #synth_series.export('peak', path="plot-nokia-time-f.csv")
+        #synth_series.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="nokia-plots-peak-latency-nonad.pdf")
+#
+        #synth_series = series.select(experiment='nokia', adaptivity=True)
+        #synth_series.export('peak', path="plot-nokia-time-t.csv")
+        #synth_series.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency Adaptive", path="nokia-plots-peak-latency-ad.pdf")
 
         # PLOT2
-        nokia_nproc = summary.select(experiment='nokia', statistics=False)
-        nokia_nproc.export('max', 'peak', 'average', 'memory', path="plot-nokia.csv")
+        #nokia_nproc = summary.select(experiment='nokia')
+        #nokia_nproc.export('max', 'peak', 'average', 'current_events', 'memory', 'sum_tp', path="plot-nokia.csv")
 
         # PLOT3
-        nokia_series = series.select(experiment='nokia', checkpointing=False, repetition=2, statistics=False)
-        nokia_series.export('peak', path="plot-nokia-time-f.csv")
+        #nokia_series = series.select(experiment='nokia', adaptivity=False, repetition=1)
+        #nokia_series.export('peak', path="plot-nokia-time-f.csv")
 
         # PLOT4
-        nokia_series = series.select(experiment='nokia', checkpointing=True, repetition=2, statistics=False)
-        nokia_series.export('peak', path="plot-nokia-time-t.csv")
-    
-        # PLOT5
-        genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
+        #nokia_series = series.select(experiment='nokia', adaptivity=True, repetition=1)
+        #nokia_series.export('peak', path="plot-nokia-time-t.csv")
 
+
+        # NOKIA EXPERIMENTS
+        #nokia_plot_summary = summary.select(experiment='nokia')
+        #nokia_plot_summary.export('max', 'peak', 'average', 'current_events', 'memory', path="plot-summary.csv")
+
+        #nokia_plot_tp_proc_ad = summary.select(experiment='nokia', adaptivity=False)
+        #nokia_plot_tp_proc_ad.export('processors', 'current_events', 'acceleration', path="plot-tp-proc-nonad.csv")
+        #nokia_plot_tp_proc_ad.plot('processors', 'current_events', column_levels=['acceleration'], title="Plot throughput Nonad", path="plot-tp-proc-nonad.pdf")
+
+        #nokia_plot_tp_proc_nonad = summary.select(experiment='nokia', adaptivity=True)
+        #nokia_plot_tp_proc_nonad.export('processors', 'statistics', 'current_events', 'acceleration', path="plot-tp-proc-ad.csv")
+        #nokia_plot_tp_proc_nonad.plot('processors', 'current_events', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="plot-tp-proc-ad.pdf")
+
+        #nokia_plot_tp_trace_nonad = series.select(experiment='nokia', adaptivity=False)
+        #nokia_plot_tp_trace_nonad.export('current_events', path="plot-tp-trace-nonad.csv")
+        #nokia_plot_tp_trace_nonad.plot('timestamp', 'current_events', column_levels=['processors', 'acceleration'], title="TP NonAdaptive", path="plot-tp-trace-nonad.pdf")
+
+        #nokia_plot_tp_trace_ad = series.select(experiment='nokia', adaptivity=True)
+        #nokia_plot_tp_trace_ad.export('current_ events', path="plot-tp_trace-ad.csv")
+        #nokia_plot_tp_trace_ad.plot('timestamp', 'current_events', column_levels=['processors', 'acceleration'],  title="Tp-Adaptive", path="plot-tp-trace-ad.pdf")
+
+        #nokia_plot_peak_lat_nonad = series.select(experiment='nokia', adaptivity=False)
+        #nokia_plot_peak_lat_nonad.export('peak', path="plot-peak-lat-nonad.csv")
+        #nokia_plot_peak_lat_nonad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-nonad.pdf")
+
+        #nokia_plot_peak_lat_ad = series.select(experiment='nokia', adaptivity=True)
+        #nokia_plot_peak_lat_ad.export('peak', path="plot-peak-lat-ad.csv")
+        #nokia_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency Adaptive", path="plot-peak-lat-ad.pdf")
+
+        #nokia_plot_tp_comparative= series.select(experiment='nokia', tool='flink')
+        #nokia_plot_tp_comparative.plot('timestamp', 'average', series_levels=['statistics'], column_levels=['processors'],  title="Latency Comparative", path="plot-avg-lat-comparative.pdf")
+        #nokia_plot_tp_comparative.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['processors'],  title="Throughput Comparative", path="plot-tp-comparative.pdf")
+
+        #nokia_plot_runtime_comparative = runtime.select(experiment='nokia', tool='flink', adaptivity=True)
+        #nokia_plot_runtime_comparative.plot('processors', 'runtime', series_levels=['statistics'], column_levels=['windows'],  title="Runtime Comparative", path="plot-runtime-comparative.pdf")
+
+        plots = "synth"
+
+        if plots == "nokia":
+            acceleration=3000
+            nokia_summary = summary.select(experiment='nokia', acceleration=acceleration)
+            nokia_summary.export('max', 'peak', 'average', 'acceleration', 'memory', path="plot-summary.csv")
+            nokia_summary_ad= summary.select(experiment='nokia', adaptivity=True, acceleration=acceleration)
+            nokia_summary_ad.plot('window', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-ad.pdf")
+            nokia_summary_nonad= summary.select(experiment='nokia', adaptivity=False)
+            nokia_summary_nonad.plot('processors', 'peak', title="Latency-Nonadaptive", path="plot-peak-lat-nonad.pdf")
+
+            #nokia_plot_tp_proc_ad = summary.select(experiment='nokia', adaptivity=False)
+            #nokia_plot_tp_proc_ad.export('processors', 'current_events', 'acceleration', path="plot-tp-proc-nonad.csv")
+            #nokia_plot_tp_proc_ad.plot('processors', 'current_events', series_levels=['acceleration'], title="Plot throughput Nonad", path="plot-tp-proc-nonad.pdf")
+
+            #nokia_plot_tp_proc_nonad = summary.select(experiment='nokia', adaptivity=True)
+            #nokia_plot_tp_proc_nonad.export('processors', 'statistics', 'current_events', 'acceleration', path="plot-tp-proc-ad.csv")
+            #nokia_plot_tp_proc_nonad.plot('processors', 'current_events', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="plot-tp-proc-ad.pdf")
+
+            nokia_plot_peak_lat_nonad = series.select(experiment='nokia', adaptivity=False, repetition=1, acceleration=acceleration)
+            nokia_plot_peak_lat_nonad.export('peak', path="plot-peak-lat-trace-nonad.csv")
+            nokia_plot_peak_lat_nonad.plot('timestamp', 'peak', column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-trace-nonad.pdf")
+
+            nokia_plot_peak_lat_ad = series.select(experiment='nokia', adaptivity=True, repetition=1, acceleration=acceleration)
+            nokia_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad.csv")
+            nokia_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-ad.pdf")
+
+            #nokia_plot_tp_comparative= series.select(experiment='nokia', tool='flink')
+            #nokia_plot_tp_comparative.plot('timestamp', 'average', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Latency Comparative", path="plot-avg-lat-comparative.pdf")
+            #nokia_plot_tp_comparative.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Throughput Comparative", path="plot-tp-comparative.pdf")
+
+            nokia_plot_tp_ad = throughput.select(experiment='nokia', tool='flink', adaptivity=True, acceleration=acceleration)
+            #nokia_plot_tp_ad.export('max_tp', path="plot-tp-ad.csv")
+            #nokia_plot_tp_ad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-ad.pdf")
+            nokia_plot_tp_ad.export('avg_tp', path="plot-tp-avg-ad.csv")
+            nokia_plot_tp_ad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-avg-ad.pdf")
+
+            nokia_plot_tp_nonad = throughput.select(experiment='nokia', adaptivity=False, acceleration=acceleration)
+            #nokia_plot_tp_nonad.export('max_tp', path="plot-tp-max-nonad.csv")
+            #nokia_plot_tp_nonad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Max Throughput Non-Adaptive", path="plot-tp-max-nonad.pdf")
+            nokia_plot_tp_nonad.export('avg_tp', path="plot-tp-avg-nonad.csv")
+            nokia_plot_tp_nonad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Avg Throughput Non-Adaptive", path="plot-tp-avg-nonad.pdf")
+
+            nokia_plot_tp = throughput.select(experiment='nokia', tool='flink', acceleration=acceleration)
+            nokia_plot_tp.export('avg_tp', path="plot-tp.csv")
+            nokia_plot_runtime = runtime.select(experiment='nokia', tool='flink', acceleration=acceleration)
+            nokia_plot_runtime.export('runtime', path="plot-runtime.csv")
+
+            nokia_plot_runtime_ad = runtime.select(experiment='nokia', tool='flink', adaptivity=True, acceleration=acceleration)
+            nokia_plot_runtime_ad.export('runtime', path="plot-runtime-ad.csv")
+            nokia_plot_runtime_ad.plot('window', 'runtime', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-runtime-ad.pdf")
+            nokia_plot_runtime_nonad = runtime.select(experiment='nokia', tool='flink', adaptivity=False, acceleration=acceleration)
+            nokia_plot_runtime_nonad.export('runtime', path="plot-runtime-non-ad.csv")
+            nokia_plot_runtime_nonad.plot('processors', 'runtime', series_levels=['acceleration'], title="Runtime Non Adaptive", path="plot-runtime-nonad.pdf")
+
+        elif plots == "synth":
+            #SYNTHETIC EXPERIMENTS
+            synth_summary = summary.select(experiment='synth')
+            synth_summary.export('max', 'peak', 'average', 'acceleration', 'memory', path="plot-summary.csv")
+            synth_summary_ad= summary.select(experiment='synth', adaptivity=True)
+            synth_summary_ad.plot('window', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-ad.pdf")
+            synth_summary_nonad= summary.select(experiment='synth', adaptivity=False)
+            synth_summary_nonad.plot('processors', 'peak', title="Latency-Nonadaptive", path="plot-peak-lat-nonad.pdf")
+
+
+            synth_plot_tp_proc_ad = summary.select(experiment='synth', adaptivity=False)
+            synth_plot_tp_proc_ad.export('processors', 'current_events', 'acceleration', path="plot-tp-proc-nonad.csv")
+            synth_plot_tp_proc_ad.plot('processors', 'current_events', series_levels=['acceleration'], title="Plot throughput Nonad", path="plot-tp-proc-nonad.pdf")
+
+            synth_plot_tp_proc_nonad = summary.select(experiment='synth', adaptivity=True)
+            synth_plot_tp_proc_nonad.export('processors', 'statistics', 'current_events', 'acceleration', path="plot-tp-proc-ad.csv")
+            synth_plot_tp_proc_nonad.plot('processors', 'current_events', series_levels=['statistics'], column_levels=['acceleration'], title="Plot throughput Ad", path="plot-tp-proc-ad.pdf")
+
+            #synth_plot_tp_trace_nonad = series.select(experiment='synth', adaptivity=False)
+            #synth_plot_tp_trace_nonad.export('current_events', path="plot-tp-trace-nonad.csv")
+            #synth_plot_tp_trace_nonad.plot('timestamp', 'current_events', series_levels=['acceleration'], column_levels=['processors'], title="TP NonAdaptive", path="plot-tp-trace-nonad.pdf")
+
+            #synth_plot_tp_trace_ad = series.select(experiment='synth', adaptivity=True)
+            #synth_plot_tp_trace_ad.export('current_ events', path="plot-tp_trace-ad.csv")
+            #synth_plot_tp_trace_ad.plot('timestamp', 'current_events', series_levels=['statistics'], column_levels=['processors', 'acceleration'],  title="Tp-Adaptive", path="plot-tp-trace-ad.pdf")
+
+            synth_plot_peak_lat_nonad = series.select(experiment='synth', adaptivity=False)
+            synth_plot_peak_lat_nonad.export('peak', path="plot-peak-lat-trace-nonad.csv")
+            synth_plot_peak_lat_nonad.plot('timestamp', 'peak', column_levels=['processors'],  title="Latency-Nonadaptive", path="plot-peak-lat-trace-nonad.pdf")
+
+            synth_plot_peak_lat_ad = series.select(experiment='synth', adaptivity=True)
+            synth_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad.csv")
+            synth_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-ad.pdf")
+
+            #synth_plot_peak_lat_ad = series.select(experiment='synth', adaptivity=True, window=8, processors=8)
+            #synth_plot_peak_lat_ad.export('peak', path="plot-peak-lat-trace-ad-8-8.csv")
+            #synth_plot_peak_lat_ad.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors', 'windows'],  title="Latency Adaptive", path="plot-peak-lat-trace-8-8-ad.pdf")
+
+            synth_plot_tp_comparative= series.select(experiment='synth', tool='flink')
+            synth_plot_tp_comparative.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['windows', 'processors'],  title="Latency Comparative", path="plot-peak-lat-comparative.pdf")
+
+            synth_plot_latency= series.select(experiment='synth', tool='flink', repetition=1, window=4, acceleration=8)
+            synth_plot_latency.export('peak', path="plot-latency-trace.csv")
+            synth_plot_latency.plot('timestamp', 'peak', series_levels=['statistics'], column_levels=['processors'],  title="Latency Comparative", path="plot-peak-lat-comparative-w=4-a=8.pdf")
+
+            synth_plot_tp_ad = throughput.select(experiment='synth', tool='flink', adaptivity=True)
+            synth_plot_tp_ad.export('max_tp', path="plot-tp-ad.csv")
+            synth_plot_tp_ad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-ad.pdf")
+            synth_plot_tp_ad.export('avg_tp', path="plot-tp-avg-ad.csv")
+            synth_plot_tp_ad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-tp-avg-ad.pdf")
+
+            synth_plot_tp_nonad = throughput.select(experiment='synth', adaptivity=False)
+            synth_plot_tp_nonad.export('max_tp', path="plot-tp-max-nonad.csv")
+            synth_plot_tp_nonad.plot('window', 'max_tp', series_levels=['statistics'], column_levels=['processors'],  title="Max Throughput Non-Adaptive", path="plot-tp-max-nonad.pdf")
+            synth_plot_tp_nonad.export('avg_tp', path="plot-tp-avg-nonad.csv")
+            synth_plot_tp_nonad.plot('window', 'avg_tp', series_levels=['statistics'], column_levels=['processors'],  title="Avg Throughput Non-Adaptive", path="plot-tp-avg-nonad.pdf")
+
+            synth_plot_tp = throughput.select(experiment='synth', tool='flink')
+            synth_plot_tp.export('avg_tp', path="plot-tp.csv")
+
+            synth_plot_runtime_ad = runtime.select(experiment='synth', tool='flink')
+            synth_plot_runtime_ad.export('runtime', path="plot-runtime-ad.csv")
+            synth_plot_runtime_ad.plot('window', 'runtime', series_levels=['statistics'], column_levels=['processors'],  title="Runtime Adaptive", path="plot-runtime-ad.pdf")
+            synth_plot_runtime_nonad = runtime.select(experiment='synth', tool='flink', adaptivity=False)
+            synth_plot_runtime_nonad.export('runtime', path="plot-runtime-non-ad.csv")
+            synth_plot_runtime_nonad.plot('processors', 'runtime', series_levels=['acceleration'], title="Runtime Non Adaptive", path="plot-runtime-nonad.pdf")
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))
         sys.exit(1)

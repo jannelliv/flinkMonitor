@@ -4,6 +4,8 @@ import java.util
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
 import ch.eth.inf.infsec.Processor
+import ch.eth.inf.infsec.slicer.HypercubeSlicer
+import ch.eth.inf.infsec.trace.{CommandRecord, MonpolyVerdictFilter, Record}
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
@@ -36,7 +38,7 @@ private case class LatencyMarkerItem(marker: LatencyMarker) extends PendingReque
 
 private case class SnapshotRequestItem() extends PendingRequest
 
-private case class SnapshotResultItem(snapshot: Array[Byte]) extends PendingResult
+private case class SnapshotResultItem(snapshot: Iterable[(Int, Array[Byte])]) extends PendingResult
 
 private case class ShutdownItem() extends PendingRequest with PendingResult
 
@@ -45,6 +47,7 @@ private case class ShutdownItem() extends PendingRequest with PendingResult
 // TODO(JS): One could also consider removing the resultQueue and merging the reader and emitter threads. However, it
 // is not obvious how the synchronization during snapshotting would work.
 class ExternalProcessOperator[IN, PIN, POUT, OUT](
+  slicer: HypercubeSlicer,
   preprocessing: Processor[IN, PIN],
   process: ExternalProcess[PIN, POUT],
   postprocessing: Processor[POUT, OUT],
@@ -71,12 +74,12 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   @transient private var preprocessingSerializer: TypeSerializer[preprocessing.State] = _
   @transient private var postprocessingSerializer: TypeSerializer[postprocessing.State] = _
   @transient private var resultSerializer: TypeSerializer[Array[PendingResult]] = _
-  @transient private var stateSerializer: TypeSerializer[Array[Byte]] = _
+  @transient private var stateSerializer: TypeSerializer[(Int, Array[Byte])] = _
 
   @transient private var resultState: ListState[Array[PendingResult]] = _
   @transient private var preprocessingState: ListState[preprocessing.State] = _
   @transient private var postprocessingState: ListState[postprocessing.State] = _
-  @transient private var processState: ListState[Array[Byte]] = _
+  @transient private var processState: ListState[(Int,Array[Byte])] = _
 
   @transient private var pendingCount: Int = 0
 
@@ -108,7 +111,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     val pendingResultType = TypeInformation.of(new TypeHint[Array[PendingResult]]() {})
     resultSerializer = pendingResultType.createSerializer(getExecutionConfig)
 
-    val stateType = TypeInformation.of(new TypeHint[Array[Byte]]() {})
+    val stateType = TypeInformation.of(new TypeHint[(Int, Array[Byte])]() {})
     stateSerializer = stateType.createSerializer(getExecutionConfig)
 
     // TODO(JS): This is specific to the monitoring application.
@@ -116,6 +119,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       override def getValue: Long = preprocessing.getCustomCounter
     })
   }
+
+  @transient
+  var pendingSlicer: String = _
 
   override def open(): Unit = {
     super.open()
@@ -126,11 +132,22 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     val subtaskIndex = getRuntimeContext.getIndexOfThisSubtask
     preprocessing.setParallelInstanceIndex(subtaskIndex)
-    postprocessing.setParallelInstanceIndex(subtaskIndex)
     process.identifier = Some(subtaskIndex.toString)
 
+    val processStates = processState.get()
     preprocessing.restoreState(preprocessingState.get().headOption)
     postprocessing.restoreState(postprocessingState.get().headOption)
+
+    val postProcessState = postprocessingState.get().headOption
+    postprocessing.restoreState(postProcessState)
+    postProcessState match {
+      case Some(x) =>
+        slicer.updateState(x.asInstanceOf[Array[Byte]])
+        postprocessing.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
+      case None =>
+        postprocessing.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
+    }
+    postprocessing.setParallelInstanceIndex(subtaskIndex)
 
     resultState.get().headOption match {
       case Some(results) =>
@@ -139,25 +156,29 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       case None => ()
     }
 
-    processState.get().headOption match {
-      case Some(state) => process.open(state)
+    processStates.headOption match {
+      case Some(_) =>
+        val relevant = processStates.filter(_._1 == subtaskIndex)
+        if(relevant.size == 1) process.open(relevant.head._2)
+        else process.open(relevant)
       case None => process.open()
     }
 
     preprocessingState.clear()
     postprocessingState.clear()
-    resultState.clear()
     processState.clear()
+    resultState.clear()
 
     writerThread = new ServiceThread {
       override def handle(): Unit = {
         val request = requestQueue.take()
         processingQueue.put(request)
         request match {
-          case InputItem(record) => process.writeRequest(record.asRecord[PIN]().getValue)
+          case InputItem(record)   => process.writeRequest(record.asRecord[PIN]().getValue)
           case WatermarkItem(_) => ()
           case LatencyMarkerItem(_) => ()
-          case SnapshotRequestItem() => process.initSnapshot()
+          case SnapshotRequestItem() =>
+            process.initSnapshot()
           case ShutdownItem() =>
             process.shutdown()
             running = false
@@ -183,8 +204,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
               resultLock.synchronized {
                 for (result <- buffer)
                   postprocessing.process(
-                    result, r =>
-                      resultQueue.add(OutputItem(outputRecord(record, r))))
+                    result, r => resultQueue.add(OutputItem(outputRecord(record, r))))
                 resultQueue.add(OutputSeparatorItem())
                 resultLock.notifyAll()
               }
@@ -195,7 +215,14 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case mark@WatermarkItem(_) => putResult(mark)
           case marker@LatencyMarkerItem(_) => putResult(marker)
           case SnapshotRequestItem() =>
-            putResult(SnapshotResultItem(process.readSnapshot()))
+            val results = process.readSnapshots()
+            if(results.size == 1){
+              val result = results.head
+              putResult(SnapshotResultItem(List((subtaskIndex, result._2))))
+            }
+            else
+              putResult(SnapshotResultItem(results))
+
             snapshotReady.release()
           case shutdown@ShutdownItem() =>
             process.drainResults(buffer)
@@ -257,7 +284,6 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       }
     }
     emitterThread.start()
-
   }
 
   override def close(): Unit = {
@@ -354,14 +380,14 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
       resultLock.synchronized {
         for (result: PendingResult <- resultQueue) {
-          assert(!gotSnapshot)
+          gotSnapshot = false
           result match {
             case OutputItem(_) => results.add(result)
             case OutputSeparatorItem() => results.add(result)
             case WatermarkItem(_) => results.add(result)
             case LatencyMarkerItem(_) => results.add(result)
-            case SnapshotResultItem(state) =>
-              processState.add(state)
+            case SnapshotResultItem(states) =>
+              processState.addAll(states.toList)
               gotSnapshot = true
             case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
           }
@@ -380,16 +406,16 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   override def initializeState(context: StateInitializationContext): Unit = {
     super.initializeState(context)
 
-    preprocessingState = getOperatorStateBackend.getListState(new ListStateDescriptor[preprocessing.State](
+    preprocessingState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[preprocessing.State](
       PREPROCESSING_STATE_NAME,
       preprocessingSerializer))
-    postprocessingState = getOperatorStateBackend.getListState(new ListStateDescriptor[postprocessing.State](
+    postprocessingState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[postprocessing.State](
       POSTPROCESSING_STATE_NAME,
       postprocessingSerializer))
-    resultState = getOperatorStateBackend.getListState(new ListStateDescriptor[Array[PendingResult]](
+    resultState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[Array[PendingResult]](
       RESULT_STATE_NAME,
       resultSerializer))
-    processState = getOperatorStateBackend.getListState(new ListStateDescriptor[Array[Byte]](
+    processState = getOperatorStateBackend.getUnionListState(new ListStateDescriptor[(Int, Array[Byte])](
       PROCESS_STATE_NAME,
       stateSerializer))
   }
@@ -404,8 +430,16 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
     // TODO(JS): Implement timeout
+    val tuple = streamRecord.getValue.asInstanceOf[(Int, Record)]
+    tuple._2 match {
+      case CommandRecord(_, parameters) =>
+        postprocessing.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
+        pendingSlicer = parameters
+      case _ => ()
+    }
+
     preprocessing.process(streamRecord.getValue, x =>
-      enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))) )
+      enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))))
   }
 
   def failOperator(throwable: Throwable): Unit = {
@@ -459,12 +493,13 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 object ExternalProcessOperator {
   // TODO(JS): Do we need to "clean" the process/preprocessing?
   def transform[IN, PIN, POUT, OUT: TypeInformation](
-      in: DataStream[IN],
-      preprocessing: Processor[IN, PIN],
+      slicer: HypercubeSlicer,
+      in: DataStream[(Int, Record)],
+      preprocessing: Processor[(Int, Record), PIN],
       process: ExternalProcess[PIN, POUT],
       postprocessing: Processor[POUT, OUT],
       capacity: Int): DataStream[OUT] =
     in.transform(
       "External Process",
-      new ExternalProcessOperator[IN, PIN, POUT, OUT](preprocessing, process, postprocessing,0, capacity))
+      new ExternalProcessOperator[(Int, Record), PIN, POUT, OUT](slicer, preprocessing, process, postprocessing,0, capacity))
 }

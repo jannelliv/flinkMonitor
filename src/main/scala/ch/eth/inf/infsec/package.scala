@@ -9,6 +9,7 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.util.Collector
 
 import scala.collection.mutable.ArrayBuffer
+import scala.collection.JavaConversions._
 
 package object infsec {
 
@@ -67,8 +68,10 @@ package object infsec {
     override def open(parameters: Configuration): Unit = {
       super.open(parameters)
       val index = getRuntimeContext.getIndexOfThisSubtask
-      if (index > 0 && processor.isStateful)
-        throw new Exception("Stateful processors cannot be used in parallel.")
+      println("Opening %s instance %d".format(getRuntimeContext.getTaskName, getRuntimeContext.getIndexOfThisSubtask))
+      //TODO(FB): discuss with JS
+      //if (index > 0 && processor.isStateful)
+      //  throw new Exception("Stateful processors cannot be used in parallel.")
       processor.setParallelInstanceIndex(index)
     }
 
@@ -87,10 +90,9 @@ package object infsec {
           "state",
           TypeInformation.of(new TypeHint[processor.State] {}))
 
-        checkpointedState = context.getOperatorStateStore.getListState(descriptor)
+        checkpointedState = context.getOperatorStateStore.getUnionListState(descriptor)
         if (context.isRestored) {
-          val stateIterator = checkpointedState.get().iterator()
-          val state = if (stateIterator.hasNext) Some(stateIterator.next()) else None
+          val state =  checkpointedState.get().headOption
           processor.restoreState(state)
         }
       }

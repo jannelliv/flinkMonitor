@@ -3,6 +3,7 @@
 import csv
 import sys
 import json
+
 from pprint import pprint
 
 """
@@ -37,14 +38,32 @@ for i in range(len(data_record['all'])):
             monitor_map=job_map_record[job]
         except:
             monitor_map={}
+
         m = int(data_record['all'][i]['data']['result'][j]['metric']['subtask_index'])
-        sample_map = {}
-        sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
+        offset = 0
+
+        try:
+            sample_map = monitor_map[m]
+            sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
+            #print("sample map already exists for monitor: %d in job: %s" % (m, job))
+
+            #for key, value in sample_map.items():
+            #    print("Ts: %d, value: %d" % (key, value))
+        except:
+            sample_map = {}
+            sample_num=len(data_record['all'][i]['data']['result'][j]['values'])
+
         for t in range(0,sample_num):
             ts = int(data_record['all'][i]['data']['result'][j]['values'][t][0])
-            sample_map[ts] = int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+            value =   int(data_record['all'][i]['data']['result'][j]['values'][t][1])
+            sample_map[ts] = value - offset
+            offset = value
+
         monitor_map[m]=sample_map
         job_map_record[job]=monitor_map
+
+
+
 
 
 def extract(data):
@@ -52,11 +71,26 @@ def extract(data):
     for i in range(len(data['all'])):
         for j in range(len(data['all'][i]['data']['result'])):
             job = str(data['all'][i]['data']['result'][j]['metric']['job_name'])
-            sample_num = len(data['all'][i]['data']['result'][j]['values'])
-            sample_map = {}
-            for t in range(sample_num):
-                ts             = int(data['all'][i]['data']['result'][j]['values'][t][0])
-                sample_map[ts] = int(data['all'][i]['data']['result'][j]['values'][t][1])
+            try:
+                sample_map = job_map_latency[job]
+                #print("Job %s already has stats" % job)
+
+                #for key, value in sample_map.items():
+                    #print("Ts: %d, value: %d" % (key, value))
+
+                sample_num = len(data['all'][i]['data']['result'][j]['values'])
+                for t in range(sample_num):
+                    ts             = int(data['all'][i]['data']['result'][j]['values'][t][0])
+                    value          = int(data['all'][i]['data']['result'][j]['values'][t][1])
+                    #print("TS: %d, Value: %d" % (ts, value))
+                    sample_map[ts] = value
+            except:
+                sample_map = {}
+                sample_num = len(data['all'][i]['data']['result'][j]['values'])
+                for t in range(sample_num):
+                    ts             = int(data['all'][i]['data']['result'][j]['values'][t][0])
+                    sample_map[ts] = int(data['all'][i]['data']['result'][j]['values'][t][1])
+
             job_map_latency[job] = sample_map
     return job_map_latency
 
@@ -81,6 +115,36 @@ non_common_jobs = non_common_jobs.union(set(job_map_peak.keys())-common_jobs)
 print("Skipping the "+ str(len(non_common_jobs)) +" jobs not in common: " + str(non_common_jobs))
 
 
+def recalculateMax(latency):
+    max_l = 0
+    length = len(latency)
+    for i in range(0, length):
+        ts, tmp  = latency[i]
+        max_l = max([max_l, tmp])
+        latency[i] = (ts, max_l)
+
+    return latency
+
+
+def recalculateAverage(peak):
+    average = []
+    avg_l = 0
+    sum = 0
+    length = len(peak)
+    offset = 0
+    for i in range(1, length+1):
+        ts, tmp  = peak[i-1]
+        sum += tmp
+        if sum == 0:
+            offset += 1
+        if tmp > 0:
+            avg_l = sum / (i - offset)
+
+        average += [(ts, avg_l)]
+
+    return average
+
+
 def d2l(d):
     dictlist = []
     for key, value in d.iteritems():
@@ -93,36 +157,51 @@ for job in common_jobs:
     output_file = open("metrics_"+job+".csv", 'w')
     writer = csv.writer(output_file)
     ms = len(job_map_record[job])
-    writer.writerow(['timestamp', 'peak', 'max', 'average']+ map(lambda x: "monitor"+str(x), range(0,ms)))
+    writer.writerow(['timestamp', 'peak', 'max', 'average', 'sum_tp']+ map(lambda x: "monitor_tp"+str(x), range(0,ms)))
     
     index = 0
-    peak_list= d2l(job_map_peak[job])
-    max_list = d2l(job_map_max[job])
-    avg_list = d2l(job_map_avg[job])
-    for i in range(0,len(job_map_max[job])):
+    #Gets lists from dicts
+    peak_list = d2l(job_map_peak[job])
+    max_list  = recalculateMax(d2l(job_map_max[job]))
+    avg_list  = recalculateAverage(peak_list)
+
+    job_record_dict = {}
+
+    #try:
+    #    index = job.index("ft")
+    length = len(job_map_max[job])
+    offset = {}
+
+    for i in range(0,length):
         skip=False
         ts_p, peak = peak_list[i]
-        ts_m, max  = max_list[i]
+        ts_m, max_n  = max_list[i]
         ts_a, avg  = avg_list[i]
-        assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
-        ts = min(ts_p,ts_m,ts_a)
-        r = [ts,peak,max,avg]
+
+        #assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
+        ts = max(ts_p,ts_m,ts_a)
+        r = [ts,peak,max_n,avg]
+        records = []
         for m in range(ms):
             try:
                 ts_r, rec = d2l(job_map_record[job][m])[i]
-                if ts < ts_r:
-                    skip=True
-                    break
-                if ts > ts_r:
-                    continue
-                r = r + [rec] 
+                if not m in offset:
+                    offset[m] = 0
+                ts_r += offset[m]
+                records = records + [rec]
             except IndexError:
+                records = records + [0]
                 # number of samples misaligned
-                break
+                #print("Number of samples misaligned")
+                #print("Len: %d vs Len: %d" % (len(job_map_max[job]), len(d2l(job_map_record[job][m]))))
+                #print("Job: %s, m: %d, i: %d" % (job, m, i))
         if skip:
             continue
-
+        sum_tp = sum(records)
+        r = r + [sum_tp] + records
         writer.writerow(r)
+    #except:
+    #    ()
     output_file.close()
 
 f_max.close()

@@ -6,6 +6,7 @@ export PATH="$PATH:$WORK_DIR/visual/sqlite"
 FLINK_BIN="$WORK_DIR/flink-1.5.0/bin"
 MONITOR_JAR="$WORK_DIR/parallel-online-monitoring-1.0-SNAPSHOT.jar"
 TOOL_JAR="$WORK_DIR/evaluation-tools-1.0-SNAPSHOT.jar"
+PROXY_JAR="$WORK_DIR/ReplayerProxy-assembly-0.1.0-SNAPSHOT.jar"
 
 CHECKPOINT_DIR="$WORK_DIR/checkpoints"
 OUTPUT_DIR="$WORK_DIR/output"
@@ -14,3 +15,6 @@ REPORT_DIR="$WORK_DIR/reports"
 TIME_COMMAND=/usr/bin/time
 
 STREAM_PORT=10101
+PROXY_PORT=10102
+RESCALER_PORT=10103
+

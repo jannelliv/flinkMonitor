@@ -2,14 +2,18 @@ package ch.eth.inf.infsec
 package slicer
 
 import ch.eth.inf.infsec.policy._
-import ch.eth.inf.infsec.trace.{Domain, Record, Tuple}
+import ch.eth.inf.infsec.trace.{Domain, Record, EventRecord, CommandRecord, Tuple}
 
 import scala.collection.mutable
 
 // NOTE(JS): Also performs basic filtering (constants).
-abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
+abstract class DataSlicer extends Processor[Record, (Int, Record)] {
+  override type State = Array[Byte]
+
   val formula: Formula
   val degree: Int
+
+  var pendingSlicer: String = _
 
   def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int])
 
@@ -25,6 +29,30 @@ abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
   private var valuation: Array[Domain] = _
 
   override def process(record: Record, f: ((Int, Record)) => Unit) {
+    record match {
+      case CommandRecord(record.command, record.parameters) => processCommand(record, f)
+      case EventRecord(record.timestamp, record.label, record.data) =>   processEvent(record, f)
+    }
+  }
+
+  def updateState(state: Array[Byte]): Unit = ()
+
+  def setSlicer(record: Record): Unit = {
+    pendingSlicer = record.parameters
+  }
+
+  def processCommand(record: Record, f: ((Int, Record)) => Unit): Unit ={
+    var i = 0
+
+    setSlicer(record)
+
+    while (i < degree) {
+      f((i, record))
+      i += 1
+    }
+  }
+
+  def processEvent(record: Record, f: ((Int, Record)) => Unit): Unit = {
     if (atoms == null) {
       atoms = formula.atoms.toArray
       valuation = Array.fill(formula.freeVariables.size)(null)
@@ -79,6 +107,10 @@ abstract class DataSlicer extends StatelessProcessor[Record, (Int, Record)] {
 
     slices.foreach(s => f(s, record))
   }
+
+  override def getState(): State
+
+  override def restoreState(state: Option[State]): Unit
 
   override def terminate(f: ((Int, Record)) => Unit) { }
 

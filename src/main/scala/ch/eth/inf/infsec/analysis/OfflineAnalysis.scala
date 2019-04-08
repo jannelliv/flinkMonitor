@@ -106,6 +106,10 @@ object OfflineAnalysis {
             override val degree: Int = 1
             override val formula: Formula = monitoringFormula.get
 
+            override def getState(): Array[Byte] = Array.emptyByteArray
+
+            override def restoreState(state: Option[Array[Byte]]): Unit = {}
+
             override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
           }
           eventStream.flatMap(new ProcessorFunction(dataSlicer)).map(_._2)

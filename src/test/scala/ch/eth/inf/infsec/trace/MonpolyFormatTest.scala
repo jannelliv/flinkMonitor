@@ -15,12 +15,12 @@ class MonpolyFormatTest extends FunSuite with Matchers {
     val timestamp = 1307532861L
 
     createParser().processAll(List(event)) should contain theSameElementsAs List(
-      Record(timestamp, "approve", Tuple(2, 4)),
-      Record(timestamp, "approve", Tuple(5, 6)),
-      Record(timestamp, "approve", Tuple(2, -6)),
-      Record(timestamp, "publish", Tuple(4)),
-      Record(timestamp, "publish", Tuple(5)),
-      Record(timestamp, "test", Tuple("say", "hello, world!")),
+      EventRecord(timestamp, "approve", Tuple(2, 4)),
+      EventRecord(timestamp, "approve", Tuple(5, 6)),
+      EventRecord(timestamp, "approve", Tuple(2, -6)),
+      EventRecord(timestamp, "publish", Tuple(4)),
+      EventRecord(timestamp, "publish", Tuple(5)),
+      EventRecord(timestamp, "test", Tuple("say", "hello, world!")),
       Record.markEnd(timestamp)
     )
   }
@@ -28,37 +28,37 @@ class MonpolyFormatTest extends FunSuite with Matchers {
   test("Parsing multiple events") {
     val events = List("@123 P(4)", "invalid!", "@456 Q(7)")
     createParser().processAll(events) should contain theSameElementsAs List(
-      Record(123, "P", Tuple(4)),
+      EventRecord(123, "P", Tuple(4)),
       Record.markEnd(123),
-      Record(456, "Q", Tuple(7)),
+      EventRecord(456, "Q", Tuple(7)),
       Record.markEnd(456)
     )
   }
 
   test("Print/parse round-trip") {
     def roundTrip(records: Seq[Record]): Seq[Record] =
-      createParser().processAll((new MonpolyPrinter).processAll(records))
+      createParser().processAll((new MonpolyPrinter).processAll(records).map(_.in))
 
     val empty1 = List(Record.markEnd(1))
     roundTrip(empty1) should contain theSameElementsAs empty1
 
     val empty2 = List(
-      Record(22, "p", Tuple()),
-      Record(22, "q", Tuple()),
+      EventRecord(22, "p", Tuple()),
+      EventRecord(22, "q", Tuple()),
       Record.markEnd(22)
     )
     roundTrip(empty2) should contain theSameElementsAs empty2
 
     val single = List(
-      Record(333, "p", Tuple(42)),
+      EventRecord(333, "p", Tuple(42)),
       Record.markEnd(333)
     )
     roundTrip(single) should contain theSameElementsAs single
 
     val many = List(
-      Record(444, "Foo", Tuple(-101, "AbC", 1234)),
-      Record(444, "Foo", Tuple(-102, "dEf", 4321)),
-      Record(444, "Bar", Tuple("hello, world!")),
+      EventRecord(444, "Foo", Tuple(-101, "AbC", 1234)),
+      EventRecord(444, "Foo", Tuple(-102, "dEf", 4321)),
+      EventRecord(444, "Bar", Tuple("hello, world!")),
       Record.markEnd(444)
     )
     roundTrip(many) should contain theSameElementsAs many
