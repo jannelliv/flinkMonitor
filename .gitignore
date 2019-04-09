@@ -1,4 +1,3 @@
 .idea/
 target/
-/parallel-online-monitoring.iml
-/tools/evaluation-tools.iml
+*.iml
