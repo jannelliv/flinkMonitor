@@ -11,26 +11,20 @@
         <relativePath>..</relativePath>
     </parent>
 
-    <artifactId>evaluation-tools</artifactId>
-    <name>Replayer and Generator</name>
+    <artifactId>trace-formats</artifactId>
+    <name>Trace Format Library</name>
+
+    <packaging>jar</packaging>
 
     <dependencies>
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-lang3</artifactId>
+            <groupId>ch.ethz.infsec</groupId>
+            <artifactId>monitoring-common</artifactId>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.apache.commons</groupId>
-            <artifactId>commons-math3</artifactId>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-            </plugin>
-        </plugins>
-    </build>
 </project>
