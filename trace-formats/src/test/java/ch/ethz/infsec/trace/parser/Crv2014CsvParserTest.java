@@ -36,25 +36,25 @@ public class Crv2014CsvParserTest {
         assertNull(parser.nextFact());
 
         parser.setInput("a,tp=1,ts=11");
-        assertEquals(new Fact("a"), parser.nextFact());
+        assertEquals(new Fact("a", "11"), parser.nextFact());
         assertNull(parser.nextFact());
 
         parser.setInput("ab, tp = 1, ts = 11, x = y\n");
-        assertEquals(new Fact("ab", "y"), parser.nextFact());
+        assertEquals(new Fact("ab", "11", "y"), parser.nextFact());
         assertNull(parser.nextFact());
 
         parser.setInput(" cde , tp = 2 , ts = 11 , x = y\n");
-        assertEquals(new Fact("event", "11", "1"), parser.nextFact());
-        assertEquals(new Fact("cde", "y"), parser.nextFact());
+        assertEquals(new Fact("event", "11"), parser.nextFact());
+        assertEquals(new Fact("cde", "11", "y"), parser.nextFact());
         assertNull(parser.nextFact());
 
         parser.setInput("a, tp=2, ts=12, x=y, 123 = 4FOO56   ");
-        assertEquals(new Fact("event", "11", "2"), parser.nextFact());
-        assertEquals(new Fact("a", "y", "4FOO56"), parser.nextFact());
+        assertEquals(new Fact("event", "11"), parser.nextFact());
+        assertEquals(new Fact("a", "12", "y", "4FOO56"), parser.nextFact());
         assertNull(parser.nextFact());
 
         parser.terminateEvent();
-        assertEquals(new Fact("event", "12", "2"), parser.nextFact());
+        assertEquals(new Fact("event", "12"), parser.nextFact());
         assertNull(parser.nextFact());
     }
 
@@ -76,7 +76,7 @@ public class Crv2014CsvParserTest {
         assertParseException();
 
         parser.setInput("abc, tp=1, ts=1, x=y");
-        assertEquals(new Fact("abc", "y"), parser.nextFact());
+        assertEquals(new Fact("abc", "1", "y"), parser.nextFact());
         assertNull(parser.nextFact());
     }
 }

@@ -5,6 +5,7 @@ import ch.ethz.infsec.monitor.Fact;
 import java.io.Serializable;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Objects;
 
 public class Crv2014CsvParser implements Serializable {
@@ -34,15 +35,14 @@ public class Crv2014CsvParser implements Serializable {
     }
 
     private void addEventFact() {
-        if (lastTimePoint != null && lastTimestamp != null) {
-            buffer.add(new Fact(eventFact, lastTimestamp, lastTimePoint));
+        if (lastTimePoint != null) {
+            buffer.add(new Fact(eventFact, lastTimestamp, Collections.emptyList()));
         }
     }
 
     public void terminateEvent() {
         addEventFact();
         lastTimePoint = null;
-        lastTimestamp = null;
     }
 
     private boolean isSpace(char c) {
@@ -128,9 +128,9 @@ public class Crv2014CsvParser implements Serializable {
                         readWord();
                         arguments.add(currentWord());
                     } while (hasMore());
-                    buffer.add(new Fact(factName, arguments));
+                    buffer.add(new Fact(factName, lastTimestamp, arguments));
                 } else {
-                    buffer.add(new Fact(factName));
+                    buffer.add(new Fact(factName, lastTimestamp, Collections.emptyList()));
                 }
             }
             currentLine = null;

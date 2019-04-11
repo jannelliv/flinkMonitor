@@ -13,20 +13,24 @@ public class Fact implements Serializable {
     private static final long serialVersionUID = 7532889759971015127L;
 
     private String name;
+    private String timestamp;
     private List<String> arguments;
 
     public Fact() {
         this.name = "";
+        this.timestamp = "";
         this.arguments = Collections.emptyList();
     }
 
-    public Fact(String name, List<String> arguments) {
+    public Fact(String name, String timestamp, List<String> arguments) {
         this.name = Objects.requireNonNull(name, "name");
+        this.timestamp = Objects.requireNonNull(timestamp, "timestamp");
         this.arguments = Objects.requireNonNull(arguments, "arguments");
     }
 
-    public Fact(String name, String... arguments) {
+    public Fact(String name, String timestamp, String... arguments) {
         this.name = Objects.requireNonNull(name, "name");
+        this.timestamp = Objects.requireNonNull(timestamp, "timestamp");
         this.arguments = Arrays.asList(arguments);
     }
 
@@ -36,6 +40,14 @@ public class Fact implements Serializable {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getTimestamp() {
+        return timestamp;
+    }
+
+    public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp;
     }
 
     public List<String> getArguments() {
@@ -60,16 +72,17 @@ public class Fact implements Serializable {
         if (o == null || getClass() != o.getClass()) return false;
         Fact fact = (Fact) o;
         return name.equals(fact.name) &&
+                timestamp.equals(fact.timestamp) &&
                 arguments.equals(fact.arguments);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, arguments);
+        return Objects.hash(name, timestamp, arguments);
     }
 
     @Override
     public String toString() {
-        return name + "(" + String.join(", ", arguments) + ")";
+        return name + "@" + timestamp + "(" + String.join(", ", arguments) + ")";
     }
 }
