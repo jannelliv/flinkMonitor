@@ -1,6 +1,6 @@
 package ch.ethz.infsec
 
-import ch.ethz.infsec.trace.{Domain, IntegralValue, StringValue}
+import ch.ethz.infsec.monitor.{Domain, IntegralValue, StringValue}
 
 package object slicer {
   class SlicerParser extends Serializable {

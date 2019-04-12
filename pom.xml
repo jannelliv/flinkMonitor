@@ -36,6 +36,8 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <scala.binary.version>2.12</scala.binary.version>
+        <scala.version>2.12.7</scala.version>
     </properties>
 
     <dependencyManagement>
@@ -50,7 +52,17 @@
                 <artifactId>commons-math3</artifactId>
                 <version>3.6.1</version>
             </dependency>
-
+            <dependency>
+                <groupId>com.lihaoyi</groupId>
+                <artifactId>fastparse_${scala.binary.version}</artifactId>
+                <version>1.0.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.scala-lang</groupId>
+                <artifactId>scala-library</artifactId>
+                <version>${scala.version}</version>
+                <scope>provided</scope>
+            </dependency>
             <dependency>
                 <groupId>junit</groupId>
                 <artifactId>junit</artifactId>
@@ -71,9 +83,33 @@
         </dependencies>
     </dependencyManagement>
 
+    <!-- Common dependencies -->
+    <dependencies>
+        <dependency> <!-- One can remove the one from the dependencyManagement and all submodules -->
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.12</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.scalatest</groupId>
+            <artifactId>scalatest_${scala.binary.version}</artifactId>
+            <version>3.0.7</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.scalacheck</groupId>
+            <artifactId>scalacheck_${scala.binary.version}</artifactId>
+            <version>1.14.0</version>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+
     <build>
         <pluginManagement>
             <plugins>
+                <!-- Compile -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-jar-plugin</artifactId>
@@ -82,6 +118,63 @@
                         <forceCreation>true</forceCreation>
                     </configuration>
                 </plugin>
+
+                <plugin>
+                    <groupId>net.alchim31.maven</groupId>
+                    <artifactId>scala-maven-plugin</artifactId>
+                    <version>4.0.1</version>
+                    <configuration>
+                        <args>
+                            <arg>-deprecation</arg>
+                        </args>
+                        <testOutputDir>${project.build.directory}/scala-test-classes</testOutputDir>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <goals>
+                                <goal>add-source</goal>
+                                <goal>compile</goal>
+                                <goal>testCompile</goal>
+                            </goals>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <!-- Test -->
+                <plugin>
+                    <groupId>org.scalatest</groupId>
+                    <artifactId>scalatest-maven-plugin</artifactId>
+                    <version>2.0.0</version>
+                    <configuration>
+                        <runpath>${project.build.directory}/scala-test-classes</runpath>
+                        <reportsDirectory>${project.build.directory}/reports</reportsDirectory>
+                    </configuration>
+                    <executions>
+                        <execution>
+                            <id>test</id>
+                            <goals>
+                                <goal>test</goal>
+                            </goals>
+                            <configuration>
+                                <suffixes>Test</suffixes>
+                                <filereports>unit_tests.txt</filereports>
+                            </configuration>
+                        </execution>
+                        <execution>
+                            <id>integration-test</id>
+                            <phase>integration-test</phase>
+                            <goals>
+                                <goal>test</goal>
+                            </goals>
+                            <configuration>
+                                <suffixes>Integration</suffixes>
+                                <filereports>integration_tests.txt</filereports>
+                            </configuration>
+                        </execution>
+                    </executions>
+                </plugin>
+
+                <!-- Package -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-shade-plugin</artifactId>

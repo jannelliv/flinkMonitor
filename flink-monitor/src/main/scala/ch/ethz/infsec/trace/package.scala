@@ -1,29 +1,31 @@
 package ch.ethz.infsec
 
+import ch.ethz.infsec.monitor.Domain
+
 import scala.language.implicitConversions
 
 package object trace {
-  case class Domain(integralValue: Long, stringValue: String) {
-    override def toString: String = if (stringValue == null) integralValue.toString else "\"" + stringValue + "\""
-  }
-
-  object StringValue {
-    def apply(value: String): Domain = Domain(-1, value)
-
-    def unapply(domain: Domain): Option[String] = Option(domain.stringValue)
-  }
-
-  object IntegralValue {
-    def apply(value: Long): Domain = Domain(value, null)
-
-    def unapply(domain: Domain): Option[Long] = if (domain.stringValue == null) Some(domain.integralValue) else None
-  }
-
-  implicit def stringToDomain(value: String): Domain = StringValue(value)
-
-  implicit def longToDomain(value: Long): Domain = IntegralValue(value)
-
-  implicit def intToDomain(value: Int): Domain = IntegralValue(value)
+//  case class Domain(integralValue: Long, stringValue: String) {
+//    override def toString: String = if (stringValue == null) integralValue.toString else "\"" + stringValue + "\""
+//  }
+//
+//  object StringValue {
+//    def apply(value: String): Domain = Domain(-1, value)
+//
+//    def unapply(domain: Domain): Option[String] = Option(domain.stringValue)
+//  }
+//
+//  object IntegralValue {
+//    def apply(value: Long): Domain = Domain(value, null)
+//
+//    def unapply(domain: Domain): Option[Long] = if (domain.stringValue == null) Some(domain.integralValue) else None
+//  }
+//
+//  implicit def stringToDomain(value: String): Domain = StringValue(value)
+//
+//  implicit def longToDomain(value: Long): Domain = IntegralValue(value)
+//
+//  implicit def intToDomain(value: Int): Domain = IntegralValue(value)
 
   type Tuple = IndexedSeq[Domain]
   val emptyTuple: Tuple = Vector.empty

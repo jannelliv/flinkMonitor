@@ -43,7 +43,7 @@ object ParsingBenchmark {
       runner.printComment(s"Parsing benchmark for format $formatName")
       runner.printComment(s"Input file: $inputFileName")
       runner.printComment(s"time [ns], records, characters, avg. records [1/s], avg. characters [1/s]")
-      runner.measure(bench.step)
+      runner.measure(() => bench.step())
     } finally {
       inputSource.close()
     }

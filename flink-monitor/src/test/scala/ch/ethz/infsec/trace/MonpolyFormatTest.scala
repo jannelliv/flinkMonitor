@@ -1,5 +1,6 @@
 package ch.ethz.infsec.trace
 
+import ch.ethz.infsec.monitor.IntegralValue
 import org.scalatest.{FunSuite, Matchers}
 
 class MonpolyFormatTest extends FunSuite with Matchers {

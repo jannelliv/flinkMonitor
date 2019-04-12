@@ -1,6 +1,6 @@
 package ch.ethz.infsec.slicer
 
-import ch.ethz.infsec.trace.Domain
+import ch.ethz.infsec.monitor.Domain
 
 trait Statistics {
   def relationSize(relation: String): Double

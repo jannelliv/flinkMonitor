@@ -1,8 +1,9 @@
 package ch.ethz.infsec.slicer
 
 import ch.ethz.infsec.Processor
+import ch.ethz.infsec.monitor.Domain
 import ch.ethz.infsec.policy._
-import ch.ethz.infsec.trace.{CommandRecord, Domain, EventRecord, Record, Tuple}
+import ch.ethz.infsec.trace.{CommandRecord, EventRecord, Record, Tuple}
 import ch.ethz.infsec.policy.{Pred, VariableID}
 
 import scala.collection.mutable

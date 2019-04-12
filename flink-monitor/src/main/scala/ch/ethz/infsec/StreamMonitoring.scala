@@ -24,6 +24,7 @@ import org.apache.flink.streaming.api.functions.sink.{OutputFormatSinkFunction, 
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
 import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
+import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 
 import scala.io.Source
 
@@ -204,7 +205,7 @@ object StreamMonitoring {
         case Some(Right(f)) =>
           LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
             verdicts,
-            new OutputFormatSinkFunction[String](new TextOutputFormat[String](new Path(f))))
+            new BucketingSink[String](f))
             .setParallelism(1).name("File sink").uid("file-sink")
         case _ =>
           LatencyTrackingExtensions.addPreciseLatencyTrackingSink(

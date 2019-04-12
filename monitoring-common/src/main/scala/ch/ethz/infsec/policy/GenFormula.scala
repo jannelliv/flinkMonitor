@@ -1,6 +1,7 @@
 package ch.ethz.infsec.policy
 
-import ch.ethz.infsec.trace.Domain
+import ch.ethz.infsec.monitor.Domain
+
 
 // This is explicitly not a case class, such that each instance represent a fresh variable name.
 class VariableID(val nameHint: String, val freeID: Int = -1) extends Serializable {

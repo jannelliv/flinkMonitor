@@ -1,6 +1,6 @@
 package ch.ethz.infsec.trace
 
-import ch.ethz.infsec.monitor.{CommandItem, EventItem, MonpolyRequest}
+import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.{Processor, StatelessProcessor}
 import fastparse.WhitespaceApi
 import fastparse.noApi._

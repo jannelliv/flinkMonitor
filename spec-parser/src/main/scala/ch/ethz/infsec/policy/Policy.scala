@@ -2,6 +2,7 @@ package ch.ethz.infsec.policy
 
 import fastparse.WhitespaceApi
 import fastparse.noApi._
+import ch.ethz.infsec.monitor._
 
 private object PolicyParsers {
 
