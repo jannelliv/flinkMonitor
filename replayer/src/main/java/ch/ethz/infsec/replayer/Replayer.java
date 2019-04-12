@@ -1,4 +1,4 @@
-package ch.ethz.infsec;
+package ch.ethz.infsec.replayer;
 
 import java.io.*;
 import java.net.InetAddress;
@@ -9,7 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class CsvReplayer {
+public class Replayer {
     static abstract class OutputItem {
         final long emissionTime;
 

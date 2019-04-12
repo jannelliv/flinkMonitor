@@ -29,6 +29,7 @@
         <module>flink-monitor</module>
         <module>tools</module>
         <module>log-analyzer</module>
+        <module>replayer</module>
         <module>benchmarks</module>
     </modules>
 
