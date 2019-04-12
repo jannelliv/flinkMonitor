@@ -1,7 +1,7 @@
 package ch.ethz.infsec.benchmark;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
+import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
@@ -11,30 +11,28 @@ import java.util.ArrayList;
 import java.util.Random;
 
 @State(Scope.Thread)
-public class Crv2014CsvParserBenchmark {
+public class MonpolyTraceParserBenchmark {
     private Random random;
     private ArrayList<Fact> sink;
-    private Crv2014CsvParser parser;
+    private MonpolyTraceParser parser;
 
     @Setup
     public void setUp() {
         random = new Random();
         sink = new ArrayList<>();
-        parser = new Crv2014CsvParser();
+        parser = new MonpolyTraceParser();
     }
 
     private static final String[] inputs = new String[]{
-            "foo, tp=1234, ts=1554989406",
-            "fact name, tp = 123456789, ts = 1554989407, " +
-                    "attrib1 = 987654321, attrib2 = this is some long string, attrib3 = foo bar\n",
-            "a rather long fact name, tp = 123456789, ts = 1554989408, " +
-                    "x1 = another longish string ..., x2 = 2, x3 = 3, x4 = 4, x5 = 5, x6 = 6\r\n"
+            "@1554989406 foo ()",
+            "@1554989407 fact_name (987654321, \"this is some long string\", foo-bar)\n",
+            "@1554989408 a_rather_long_fact_name (\"another longish string ...\", 2, 3, 4, 5, 6)\r\n"
     };
 
     @Benchmark
     public ArrayList<Fact> parse() throws Exception {
         sink.clear();
-        parser.parseLine(sink, inputs[random.nextInt(inputs.length)]);
+        parser.parse(sink, inputs[random.nextInt(inputs.length)]);
         parser.endOfInput(sink);
         return sink;
     }
