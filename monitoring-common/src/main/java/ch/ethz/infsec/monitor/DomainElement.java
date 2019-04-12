@@ -12,6 +12,18 @@ All non-static, non-transient fields in the class (and all superclasses) are eit
 Note that when a user-defined data type can’t be recognized as a POJO type, it must be processed as GenericType and serialized with Kryo.
 
  */
+
+
+/**
+ * Represents a value one of the three supperted domains: Integral, String, and Float
+ * The POJO representation is necessary to ensure efficient serialization when used in Flink.
+ * (see rules for POJO types above)
+ *
+ * @invariant exactly one of the three private fields is not null
+ *
+ * Objects of this class must be used as immutable.
+ * The only allowed mutation is during initialization (typically used for deserialization) when all three fields are null.
+ */
 public class DomainElement {
     private Long integralVal=null;
     private String stringVal=null;
@@ -25,19 +37,32 @@ public class DomainElement {
 
     public Long getIntegralVal() { return integralVal; }
 
-    public void setIntegralVal(Long integralVal) { this.integralVal = integralVal; }
+    public void setIntegralVal(Long integralVal) {
+        if (!initCheck()) throw new IllegalStateException("Already initialized");
+        this.integralVal = integralVal;
+    }
 
     public String getStringVal() { return stringVal; }
 
-    public void setStringVal(String stringVal) { this.stringVal = stringVal; }
+    public void setStringVal(String stringVal) {
+        if (!initCheck()) throw new IllegalStateException("Already initialized");
+        this.stringVal = stringVal;
+    }
 
     public Double getFloatVal() { return floatVal; }
 
-    public void setFloatVal(Double floatVal) { this.floatVal = floatVal; }
+    public void setFloatVal(Double floatVal) {
+        if (!initCheck()) throw new IllegalStateException("Already initialized");
+        this.floatVal = floatVal;
+    }
 
     public static DomainElement integralVal(Long v) { return new DomainElement(v); }
     public static DomainElement stringVal(String v) { return new DomainElement(v); }
     public static DomainElement floatVal(Double  v) { return new DomainElement(v); }
+
+    private boolean initCheck(){
+        return Objects.isNull(integralVal) && Objects.isNull(stringVal) && Objects.isNull(floatVal);
+    }
 
     @Override
     public boolean equals(Object o) {
