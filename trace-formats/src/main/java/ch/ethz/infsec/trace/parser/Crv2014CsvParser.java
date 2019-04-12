@@ -32,8 +32,7 @@ public class Crv2014CsvParser implements Serializable {
     }
 
     public void parseLine(Collection<Fact> sink, String line) throws ParseException {
-        line = line.trim();
-        if (line.isEmpty()) {
+        if (line.trim().isEmpty()) {
             return;
         }
 
