@@ -5,7 +5,7 @@ import ch.ethz.infsec.trace.Trace;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collection;
+import java.util.function.Consumer;
 
 public class MonpolyTraceParser implements Serializable {
     private static final long serialVersionUID = 2830977317994540001L;
@@ -178,9 +178,9 @@ public class MonpolyTraceParser implements Serializable {
         factBuffer.clear();
     }
 
-    private void finishDatabase(Collection<Fact> sink) {
-        sink.addAll(factBuffer);
-        sink.add(new Fact(Trace.EVENT_FACT, timestamp));
+    private void finishDatabase(Consumer<Fact> sink) {
+        factBuffer.forEach(sink);
+        sink.accept(new Fact(Trace.EVENT_FACT, timestamp));
         timestamp = null;
         relationName = null;
         factBuffer.clear();
@@ -195,7 +195,7 @@ public class MonpolyTraceParser implements Serializable {
         fields.clear();
     }
 
-    private void runParser(Collection<Fact> sink) throws ParseException {
+    private void runParser(Consumer<Fact> sink) throws ParseException {
         do {
             final TokenType tokenType = nextToken();
             if (tokenType == TokenType.INCOMPLETE) {
@@ -283,14 +283,14 @@ public class MonpolyTraceParser implements Serializable {
         } while (true);
     }
 
-    public void endOfInput(Collection<Fact> sink) throws ParseException {
+    public void endOfInput(Consumer<Fact> sink) throws ParseException {
         this.input = "";
         this.position = 0;
         this.isEnd = true;
         runParser(sink);
     }
 
-    public void parse(Collection<Fact> sink, String input) throws ParseException {
+    public void parse(Consumer<Fact> sink, String input) throws ParseException {
         this.input = input;
         this.position = 0;
         this.isEnd = false;

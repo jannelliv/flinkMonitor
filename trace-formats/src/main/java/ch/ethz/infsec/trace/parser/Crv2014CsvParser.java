@@ -5,8 +5,8 @@ import ch.ethz.infsec.trace.Trace;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.Collections;
+import java.util.function.Consumer;
 
 public class Crv2014CsvParser implements Serializable {
     private static final long serialVersionUID = -919182766017476946L;
@@ -19,19 +19,19 @@ public class Crv2014CsvParser implements Serializable {
         this.lastTimestamp = null;
     }
 
-    private void terminateEvent(Collection<Fact> sink, String newTimePoint, String newTimestamp) {
+    private void terminateEvent(Consumer<Fact> sink, String newTimePoint, String newTimestamp) {
         if (lastTimePoint != null) {
-            sink.add(new Fact(Trace.EVENT_FACT, lastTimestamp, Collections.emptyList()));
+            sink.accept(new Fact(Trace.EVENT_FACT, lastTimestamp, Collections.emptyList()));
         }
         lastTimePoint = newTimePoint;
         lastTimestamp = newTimestamp;
     }
 
-    public void endOfInput(Collection<Fact> sink) {
+    public void endOfInput(Consumer<Fact> sink) {
         terminateEvent(sink, null, null);
     }
 
-    public void parseLine(Collection<Fact> sink, String line) throws ParseException {
+    public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
         if (line.trim().isEmpty()) {
             return;
         }
@@ -83,6 +83,6 @@ public class Crv2014CsvParser implements Serializable {
             terminateEvent(sink, timePoint, timestamp);
         }
 
-        sink.add(new Fact(factName, timestamp, arguments));
+        sink.accept(new Fact(factName, timestamp, arguments));
     }
 }

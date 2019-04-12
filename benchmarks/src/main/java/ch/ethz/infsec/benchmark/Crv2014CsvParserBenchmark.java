@@ -34,8 +34,8 @@ public class Crv2014CsvParserBenchmark {
     @Benchmark
     public ArrayList<Fact> parse() throws Exception {
         sink.clear();
-        parser.parseLine(sink, inputs[random.nextInt(inputs.length)]);
-        parser.endOfInput(sink);
+        parser.parseLine(sink::add, inputs[random.nextInt(inputs.length)]);
+        parser.endOfInput(sink::add);
         return sink;
     }
 }

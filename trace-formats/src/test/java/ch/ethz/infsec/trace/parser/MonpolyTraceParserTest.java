@@ -26,10 +26,10 @@ public class MonpolyTraceParserTest {
 
     @Test
     public void testSuccessfulParse() throws Exception {
-        parser.parse(sink, "@123 @ 456 a b () \n");
-        parser.parse(sink, "@ 456 abc()() def1(123");
-        parser.parse(sink, ")\n\n(foo) def2([foo],\"(bar)\") ( a1 , \" 2b \")\r\n @789");
-        parser.endOfInput(sink);
+        parser.parse(sink::add, "@123 @ 456 a b () \n");
+        parser.parse(sink::add, "@ 456 abc()() def1(123");
+        parser.parse(sink::add, ")\n\n(foo) def2([foo],\"(bar)\") ( a1 , \" 2b \")\r\n @789");
+        parser.endOfInput(sink::add);
 
         assertEquals(Arrays.asList(
                 new Fact(Trace.EVENT_FACT, "123"),
@@ -46,7 +46,7 @@ public class MonpolyTraceParserTest {
         ), sink);
 
         sink.clear();
-        parser.parse(sink, "@123 a (b,c)(d,e) @456");
+        parser.parse(sink::add, "@123 a (b,c)(d,e) @456");
         assertEquals(Arrays.asList(
                 new Fact("a", "123", "b", "c"),
                 new Fact("a", "123", "d", "e"),
@@ -56,8 +56,8 @@ public class MonpolyTraceParserTest {
 
     private void assertParseFailure(String input) {
         try {
-            parser.parse(sink, input);
-            parser.endOfInput(sink);
+            parser.parse(sink::add, input);
+            parser.endOfInput(sink::add);
             fail("expected a ParseException");
         } catch (ParseException ignored) {
         }
@@ -71,7 +71,7 @@ public class MonpolyTraceParserTest {
         assertParseFailure("@123 foo(,)");
         assertParseFailure("@123 foo(bar)(");
 
-        parser.parse(sink, "@123 a (b,c)(d,e) @456");
+        parser.parse(sink::add, "@123 a (b,c)(d,e) @456");
         assertEquals(Arrays.asList(
                 new Fact("a", "123", "b", "c"),
                 new Fact("a", "123", "d", "e"),
@@ -81,7 +81,7 @@ public class MonpolyTraceParserTest {
 
     @Test
     public void testSerialization() throws Exception {
-        parser.parse(sink, "@123 a (b,c)(d,e");
+        parser.parse(sink::add, "@123 a (b,c)(d,e");
         sink.clear();
 
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -92,8 +92,8 @@ public class MonpolyTraceParserTest {
         final ObjectInputStream objectIn = new ObjectInputStream(in);
         parser = (MonpolyTraceParser) objectIn.readObject();
 
-        parser.parse(sink, "f) @456");
-        parser.endOfInput(sink);
+        parser.parse(sink::add, "f) @456");
+        parser.endOfInput(sink::add);
         assertEquals(Arrays.asList(
                 new Fact("a", "123", "b", "c"),
                 new Fact("a", "123", "d", "ef"),

@@ -32,8 +32,8 @@ public class MonpolyTraceParserBenchmark {
     @Benchmark
     public ArrayList<Fact> parse() throws Exception {
         sink.clear();
-        parser.parse(sink, inputs[random.nextInt(inputs.length)]);
-        parser.endOfInput(sink);
+        parser.parse(sink::add, inputs[random.nextInt(inputs.length)]);
+        parser.endOfInput(sink::add);
         return sink;
     }
 }
