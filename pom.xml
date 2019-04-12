@@ -29,6 +29,7 @@
         <module>flink-monitor</module>
         <module>tools</module>
         <module>log-analyzer</module>
+        <module>benchmarks</module>
     </modules>
 
     <properties>
@@ -55,6 +56,17 @@
                 <artifactId>junit</artifactId>
                 <version>4.12</version>
                 <scope>test</scope>
+            </dependency>
+
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-core</artifactId>
+                <version>1.21</version>
+            </dependency>
+            <dependency>
+                <groupId>org.openjdk.jmh</groupId>
+                <artifactId>jmh-generator-annprocess</artifactId>
+                <version>1.21</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
