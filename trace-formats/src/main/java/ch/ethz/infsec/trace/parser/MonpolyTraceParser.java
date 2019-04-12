@@ -7,7 +7,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.function.Consumer;
 
-public class MonpolyTraceParser implements Serializable {
+public class MonpolyTraceParser implements TraceParser, Serializable {
     private static final long serialVersionUID = 2830977317994540001L;
 
     private enum LexerState {
@@ -283,6 +283,7 @@ public class MonpolyTraceParser implements Serializable {
         } while (true);
     }
 
+    @Override
     public void endOfInput(Consumer<Fact> sink) throws ParseException {
         this.input = "";
         this.position = 0;
@@ -295,5 +296,10 @@ public class MonpolyTraceParser implements Serializable {
         this.position = 0;
         this.isEnd = false;
         runParser(sink);
+    }
+
+    @Override
+    public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
+        parse(sink, line);
     }
 }

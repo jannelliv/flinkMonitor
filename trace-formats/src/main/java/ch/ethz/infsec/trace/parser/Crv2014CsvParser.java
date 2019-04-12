@@ -8,7 +8,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.function.Consumer;
 
-public class Crv2014CsvParser implements Serializable {
+public class Crv2014CsvParser implements TraceParser, Serializable {
     private static final long serialVersionUID = -919182766017476946L;
 
     private String lastTimePoint;
@@ -27,10 +27,12 @@ public class Crv2014CsvParser implements Serializable {
         lastTimestamp = newTimestamp;
     }
 
+    @Override
     public void endOfInput(Consumer<Fact> sink) {
         terminateEvent(sink, null, null);
     }
 
+    @Override
     public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
         if (line.trim().isEmpty()) {
             return;

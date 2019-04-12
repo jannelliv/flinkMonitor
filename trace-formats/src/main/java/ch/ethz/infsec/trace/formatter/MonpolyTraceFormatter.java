@@ -9,7 +9,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-public class MonpolyTraceFormatter implements Serializable {
+public class MonpolyTraceFormatter implements TraceFormatter, Serializable {
     private static final long serialVersionUID = -4455544905696931178L;
 
     private final LinkedHashMap<String, ArrayList<Fact>> currentDatabase;
@@ -74,6 +74,7 @@ public class MonpolyTraceFormatter implements Serializable {
         }
     }
 
+    @Override
     public void printFact(StringBuilder sink, Fact fact) {
         if (Trace.isEventFact(fact)) {
             sink.append('@');

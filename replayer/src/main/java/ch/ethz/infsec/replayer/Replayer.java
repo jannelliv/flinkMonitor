@@ -1,15 +1,36 @@
 package ch.ethz.infsec.replayer;
 
+import ch.ethz.infsec.monitor.Fact;
+import ch.ethz.infsec.trace.Trace;
+import ch.ethz.infsec.trace.formatter.Crv2014CsvFormatter;
+import ch.ethz.infsec.trace.formatter.MonpolyTraceFormatter;
+import ch.ethz.infsec.trace.formatter.TraceFormatter;
+import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
+import ch.ethz.infsec.trace.parser.TraceParser;
+
 import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Replayer {
+    double timeMultiplier;
+    long timestampInterval;
+
+    BufferedReader input;
+    TraceParser parser;
+    TraceFormatter formatter;
+
+    Output output;
+    Reporter reporter;
+
+    LinkedBlockingQueue<OutputItem> queue;
+    Thread inputThread;
+    Thread outputThread;
+    Thread reporterThread;
+
     static abstract class OutputItem {
         final long emissionTime;
 
@@ -42,100 +63,24 @@ public class Replayer {
         }
     }
 
-    static abstract class DatabaseBuffer extends OutputItem {
-        DatabaseBuffer(long emissionTime) {
+    static final class DatabaseBuffer extends OutputItem {
+        private final String database;
+        final int count;
+
+        DatabaseBuffer(long emissionTime, String database, int count) {
             super(emissionTime);
+            this.database = database;
+            this.count = count;
         }
 
-        abstract void addEvent(String csvLine, String relation, int indexBeforeData);
-
-        abstract int getNumberOfEvents();
+        @Override
+        void write(Writer writer) throws IOException {
+            writer.write(database);
+        }
 
         @Override
         void reportDelivery(Reporter reporter, long startTime) {
             reporter.reportDelivery(this, startTime);
-        }
-    }
-
-    static final class MonpolyDatabaseBuffer extends DatabaseBuffer {
-        private final long timestamp;
-        private final Map<String, StringBuilder> relations = new HashMap<>();
-        private int numberOfEvents = 0;
-
-        MonpolyDatabaseBuffer(long timestamp, long emissionTime) {
-            super(emissionTime);
-            this.timestamp = timestamp;
-        }
-
-        @Override
-        void addEvent(String csvLine, String relation, int indexBeforeData) {
-            ++numberOfEvents;
-
-            StringBuilder relationBuilder = relations.get(relation);
-            if (relationBuilder == null) {
-                relationBuilder = new StringBuilder();
-                relations.put(relation, relationBuilder);
-            }
-
-            relationBuilder.append('(');
-            int currentIndex = indexBeforeData;
-            while (0 <= currentIndex && currentIndex < csvLine.length()) {
-                currentIndex = csvLine.indexOf('=', currentIndex);
-                if (currentIndex >= 0) {
-                    currentIndex += 1;
-                    while (currentIndex < csvLine.length() && Character.isSpaceChar(csvLine.charAt(currentIndex)))
-                        currentIndex += 1;
-                    int startIndex = currentIndex;
-                    currentIndex = csvLine.indexOf(',', startIndex);
-                    boolean more = currentIndex >= 0;
-                    if (!more)
-                        currentIndex = csvLine.length();
-                    relationBuilder.append(csvLine.substring(startIndex, currentIndex).trim());
-                    if (more)
-                        relationBuilder.append(',');
-                    currentIndex += 1;
-                }
-            }
-            relationBuilder.append(')');
-        }
-
-        @Override
-        int getNumberOfEvents() {
-            return numberOfEvents;
-        }
-
-        @Override
-        void write(Writer writer) throws IOException {
-            writer.append('@').append(Long.toString(timestamp));
-            for (HashMap.Entry<String, StringBuilder> entry : relations.entrySet()) {
-                writer.append(' ').append(entry.getKey()).append(entry.getValue());
-            }
-            writer.append('\n');
-        }
-    }
-
-    static final class CsvDatabaseBuffer extends DatabaseBuffer {
-        private final ArrayList<String> lines = new ArrayList<>();
-
-        CsvDatabaseBuffer(long emissionTime) {
-            super(emissionTime);
-        }
-
-        @Override
-        void addEvent(String csvLine, String relation, int indexBeforeData) {
-            lines.add(csvLine);
-        }
-
-        @Override
-        int getNumberOfEvents() {
-            return lines.size();
-        }
-
-        @Override
-        void write(Writer writer) throws IOException {
-            for (String line : lines) {
-                writer.append(line).append('\n');
-            }
         }
     }
 
@@ -183,47 +128,16 @@ public class Replayer {
         }
     }
 
-    interface DatabaseBufferFactory {
-        DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime);
-    }
-
-    static final class MonpolyDatabaseBufferFactory implements DatabaseBufferFactory {
-        @Override
-        public DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime) {
-            return new MonpolyDatabaseBuffer(timestamp, emissionTime);
-        }
-    }
-
-    static final class CsvDatabaseBufferFactory implements DatabaseBufferFactory {
-        @Override
-        public DatabaseBuffer createDatabaseBuffer(long timestamp, long emissionTime) {
-            return new CsvDatabaseBuffer(emissionTime);
-        }
-    }
-
-    static class InputWorker implements Runnable {
-        private final BufferedReader input;
-        private final double timeMultiplier;
-        private final long timestampInterval;
-        private final DatabaseBufferFactory factory;
-        private final LinkedBlockingQueue<OutputItem> queue;
-
+    class InputWorker implements Runnable {
         private boolean successful = false;
 
-        private DatabaseBuffer databaseBuffer = null;
-        private long firstTimestamp = -1;
-        private long currentTimepoint;
-
         private long absoluteStartMillis = -1;
+        private long firstTimestamp = -1;
+        private int count = 0;
         private long nextTimestampToEmit;
 
-        InputWorker(BufferedReader input, double timeMultiplier, long timestampInterval, DatabaseBufferFactory factory, LinkedBlockingQueue<OutputItem> queue) {
-            this.input = input;
-            this.timeMultiplier = timeMultiplier;
-            this.timestampInterval = timestampInterval;
-            this.factory = factory;
-            this.queue = queue;
-        }
+        private StringBuilder stringBuilder = new StringBuilder();
+        private ArrayList<DatabaseBuffer> readyBuffers = new ArrayList<>();
 
         public void run() {
             try {
@@ -232,19 +146,21 @@ public class Replayer {
                     if (line.startsWith(">")) {
                         processCommand(line);
                     } else {
-                        processRecord(line);
+                        parser.parseLine(this::processFact, line);
+                        emitBuffers();
                     }
                 }
-                emitBuffer();
+                parser.endOfInput(this::processFact);
+                emitBuffers();
                 if (timestampInterval > 0) {
                     queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
                 }
                 queue.put(new TerminalItem(false));
                 successful = true;
-            } catch (IOException e) {
-                e.printStackTrace(System.err);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                e.printStackTrace(System.err);
             }
         }
 
@@ -253,7 +169,6 @@ public class Replayer {
         }
 
         private void processCommand(String line) throws InterruptedException {
-            emitBuffer();
             CommandItem commandItem = new CommandItem(line);
             queue.put(commandItem);
             if (commandItem.requiresReconnect()) {
@@ -261,77 +176,45 @@ public class Replayer {
             }
         }
 
-        private void processRecord(String line) throws InterruptedException {
-            String relation;
-            long timepoint;
-            long timestamp;
+        private void processFact(Fact fact) {
+            formatter.printFact(stringBuilder, fact);
+            ++count;
 
-            int startIndex;
-            int currentIndex = 0;
+            if (Trace.isEventFact(fact)) {
+                final long timestamp = Long.valueOf(fact.getTimestamp());
+                if (firstTimestamp < 0) {
+                    firstTimestamp = timestamp;
+                }
 
-            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-            startIndex = currentIndex;
-            currentIndex = line.indexOf(',', startIndex);
-            relation = line.substring(startIndex, currentIndex).trim();
-            currentIndex += 1;
-
-            currentIndex = line.indexOf('=', currentIndex) + 1;
-            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-            startIndex = currentIndex;
-            currentIndex = line.indexOf(',', startIndex);
-            timepoint = Long.valueOf(line.substring(startIndex, currentIndex).trim());
-            currentIndex += 1;
-
-            currentIndex = line.indexOf('=', currentIndex) + 1;
-            while (Character.isSpaceChar(line.charAt(currentIndex))) currentIndex += 1;
-            startIndex = currentIndex;
-            currentIndex = line.indexOf(',', startIndex);
-            if (currentIndex < 0)
-                currentIndex = line.length();
-            timestamp = Long.valueOf(line.substring(startIndex, currentIndex).trim());
-            currentIndex += 1;
-
-            if (firstTimestamp < 0) {
-                firstTimestamp = timestamp;
-                currentTimepoint = timepoint;
-                databaseBuffer = factory.createDatabaseBuffer(timestamp, 0);
-            }
-            if (timepoint != currentTimepoint) {
-                emitBuffer();
-
-                long nextEmission;
+                final long nextEmission;
                 if (timeMultiplier > 0.0) {
                     nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
                 } else {
                     nextEmission = 0;
                 }
-                databaseBuffer = factory.createDatabaseBuffer(timestamp, nextEmission);
-                currentTimepoint = timepoint;
-            }
 
-            databaseBuffer.addEvent(line, relation, currentIndex);
+                readyBuffers.add(new DatabaseBuffer(nextEmission, stringBuilder.toString(), count));
+                stringBuilder.setLength(0);
+                count = 0;
+            }
         }
 
-        private void emitBuffer() throws InterruptedException {
-            if (databaseBuffer == null) {
-                return;
-            }
-            long emissionTime = databaseBuffer.emissionTime;
+        private void emitBuffers() throws InterruptedException {
+            for (DatabaseBuffer buffer : readyBuffers) {
+                if (timestampInterval > 0) {
+                    if (absoluteStartMillis < 0) {
+                        absoluteStartMillis = System.currentTimeMillis();
+                        nextTimestampToEmit = 0;
+                    }
 
-            if (timestampInterval > 0) {
-                if (absoluteStartMillis < 0) {
-                    absoluteStartMillis = System.currentTimeMillis();
-                    nextTimestampToEmit = 0;
+                    while (nextTimestampToEmit < buffer.emissionTime) {
+                        queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
+                        nextTimestampToEmit += timestampInterval;
+                    }
                 }
-
-                while (nextTimestampToEmit < emissionTime) {
-                    queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
-                    nextTimestampToEmit += timestampInterval;
-                }
+                queue.put(buffer);
             }
-
-            queue.put(databaseBuffer);
-            databaseBuffer = null;
+            readyBuffers.clear();
         }
     }
 
@@ -396,7 +279,7 @@ public class Replayer {
             ++indices;
             ++indicesSinceLastReport;
 
-            int events = databaseBuffer.getNumberOfEvents();
+            int events = databaseBuffer.count;
             totalEvents += events;
             eventsSinceLastReport += events;
 
@@ -513,7 +396,8 @@ public class Replayer {
             try {
                 writer.close();
                 clientSocket.close();
-            } catch (IOException ignored) {}
+            } catch (IOException ignored) {
+            }
             writer = null;
             clientSocket = null;
         }
@@ -549,20 +433,8 @@ public class Replayer {
         }
     }
 
-    static class OutputWorker implements Runnable {
-        private final Output output;
-        private final LinkedBlockingQueue<OutputItem> queue;
-        private final Reporter reporter;
-        private final Thread inputThread;
-
+    class OutputWorker implements Runnable {
         private boolean successful = false;
-
-        OutputWorker(Output output, LinkedBlockingQueue<OutputItem> queue, Reporter reporter, Thread inputThread) {
-            this.output = output;
-            this.queue = queue;
-            this.reporter = reporter;
-            this.inputThread = inputThread;
-        }
 
         private void runInternal() throws InterruptedException, IOException {
             long startTime = 0L;
@@ -603,10 +475,10 @@ public class Replayer {
         public void run() {
             try {
                 runInternal();
-            } catch (IOException e) {
-                e.printStackTrace(System.err);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                e.printStackTrace(System.err);
             }
             if (!successful) {
                 inputThread.interrupt();
@@ -625,13 +497,16 @@ public class Replayer {
     }
 
     public static void main(String[] args) {
+        Replayer replayer = new Replayer();
+        replayer.timeMultiplier = 1.0;
+        replayer.timestampInterval = -1;
+        replayer.reporter = new NullReporter();
+        replayer.parser = new Crv2014CsvParser();
+        replayer.formatter = new Crv2014CsvFormatter();
+
         String inputFilename = null;
-        double timeMultiplier = 1.0;
-        DatabaseBufferFactory databaseBufferFactory = new CsvDatabaseBufferFactory();
-        long timestampInterval = -1;
         String outputHost = null;
         int outputPort = 0;
-        Reporter reporter = new NullReporter();
         int queueCapacity = 1024;
         boolean reconnect = false;
 
@@ -639,16 +514,16 @@ public class Replayer {
             for (int i = 0; i < args.length; ++i) {
                 switch (args[i]) {
                     case "-v":
-                        reporter = new IntervalReporter(false);
+                        replayer.reporter = new IntervalReporter(false);
                         break;
                     case "-vv":
-                        reporter = new IntervalReporter(true);
+                        replayer.reporter = new IntervalReporter(true);
                         break;
                     case "-a":
                         if (++i == args.length) {
                             invalidArgument();
                         }
-                        timeMultiplier = Double.parseDouble(args[i]);
+                        replayer.timeMultiplier = Double.parseDouble(args[i]);
                         break;
                     case "-q":
                         if (++i == args.length) {
@@ -657,13 +532,13 @@ public class Replayer {
                         queueCapacity = Integer.parseInt(args[i]);
                         break;
                     case "-m":
-                        databaseBufferFactory = new MonpolyDatabaseBufferFactory();
+                        replayer.formatter = new MonpolyTraceFormatter();
                         break;
                     case "-t":
                         if (++i == args.length) {
                             invalidArgument();
                         }
-                        timestampInterval = Long.parseLong(args[i]);
+                        replayer.timestampInterval = Long.parseLong(args[i]);
                         break;
                     case "-o":
                         if (++i == args.length) {
@@ -691,12 +566,11 @@ public class Replayer {
             invalidArgument();
         }
 
-        BufferedReader inputReader;
         if (inputFilename == null) {
-            inputReader = new BufferedReader(new InputStreamReader(System.in));
+            replayer.input = new BufferedReader(new InputStreamReader(System.in));
         } else {
             try {
-                inputReader = new BufferedReader(new FileReader(inputFilename));
+                replayer.input = new BufferedReader(new FileReader(inputFilename));
             } catch (FileNotFoundException e) {
                 System.err.print("Error: " + e.getMessage() + "\n");
                 System.exit(1);
@@ -704,16 +578,15 @@ public class Replayer {
             }
         }
 
-        Output output;
         if (outputHost == null) {
-            output = new StandardOutput();
+            replayer.output = new StandardOutput();
         } else {
             try {
                 int backlog = reconnect ? -1 : 1;
                 ServerSocket serverSocket = new ServerSocket(outputPort, backlog, InetAddress.getByName(outputHost));
                 SocketOutput socketOutput = new SocketOutput(serverSocket, reconnect);
                 socketOutput.acquireClient();
-                output = socketOutput;
+                replayer.output = socketOutput;
             } catch (IOException e) {
                 System.err.print("Error: " + e.getMessage() + "\n");
                 System.exit(1);
@@ -721,25 +594,25 @@ public class Replayer {
             }
         }
 
-        Thread reporterThread = new Thread(reporter);
-        reporterThread.setDaemon(true);
-        reporterThread.start();
+        replayer.reporterThread = new Thread(replayer.reporter);
+        replayer.reporterThread.setDaemon(true);
+        replayer.reporterThread.start();
 
-        LinkedBlockingQueue<OutputItem> queue = new LinkedBlockingQueue<>(queueCapacity);
-        InputWorker inputWorker = new InputWorker(inputReader, timeMultiplier, timestampInterval, databaseBufferFactory, queue);
-        Thread inputThread = new Thread(inputWorker);
-        inputThread.start();
-        OutputWorker outputWorker = new OutputWorker(output, queue, reporter, inputThread);
-        Thread outputThread = new Thread(outputWorker);
-        outputThread.start();
+        replayer.queue = new LinkedBlockingQueue<>(queueCapacity);
+        InputWorker inputWorker = replayer.new InputWorker();
+        replayer.inputThread = new Thread(inputWorker);
+        replayer.inputThread.start();
+        OutputWorker outputWorker = replayer.new OutputWorker();
+        replayer.outputThread = new Thread(outputWorker);
+        replayer.outputThread.start();
 
         try {
-            inputThread.join();
+            replayer.inputThread.join();
             if (!inputWorker.isSuccessful()) {
-                outputThread.interrupt();
+                replayer.outputThread.interrupt();
             }
-            outputThread.join();
-            reporterThread.join(2000);
+            replayer.outputThread.join();
+            replayer.reporterThread.join(2000);
         } catch (InterruptedException ignored) {
         }
 

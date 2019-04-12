@@ -5,7 +5,7 @@ import ch.ethz.infsec.trace.Trace;
 
 import java.io.Serializable;
 
-public class Crv2014CsvFormatter implements Serializable {
+public class Crv2014CsvFormatter implements TraceFormatter, Serializable {
     private static final long serialVersionUID = -1880412127233585471L;
 
     private long currentTimePoint;
@@ -14,6 +14,7 @@ public class Crv2014CsvFormatter implements Serializable {
         this.currentTimePoint = 0;
     }
 
+    @Override
     public void printFact(StringBuilder sink, Fact fact) {
         if (Trace.isEventFact(fact)) {
             ++currentTimePoint;
