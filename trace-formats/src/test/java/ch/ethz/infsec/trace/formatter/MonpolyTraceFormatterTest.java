@@ -12,47 +12,43 @@ import java.io.ObjectOutputStream;
 
 import static org.junit.Assert.assertEquals;
 
-public class Crv2014CsvFormatterTest {
+public class MonpolyTraceFormatterTest {
     private StringBuilder sink;
-    private Crv2014CsvFormatter formatter;
+    private MonpolyTraceFormatter formatter;
 
     @Before
     public void setUp() {
         sink = new StringBuilder();
-        formatter = new Crv2014CsvFormatter();
+        formatter = new MonpolyTraceFormatter();
     }
 
     @Test
     public void testPrintFact() {
         formatter.printFact(sink, new Fact("abc", "123"));
-        assertEquals("abc, tp=0, ts=123\n", sink.toString());
+        formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));
+        assertEquals("@123 abc()\n", sink.toString());
 
         sink.setLength(0);
         formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));
-        assertEquals("", sink.toString());
-
-        sink.setLength(0);
-        formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));
-        assertEquals("", sink.toString());
+        assertEquals("@123\n", sink.toString());
 
         sink.setLength(0);
         formatter.printFact(sink, new Fact("abc", "456"));
-        assertEquals("abc, tp=2, ts=456\n", sink.toString());
-
-        sink.setLength(0);
-        formatter.printFact(sink, new Fact("def", "456", "uvw", "xyz"));
-        assertEquals("def, tp=2, ts=456, x0=uvw, x1=xyz\n", sink.toString());
-
-        sink.setLength(0);
+        formatter.printFact(sink, new Fact("def", "456", "uvw"));
+        formatter.printFact(sink, new Fact("abc", "456"));
+        formatter.printFact(sink, new Fact("def", "456", "xyz"));
         formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "456"));
-        assertEquals("", sink.toString());
+        formatter.printFact(sink, new Fact("def", "456", "()", "foo bar"));
+        formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "456"));
+        assertEquals("@456 abc()() def(uvw)(xyz)\n@456 def(\"()\",\"foo bar\")\n", sink.toString());
     }
 
     @Test
     public void testSerialization() throws Exception {
         formatter.printFact(sink, new Fact("abc", "123"));
         formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));
-        formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));
+        formatter.printFact(sink, new Fact("abc", "456"));
+        formatter.printFact(sink, new Fact("def", "456", "foo", "bar"));
         sink.setLength(0);
 
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -61,10 +57,10 @@ public class Crv2014CsvFormatterTest {
 
         final ByteArrayInputStream in = new ByteArrayInputStream(out.toByteArray());
         final ObjectInputStream objectIn = new ObjectInputStream(in);
-        formatter = (Crv2014CsvFormatter) objectIn.readObject();
+        formatter = (MonpolyTraceFormatter) objectIn.readObject();
 
         formatter.printFact(sink, new Fact("def", "456", "uvw", "xyz"));
         formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "456"));
-        assertEquals("def, tp=2, ts=456, x0=uvw, x1=xyz\n", sink.toString());
+        assertEquals("@456 abc() def(foo,bar)(uvw,xyz)\n", sink.toString());
     }
 }

@@ -15,7 +15,7 @@ public class Crv2014CsvFormatter implements Serializable {
     }
 
     public void printFact(StringBuilder sink, Fact fact) {
-        if (Trace.EVENT_FACT.equals(fact.getName())) {
+        if (Trace.isEventFact(fact)) {
             ++currentTimePoint;
         } else {
             sink.append(fact.getName());
