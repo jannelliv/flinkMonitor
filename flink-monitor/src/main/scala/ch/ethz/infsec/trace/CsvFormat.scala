@@ -1,6 +1,7 @@
 package ch.ethz.infsec.trace
 
 import ch.ethz.infsec.Processor
+import ch.ethz.infsec.monitor.Domain
 
 import scala.collection.mutable.ArrayBuffer
 

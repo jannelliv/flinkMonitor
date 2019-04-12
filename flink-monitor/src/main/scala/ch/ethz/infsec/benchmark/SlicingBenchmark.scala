@@ -2,7 +2,8 @@ package ch.ethz.infsec.benchmark
 
 import ch.ethz.infsec.policy._
 import ch.ethz.infsec.slicer.HypercubeSlicer
-import ch.ethz.infsec.trace.{EventRecord, IntegralValue, Record}
+import ch.ethz.infsec.monitor.{IntegralValue}
+import ch.ethz.infsec.trace.{EventRecord, Record}
 import ch.ethz.infsec.policy.GenFormula
 
 import scala.util.Random

@@ -1,7 +1,8 @@
 package ch.ethz.infsec.slicer
 
 import ch.ethz.infsec.policy._
-import ch.ethz.infsec.trace.{Domain, EventRecord, IntegralValue, Record, Tuple}
+import ch.ethz.infsec.trace.{EventRecord, Record, Tuple}
+import ch.ethz.infsec.monitor.{Domain, IntegralValue}
 import ch.ethz.infsec.policy.GenFormula
 import org.scalatest.{FunSuite, Matchers}
 
@@ -17,9 +18,9 @@ class DataSlicerTest extends FunSuite with Matchers {
 
     override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]): Unit =
       if (valuation(0) != null)
-        slices ++= List(0, valuation(0).integralValue.toInt)
+        slices ++= List(0, valuation(0).getIntegralVal.get.toInt)
       else
-        slices ++= List(1, valuation(1).integralValue.toInt)
+        slices ++= List(1, valuation(1).getIntegralVal.get.toInt)
 
 
     override def getState(): Array[Byte] = Array.emptyByteArray

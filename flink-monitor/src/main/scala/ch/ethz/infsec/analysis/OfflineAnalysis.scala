@@ -3,7 +3,8 @@ package ch.ethz.infsec.analysis
 import ch.ethz.infsec._
 import ch.ethz.infsec.policy.{Formula, GenFormula, Policy}
 import ch.ethz.infsec.slicer.DataSlicer
-import ch.ethz.infsec.trace._
+import ch.ethz.infsec.monitor.{Domain}
+import ch.ethz.infsec.trace.{TraceFormat,MonpolyFormat,CsvFormat,Tuple}
 import ch.ethz.infsec.policy.{GenFormula, Policy}
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.streaming.api.TimeCharacteristic

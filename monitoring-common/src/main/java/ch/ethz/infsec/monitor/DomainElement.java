@@ -19,15 +19,9 @@ public class DomainElement {
 
     public DomainElement(){
     }
-    private DomainElement(Long i){
-        this.integralVal=Objects.requireNonNull(i,"null integral domain value");
-    }
-    private DomainElement(String s){
-        this.stringVal=Objects.requireNonNull(s,"null string domain value");
-    }
-    private DomainElement(Double f){
-        this.floatVal=Objects.requireNonNull(f,"null float domain value");
-    }
+    private DomainElement(Long i)  { this.integralVal=Objects.requireNonNull(i,"null integral domain value"); }
+    private DomainElement(String s){ this.stringVal=Objects.requireNonNull(s,"null string domain value"); }
+    private DomainElement(Double f){ this.floatVal=Objects.requireNonNull(f,"null float domain value"); }
 
     public Long getIntegralVal() { return integralVal; }
 
@@ -41,9 +35,9 @@ public class DomainElement {
 
     public void setFloatVal(Double floatVal) { this.floatVal = floatVal; }
 
-    public static DomainElement integralVal(Long v) {return new DomainElement(v);}
-    public static DomainElement stringVal(String v) {return new DomainElement(v);}
-    public static DomainElement floatVal(Double  v) {return new DomainElement(v);}
+    public static DomainElement integralVal(Long v) { return new DomainElement(v); }
+    public static DomainElement stringVal(String v) { return new DomainElement(v); }
+    public static DomainElement floatVal(Double  v) { return new DomainElement(v); }
 
     @Override
     public boolean equals(Object o) {
@@ -63,8 +57,8 @@ public class DomainElement {
 
     @Override
     public String toString() {
-        return (integralVal==null?"":integralVal.toString()) +
-               (stringVal==null?"":stringVal) +
-               (floatVal==null?"":floatVal.toString());
+        return (integralVal==null ? "" : integralVal.toString()) +
+               (stringVal==null   ? "" : "\"" + stringVal + "\"") +
+               (floatVal==null    ? "" : floatVal.toString());
     }
 }

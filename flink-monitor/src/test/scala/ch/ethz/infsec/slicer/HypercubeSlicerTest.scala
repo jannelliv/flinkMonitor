@@ -1,7 +1,7 @@
 package ch.ethz.infsec.slicer
 
 import ch.ethz.infsec.policy._
-import ch.ethz.infsec.trace.{Domain, IntegralValue}
+import ch.ethz.infsec.monitor.{Domain, IntegralValue}
 import ch.ethz.infsec.policy.GenFormula
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks

@@ -1,6 +1,7 @@
 package ch.ethz.infsec.analysis
 
-import ch.ethz.infsec.trace.{Domain, Record}
+import ch.ethz.infsec.trace.{Record}
+import ch.ethz.infsec.monitor.{Domain}
 import org.apache.flink.api.common.functions.AggregateFunction
 import org.apache.flink.streaming.api.scala.function.ProcessWindowFunction
 import org.apache.flink.streaming.api.scala.{DataStream, _}
