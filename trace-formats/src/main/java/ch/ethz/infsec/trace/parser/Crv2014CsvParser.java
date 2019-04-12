@@ -1,140 +1,89 @@
 package ch.ethz.infsec.trace.parser;
 
 import ch.ethz.infsec.monitor.Fact;
+import ch.ethz.infsec.trace.Trace;
 
 import java.io.Serializable;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
-import java.util.Objects;
 
 public class Crv2014CsvParser implements Serializable {
     private static final long serialVersionUID = -919182766017476946L;
 
-    private final String eventFact;
-    private final ArrayDeque<Fact> buffer;
-
-    private String currentLine;
     private String lastTimePoint;
     private String lastTimestamp;
 
-    transient private int position;
-    transient private int wordStart;
-    transient private int wordEnd;
-
-    public Crv2014CsvParser(String eventFact) {
-        this.eventFact = Objects.requireNonNull(eventFact);
-        this.buffer = new ArrayDeque<>();
-        this.currentLine = null;
+    public Crv2014CsvParser() {
         this.lastTimePoint = null;
         this.lastTimestamp = null;
     }
 
-    public void setInput(String line) {
-        currentLine = line;
-    }
-
-    private void addEventFact() {
+    private void terminateEvent(Collection<Fact> sink, String newTimePoint, String newTimestamp) {
         if (lastTimePoint != null) {
-            buffer.add(new Fact(eventFact, lastTimestamp, Collections.emptyList()));
+            sink.add(new Fact(Trace.EVENT_FACT, lastTimestamp, Collections.emptyList()));
         }
+        lastTimePoint = newTimePoint;
+        lastTimestamp = newTimestamp;
     }
 
-    public void terminateEvent() {
-        addEventFact();
-        lastTimePoint = null;
+    public void endOfInput(Collection<Fact> sink) {
+        terminateEvent(sink, null, null);
     }
 
-    private boolean isSpace(char c) {
-        return c == ' ' || c == '\t';
-    }
-
-    private boolean isLineEnd(char c) {
-        return c == '\r' || c == '\n';
-    }
-
-    private boolean isWordEnd(char c) {
-        return c == '=' || c == ',' || isLineEnd(c);
-    }
-
-    private void readWord() {
-        while (position < currentLine.length() && isSpace(currentLine.charAt(position))) {
-            ++position;
+    public void parseLine(Collection<Fact> sink, String line) throws ParseException {
+        line = line.trim();
+        if (line.isEmpty()) {
+            return;
         }
-        wordStart = wordEnd = position;
-        while (position < currentLine.length() && !isWordEnd(currentLine.charAt(position))) {
-            if (isSpace(currentLine.charAt(position))) {
-                ++position;
-            } else {
-                wordEnd = ++position;
+
+        int start;
+        int end;
+
+        start = 0;
+        end = line.indexOf(',', start);
+        if (end < 0) {
+            throw new ParseException(line);
+        }
+        final String factName = line.substring(start, end).trim();
+
+        start = line.indexOf('=', end + 1) + 1;
+        if (start <= 0) {
+            throw new ParseException(line);
+        }
+        end = line.indexOf(',', start);
+        if (end < 0) {
+            throw new ParseException(line);
+        }
+        final String timePoint = line.substring(start, end).trim();
+
+        start = line.indexOf('=', end + 1) + 1;
+        if (start <= 0) {
+            throw new ParseException(line);
+        }
+        end = line.indexOf(',', start);
+        if (end < 0) {
+            end = line.length();
+        }
+        final String timestamp = line.substring(start, end).trim();
+
+        final ArrayList<String> arguments = new ArrayList<>();
+        while (end < line.length()) {
+            start = line.indexOf('=', end + 1) + 1;
+            if (start <= 0) {
+                throw new ParseException(line);
             }
-        }
-    }
-
-    private String currentWord() {
-        return currentLine.substring(wordStart, wordEnd);
-    }
-
-    private void expectWord(String word) throws ParseException {
-        readWord();
-        if (!word.equals(currentWord())) {
-            throw new ParseException(currentLine, wordStart);
-        }
-    }
-
-    private void expectDelimiter(char delimiter) throws ParseException {
-        if (position < currentLine.length() && currentLine.charAt(position) == delimiter) {
-            ++position;
-        } else {
-            throw new ParseException(currentLine, position);
-        }
-    }
-
-    private boolean hasMore() {
-        return position < currentLine.length() && !isLineEnd(currentLine.charAt(position));
-    }
-
-    public Fact nextFact() throws ParseException {
-        if (buffer.isEmpty() && currentLine != null) {
-            position = 0;
-            readWord();
-            if (wordStart < wordEnd || hasMore()) {
-                final String factName = currentWord();
-
-                expectDelimiter(',');
-                expectWord("tp");
-                expectDelimiter('=');
-                readWord();
-                final String timePoint = currentWord();
-
-                expectDelimiter(',');
-                expectWord("ts");
-                expectDelimiter('=');
-                readWord();
-                final String timestamp = currentWord();
-
-                if (!(timestamp.equals(lastTimestamp) && timePoint.equals(lastTimePoint))) {
-                    addEventFact();
-                    lastTimePoint = timePoint;
-                    lastTimestamp = timestamp;
-                }
-
-                if (hasMore()) {
-                    final ArrayList<String> arguments = new ArrayList<>();
-                    do {
-                        expectDelimiter(',');
-                        readWord();
-                        expectDelimiter('=');
-                        readWord();
-                        arguments.add(currentWord());
-                    } while (hasMore());
-                    buffer.add(new Fact(factName, lastTimestamp, arguments));
-                } else {
-                    buffer.add(new Fact(factName, lastTimestamp, Collections.emptyList()));
-                }
+            end = line.indexOf(',', start);
+            if (end < 0) {
+                end = line.length();
             }
-            currentLine = null;
+            arguments.add(line.substring(start, end).trim());
         }
-        return buffer.isEmpty() ? null : buffer.pop();
+
+        if (!(timePoint.equals(lastTimePoint) && timestamp.equals(lastTimestamp))) {
+            terminateEvent(sink, timePoint, timestamp);
+        }
+
+        sink.add(new Fact(factName, timestamp, arguments));
     }
 }

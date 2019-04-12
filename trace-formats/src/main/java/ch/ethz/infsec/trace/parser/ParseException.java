@@ -1,12 +1,16 @@
 package ch.ethz.infsec.trace.parser;
 
 public class ParseException extends Exception {
-    protected final String input;
-    protected final int position;
+    private static final long serialVersionUID = 4057773165895674158L;
 
-    public ParseException(String input, int position) {
-        super();
-        this.input = input;
-        this.position = position;
+    private final String context;
+
+    public ParseException(String context) {
+        super("Invalid input.");
+        this.context = context;
+    }
+
+    public String getContext() {
+        return context;
     }
 }
