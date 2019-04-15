@@ -1,5 +1,6 @@
 package ch.ethz.infsec.monitor;
 
+import java.io.Serializable;
 import java.util.Objects;
 
 /*
@@ -24,7 +25,10 @@ Note that when a user-defined data type can’t be recognized as a POJO type, it
  * Objects of this class must be used as immutable.
  * The only allowed mutation is during initialization (typically used for deserialization) when all three fields are null.
  */
-public class DomainElement {
+public class DomainElement implements Serializable {
+
+    private static final long serialVersionUID = -5622131927837381214L;
+
     private Long integralVal=null;
     private String stringVal=null;
     private Double floatVal=null;
