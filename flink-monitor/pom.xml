@@ -67,21 +67,6 @@
             <artifactId>fastparse_${scala.binary.version}</artifactId>
             <version>1.0.0</version>
         </dependency>
-
-        <!-- Testing -->
-
-        <dependency>
-            <groupId>org.scalatest</groupId>
-            <artifactId>scalatest_${scala.binary.version}</artifactId>
-            <version>3.0.7</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
-            <groupId>org.scalacheck</groupId>
-            <artifactId>scalacheck_${scala.binary.version}</artifactId>
-            <version>1.14.0</version>
-            <scope>test</scope>
-        </dependency>
     </dependencies>
 
     <profiles>
