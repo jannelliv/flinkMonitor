@@ -1,4 +1,4 @@
-package ch.ethz.infsec;
+package ch.ethz.infsec.generator;
 
 import java.util.ArrayList;
 import java.util.Arrays;

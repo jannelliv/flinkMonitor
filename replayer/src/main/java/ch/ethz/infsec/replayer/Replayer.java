@@ -501,7 +501,7 @@ public class Replayer {
     }
 
     private static void invalidArgument() {
-        System.err.println("Error: Invalid argument.");
+        System.err.println("Error: Invalid argument (see --help for usage).");
         System.exit(1);
     }
 
