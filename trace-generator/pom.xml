@@ -11,8 +11,8 @@
         <relativePath>..</relativePath>
     </parent>
 
-    <artifactId>evaluation-tools</artifactId>
-    <name>Replayer and Generator</name>
+    <artifactId>trace-generator</artifactId>
+    <name>Trace Generator</name>
 
     <dependencies>
         <dependency>

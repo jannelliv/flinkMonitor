@@ -1,0 +1,1 @@
+- Write a script that builds and copies all required JARs to the Docker subdirectories.
