@@ -65,10 +65,12 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
 
     val t:Thread = new ReadingThread(outputFlink,flinkSliceInputs,flink,READTIMEOUT)
 
+    t.start()
+
     inputFlink.write(log)
     inputFlink.flush()
+    inputFlink.close()
 
-    t.start()
     t.join()
 
     flinkSliceInputs.synchronized{println("VERDICTS: " + flinkSliceInputs.toString)}

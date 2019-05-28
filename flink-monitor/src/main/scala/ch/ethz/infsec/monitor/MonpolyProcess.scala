@@ -3,6 +3,10 @@ package ch.ethz.infsec.monitor
 import java.nio.file.{Files, Path}
 import java.io.File
 
+import ch.ethz.infsec
+import ch.ethz.infsec.StatelessProcessor
+import ch.ethz.infsec.slicer.HypercubeSlicer
+import ch.ethz.infsec.trace.{KeyedMonpolyPrinter, MonpolyVerdictFilter, Record}
 import org.slf4j.LoggerFactory
 
 import scala.collection.immutable.ListSet
@@ -79,15 +83,16 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     println("Opened Monpoly after rescale")
   }
 
-  override def writeRequest(request: MonpolyRequest): Unit = {
-    request match {
-      case CommandItem(request.in) =>
+  override def writeRequest[SubRequest >: MonpolyRequest](request: SubRequest): Unit = {
+    val r = request.asInstanceOf[MonpolyRequest]
+    r match {
+      case CommandItem(r.in) =>
         logger.info("Pending Slicer set")
         pendingSlicer = true
-      case EventItem(request.in) => ()
+      case EventItem(r.in) => ()
     }
 
-    writer.write(request.in)
+    writer.write(r.in)
     writer.write(GET_INDEX_COMMAND)
     // TODO(JS): Do not flush if there are more requests in the queue
     writer.flush()
@@ -213,4 +218,15 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     if(digits == "") -1
     else Integer.parseInt(digits)
   }
+}
+
+
+class MonpolyProcessFactory(cmd: Seq[String], slicer:HypercubeSlicer) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
+  override protected def createPre[MonpolyRequest >: MonitorRequest](): infsec.Processor[(Int, Record), MonitorRequest] = new KeyedMonpolyPrinter[Int]
+  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new MonpolyProcess(cmd)
+  override protected def createPost(): infsec.Processor[String, String] = new MonpolyVerdictFilter(slicer.mkVerdictFilter)
+}
+
+object MonpolyProcessFactory {
+  def apply(cmd: Seq[String], slicer: HypercubeSlicer): MonpolyProcessFactory = new MonpolyProcessFactory(cmd, slicer)
 }

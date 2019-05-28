@@ -1,14 +1,16 @@
 package ch.ethz.infsec
 
+import java.io.PrintWriter
+import java.io.File
+
 import ch.ethz.infsec.analysis.TraceAnalysis
-import ch.ethz.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess, MonpolyRequest}
+import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
 import ch.ethz.infsec.slicer.ColissionlessKeyGenerator
 import ch.ethz.infsec.tools.Rescaler
 import ch.ethz.infsec.tools.Rescaler.RescaleInitiator
 import ch.ethz.infsec.trace._
 import ch.ethz.infsec.analysis.TraceAnalysis
-import ch.ethz.infsec.monitor.{EchoProcess, ExternalProcessOperator, MonpolyProcess}
 import ch.ethz.infsec.policy.Policy
 import ch.ethz.infsec.tools.Rescaler
 import ch.ethz.infsec.trace.{CsvFormat, KeyedMonpolyPrinter, MonpolyFormat, MonpolyVerdictFilter, TraceMonitor}
@@ -19,6 +21,7 @@ import org.apache.flink.api.java.io.{TextInputFormat, TextOutputFormat}
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
 import org.apache.flink.core.fs.Path
+import org.apache.flink.runtime.state.StateBackend
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.sink.{OutputFormatSinkFunction, PrintSinkFunction, SocketClientSink}
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
@@ -33,6 +36,10 @@ object StreamMonitoring {
 
   private val logger = LoggerFactory.getLogger(StreamMonitoring.getClass)
 
+  private val MONPOLY_CMD = "monpoly"
+  private val ECHO_CMD = "echo"
+  private val DEJAVU_CMD = "dejavu"
+
   var jobName: String = ""
 
   var checkpointUri: String = ""
@@ -46,7 +53,7 @@ object StreamMonitoring {
   var processors: Int = 0
 
   var monitorCommand: Seq[String] = Seq.empty
-  var isMonpoly: Boolean = true
+//  var isMonpoly: Boolean = true
   var formulaFile: String = ""
   var signatureFile: String = ""
 
@@ -107,7 +114,7 @@ object StreamMonitoring {
     logger.info(s"Using $processors parallel monitors")
 
     monitorCommand = params.get("monitor", "monpoly -negate").split(' ')
-    isMonpoly = params.getBoolean("monpoly", true)
+//    isMonpoly = params.getBoolean("monpoly", true) //TODO: This was undocumented...
     signatureFile = params.get("sig")
 
     formulaFile = params.get("formula")
@@ -120,6 +127,12 @@ object StreamMonitoring {
     }
   }
 
+  def exename(str: String):String = {
+    val ss = str.split('/')
+    ss(ss.length-1)
+  }
+
+
   def main(args: Array[String]) {
     val params = ParameterTool.fromArgs(args)
 
@@ -131,9 +144,26 @@ object StreamMonitoring {
 
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
-      val monitorArgs = monitorCommand ++ List("-sig", signatureFile, "-formula", formulaFile)
-      logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-      val process = if (isMonpoly) new MonpolyProcess(monitorArgs) else new EchoProcess(monitorArgs)
+      val processFactory:ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] = exename(monitorCommand.head) match {
+        case MONPOLY_CMD => {
+          val monitorArgs = monitorCommand ++ List("-sig", signatureFile, "-formula", formulaFile)
+          logger.info("Monitor command: {}", monitorArgs.mkString(" "))
+          MonpolyProcessFactory(monitorArgs,slicer)
+        }
+        case ECHO_CMD => {
+          EchoProcessFactory(monitorCommand)
+        }
+        case DEJAVU_CMD => {
+          val dejavuFormulaFile = formulaFile+".qtl"
+          val writer = new PrintWriter(new File(dejavuFormulaFile))
+          writer.write(formula.toQTLString)
+          writer.close()
+          val monitorArgs = List(monitorCommand.head) ++ List(dejavuFormulaFile, "20", "print")
+          DejavuProcessFactory(monitorArgs)
+        }
+        case c@_ => logger.error("Cannot parse the monitor command: " + c); sys.exit(1)
+
+      }
 
       val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
@@ -185,12 +215,10 @@ object StreamMonitoring {
 
       // Parallel node
       // TODO(JS): Timeout? Capacity?
-      val verdicts = ExternalProcessOperator.transform[(Int, Record), MonpolyRequest, String, String](
+      val verdicts = ExternalProcessOperator.transform[(Int, Record), MonitorRequest, String, String](
         slicer,
         slicedTrace,
-        new KeyedMonpolyPrinter[Int],
-        process,
-        if (isMonpoly) new MonpolyVerdictFilter(slicer.mkVerdictFilter) else StatelessProcessor.identity,
+        processFactory,
         256).setParallelism(processors).setMaxParallelism(processors).name("Monitor").uid("monitor")
 
       //Single node

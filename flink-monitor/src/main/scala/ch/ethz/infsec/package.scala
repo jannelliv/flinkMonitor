@@ -13,7 +13,7 @@ import scala.collection.JavaConverters._
 
 package object infsec {
 
-  trait Processor[I, O] {
+  trait Processor[I, +O] {
     type State
 
     def isStateful: Boolean = true

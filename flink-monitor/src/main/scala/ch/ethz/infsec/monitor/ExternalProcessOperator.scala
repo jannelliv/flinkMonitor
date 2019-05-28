@@ -495,11 +495,11 @@ object ExternalProcessOperator {
   def transform[IN, PIN, POUT, OUT: TypeInformation](
       slicer: HypercubeSlicer,
       in: DataStream[(Int, Record)],
-      preprocessing: Processor[(Int, Record), PIN],
-      process: ExternalProcess[PIN, POUT],
-      postprocessing: Processor[POUT, OUT],
-      capacity: Int): DataStream[OUT] =
+      processFactory: ExternalProcessFactory[(Int, Record), PIN, POUT, OUT],
+      capacity: Int): DataStream[OUT] = {
+    val (preprocessing,process,postprocessing) = processFactory.create()
     in.transform(
       "External Process",
-      new ExternalProcessOperator[(Int, Record), PIN, POUT, OUT](slicer, preprocessing, process, postprocessing,0, capacity))
+      new ExternalProcessOperator[(Int, Record), PIN, POUT, OUT](slicer, preprocessing, process, postprocessing, 0, capacity))
+  }
 }
