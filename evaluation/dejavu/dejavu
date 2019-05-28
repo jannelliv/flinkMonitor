@@ -1,0 +1,35 @@
+#!/bin/bash
+
+#
+# DejaVu - a tool for checking past time temporal logic properties in QTL against traces in CSV format.
+#
+# To use, call (after making executable with: chmod +x dejavu) as follows:
+#
+#   dejavu <specFile> <traceFile> [<bitsPerVariable> [debug]]
+
+FMA=`cd "$(dirname "$1")"; pwd`
+FMA="${FMA}/$(basename $1)"
+BDDSIZE=${2:-20} # default number of bits per variable = 20
+DEBUG=${3:-} # default is no debugging
+
+
+CURRDIR=`pwd`
+DEJAVU=`cd "$(dirname "$BASH_SOURCE")"; pwd`
+TMPDIR="/tmp/dejavu$$"
+mkdir -p $TMPDIR
+cp $DEJAVU/dejavu.jar $TMPDIR
+
+cd $TMPDIR
+
+# Parse specification and synthesize monitor:
+java -cp ./dejavu.jar dejavu.Verify $FMA > /dev/null 2>&1
+
+# Compile synthesized monitor:
+scalac -cp .:./dejavu.jar TraceMonitor.scala > /dev/null 2>&1
+
+# Run the compiled monitor on trace:
+scala -J-Xmx16g -cp .:./dejavu.jar TraceMonitor - $BDDSIZE $DEBUG | egrep "\*\*\*\*"
+
+# Clean up:
+cd $CURRDIR
+rm -rf $TMPDIR

@@ -1,7 +1,6 @@
 package ch.ethz.infsec
 
-import java.io.PrintWriter
-import java.io.File
+import java.io.{File, FileOutputStream, PrintWriter}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
@@ -155,7 +154,7 @@ object StreamMonitoring {
         }
         case DEJAVU_CMD => {
           val dejavuFormulaFile = formulaFile+".qtl"
-          val writer = new PrintWriter(new File(dejavuFormulaFile))
+          val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile,false))
           writer.write(formula.toQTLString)
           writer.close()
           val monitorArgs = List(monitorCommand.head) ++ List(dejavuFormulaFile, "20", "print")

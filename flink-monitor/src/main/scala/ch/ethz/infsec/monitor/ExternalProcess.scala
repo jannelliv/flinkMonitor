@@ -27,7 +27,7 @@ trait ExternalProcess[+IN, OUT] extends Serializable {
   def dispose(): Unit
 }
 
-trait ExternalProcessFactory[IN, +PIN, POUT, OUT] {
+trait ExternalProcessFactory[IN, +PIN, POUT, OUT] extends Serializable{
   def create[UIN >: PIN]():(Processor[IN,UIN], ExternalProcess[UIN,POUT], Processor[POUT,OUT]) = (createPre(),createProc(),createPost())
   protected def createPre[UIN >: PIN]():Processor[IN,UIN]
   protected def createProc[UIN >: PIN]():ExternalProcess[UIN,POUT]
