@@ -1,5 +1,6 @@
-package ch.ethz.infsec;
+package ch.ethz.infsec.generator;
 
+import org.apache.commons.io.IOUtils;
 import org.apache.commons.math3.random.JDKRandomGenerator;
 import org.apache.commons.math3.random.RandomGenerator;
 
@@ -7,15 +8,24 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 public class CsvStreamGenerator {
+    private static void printHelp() {
+        try {
+            final ClassLoader classLoader = CsvStreamGenerator.class.getClassLoader();
+            System.out.print(IOUtils.toString(Objects.requireNonNull(classLoader.getResource("README.txt")),
+                    StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private static void invalidArgument() {
-        System.err.print("Error: Invalid argument.\n" +
-                "Usage: {-S | -L | -T | -P <pattern>} [-e <event rate>] [-i <index rate>]\n" +
-                "       [-t <timestamp>] [-x <violations>] [-w <window size>]\n" +
-                "       [-pA <A ratio>] [-pB <B ratio>] [-z <Zipf exponents>] [<seconds>]\n");
+        System.err.println("Error: Invalid argument (see --help for usage).");
         System.exit(1);
     }
 
@@ -37,6 +47,10 @@ public class CsvStreamGenerator {
         try {
             for (int i = 0; i < args.length; ++i) {
                 switch (args[i]) {
+                    case "-h":
+                    case "--help":
+                        printHelp();
+                        return;
                     case "-S":
                         eventPattern = new BasicEventPattern.Star();
                         break;
@@ -96,14 +110,14 @@ public class CsvStreamGenerator {
                         if (i + 1 == args.length) {
                             invalidArgument();
                         }
-                        String exponents[] = args[++i].split(",");
+                        String[] exponents = args[++i].split(",");
                         for (String exponent : exponents) {
-                            String parts[] = exponent.split("=", 2);
+                            String[] parts = exponent.split("=", 2);
                             if (parts.length != 2) {
                                 invalidArgument();
                             }
                             if (parts[1].contains("+")) {
-                                String subparts[] = parts[1].split("\\+", 2);
+                                String[] subparts = parts[1].split("\\+", 2);
                                 zipfExponents.put(parts[0], Double.parseDouble(subparts[0]));
                                 zipfOffsets.put(parts[0], Integer.parseInt(subparts[1]));
                             } else {

@@ -6,76 +6,77 @@ import ch.ethz.infsec.trace.formatter.Crv2014CsvFormatter;
 import ch.ethz.infsec.trace.formatter.MonpolyTraceFormatter;
 import ch.ethz.infsec.trace.formatter.TraceFormatter;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
+import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import ch.ethz.infsec.trace.parser.TraceParser;
+import org.apache.commons.io.IOUtils;
 
 import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Replayer {
-    double timeMultiplier;
-    long timestampInterval;
+    private double timeMultiplier = 1.0;
+    private String commandPrefix = ">";
+    private long timestampInterval = -1;
+    private String timestampPrefix = "###";
+    private int queueCapacity = 100000;
+    private TraceParser parser = new Crv2014CsvParser();
+    private TraceFormatter formatter = new Crv2014CsvFormatter();
 
-    BufferedReader input;
-    TraceParser parser;
-    TraceFormatter formatter;
+    private BufferedReader input;
+    private Output output;
+    private Reporter reporter = new NullReporter();
 
-    Output output;
-    Reporter reporter;
+    private LinkedBlockingQueue<OutputItem> queue;
+    private Thread inputThread;
 
-    LinkedBlockingQueue<OutputItem> queue;
-    Thread inputThread;
-    Thread outputThread;
-    Thread reporterThread;
-
-    static abstract class OutputItem {
+    private static abstract class OutputItem {
         final long emissionTime;
 
         OutputItem(long emissionTime) {
             this.emissionTime = emissionTime;
         }
 
-        abstract void write(Writer writer) throws IOException;
+        abstract void emit(Output output) throws IOException;
 
         abstract void reportDelivery(Reporter reporter, long startTime);
     }
 
-    static final class TerminalItem extends OutputItem {
-        final boolean resurrect;
-
-        TerminalItem(boolean resurrect) {
+    private static final class TerminalItem extends OutputItem {
+        TerminalItem() {
             super(-1);
-            this.resurrect = resurrect;
         }
 
         @Override
-        void write(Writer writer) {
+        void emit(Output output) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
         void reportDelivery(Reporter reporter, long startTime) {
-            if (!resurrect) {
-                reporter.reportEnd();
-            }
+            throw new UnsupportedOperationException();
         }
     }
 
-    static final class DatabaseBuffer extends OutputItem {
-        private final String database;
-        final int count;
+    private static final class FactItem extends OutputItem {
+        final Fact fact;
 
-        DatabaseBuffer(long emissionTime, String database, int count) {
+        FactItem(long emissionTime, Fact fact) {
             super(emissionTime);
-            this.database = database;
-            this.count = count;
+            this.fact = fact;
         }
 
         @Override
-        void write(Writer writer) throws IOException {
-            writer.write(database);
+        void emit(Output output) throws IOException {
+            output.writeFact(fact);
+            if (Trace.isEventFact(fact)) {
+                output.flush();
+            }
         }
 
         @Override
@@ -84,43 +85,17 @@ public class Replayer {
         }
     }
 
-    static final class TimestampItem extends OutputItem {
-        static final String TIMESTAMP_PREFIX = "###";
-
-        private final String line;
-
-        TimestampItem(long emissionTime, long startTimestamp) {
-            super(emissionTime);
-
-            long timestamp = startTimestamp + emissionTime;
-            this.line = TIMESTAMP_PREFIX + Long.toString(timestamp) + "\n";
-        }
-
-        @Override
-        public void write(Writer writer) throws IOException {
-            writer.write(line);
-        }
-
-        @Override
-        void reportDelivery(Reporter reporter, long startTime) {
-        }
-    }
-
-    static final class CommandItem extends OutputItem {
-        private final String command;
+    private static final class CommandItem extends OutputItem {
+        final String command;
 
         CommandItem(String command) {
-            super(-1);
+            super(0);
             this.command = command;
         }
 
-        boolean requiresReconnect() {
-            return command.startsWith(">set_slicer ");
-        }
-
         @Override
-        public void write(Writer writer) throws IOException {
-            writer.write(command + "\n");
+        public void emit(Output output) throws IOException {
+            output.writeString(command + "\n");
         }
 
         @Override
@@ -128,111 +103,123 @@ public class Replayer {
         }
     }
 
-    class InputWorker implements Runnable {
-        private boolean successful = false;
+    private abstract class Output {
+        private final StringBuilder stringBuilder = new StringBuilder();
 
-        private long absoluteStartMillis = -1;
-        private long firstTimestamp = -1;
-        private int count = 0;
-        private long nextTimestampToEmit;
+        abstract void writeString(String string) throws IOException;
 
-        private StringBuilder stringBuilder = new StringBuilder();
-        private ArrayList<DatabaseBuffer> readyBuffers = new ArrayList<>();
-
-        public void run() {
-            try {
-                String line;
-                while ((line = input.readLine()) != null) {
-                    if (line.startsWith(">")) {
-                        processCommand(line);
-                    } else {
-                        parser.parseLine(this::processFact, line);
-                        emitBuffers();
-                    }
-                }
-                parser.endOfInput(this::processFact);
-                emitBuffers();
-                if (timestampInterval > 0) {
-                    queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
-                }
-                queue.put(new TerminalItem(false));
-                successful = true;
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (Exception e) {
-                e.printStackTrace(System.err);
-            }
-        }
-
-        boolean isSuccessful() {
-            return successful;
-        }
-
-        private void processCommand(String line) throws InterruptedException {
-            CommandItem commandItem = new CommandItem(line);
-            queue.put(commandItem);
-            if (commandItem.requiresReconnect()) {
-                queue.put(new TerminalItem(true));
-            }
-        }
-
-        private void processFact(Fact fact) {
+        void writeFact(Fact fact) throws IOException {
             formatter.printFact(stringBuilder, fact);
-            ++count;
-
-            if (Trace.isEventFact(fact)) {
-                final long timestamp = Long.valueOf(fact.getTimestamp());
-                if (firstTimestamp < 0) {
-                    firstTimestamp = timestamp;
-                }
-
-                final long nextEmission;
-                if (timeMultiplier > 0.0) {
-                    nextEmission = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
-                } else {
-                    nextEmission = 0;
-                }
-
-                readyBuffers.add(new DatabaseBuffer(nextEmission, stringBuilder.toString(), count));
-                stringBuilder.setLength(0);
-                count = 0;
-            }
+            writeString(stringBuilder.toString());
+            stringBuilder.setLength(0);
         }
 
-        private void emitBuffers() throws InterruptedException {
-            for (DatabaseBuffer buffer : readyBuffers) {
-                if (timestampInterval > 0) {
-                    if (absoluteStartMillis < 0) {
-                        absoluteStartMillis = System.currentTimeMillis();
-                        nextTimestampToEmit = 0;
-                    }
+        abstract void flush() throws IOException;
+    }
 
-                    while (nextTimestampToEmit < buffer.emissionTime) {
-                        queue.put(new TimestampItem(nextTimestampToEmit, absoluteStartMillis));
-                        nextTimestampToEmit += timestampInterval;
-                    }
-                }
-                queue.put(buffer);
-            }
-            readyBuffers.clear();
+    private class StandardOutput extends Output {
+        private final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
+
+        @Override
+        void writeString(String string) throws IOException {
+            writer.write(string);
+        }
+
+        @Override
+        void flush() throws IOException {
+            writer.flush();
         }
     }
 
-    interface Reporter extends Runnable {
+    private class SocketOutput extends Output {
+        private final ServerSocket serverSocket;
+        private final boolean reconnect;
+
+        private Socket clientSocket = null;
+        private BufferedWriter writer = null;
+
+        SocketOutput(ServerSocket serverSocket, boolean reconnect) {
+            this.serverSocket = serverSocket;
+            this.reconnect = reconnect;
+        }
+
+        void acquireClient() throws IOException {
+            if (clientSocket != null) {
+                throw new IllegalStateException("Client has already been acquired.");
+            }
+            clientSocket = serverSocket.accept();
+            writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
+            System.err.printf("Client connected: %s:%d\n",
+                    clientSocket.getInetAddress().getHostAddress(),
+                    clientSocket.getPort());
+        }
+
+        private void closeClient() {
+            if (clientSocket == null) {
+                return;
+            }
+            try {
+                writer.close();
+                clientSocket.close();
+            } catch (IOException ignored) {
+            }
+            writer = null;
+            clientSocket = null;
+        }
+
+        private void handleError(IOException e) throws IOException {
+            System.err.println("Could not write to client");
+            closeClient();
+            if (reconnect) {
+                System.err.println("Waiting for new client ...");
+                acquireClient();
+            } else {
+                throw e;
+            }
+        }
+
+        @Override
+        void writeString(String string) throws IOException {
+            boolean tryAgain = true;
+            do {
+                try {
+                    writer.write(string);
+                    tryAgain = false;
+                } catch (IOException e) {
+                    handleError(e);
+                }
+            } while (tryAgain);
+        }
+
+        @Override
+        void flush() throws IOException {
+            boolean tryAgain = true;
+            do {
+                try {
+                    writer.flush();
+                    tryAgain = false;
+                } catch (IOException e) {
+                    handleError(e);
+                }
+            } while (tryAgain);
+        }
+    }
+
+    private interface Reporter extends Runnable {
         void reportUnderrun();
 
-        void reportDelivery(DatabaseBuffer databaseBuffer, long startTime);
+        void reportDelivery(FactItem item, long startTime);
 
         void reportEnd();
     }
 
-    static class NullReporter implements Reporter {
+    private static class NullReporter implements Reporter {
         @Override
         public void reportUnderrun() {
         }
 
         @Override
-        public void reportDelivery(DatabaseBuffer databaseBuffer, long startTime) {
+        public void reportDelivery(FactItem item, long startTime) {
         }
 
         @Override
@@ -244,7 +231,7 @@ public class Replayer {
         }
     }
 
-    static class IntervalReporter implements Reporter {
+    private static class IntervalReporter implements Reporter {
         static final long INTERVAL_MILLIS = 1000L;
 
         private final boolean verbose;
@@ -254,6 +241,7 @@ public class Replayer {
         private long lastReport;
 
         private int underruns = 0;
+        private int eventsInCurrentIndex = 0;
         private int indices = 0;
         private int indicesSinceLastReport = 0;
         private int totalEvents = 0;
@@ -273,21 +261,26 @@ public class Replayer {
         }
 
         @Override
-        public synchronized void reportDelivery(DatabaseBuffer databaseBuffer, long startTime) {
-            long now = System.nanoTime();
+        public synchronized void reportDelivery(FactItem item, long startTime) {
+            if (Trace.isEventFact(item.fact)) {
+                long now = System.nanoTime();
 
-            ++indices;
-            ++indicesSinceLastReport;
+                ++indices;
+                ++indicesSinceLastReport;
 
-            int events = databaseBuffer.count;
-            totalEvents += events;
-            eventsSinceLastReport += events;
+                totalEvents += eventsInCurrentIndex;
+                eventsSinceLastReport += eventsInCurrentIndex;
 
-            long elapsedMillis = (now - startTime) / 1_000_000L;
-            currentDelay = Math.max(0, elapsedMillis - databaseBuffer.emissionTime);
-            delaySum += currentDelay;
-            maxDelay = Math.max(maxDelay, currentDelay);
-            maxDelaySinceLastReport = Math.max(maxDelaySinceLastReport, currentDelay);
+                long elapsedMillis = (now - startTime) / 1_000_000L;
+                currentDelay = Math.max(0, elapsedMillis - item.emissionTime);
+                delaySum += currentDelay;
+                maxDelay = Math.max(maxDelay, currentDelay);
+                maxDelaySinceLastReport = Math.max(maxDelaySinceLastReport, currentDelay);
+
+                eventsInCurrentIndex = 0;
+            } else {
+                ++eventsInCurrentIndex;
+            }
         }
 
         @Override
@@ -304,7 +297,7 @@ public class Replayer {
             double indexRate = (double) indicesSinceLastReport / deltaSeconds;
             double eventRate = (double) eventsSinceLastReport / deltaSeconds;
             double delaySeconds = (double) currentDelay / 1000.0;
-            double totalAverageDelaySeconds = (double) delaySum / ((double) indices * 1000.0);
+            double totalAverageDelaySeconds = indices > 0 ? (double) delaySum / ((double) indices * 1000.0) : 0;
             double maxDelaySeconds = (double) maxDelay / 1000.0;
             double currentMaxDelaySeconds = (double) maxDelaySinceLastReport / 1000.0;
 
@@ -348,127 +341,106 @@ public class Replayer {
         }
     }
 
-    interface Output {
-        void writeItemAndFlush(OutputItem item) throws IOException;
-
-        void waitForReconnect() throws IOException;
-    }
-
-    static class StandardOutput implements Output {
-        private final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
-
-        @Override
-        public void writeItemAndFlush(OutputItem item) throws IOException {
-            item.write(writer);
-            writer.flush();
-        }
-
-        @Override
-        public void waitForReconnect() {
-        }
-    }
-
-    static class SocketOutput implements Output {
-        private final ServerSocket serverSocket;
-        private final boolean reconnect;
-
-        private Socket clientSocket = null;
-        private BufferedWriter writer = null;
-
-        SocketOutput(ServerSocket serverSocket, boolean reconnect) {
-            this.serverSocket = serverSocket;
-            this.reconnect = reconnect;
-        }
-
-        void acquireClient() throws IOException {
-            if (clientSocket != null) {
-                throw new IllegalStateException("Client has already been acquired");
-            }
-            clientSocket = serverSocket.accept();
-            writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
-            System.err.printf("Client connected: %s\n", clientSocket.getInetAddress().getHostAddress());
-        }
-
-        private void closeClient() {
-            if (clientSocket == null) {
-                return;
-            }
-            try {
-                writer.close();
-                clientSocket.close();
-            } catch (IOException ignored) {
-            }
-            writer = null;
-            clientSocket = null;
-        }
-
-        @Override
-        public void writeItemAndFlush(OutputItem item) throws IOException {
-            boolean tryWriting = true;
-            do {
-                try {
-                    item.write(writer);
-                    writer.flush();
-                    tryWriting = false;
-                } catch (IOException e) {
-                    System.err.println("Could not write event");
-                    closeClient();
-                    if (reconnect) {
-                        System.err.println("Waiting for new client ...");
-                        acquireClient();
-                    } else {
-                        throw e;
-                    }
-                }
-            } while (tryWriting);
-        }
-
-        @Override
-        public void waitForReconnect() throws IOException {
-            if (reconnect) {
-                closeClient();
-                System.err.println("Waiting for new client ...");
-                acquireClient();
-            }
-        }
-    }
-
-    class OutputWorker implements Runnable {
+    private class InputWorker implements Runnable {
         private boolean successful = false;
 
-        private void runInternal() throws InterruptedException, IOException {
-            long startTime = 0L;
-            boolean isFirst = true;
-            OutputItem outputItem;
-            do {
-                do {
-                    if (isFirst) {
-                        outputItem = queue.take();
-                        startTime = System.nanoTime();
-                        isFirst = false;
+        private long firstTimestamp = -1;
+        private final ArrayList<OutputItem> readyItems = new ArrayList<>();
+
+        private void emitItems() throws InterruptedException {
+            for (OutputItem item : readyItems) {
+                queue.put(item);
+            }
+            readyItems.clear();
+        }
+
+        private void processFact(Fact fact) {
+            final long timestamp = Long.valueOf(fact.getTimestamp());
+            if (firstTimestamp < 0) {
+                firstTimestamp = timestamp;
+            }
+            long emissionTime;
+            if (timeMultiplier > 0.0) {
+                emissionTime = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
+            } else {
+                emissionTime = 0;
+            }
+            readyItems.add(new FactItem(emissionTime, fact));
+        }
+
+        public void run() {
+            try {
+                String line;
+                while ((line = input.readLine()) != null) {
+                    if (line.startsWith(commandPrefix)) {
+                        CommandItem commandItem = new CommandItem(line);
+                        queue.put(commandItem);
                     } else {
-                        outputItem = queue.poll();
-                        if (outputItem == null) {
-                            reporter.reportUnderrun();
-                            outputItem = queue.take();
-                        }
+                        parser.parseLine(this::processFact, line);
+                        emitItems();
                     }
-
-                    long now = System.nanoTime();
-                    long elapsedMillis = (now - startTime) / 1_000_000L;
-                    long waitMillis = outputItem.emissionTime - elapsedMillis;
-                    if (waitMillis > 1L) {
-                        Thread.sleep(waitMillis);
-                    }
-
-                    output.writeItemAndFlush(outputItem);
-                    outputItem.reportDelivery(reporter, startTime);
-                } while (!(outputItem instanceof TerminalItem));
-
-                if (((TerminalItem) outputItem).resurrect) {
-                    output.waitForReconnect();
                 }
-            } while (((TerminalItem) outputItem).resurrect);
+                parser.endOfInput(this::processFact);
+                emitItems();
+                queue.put(new TerminalItem());
+                successful = true;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        boolean isSuccessful() {
+            return successful;
+        }
+    }
+
+    private class OutputWorker implements Runnable {
+        private boolean successful = false;
+
+        private void delay(long startTime, long emissionTime) throws InterruptedException {
+            long now = System.nanoTime();
+            long elapsedMillis = (now - startTime) / 1_000_000L;
+            long waitMillis = emissionTime - elapsedMillis;
+            if (waitMillis > 1L) {
+                Thread.sleep(waitMillis);
+            }
+        }
+
+        private void runInternal() throws InterruptedException, IOException {
+            long nextTimestampToEmit = 0;
+
+            OutputItem outputItem = queue.take();
+            final long startTime = System.nanoTime();
+
+            while (!(outputItem instanceof TerminalItem)) {
+                if (timestampInterval > 0) {
+                    while (nextTimestampToEmit <= outputItem.emissionTime) {
+                        delay(startTime, nextTimestampToEmit);
+                        output.writeString(timestampPrefix + System.currentTimeMillis() + "\n");
+                        output.flush();
+                        nextTimestampToEmit += timestampInterval;
+                    }
+                }
+
+                delay(startTime, outputItem.emissionTime);
+                outputItem.emit(output);
+                outputItem.reportDelivery(reporter, startTime);
+
+                outputItem = queue.poll();
+                if (outputItem == null) {
+                    reporter.reportUnderrun();
+                    outputItem = queue.take();
+                }
+            }
+
+            if (timestampInterval > 0) {
+                output.writeString(timestampPrefix + System.currentTimeMillis() + "\n");
+                output.flush();
+            }
+            reporter.reportEnd();
+
             successful = true;
         }
 
@@ -478,7 +450,7 @@ public class Replayer {
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             } catch (Exception e) {
-                e.printStackTrace(System.err);
+                e.printStackTrace();
             }
             if (!successful) {
                 inputThread.interrupt();
@@ -490,29 +462,88 @@ public class Replayer {
         }
     }
 
+    private boolean run() {
+        queue = new LinkedBlockingQueue<>(queueCapacity);
+
+        Thread reporterThread = new Thread(reporter);
+        reporterThread.setDaemon(true);
+        reporterThread.start();
+
+        InputWorker inputWorker = new InputWorker();
+        inputThread = new Thread(inputWorker);
+        inputThread.start();
+
+        OutputWorker outputWorker = new OutputWorker();
+        Thread outputThread = new Thread(outputWorker);
+        outputThread.start();
+
+        try {
+            inputThread.join();
+            if (!inputWorker.isSuccessful()) {
+                outputThread.interrupt();
+            }
+            outputThread.join();
+            reporterThread.join(2000);
+        } catch (InterruptedException ignored) {
+        }
+
+        return inputWorker.isSuccessful() && outputWorker.isSuccessful();
+    }
+
+    private static void printHelp() {
+        try {
+            final ClassLoader classLoader = Replayer.class.getClassLoader();
+            System.out.print(IOUtils.toString(Objects.requireNonNull(classLoader.getResource("README.txt")),
+                    StandardCharsets.UTF_8));
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     private static void invalidArgument() {
-        System.err.print("Error: Invalid argument.\n" +
-                "Usage: [-v|-vv] [-a <acceleration>] [-q <buffer size>] [-m] [-t <interval>] [-o <host>:<port>] [<file>]\n");
+        System.err.println("Error: Invalid argument (see --help for usage).");
         System.exit(1);
+    }
+
+    private static TraceParser getTraceParser(String format) {
+        switch (format) {
+            case "csv":
+                return new Crv2014CsvParser();
+            case "monpoly":
+                return new MonpolyTraceParser();
+            default:
+                invalidArgument();
+        }
+        return null;
+    }
+
+    private static TraceFormatter getTraceFormatter(String format) {
+        switch (format) {
+            case "csv":
+                return new Crv2014CsvFormatter();
+            case "monpoly":
+                return new MonpolyTraceFormatter();
+            default:
+                invalidArgument();
+        }
+        return null;
     }
 
     public static void main(String[] args) {
         Replayer replayer = new Replayer();
-        replayer.timeMultiplier = 1.0;
-        replayer.timestampInterval = -1;
-        replayer.reporter = new NullReporter();
-        replayer.parser = new Crv2014CsvParser();
-        replayer.formatter = new Crv2014CsvFormatter();
 
         String inputFilename = null;
         String outputHost = null;
         int outputPort = 0;
-        int queueCapacity = 1024;
         boolean reconnect = false;
 
         try {
             for (int i = 0; i < args.length; ++i) {
                 switch (args[i]) {
+                    case "-h":
+                    case "--help":
+                        printHelp();
+                        return;
                     case "-v":
                         replayer.reporter = new IntervalReporter(false);
                         break;
@@ -529,7 +560,19 @@ public class Replayer {
                         if (++i == args.length) {
                             invalidArgument();
                         }
-                        queueCapacity = Integer.parseInt(args[i]);
+                        replayer.queueCapacity = Integer.parseInt(args[i]);
+                        break;
+                    case "-i":
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        replayer.parser = getTraceParser(args[i]);
+                        break;
+                    case "-f":
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        replayer.formatter = getTraceFormatter(args[i]);
                         break;
                     case "-m":
                         replayer.formatter = new MonpolyTraceFormatter();
@@ -540,11 +583,17 @@ public class Replayer {
                         }
                         replayer.timestampInterval = Long.parseLong(args[i]);
                         break;
+                    case "-T":
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        replayer.timestampPrefix = args[i];
+                        break;
                     case "-o":
                         if (++i == args.length) {
                             invalidArgument();
                         }
-                        String parts[] = args[i].split(":", 2);
+                        String[] parts = args[i].split(":", 2);
                         if (parts.length != 2) {
                             invalidArgument();
                         }
@@ -553,6 +602,12 @@ public class Replayer {
                         break;
                     case "-k":
                         reconnect = true;
+                        break;
+                    case "-C":
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        replayer.commandPrefix = args[i];
                         break;
                     default:
                         if (args[i].startsWith("-") || inputFilename != null) {
@@ -572,19 +627,19 @@ public class Replayer {
             try {
                 replayer.input = new BufferedReader(new FileReader(inputFilename));
             } catch (FileNotFoundException e) {
-                System.err.print("Error: " + e.getMessage() + "\n");
+                System.err.println("Error: " + e.getMessage());
                 System.exit(1);
                 return;
             }
         }
 
         if (outputHost == null) {
-            replayer.output = new StandardOutput();
+            replayer.output = replayer.new StandardOutput();
         } else {
             try {
                 int backlog = reconnect ? -1 : 1;
                 ServerSocket serverSocket = new ServerSocket(outputPort, backlog, InetAddress.getByName(outputHost));
-                SocketOutput socketOutput = new SocketOutput(serverSocket, reconnect);
+                SocketOutput socketOutput = replayer.new SocketOutput(serverSocket, reconnect);
                 socketOutput.acquireClient();
                 replayer.output = socketOutput;
             } catch (IOException e) {
@@ -594,29 +649,7 @@ public class Replayer {
             }
         }
 
-        replayer.reporterThread = new Thread(replayer.reporter);
-        replayer.reporterThread.setDaemon(true);
-        replayer.reporterThread.start();
-
-        replayer.queue = new LinkedBlockingQueue<>(queueCapacity);
-        InputWorker inputWorker = replayer.new InputWorker();
-        replayer.inputThread = new Thread(inputWorker);
-        replayer.inputThread.start();
-        OutputWorker outputWorker = replayer.new OutputWorker();
-        replayer.outputThread = new Thread(outputWorker);
-        replayer.outputThread.start();
-
-        try {
-            replayer.inputThread.join();
-            if (!inputWorker.isSuccessful()) {
-                replayer.outputThread.interrupt();
-            }
-            replayer.outputThread.join();
-            replayer.reporterThread.join(2000);
-        } catch (InterruptedException ignored) {
-        }
-
-        if (!(inputWorker.isSuccessful() && outputWorker.isSuccessful())) {
+        if (!replayer.run()) {
             System.exit(1);
         }
     }

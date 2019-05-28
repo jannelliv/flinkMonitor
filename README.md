@@ -1,11 +1,15 @@
-Parallel Online Monitor implemented via distributed stream processors
+The Scalable Online Monitoring Project
+======================================
 
-      Joshua Schneider, Srđan Krstić and Dmitriy Traytel
-    Department of Computer Science, ETH Zurich, Switzerland
+A scalable online monitor implemented on the Apache Flink® distributed stream
+processing engine.
 
+Copyright © 2017-2019 Information Security Group, Department of Computer
+Science, ETH Zürich, Switzerland. Authors in alphabetical order: Frederik Brix,
+Srđan Krstić, Joshua Schneider, Dmitriy Traytel.
 
-This library is distributed under the terms of the GNU Lesser General
-Public License version 3. See files LICENSE and COPYING.
+This program is distributed under the terms of the GNU Lesser General Public
+License, version 3 or later.
 
 
 Arguments for ch.eth.inf.infsec.StreamMonitoring
@@ -87,14 +91,15 @@ The count for the empty relation name refers to the number of time-points.
 Utilities
 ---------
 
-Replayer
-    See tools/README.md
+replayer.sh
+generator.sh
+    See documentation printed by --help.
 
-tools/split_statistics.py <rates> <heavy>
+evaluation/split_statistics.py <rates> <heavy>
     Reads OfflineAnalysis statistics from standard input and splits it into two files with event rates and heavy hitters, respectively.
     The format of the heavy hitter file is: <start time of window>,<relation>,<attribute index (0-based)>,<value>
 
-tools/merge_heavy.py
+evaluation/merge_heavy.py
     Reads the heavy hitter file as produced by split_statistics.py from standard input and merges all windows. This removes the first column.
 
 evaluation/nokia/cut_log.py <input> <past output> <main output>

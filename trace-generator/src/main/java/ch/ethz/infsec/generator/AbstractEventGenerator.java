@@ -1,4 +1,4 @@
-package ch.ethz.infsec;
+package ch.ethz.infsec.generator;
 
 import org.apache.commons.math3.random.RandomGenerator;
 

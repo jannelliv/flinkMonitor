@@ -1,4 +1,4 @@
-package ch.ethz.infsec;
+package ch.ethz.infsec.generator;
 
 import org.apache.commons.math3.distribution.IntegerDistribution;
 import org.apache.commons.math3.distribution.UniformIntegerDistribution;
