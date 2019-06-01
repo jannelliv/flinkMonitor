@@ -45,7 +45,7 @@ fi
 
 ### Java ######################################################################
 
-jdk_dir="$target_dir/jdk1.8.0"
+jdk_dir="$target_dir/jdk1.8.0_211"
 jdk_url="https://bitbucket.org/krle/scalable-online-monitor/downloads/jdk-8u211-linux-x64.tar.gz"
 if [[ -d "$jdk_dir" ]]; then
     info "JDK directory exists, skipping"
@@ -68,8 +68,9 @@ monitor_branch="master"
 if [[ -d "$monitor_dir" ]]; then
     info "project directory exists, skipping"
     info "delete $monitor_dir to reinstall"
-    [[ -a "$monitor_dir/target/parallel-online-monitoring-1.0-SNAPSHOT.jar" ]] || info "WARNING: monitor jar not found, please build manually"
-    [[ -a "$monitor_dir/tools/target/evaluation-tools-1.0-SNAPSHOT.jar" ]] || info "WARNING: tool jar not found, please build manually"
+    [[ -a "$monitor_dir/flink-monitor/target/parallel-online-monitoring-1.0-SNAPSHOT.jar" ]] || info "WARNING: monitor jar not found, please build manually"
+    [[ -a "$monitor_dir/replayer/target/replayer-1.0-SNAPSHOT.jar" ]] || info "WARNING: replayer jar not found, please build manually"
+    [[ -a "$monitor_dir/trace-generator/target/trace-generator-1.0-SNAPSHOT.jar" ]] || info "WARNING: trace generator jar not found, please build manually"
 else
     info "cloning the project repository (initial branch: $monitor_branch)"
     git clone --branch "$monitor_branch" "$monitor_url" "$monitor_dir" || fatal_error "could not clone the project repository"
@@ -91,7 +92,7 @@ else
     flink_archive="$target_dir/flink.tar.gz"
     [[ ! -a "$flink_archive" ]] || fatal_error "would overwrite flink.tar.gz"
     curl -fLR# -o "$flink_archive" "$flink_url" || fatal_error "could not download Flink"
-    (cd "$target_dir" && tar -xzf "$flink_archive") || fatal_error "could not extract Flink archive"
+    (cd "$target_dir" && tar -xzf "$flink_archive" && mv flink-1.7.2 flink) || fatal_error "could not extract Flink archive"
     rm "$flink_archive"
 fi
 
