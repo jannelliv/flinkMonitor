@@ -28,6 +28,7 @@ import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 
+import scala.collection.mutable
 import scala.io.Source
 
 
@@ -36,8 +37,9 @@ object StreamMonitoring {
   private val logger = LoggerFactory.getLogger(StreamMonitoring.getClass)
 
   private val MONPOLY_CMD = "monpoly"
-  private val ECHO_CMD = "echo"
-  private val DEJAVU_CMD = "dejavu"
+  private val ECHO_CMD    = "echo"
+  private val DEJAVU_CMD  = "dejavu"
+  private val CUSTOM_CMD  = "custom"
 
   var jobName: String = ""
 
@@ -51,7 +53,8 @@ object StreamMonitoring {
   var processorExp: Int = 0
   var processors: Int = 0
 
-  var monitorCommand: Seq[String] = Seq.empty
+  var monitorCommand: String = ""
+  var command: Seq[String] = Seq.empty
 //  var isMonpoly: Boolean = true
   var formulaFile: String = ""
   var signatureFile: String = ""
@@ -112,10 +115,10 @@ object StreamMonitoring {
     }
     logger.info(s"Using $processors parallel monitors")
 
-    monitorCommand = params.get("monitor", "monpoly -negate").split(' ')
-//    isMonpoly = params.getBoolean("monpoly", true) //TODO: This was undocumented...
+    monitorCommand = params.get("monitor", MONPOLY_CMD)
+    val commandString = params.get("command")
+    command = if (commandString==null) Seq.empty else commandString.split(' ')
     signatureFile = params.get("sig")
-
     formulaFile = params.get("formula")
     val formulaSource = Source.fromFile(formulaFile).mkString
     formula = Policy.read(formulaSource) match {
@@ -141,26 +144,57 @@ object StreamMonitoring {
     else {
       init(params)
 
+      if (formula.freeVariables.isEmpty) { logger.error("Closed formula cannot be sliced"); sys.exit(-1) }
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
-      val processFactory:ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] = exename(monitorCommand.head) match {
+      val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
+
+      val processFactory:ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] = monitorCommand match {
         case MONPOLY_CMD => {
-          val monitorArgs = monitorCommand ++ List("-sig", signatureFile, "-formula", formulaFile)
-          logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-          MonpolyProcessFactory(monitorArgs,slicer)
+          val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)
+          logger.info("Monitor command: {}", margs.mkString(" "))
+          MonpolyProcessFactory(margs, slicer)
         }
         case ECHO_CMD => {
-          EchoProcessFactory(monitorCommand)
+          logger.info("Monitor command: {}", monitorArgs.mkString(" "))
+          EchoProcessFactory(monitorArgs)
         }
         case DEJAVU_CMD => {
           val dejavuFormulaFile = formulaFile+".qtl"
           val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile,false))
           writer.write(formula.toQTLString)
           writer.close()
-          val monitorArgs = List(monitorCommand.head) ++ List(dejavuFormulaFile, "20", "print")
-          DejavuProcessFactory(monitorArgs)
+          val margs = monitorArgs ++ List(dejavuFormulaFile, "20", "print")
+          logger.info("Monitor command: {}", margs.mkString(" "))
+          DejavuProcessFactory(margs)
         }
-        case c@_ => logger.error("Cannot parse the monitor command: " + c); sys.exit(1)
+        case CUSTOM_CMD => {
+          if (command.isEmpty) {
+            logger.error("Custom monitor must have a --command argument")
+            sys.exit(1)
+          }
+          logger.info("Monitor command: {}", monitorArgs.mkString(" "))
+
+          new ExternalProcessFactory[(Int,Record),IndexedRecord,String,String] {
+            import fastparse.all._
+            override protected def createPre[UIN >: IndexedRecord](): Processor[(Int, Record), UIN] = new StatelessProcessor[(Int, Record),IndexedRecord] {
+              override def process(in: (Int, Record), f: IndexedRecord => Unit): Unit = f(new IndexedRecord(in))
+              override def terminate(f: IndexedRecord => Unit): Unit = ()
+            }
+
+            override protected def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, String] = new DirectProcess[IndexedRecord,String](monitorArgs) {
+              override def parseLine(line: String): String = line
+
+              override def isEndMarker(t: String): Boolean = t.equals("")
+            }
+
+            override protected def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
+          }
+        }
+        case c@_ => {
+          logger.error("Cannot parse the monitor command: " + c)
+          sys.exit(1)
+        }
 
       }
 

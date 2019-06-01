@@ -143,9 +143,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     postProcessState match {
       case Some(x) =>
         slicer.updateState(x.asInstanceOf[Array[Byte]])
-        postprocessing.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
+        if(postprocessing.isInstanceOf[MonpolyVerdictFilter]) postprocessing.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
       case None =>
-        postprocessing.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
+        if(postprocessing.isInstanceOf[MonpolyVerdictFilter]) postprocessing.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
     }
     postprocessing.setParallelInstanceIndex(subtaskIndex)
 
@@ -174,7 +174,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
         val request = requestQueue.take()
         processingQueue.put(request)
         request match {
-          case InputItem(record)   => process.writeRequest(record.asRecord[PIN]().getValue)
+          case InputItem(record)   => {
+            process.writeRequest(record.asRecord[PIN]().getValue)
+          }
           case WatermarkItem(_) => ()
           case LatencyMarkerItem(_) => ()
           case SnapshotRequestItem() =>
@@ -433,7 +435,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     val tuple = streamRecord.getValue.asInstanceOf[(Int, Record)]
     tuple._2 match {
       case CommandRecord(_, parameters) =>
-        postprocessing.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
+        if(postprocessing.isInstanceOf[MonpolyVerdictFilter]) postprocessing.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
         pendingSlicer = parameters
       case _ => ()
     }

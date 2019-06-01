@@ -43,6 +43,7 @@ public class CsvStreamGenerator {
         int streamLength = -1;
         String sigFilename = null;
         String formulaFilename = null;
+        int seed=314159265;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -131,6 +132,12 @@ public class CsvStreamGenerator {
                         }
                         firstTimestamp = Long.parseLong(args[++i]);
                         break;
+                    case "-seed":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        seed = Integer.parseInt(args[++i]);
+                        break;
                     case "-osig":
                         if (i + 1 == args.length) {
                             invalidArgument();
@@ -162,7 +169,7 @@ public class CsvStreamGenerator {
 
         float violationProbability = relativeViolations / (float) eventRate;
 
-        RandomGenerator random = new JDKRandomGenerator(314159265);
+        RandomGenerator random = new JDKRandomGenerator(seed);
         PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate, firstTimestamp, eventPattern);
         for (Map.Entry<String, Double> entry : zipfExponents.entrySet()) {
             if (entry.getValue() > 0.0) {

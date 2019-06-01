@@ -41,7 +41,7 @@ package object infsec {
     def getCustomCounter: Long = 0
   }
 
-  trait StatelessProcessor[I, O] extends Processor[I, O] {
+  trait StatelessProcessor[I, +O] extends Processor[I, O] {
     override type State = Unit
 
     override def isStateful: Boolean = false

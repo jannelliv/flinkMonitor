@@ -15,6 +15,9 @@ Options:
             names, each followed by a comma-separated list of variables
             enclosed in parentheses.
 
+    -seed <number>
+            Sets the seed for the random generator
+
     -e <event rate>
             The total number of events per second (default: 10).
 

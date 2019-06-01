@@ -1,3 +1,5 @@
+#!/usr/bin/env bash
+
 [[ -n $WORK_DIR ]] || WORK_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 PROJECT_DIR=`cd "$WORK_DIR/.."; pwd`
 ROOT_DIR=`cd "$WORK_DIR/../.."; pwd`

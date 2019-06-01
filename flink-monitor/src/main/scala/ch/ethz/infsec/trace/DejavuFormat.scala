@@ -1,4 +1,5 @@
-package ch.ethz.infsec.trace
+package ch.ethz.infsec
+package trace
 
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.{Processor, StatelessProcessor}
@@ -53,11 +54,11 @@ class DejavuParser extends  StatelessProcessor[String, Record] with Serializable
   override def terminate(f: Record => Unit): Unit = ()
 }
 
-class DejavuVerdictFilter extends StatelessProcessor[String,String]{
+class DejavuVerdictFilter extends StatelessProcessor[String,String] with Serializable{
 
   override def process(in: String, f: String => Unit): Unit = {
-    if (in!=null && in.length>0) {
-      f(in.substring(DejavuProcess.VIOLATION_PREFIX.length, in.length - 1))
+    if (in!=null && in.length>DejavuProcess.VIOLATION_PREFIX.length) {
+      f(in.substring(DejavuProcess.VIOLATION_PREFIX.length-1, in.length - 1))
     }
   }
 
@@ -119,6 +120,7 @@ class DejavuPrinter extends Processor[Record, DejavuRequest] with Serializable {
         str.append(d.toString)
       }
     }
+    str.append('\n')
     str.toString()
   }
 

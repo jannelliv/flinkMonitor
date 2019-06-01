@@ -64,7 +64,7 @@ export JAVA_HOME="$jdk_dir"
 
 monitor_dir="$target_dir/scalable-online-monitor"
 monitor_url="https://bitbucket.org/krle/scalable-online-monitor"
-monitor_branch="autobalancer"
+monitor_branch="master"
 if [[ -d "$monitor_dir" ]]; then
     info "project directory exists, skipping"
     info "delete $monitor_dir to reinstall"
@@ -74,9 +74,15 @@ else
     info "cloning the project repository (initial branch: $monitor_branch)"
     git clone --branch "$monitor_branch" "$monitor_url" "$monitor_dir" || fatal_error "could not clone the project repository"
     info "building the project"
-    (cd "$monitor_dir" && mvn package -P build-jar) || fatal_error "could not build the scalable online monitor"
-    (cd "$monitor_dir/tools" && mvn package) || fatal_error "could not build the evaluation tools"
+    (cd "$monitor_dir" && mvn clean package) || fatal_error "could not build the scalable online monitor and related tools"
 fi
+
+### DejaVu ###################################################
+
+
+
+
+
 
 ### Flink #####################################################################
 

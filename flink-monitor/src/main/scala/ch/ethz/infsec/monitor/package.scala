@@ -18,4 +18,6 @@ package object monitor {
   case class DejavuCommandItem(in: String) extends DejavuRequest
 
 
+  implicit class IndexedRecord(t:(Int,trace.Record)) extends MonitorRequest
+
 }

@@ -6,7 +6,7 @@ import ch.ethz.infsec.monitor.Domain
 // This is explicitly not a case class, such that each instance represent a fresh variable name.
 class VariableID(val nameHint: String, val freeID: Int = -1) extends Serializable {
   def isFree: Boolean = freeID >= 0
-  override def toString: String = if (isFree) s"$nameHint@$freeID" else "<bound>"
+  override def toString: String = if (isFree) s"$nameHint$freeID" else "<bound>"
 }
 
 trait VariableMapper[V, W] {
@@ -84,14 +84,14 @@ sealed trait GenFormula[V] extends Serializable {
   def map[W](mapper: VariableMapper[V, W]): GenFormula[W]
   def check: List[String]
   def close: GenFormula[V] = {
-    val vars = freeVariablesInOrder
+    val vars = freeVariables
     closeFormula(this, vars.toList)
   }
   private def closeFormula(fma:GenFormula[V],vars:List[V]):GenFormula[V] = vars match {
     case Nil => fma
     case v::vs => closeFormula(All(v,fma),vs)
   }
-  def toQTLString:String = close.toQTL
+  def toQTLString:String = "prop fma: " + close.toQTL
   def toQTL:String
 }
 
@@ -214,7 +214,7 @@ case class Since[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]
   override def map[W](mapper: VariableMapper[V, W]): Since[W] = Since(interval, arg1.map(mapper), arg2.map(mapper))
   override def check: List[String] = arg1.check ++ interval.check ++ arg2.check
   override def toString: String = s"($arg1) SINCE $interval ($arg2)"
-  override def toQTL: String = s"(${arg1.toQTL}) S $interval (${arg2.toQTL})"
+  override def toQTL: String = if (!arg1.equals(True())) s"(${arg1.toQTL}) S ${interval.toQTL} (${arg2.toQTL})" else s"P ${interval.toQTL} (${arg2.toQTL})"
 }
 
 case class Trigger[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {

@@ -48,6 +48,9 @@ object MonpolyParsers {
 
   private val Database: P[Seq[(String, Seq[Tuple])]] = P( (Token.String ~/ Relation).rep )
 
+  val OneEvent: P[Record] = P(("@" ~/ Token.IntegerDot ~/ Token.String ~/ "(" ~/ Token.Value.rep(sep = ",").map(_.toIndexedSeq) ~/ ")").map(x=>EventRecord(x._1,x._2,x._3)))
+  val IndexedRecord: P[(Int,Record)] = P(Token.Whitespace ~/ Token.Integer.map(_.toInt) ~/ (OneEvent | Command) ~/ Token.Whitespace ~/ End )
+
   val Command: P[Record] = P(
     (Token.Whitespace ~/ ">" ~/ Token.String ~/ Token.CommandString ~/ "<" ~/ Token.Whitespace ~/ End).map {
       case (s, param) => CommandRecord(s, param)
@@ -60,6 +63,7 @@ object MonpolyParsers {
         case (rel, data) => data.map(t => EventRecord(ts, rel, t))
       })
   })
+
 
   val Verdict: P[(Long, Long, Seq[Tuple])] = P(
     Token.Whitespace ~/ "@" ~/ Token.IntegerDot ~/ "(time point" ~/ Token.Integer ~/ "):" ~/
