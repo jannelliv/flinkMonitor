@@ -1,0 +1,1 @@
+prop fma: ! (Forall c2. (Forall b1. (Forall a0. ((P  ((P  (A(a0, b1))) & (B(b1, c2)))) & (C(c2, a0))))))
