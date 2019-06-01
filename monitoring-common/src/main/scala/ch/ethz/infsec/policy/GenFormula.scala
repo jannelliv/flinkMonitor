@@ -91,7 +91,10 @@ sealed trait GenFormula[V] extends Serializable {
     case Nil => fma
     case v::vs => closeFormula(All(v,fma),vs)
   }
-  def toQTLString:String = "prop fma: " + close.toQTL
+  def toQTLString(neg:Boolean):String = {
+    val f = if (neg) Not(this.close) else this.close
+    "prop fma: " + f.toQTL
+  }
   def toQTL:String
 }
 

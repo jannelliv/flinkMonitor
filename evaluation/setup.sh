@@ -45,8 +45,8 @@ fi
 
 ### Java ######################################################################
 
-jdk_dir="$target_dir/jdk1.8.0_201"
-jdk_url="https://download.oracle.com/otn-pub/java/jdk/8u201-b09/42970487e3af4f5aa5bca3f542482c60/jdk-8u201-linux-x64.tar.gz"
+jdk_dir="$target_dir/jdk1.8.0"
+jdk_url="https://bitbucket.org/krle/scalable-online-monitor/downloads/jdk-8u211-linux-x64.tar.gz"
 if [[ -d "$jdk_dir" ]]; then
     info "JDK directory exists, skipping"
     info "delete $jdk_dir to reinstall"
@@ -54,7 +54,7 @@ else
     info "downloading the JDK"
     jdk_archive="$target_dir/jdk.tar.gz"
     [[ ! -a "$jdk_archive" ]] || fatal_error "would overwrite $jdk_archive"
-    curl -fLR# -H "Cookie: oraclelicense=accept-securebackup-cookie" -o "$jdk_archive" "$jdk_url" || fatal_error "could not download the JDK"
+    curl -fLR# -o "$jdk_archive" "$jdk_url" || fatal_error "could not download the JDK"
     (cd "$target_dir" && tar -xzf "$jdk_archive") || fatal_error "could not extract JDK archive"
     rm "$jdk_archive"
 fi
@@ -77,17 +77,12 @@ else
     (cd "$monitor_dir" && mvn clean package) || fatal_error "could not build the scalable online monitor and related tools"
 fi
 
-### DejaVu ###################################################
-
-
-
-
-
 
 ### Flink #####################################################################
 
+#TODO: add relaxed rescaling release for Flink 1.7
 flink_dir="$target_dir/flink"
-flink_url="https://github.com/jshs/flink/releases/download/relaxed-rescaling-1.5.0/flink-1.5-relaxed-rescaling.tar.gz"
+flink_url="https://www-eu.apache.org/dist/flink/flink-1.7.2/flink-1.7.2-bin-hadoop28-scala_2.12.tgz"
 if [[ -d "$flink_dir" ]]; then
     info "Flink directory exists, skipping"
     info "delete $flink_dir to reinstall"

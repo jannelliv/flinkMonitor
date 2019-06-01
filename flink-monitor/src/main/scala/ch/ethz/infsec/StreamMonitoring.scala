@@ -55,9 +55,10 @@ object StreamMonitoring {
 
   var monitorCommand: String = ""
   var command: Seq[String] = Seq.empty
-//  var isMonpoly: Boolean = true
   var formulaFile: String = ""
   var signatureFile: String = ""
+  var negate:Boolean = false
+
 
   var formula: Formula = policy.False()
 
@@ -115,7 +116,10 @@ object StreamMonitoring {
     }
     logger.info(s"Using $processors parallel monitors")
 
+    negate = params.getBoolean("negate",false)
     monitorCommand = params.get("monitor", MONPOLY_CMD)
+
+
     val commandString = params.get("command")
     command = if (commandString==null) Seq.empty else commandString.split(' ')
     signatureFile = params.get("sig")
@@ -147,22 +151,24 @@ object StreamMonitoring {
       if (formula.freeVariables.isEmpty) { logger.error("Closed formula cannot be sliced"); sys.exit(-1) }
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
-      val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
 
       val processFactory:ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] = monitorCommand match {
         case MONPOLY_CMD => {
+          val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand::List("-negate") else List(monitorCommand))
           val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)
           logger.info("Monitor command: {}", margs.mkString(" "))
           MonpolyProcessFactory(margs, slicer)
         }
         case ECHO_CMD => {
+          val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           logger.info("Monitor command: {}", monitorArgs.mkString(" "))
           EchoProcessFactory(monitorArgs)
         }
         case DEJAVU_CMD => {
+          val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           val dejavuFormulaFile = formulaFile+".qtl"
           val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile,false))
-          writer.write(formula.toQTLString)
+          writer.write(formula.toQTLString(negate))
           writer.close()
           val margs = monitorArgs ++ List(dejavuFormulaFile, "20", "print")
           logger.info("Monitor command: {}", margs.mkString(" "))
@@ -173,8 +179,7 @@ object StreamMonitoring {
             logger.error("Custom monitor must have a --command argument")
             sys.exit(1)
           }
-          logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-
+          logger.info("Monitor command: {}", command.mkString(" "))
           new ExternalProcessFactory[(Int,Record),IndexedRecord,String,String] {
             import fastparse.all._
             override protected def createPre[UIN >: IndexedRecord](): Processor[(Int, Record), UIN] = new StatelessProcessor[(Int, Record),IndexedRecord] {
@@ -182,7 +187,7 @@ object StreamMonitoring {
               override def terminate(f: IndexedRecord => Unit): Unit = ()
             }
 
-            override protected def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, String] = new DirectProcess[IndexedRecord,String](monitorArgs) {
+            override protected def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, String] = new DirectProcess[IndexedRecord,String](command) {
               override def parseLine(line: String): String = line
 
               override def isEndMarker(t: String): Boolean = t.equals("")
