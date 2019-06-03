@@ -28,7 +28,7 @@ for formula in $FORMULAS; do
             TIME_REPORT="$REPORT_DIR/nokiaCMP_monpoly_${formula}_${acc}_${i}_time.txt"
 
             rm "$VERDICT_FILE" 2> /dev/null
-            (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
+            (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
                 | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -negate > "$VERDICT_FILE"
         done
     done
@@ -46,7 +46,7 @@ for formula in $FORMULAS; do
             TIME_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_${i}_time.txt"
 
             rm "$VERDICT_FILE" 2> /dev/null
-            (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" | cut -d " " -f2) \
+            (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" | cut -d " " -f2) \
                 | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "DEJAVU_EXE" "$WORK_DIR/nokia/$formula.mfotl.neg.qtl"  20 "print" > "$VERDICT_FILE"
         done
     done
@@ -73,21 +73,23 @@ for procs in $PROCESSORS; do
                 JOB_NAME="nokiaCMP_flink_monpoly_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                 TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                 JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                 rm "$VERDICT_FILE" 2> /dev/null
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                "$TIME_COMMAND -f %e;%M -a -o $TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -a -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                "$TIME_COMMAND -f %e;%M -o $BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                 wait
 
                 JOB_NAME="nokiaCMP_flink_dejavu_${numcpus}_${formula}_${acc}_${i}"
                 DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                 TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                 JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                 rm "$VERDICT_FILE" 2> /dev/null
-                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$WORK_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                "$TIME_COMMAND -f %e;%M -a -o $TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -a -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                "$TIME_COMMAND -f %e;%M -o $BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                 wait
             done
         done

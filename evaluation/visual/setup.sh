@@ -5,7 +5,7 @@
 # setup script (i.e., $TARGET_DIR is the installation folder)
 VISUAL_SCRIPT_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 TARGET_DIR=`pwd`
-FLINK_HOME=${TARGET_DIR}/flink-1.5.0
+FLINK_HOME=${TARGET_DIR}/flink
 VISUAL_TARGET_DIR=`pwd`/visual
 mkdir -p ${VISUAL_TARGET_DIR}
 cd ${VISUAL_TARGET_DIR}
@@ -60,7 +60,7 @@ if [[ ! -d prometheus ]]; then
 	cp prometheus.yml prometheus/
 	echo "Configuring Flink..."
 	echo -e "metrics.reporters: prom\nmetrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter\nmetrics.reporter.prom.port: 9250-9265" >> "$FLINK_HOME/conf/flink-conf.yaml"
-	cp $FLINK_HOME/opt/flink-metrics-prometheus-1.5.0.jar $FLINK_HOME/lib
+	cp $FLINK_HOME/opt/flink-metrics-prometheus-1.7.2.jar $FLINK_HOME/lib
 	rm prometheus-2.3.0.linux-amd64.tar.gz
 fi
 
