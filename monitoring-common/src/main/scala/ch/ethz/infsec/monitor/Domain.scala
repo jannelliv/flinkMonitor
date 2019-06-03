@@ -3,7 +3,7 @@ package ch.ethz.infsec.monitor
 import scala.language.implicitConversions
 
 
-class Domain(e:DomainElement){
+class Domain(e:DomainElement) extends Serializable {
   val elem:DomainElement = e
   /*
     Exlicit if-then-else check is used to avoid implicit conversion between
