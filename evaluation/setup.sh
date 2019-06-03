@@ -122,9 +122,9 @@ ldcc_sample="$target_dir/ldcc_sample.csv"
 ldcc_sample_past="$target_dir/ldcc_sample_past.csv"
 if [[ (! -a "$ldcc_sample") || (! -a "$ldcc_sample_past") || "$monitor_dir/evaluation/nokia/cut_log.py" -nt "$ldcc_sample" ]]; then
     info "cutting the Nokia log file"
-    rm "$ldcc_sample" "$ldcc_sample_past"
+    rm -f "$ldcc_sample" "$ldcc_sample_past"
     if ! "$monitor_dir/evaluation/nokia/cut_log.py" "$ldcc_file" "$ldcc_sample_past" "$ldcc_sample"; then
-        rm "$ldcc_sample" "$ldcc_sample_past"
+        rm -f "$ldcc_sample" "$ldcc_sample_past"
         fatal_error "could not cut the Nokia log"
     fi
 fi
