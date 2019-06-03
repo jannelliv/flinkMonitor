@@ -50,7 +50,6 @@ object StreamMonitoring {
   var inputFormat: TraceFormat = _
   var watchInput: Boolean = false
 
-  var processorExp: Int = 0
   var processors: Int = 0
 
   var monitorCommand: String = ""
@@ -62,6 +61,8 @@ object StreamMonitoring {
 
   var formula: Formula = policy.False()
 
+  // FIXME(JS): Unused.
+  /*
   def floorLog2(x: Int): Int = {
     var remaining = x
     var y = -1
@@ -71,6 +72,7 @@ object StreamMonitoring {
     }
     y
   }
+  */
 
   def parseArgs(ss: String): Option[Either[(String, Int), String]] = {
     try {
@@ -108,12 +110,7 @@ object StreamMonitoring {
 
     watchInput = params.getBoolean("watch", false)
 
-    val requestedProcessors = params.getInt("processors", 1)
-    processorExp = floorLog2(requestedProcessors).max(0)
-    processors = 1 << processorExp
-    if (processors != requestedProcessors) {
-      logger.warn(s"Number of processors is not a power of two, using $processors instead")
-    }
+    processors = params.getInt("processors", 1)
     logger.info(s"Using $processors parallel monitors")
 
     negate = params.getBoolean("negate",false)

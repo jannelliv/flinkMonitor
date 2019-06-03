@@ -108,7 +108,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
 
   test("The result of optimizing a hypercube should match") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("x"))))
-    val slicer = HypercubeSlicer.optimize(formula, 7, Statistics.constant)
+    val slicer = HypercubeSlicer.optimize(formula, 128, Statistics.constant)
 
     slicer.formula shouldBe formula
     slicer.degree shouldBe 128
@@ -116,33 +116,42 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
 
   test("Empty relations are admissible") {
     val formula = GenFormula.resolve(Pred("p", Var("x")))
-    val slicer = HypercubeSlicer.optimize(formula, 8, Statistics.simple("p" -> 0.0))
+    val slicer = HypercubeSlicer.optimize(formula, 256, Statistics.simple("p" -> 0.0))
     slicer.degree should be >= 1
   }
 
   test("Degree one is admissible") {
     val formula = GenFormula.resolve(Pred("p", Var("x")))
-    val slicer = HypercubeSlicer.optimize(formula, 0, Statistics.simple("p" -> 100.0))
+    val slicer = HypercubeSlicer.optimize(formula, 1, Statistics.simple("p" -> 100.0))
     slicer.shares should have length 1
     slicer.shares(0) should contain theSameElementsInOrderAs List(1)
+  }
+
+  test("Odd degrees are admissible") {
+    val formula = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
+      Pred("r", Var("z"), Var("x")))))
+    val slicer = HypercubeSlicer.optimize(formula, 20,
+      Statistics.simple("p" -> 1.0, "q" -> 1.0, "r" -> 1.0))
+    slicer.shares should have length 1
+    slicer.shares(0) should contain theSameElementsAs List(2, 2, 5)
   }
 
   test("Optimal shares with symmetric conditions are symmetric") {
     val formula1 = GenFormula.resolve(
       And(And(Pred("p", Var("x"), Var("y")), Pred("q", Var("y"), Var("z"))), Pred("r", Var("z"), Var("x"))))
-    val slicer1 = HypercubeSlicer.optimize(formula1, 9, Statistics.constant)
+    val slicer1 = HypercubeSlicer.optimize(formula1, 512, Statistics.constant)
     slicer1.shares should have length 1
     slicer1.shares(0) should contain theSameElementsInOrderAs List(8, 8, 8)
 
     val formula2 = GenFormula.resolve(And(Pred("p", Var("x")), Pred("p", Var("y"))))
-    val slicer2 = HypercubeSlicer.optimize(formula2, 8, Statistics.constant)
+    val slicer2 = HypercubeSlicer.optimize(formula2, 256, Statistics.constant)
     slicer2.shares should have length 1
     slicer2.shares(0) should contain theSameElementsInOrderAs List(16, 16)
   }
 
   test("Relation sizes affect optimal shares") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("y"))))
-    val slicer = HypercubeSlicer.optimize(formula, 10, Statistics.simple("p" -> 100.0, "q" -> 400.0))
+    val slicer = HypercubeSlicer.optimize(formula, 1024, Statistics.simple("p" -> 100.0, "q" -> 400.0))
     slicer.shares should have length 1
     slicer.shares(0) should contain theSameElementsInOrderAs List(16, 64)
   }
@@ -150,7 +159,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
   test("Variables bound to heavy hitters should get one share") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("x")), Pred("q", Var("y")))))
 
-    val slicer1 = HypercubeSlicer.optimize(formula, 10, new Statistics {
+    val slicer1 = HypercubeSlicer.optimize(formula, 1024, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
       override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
@@ -162,7 +171,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     slicer1.shares(0) should contain theSameElementsInOrderAs List(32, 32)
     slicer1.shares(1) should contain theSameElementsInOrderAs List(1, 1024)
 
-    val slicer2 = HypercubeSlicer.optimize(formula, 10, new Statistics {
+    val slicer2 = HypercubeSlicer.optimize(formula, 1024, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
       override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
@@ -181,7 +190,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
   test("Verdicts should filtered if and only if they do not belong to the slice") {
     val formula = GenFormula.resolve(Pred("p", Var("y"), Var("x")))
 
-    val slicer = HypercubeSlicer.optimize(formula, 10, new Statistics {
+    val slicer = HypercubeSlicer.optimize(formula, 1024, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
       override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
@@ -200,5 +209,88 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
       slicer.mkVerdictFilter(slices.head)(verdict) shouldBe true
       (0 until 1024).count(i => slicer.mkVerdictFilter(i)(verdict)) shouldBe 1
     }
+  }
+
+  // Old optimization routine, limited to powers of 2.
+  private def optimizeSingleSetPowerOf2(
+                                         formula: Formula,
+                                         degreeExp: Int,
+                                         statistics: Statistics,
+                                         activeVariables: Set[Int]): Array[Int] = {
+
+    require(degreeExp >= 0 && degreeExp < 31)
+
+    var bestCost: Double = Double.PositiveInfinity
+    var bestMaxExp: Int = degreeExp
+    var bestConfig: List[Int] = Nil
+
+    def atomPartitions(atom: Pred[VariableID], config: List[Int]): Double =
+      atom.args.distinct.map {
+        case Var(x) if x.isFree => (1 << config(x.freeID)).toDouble
+        case _ => 1.0
+      }.product
+
+    // This is essentially Algorithm 1 from S. Chu, M. Balazinska and D. Suciu (2015), "From Theory to Practice:
+    // Efficient Join Query Evaluation in a Parallel Database System", SIGMOD'15.
+    // TODO(JS): Branch-and-bound?
+    def search(remainingVars: Int, remainingExp: Int, config: List[Int]): Unit =
+      if (remainingVars >= 1) {
+        val variable = remainingVars - 1
+        val maxExp = if (activeVariables contains variable) remainingExp else 0
+        for (e <- 0 to maxExp)
+          search(remainingVars - 1, remainingExp - e, e :: config)
+      } else {
+        // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.
+        val cost = formula.atoms.toSeq.map((atom: Pred[VariableID]) =>
+          statistics.relationSize(atom.relation) / atomPartitions(atom, config)).sum
+        val maxExp = config.max
+
+        if (cost < bestCost || (cost == bestCost && maxExp < bestMaxExp)) {
+          bestConfig = config
+          bestCost = cost
+          bestMaxExp = maxExp
+        }
+      }
+
+    search(formula.freeVariables.size, degreeExp, Nil)
+    bestConfig.map(e => 1 << e).toArray
+  }
+
+  test("Compare optimized shares for power of 2 old implementation") {
+      val formula1 = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
+        Pred("r", Var("z"), Var("x")))))
+
+      val statistics1 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+      val slicer1 = HypercubeSlicer.optimize(formula1, 16, statistics1)
+      val reference1 = optimizeSingleSetPowerOf2(formula1, 4, statistics1, Set(0, 1, 2))
+      slicer1.shares(0) should contain theSameElementsInOrderAs reference1
+
+      val statistics2 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+      val slicer2 = HypercubeSlicer.optimize(formula1, 1024, statistics2)
+      val reference2 = optimizeSingleSetPowerOf2(formula1, 10, statistics2, Set(0, 1, 2))
+      slicer2.shares(0) should contain theSameElementsInOrderAs reference2
+
+      val statistics3 = Statistics.simple("p" -> 1000, "q" -> 1, "r" -> 1)
+      val slicer3 = HypercubeSlicer.optimize(formula1, 1024, statistics3)
+      val reference3 = optimizeSingleSetPowerOf2(formula1, 10, statistics3, Set(0, 1, 2))
+      slicer3.shares(0) should contain theSameElementsInOrderAs reference3
+
+      val formula2 = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
+        Pred("r", Var("z"), Var("a")))))
+
+      val statistics4 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+      val slicer4 = HypercubeSlicer.optimize(formula2, 16, statistics4)
+      val reference4 = optimizeSingleSetPowerOf2(formula2, 4, statistics4, Set(0, 1, 2, 3))
+      slicer4.shares(0) should contain theSameElementsInOrderAs reference4
+
+      val statistics5 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+      val slicer5 = HypercubeSlicer.optimize(formula2, 1024, statistics5)
+      val reference5 = optimizeSingleSetPowerOf2(formula2, 10, statistics5, Set(0, 1, 2, 3))
+      slicer5.shares(0) should contain theSameElementsInOrderAs reference5
+
+      val statistics6 = Statistics.simple("p" -> 1000, "q" -> 1, "r" -> 1)
+      val slicer6 = HypercubeSlicer.optimize(formula2, 1024, statistics6)
+      val reference6 = optimizeSingleSetPowerOf2(formula2, 10, statistics6, Set(0, 1, 2, 3))
+      slicer6.shares(0) should contain theSameElementsInOrderAs reference6
   }
 }

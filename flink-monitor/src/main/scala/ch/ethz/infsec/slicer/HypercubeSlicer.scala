@@ -135,7 +135,7 @@ class HypercubeSlicer(
   }
 
   // TODO(JS): Verify whether Monpoly enumerates free variable in DFS order.
-  val variablesInOrder = formula.freeVariablesInOrder.distinct
+  val variablesInOrder: Seq[VariableID] = formula.freeVariablesInOrder.distinct
 
   override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = {
     var heavySet = 0
@@ -215,49 +215,49 @@ object HypercubeSlicer {
 
   def optimizeSingleSet(
       formula: Formula,
-      degreeExp: Int,
+      degree: Int,
       statistics: Statistics,
       activeVariables: Set[Int]): Array[Int] = {
 
-    require(degreeExp >= 0 && degreeExp < 31)
+    require(degree >= 1)
 
     var bestCost: Double = Double.PositiveInfinity
-    var bestMaxExp: Int = degreeExp
-    var bestConfig: List[Int] = Nil
+    var bestMaxShare: Int = degree
+    var bestShares: List[Int] = Nil
 
-    def atomPartitions(atom: Pred[VariableID], config: List[Int]): Double =
+    def atomPartitions(atom: Pred[VariableID], shares: List[Int]): Double =
       atom.args.distinct.map {
-        case Var(x) if x.isFree => (1 << config(x.freeID)).toDouble
+        case Var(x) if x.isFree => shares(x.freeID).toDouble
         case _ => 1.0
       }.product
 
     // This is essentially Algorithm 1 from S. Chu, M. Balazinska and D. Suciu (2015), "From Theory to Practice:
     // Efficient Join Query Evaluation in a Parallel Database System", SIGMOD'15.
     // TODO(JS): Branch-and-bound?
-    def search(remainingVars: Int, remainingExp: Int, config: List[Int]): Unit =
+    def search(remainingVars: Int, remainingShares: Int, shares: List[Int]): Unit =
       if (remainingVars >= 1) {
         val variable = remainingVars - 1
-        val maxExp = if (activeVariables contains variable) remainingExp else 0
-        for (e <- 0 to maxExp)
-          search(remainingVars - 1, remainingExp - e, e :: config)
+        val maxShare = if (activeVariables contains variable) remainingShares else 1
+        for (p <- 1 to maxShare if remainingShares % p == 0)
+          search(remainingVars - 1, remainingShares / p, p :: shares)
       } else {
         // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.
         val cost = formula.atoms.toSeq.filterNot(p => isRigidRelation(p.relation)).map((atom: Pred[VariableID]) =>
-          statistics.relationSize(atom.relation) / atomPartitions(atom, config)).sum
-        val maxExp = config.max
+          statistics.relationSize(atom.relation) / atomPartitions(atom, shares)).sum
+        val maxShare = shares.max
 
-        if (cost < bestCost || (cost == bestCost && maxExp < bestMaxExp)) {
-          bestConfig = config
+        if (cost < bestCost || (cost == bestCost && maxShare < bestMaxShare)) {
+          bestShares = shares
           bestCost = cost
-          bestMaxExp = maxExp
+          bestMaxShare = maxShare
         }
       }
 
-    search(formula.freeVariables.size, degreeExp, Nil)
-    bestConfig.map(e => 1 << e).toArray
+    search(formula.freeVariables.size, degree, Nil)
+    bestShares.toArray
   }
 
-  def optimize(formula: Formula, degreeExp: Int, statistics: Statistics): HypercubeSlicer = {
+  def optimize(formula: Formula, degree: Int, statistics: Statistics): HypercubeSlicer = {
     val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])}
     var heavyIndex = 0
     for (atom <- formula.atoms) {
@@ -281,7 +281,7 @@ object HypercubeSlicer {
 
     val shares: Array[IndexedSeq[Int]] = Array.tabulate(1 << heavyCount)(h => {
       val activeVariables = (0 until formula.freeVariables.size).filter(v => (h & (1 << heavy(v)._1)) == 0).toSet
-      optimizeSingleSet(formula, degreeExp, statistics, activeVariables)
+      optimizeSingleSet(formula, degree, statistics, activeVariables)
     })
 
     val slicer = new HypercubeSlicer(formula, heavy, shares)

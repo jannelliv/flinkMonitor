@@ -3,8 +3,6 @@ package ch.ethz.infsec.integration
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.lang.ProcessBuilder.Redirect
 
-import ch.ethz.infsec.StreamMonitoring.floorLog2
-import ch.ethz.infsec.policy.Policy
 import ch.ethz.infsec.slicer.{HypercubeSlicer, Statistics}
 import ch.ethz.infsec.trace.MonpolyFormat
 import ch.ethz.infsec.policy.Policy
@@ -85,7 +83,7 @@ class EchoSplitIntegration  extends FunSuite with Matchers with BeforeAndAfterAl
         sys.exit(1)
       case Right(phi) => phi
     }
-    val slicer = HypercubeSlicer.optimize(parsedFormula, floorLog2(processors).max(0), Statistics.constant)
+    val slicer = HypercubeSlicer.optimize(parsedFormula, processors.max(1), Statistics.constant)
 
     val splitLog = slicer.processAll(parsedLog)
     println("VERDICTS: " + splitLog.mkString(", "))
