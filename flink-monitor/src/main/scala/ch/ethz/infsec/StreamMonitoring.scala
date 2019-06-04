@@ -103,6 +103,7 @@ object StreamMonitoring {
     inputFormat = params.get("format", "monpoly") match {
       case "monpoly" => MonpolyFormat
       case "csv" => CsvFormat
+      case "dejavu" => DejavuFormat
       case format =>
         logger.error("Unknown trace format " + format)
         sys.exit(1)
