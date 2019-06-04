@@ -38,7 +38,7 @@ for formula in $FORMULAS; do
             DELAY_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_delay.txt"
             TIME_REPORT="$REPORT_DIR/nokia_monpoly_${formula}_${acc}_${i}_time.txt"
 
-            rm "$VERDICT_FILE" 2> /dev/null
+            rm -r "$VERDICT_FILE" 2> /dev/null
             (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
                 | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -load "$STATE_FILE" -negate > "$VERDICT_FILE"
         done
@@ -69,7 +69,7 @@ for procs in $PROCESSORS; do
                 BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                 JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                rm "$VERDICT_FILE" 2> /dev/null
+                rm -r "$VERDICT_FILE" 2> /dev/null
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
                 "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                 wait
@@ -102,7 +102,7 @@ for procs in $PROCESSORS; do
                 BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                 JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                rm "$VERDICT_FILE" 2> /dev/null
+                rm -r "$VERDICT_FILE" 2> /dev/null
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
                 "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                 wait

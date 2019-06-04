@@ -74,7 +74,7 @@ for procs in $PROCESSORS; do
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                        rm "$VERDICT_FILE" 2> /dev/null
+                        rm -r "$VERDICT_FILE" 2> /dev/null
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a 1 -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
                         "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly -command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
@@ -112,7 +112,7 @@ for procs in $PROCESSORS; do
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                        rm "$VERDICT_FILE" 2> /dev/null
+                        rm -r "$VERDICT_FILE" 2> /dev/null
                         taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a 1 -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
                         "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.3333,B=0.3333,C=0.3333" --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
                         wait

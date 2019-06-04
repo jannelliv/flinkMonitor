@@ -1,0 +1,1 @@
+prop fma: Forall d2. (Forall c1. (Forall b0. ((! (! ((((! (select("script", b0, c1, d2))) & (! (insert("script", b0, c1, d2)))) & (! (delete("script", b0, c1, d2)))) & (! (update("script", b0, c1, d2)))))) | (((! (script_end("script1"))) S  (script_start("script1"))) | (script_end("script1"))))))

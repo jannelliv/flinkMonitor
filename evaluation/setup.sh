@@ -60,6 +60,25 @@ else
 fi
 export JAVA_HOME="$jdk_dir"
 
+
+### Scala ######################################################################
+scala_dir="$target_dir/scala-2.12.7"
+scala_url="https://downloads.lightbend.com/scala/2.12.7/scala-2.12.7.tgz"
+if [[ -d "$scala_dir" ]]; then
+    info "Scala directory exists, skipping"
+    info "delete $scala_dir to reinstall"
+else
+    info "downloading Scala"
+    scala_archive="$target_dir/scala.tgz"
+    [[ ! -a "$scala_archive" ]] || fatal_error "would overwrite $scala_archive"
+    curl -fLR# -o "$scala_archive" "$scala_url" || fatal_error "could not download the JDK"
+    (cd "$target_dir" && tar -xzf "$scala_archive") || fatal_error "could not extract JDK archive"
+    rm "$scala_archive"
+fi
+export PATH="$PATH:${scala_dir}/bin"
+
+
+
 ### Parallel online monitor ###################################################
 
 monitor_dir="$target_dir/scalable-online-monitor"
