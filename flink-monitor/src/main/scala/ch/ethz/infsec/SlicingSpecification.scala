@@ -62,7 +62,7 @@ object SlicingSpecification {
     } else if (ratesSpec.nonEmpty) {
       logger.info("Optimizing shares for statistics: {}", rates.mkString(", "))
       HypercubeSlicer.optimize(
-        formula, StreamMonitoring.floorLog2(degree), new slicer.Statistics {
+        formula, degree, new slicer.Statistics {
           override def relationSize(relation: String): Double = rates(relation)
 
           override def heavyHitters(relation: String, attribute: Int): Set[Domain] =
@@ -70,7 +70,7 @@ object SlicingSpecification {
         })
     } else {
       logger.info("Optimizing shares for equal statistics and no heavy hitters")
-      HypercubeSlicer.optimize(formula, StreamMonitoring.floorLog2(degree), slicer.Statistics.constant)
+      HypercubeSlicer.optimize(formula, degree, slicer.Statistics.constant)
     }
 
     val dumpFilename = parameters.get("dump-shares", "")
