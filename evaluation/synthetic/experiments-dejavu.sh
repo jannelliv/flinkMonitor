@@ -29,9 +29,9 @@ make_log() {
 }
 
 echo "Generating logs ..."
-make_log -S star
-make_log -L linear
-make_log -T triangle
+make_log -S star-past-ltl-neg
+make_log -L linear-past-ltl-neg
+make_log -T triangle-past-ltl-neg
 
 
 echo "Monpoly standalone:"

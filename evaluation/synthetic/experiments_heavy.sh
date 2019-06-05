@@ -33,17 +33,17 @@ make_log() {
 
 echo "Generating logs ..."
 
-make_log -S star h0 "0,0,0,0"
-make_log -S star h1 "2,0,0,0"
-make_log -S star h2 "2,2,0,0"
+make_log -S star-neg h0 "0,0,0,0"
+make_log -S star-neg h1 "2,0,0,0"
+make_log -S star-neg h2 "2,2,0,0"
 
-make_log -L linear h0 "0,0,0,0"
-make_log -L linear h1 "0,2,0,0"
-make_log -L linear h2 "0,2,2,0"
+make_log -L linear-neg h0 "0,0,0,0"
+make_log -L linear-neg h1 "0,2,0,0"
+make_log -L linear-neg h2 "0,2,2,0"
 
-make_log -T triangle h0 "0,0,0"
-make_log -T triangle h1 "2,0,0"
-make_log -T triangle h2 "2,2,0"
+make_log -T triangle-neg h0 "0,0,0"
+make_log -T triangle-neg h1 "2,0,0"
+make_log -T triangle-neg h2 "2,2,0"
 
 (cd "$OUTPUT_DIR"; "$WORK_DIR/synthetic/mk_heavy.py")
 
