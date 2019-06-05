@@ -521,6 +521,8 @@ public class Replayer {
                 return new Crv2014CsvFormatter();
             case "monpoly":
                 return new MonpolyTraceFormatter();
+            case "monpoly-linear":
+                return new MonpolyLinearizingTraceFormatter();
             case "dejavu":
                 return new DejavuTraceFormatter();
             case "dejavu-linear":
@@ -577,18 +579,18 @@ public class Replayer {
                         replayer.formatter = getTraceFormatter(args[i]);
                         break;
                     case "-m":
-                        replayer.formatter = new MonpolyTraceFormatter();
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        Boolean monpolyLinear = Boolean.parseBoolean(args[i]);
+                        replayer.formatter = monpolyLinear ? new MonpolyLinearizingTraceFormatter() : new MonpolyTraceFormatter();
                         break;
                     case "-d":
                         if (++i == args.length) {
                             invalidArgument();
                         }
-                        Boolean linear = Boolean.parseBoolean(args[i]);
-                        if (linear) {
-                            replayer.formatter = new DejavuLinearizingTraceFormatter();
-                        } else {
-                            replayer.formatter = new DejavuTraceFormatter();
-                        }
+                        Boolean dejavuLinear = Boolean.parseBoolean(args[i]);
+                        replayer.formatter = dejavuLinear ? new DejavuLinearizingTraceFormatter() : new DejavuTraceFormatter();
                         break;
                     case "-t":
                         if (++i == args.length) {

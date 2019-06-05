@@ -41,7 +41,7 @@ public class MonpolyTraceFormatter implements TraceFormatter, Serializable {
         return true;
     }
 
-    private void printString(StringBuilder sink, String value) {
+    protected void printString(StringBuilder sink, String value) {
         if (isSimpleString(value)) {
             sink.append(value);
         } else {
