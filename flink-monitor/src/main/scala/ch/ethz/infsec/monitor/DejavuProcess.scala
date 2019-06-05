@@ -59,7 +59,7 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
 }
 
 object DejavuProcess {
-  val VIOLATION_PREFIX = "**** Property file violated on event number "
+  val VIOLATION_PREFIX = "**** Property violated on event number "
   val GET_INDEX_PREFIX = "**** Time point "
 }
 
