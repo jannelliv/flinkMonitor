@@ -33,19 +33,19 @@ make_log() {
 
 echo "Generating logs ..."
 
-make_log -S star-neg h0 "0,0,0,0"
-make_log -S star-neg h1 "2,0,0,0"
-make_log -S star-neg h2 "2,2,0,0"
+make_log -S star-neg h0 "w=0,x=0,y=0,z=0"
+make_log -S star-neg h1 "w=2,x=0,y=0,z=0"
+make_log -S star-neg h2 "w=2,x=2,y=0,z=0"
 
-make_log -L linear-neg h0 "0,0,0,0"
-make_log -L linear-neg h1 "0,2,0,0"
-make_log -L linear-neg h2 "0,2,2,0"
+make_log -L linear-neg h0 "w=0,x=0,y=0,z=0"
+make_log -L linear-neg h1 "w=0,x=2,y=0,z=0"
+make_log -L linear-neg h2 "w=0,x=2,y=2,z=0"
 
-make_log -T triangle-neg h0 "0,0,0"
-make_log -T triangle-neg h1 "2,0,0"
-make_log -T triangle-neg h2 "2,2,0"
+make_log -T triangle-neg h0 "x=0,y=0,z=0"
+make_log -T triangle-neg h1 "x=2,y=0,z=0"
+make_log -T triangle-neg h2 "x=2,y=2,z=0"
 
-(cd "$OUTPUT_DIR"; "$WORK_DIR/synthetic/mk_heavy.py")
+#(cd "$OUTPUT_DIR"; "$WORK_DIR/synthetic/mk_heavy.py")
 
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
