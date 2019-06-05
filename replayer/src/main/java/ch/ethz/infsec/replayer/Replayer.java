@@ -2,9 +2,7 @@ package ch.ethz.infsec.replayer;
 
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.trace.Trace;
-import ch.ethz.infsec.trace.formatter.Crv2014CsvFormatter;
-import ch.ethz.infsec.trace.formatter.MonpolyTraceFormatter;
-import ch.ethz.infsec.trace.formatter.TraceFormatter;
+import ch.ethz.infsec.trace.formatter.*;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import ch.ethz.infsec.trace.parser.TraceParser;
@@ -523,6 +521,10 @@ public class Replayer {
                 return new Crv2014CsvFormatter();
             case "monpoly":
                 return new MonpolyTraceFormatter();
+            case "dejavu":
+                return new DejavuTraceFormatter();
+            case "dejavu-linear":
+                return new DejavuLinearizingTraceFormatter();
             default:
                 invalidArgument();
         }
@@ -576,6 +578,17 @@ public class Replayer {
                         break;
                     case "-m":
                         replayer.formatter = new MonpolyTraceFormatter();
+                        break;
+                    case "-d":
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        Boolean linear = Boolean.parseBoolean(args[i]);
+                        if (linear) {
+                            replayer.formatter = new DejavuLinearizingTraceFormatter();
+                        } else {
+                            replayer.formatter = new DejavuTraceFormatter();
+                        }
                         break;
                     case "-t":
                         if (++i == args.length) {
