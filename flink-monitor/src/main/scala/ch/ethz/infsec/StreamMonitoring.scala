@@ -203,6 +203,9 @@ object StreamMonitoring {
 
       val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
+      env.getConfig.disableGenericTypes
+
+
       if (!checkpointUri.isEmpty) {
         env.setStateBackend(new RocksDBStateBackend(checkpointUri))
         env.enableCheckpointing(10000)
@@ -258,6 +261,8 @@ object StreamMonitoring {
         256).setParallelism(processors).setMaxParallelism(processors).name("Monitor").uid("monitor")
 
       //Single node
+
+
 
       out match {
         case Some(Left((h, p))) =>
