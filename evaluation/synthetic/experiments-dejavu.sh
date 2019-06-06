@@ -8,8 +8,8 @@ FORMULAS="star-past-ltl-neg linear-past-ltl-neg triangle-past-ltl-neg"
 #TODO: remember to change dejavu formulas for standalone (to remove the negation)
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 NEGATE_DEJAVU="--negate true" # if formulas above are suffixed with -neg this should be "--negate true", otherwise ""
-EVENT_RATES="2000 2500 3000 4000 6000 8000 10000 12000"
-ACCELERATIONS="0 1"
+EVENT_RATES="2000 4000 8000"
+ACCELERATIONS="0"
 #INDEX_RATES="1 1000" #do not exist for dejavu
 PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 MONPOLY_CPU_LIST="0"
