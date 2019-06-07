@@ -28,7 +28,7 @@ public class ReplayerIT {
     public void setUp() throws IOException {
         Path executablePath = Paths.get(System.getProperty("basedir")).getParent().resolve("replayer.sh");
         process = new ProcessBuilder(executablePath.toString(),
-                "-a", "10", "-m", "-t", "1000", "-T", "TIME:", "-C", "CMD:")
+                "-a", "10", "-f", "monpoly", "-t", "1000", "-T", "TIME:", "-C", "CMD:")
                 .redirectError(ProcessBuilder.Redirect.INHERIT)
                 .start();
 
