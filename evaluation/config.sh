@@ -4,7 +4,8 @@
 PROJECT_DIR=`cd "$WORK_DIR/.."; pwd`
 ROOT_DIR=`cd "$WORK_DIR/../.."; pwd`
 
-export JAVA_HOME="$ROOT_DIR/jdk1.8.0"
+export JAVA_HOME="$ROOT_DIR/jdk1.8.0_211"
+export PATH="$PATH:$ROOT_DIR/scala-2.12.7/bin/"
 export PATH="$PATH:$WORK_DIR/visual/sqlite"
 
 FLINK_BIN="$ROOT_DIR/flink/bin"

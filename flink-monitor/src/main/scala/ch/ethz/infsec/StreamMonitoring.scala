@@ -203,8 +203,6 @@ object StreamMonitoring {
 
       val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
 
-      env.getConfig.disableGenericTypes
-
 
       if (!checkpointUri.isEmpty) {
         env.setStateBackend(new RocksDBStateBackend(checkpointUri))
