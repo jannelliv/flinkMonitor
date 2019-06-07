@@ -397,34 +397,45 @@ public class Replayer {
     private class OutputWorker implements Runnable {
         private boolean successful = false;
 
-        private void delay(long startTime, long emissionTime) throws InterruptedException {
+        private long startTimeMillis;
+        private long startTimeNanos;
+
+        private void delay(long emissionTime) throws InterruptedException {
             long now = System.nanoTime();
-            long elapsedMillis = (now - startTime) / 1_000_000L;
+            long elapsedMillis = (now - startTimeNanos) / 1_000_000L;
             long waitMillis = emissionTime - elapsedMillis;
             if (waitMillis > 1L) {
                 Thread.sleep(waitMillis);
             }
         }
 
+        private void emitTimestamp(long relativeTimestamp) throws IOException {
+            final long timestamp = startTimeMillis + relativeTimestamp;
+            output.writeString(timestampPrefix + timestamp + "\n");
+            output.flush();
+        }
+
         private void runInternal() throws InterruptedException, IOException {
             long nextTimestampToEmit = 0;
+            long lastOutputTime = 0;
 
             OutputItem outputItem = queue.take();
-            final long startTime = System.nanoTime();
+            startTimeMillis = System.currentTimeMillis();
+            startTimeNanos = System.nanoTime();
 
             while (!(outputItem instanceof TerminalItem)) {
                 if (timestampInterval > 0) {
                     while (nextTimestampToEmit <= outputItem.emissionTime) {
-                        delay(startTime, nextTimestampToEmit);
-                        output.writeString(timestampPrefix + System.currentTimeMillis() + "\n");
-                        output.flush();
+                        delay(nextTimestampToEmit);
+                        emitTimestamp(nextTimestampToEmit);
                         nextTimestampToEmit += timestampInterval;
                     }
                 }
+                lastOutputTime = outputItem.emissionTime;
 
-                delay(startTime, outputItem.emissionTime);
+                delay(outputItem.emissionTime);
                 outputItem.emit(output);
-                outputItem.reportDelivery(reporter, startTime);
+                outputItem.reportDelivery(reporter, startTimeNanos);
 
                 outputItem = queue.poll();
                 if (outputItem == null) {
@@ -434,8 +445,7 @@ public class Replayer {
             }
 
             if (timestampInterval > 0) {
-                output.writeString(timestampPrefix + System.currentTimeMillis() + "\n");
-                output.flush();
+                emitTimestamp(lastOutputTime);
             }
             reporter.reportEnd();
 
@@ -582,14 +592,14 @@ public class Replayer {
                         if (++i == args.length) {
                             invalidArgument();
                         }
-                        Boolean monpolyLinear = Boolean.parseBoolean(args[i]);
+                        boolean monpolyLinear = Boolean.parseBoolean(args[i]);
                         replayer.formatter = monpolyLinear ? new MonpolyLinearizingTraceFormatter() : new MonpolyTraceFormatter();
                         break;
                     case "-d":
                         if (++i == args.length) {
                             invalidArgument();
                         }
-                        Boolean dejavuLinear = Boolean.parseBoolean(args[i]);
+                        boolean dejavuLinear = Boolean.parseBoolean(args[i]);
                         replayer.formatter = dejavuLinear ? new DejavuLinearizingTraceFormatter() : new DejavuTraceFormatter();
                         break;
                     case "-t":
