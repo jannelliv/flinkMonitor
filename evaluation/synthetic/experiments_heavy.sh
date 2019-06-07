@@ -45,7 +45,7 @@ make_log -T triangle-neg h0 "x=0,y=0,z=0"
 make_log -T triangle-neg h1 "x=2,y=0,z=0"
 make_log -T triangle-neg h2 "x=2,y=2,z=0"
 
-#(cd "$OUTPUT_DIR"; "$WORK_DIR/synthetic/mk_heavy.py")
+(cd "$OUTPUT_DIR"; "$WORK_DIR/synthetic/mk_heavy.py")
 
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)

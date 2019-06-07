@@ -6,7 +6,7 @@ source "$WORK_DIR/config.sh"
 REPETITIONS=3
 FORMULAS="script1 ins-1-2 del-1-2"
 ACCELERATIONS="500 1000 1500 2000 2500 3000 3500 4000"
-PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29"
+PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 REPLAYER_QUEUE=10000
@@ -148,6 +148,60 @@ for procs in $PROCESSORS; do
                 taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
                 "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --checkpoints "file://$CHECKPOINT_DIR" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
                 wait
+            done
+        done
+    done
+
+    "$FLINK_BIN/stop-cluster.sh" > /dev/null
+done
+
+echo "Flink without checkpointing with statistics:"
+for procs in $PROCESSORS; do
+    numcpus=${procs%/*}
+    cpulist=${procs#*/}
+    echo "  $numcpus processors:"
+
+    taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
+
+    for formula in $FORMULAS; do
+        echo "    Evaluating $formula:"
+        STATE_FILE="$OUTPUT_DIR/ldcc_sample_past_${formula}.state"
+        for acc in $ACCELERATIONS; do
+            echo "      Acceleration $acc:"
+            for i in $(seq 1 $REPETITIONS); do
+                echo "        Repetition $i ..."
+
+
+                if [[ "$acc" = "0" ]]; then
+
+                    JOB_NAME="nokia_flink_stats_${numcpus}_${formula}_${acc}_${i}"
+                    TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                    BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                    JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                    HEAVY_FILE="$WORK_DIR/nokia/stats_nokia.txt"
+
+                    rm -r "$VERDICT_FILE" 2> /dev/null
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample.csv" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    wait
+
+
+                else
+
+                    JOB_NAME="nokia_flink_stats_${numcpus}_${formula}_${acc}_${i}"
+                    DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                    TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                    BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                    JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                    HEAVY_FILE="$WORK_DIR/nokia/stats_nokia.txt"
+
+                    rm -r "$VERDICT_FILE" 2> /dev/null
+                    taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate -load $STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    wait
+
+                fi
+
+
             done
         done
     done
