@@ -35,6 +35,7 @@ private class ProvidedLatencyOutputDecorator(
     val value = streamRecord.getValue
     if (value.startsWith(TIMESTAMP_PREFIX)) {
       val time = value.substring(TIMESTAMP_PREFIX.length).trim.toLong
+//      println("Input latency " + time + " at " + System.currentTimeMillis())
       output.emitLatencyMarker(new LatencyMarker(time, operatorID, subtaskIndex))
     } else
       output.collect(streamRecord)
@@ -74,7 +75,7 @@ private class PreciseLatencyTackingStreamSink[IN](sinkFunction: SinkFunction[IN]
     delaySum += delay
     delaySamples += 1
     maxDelay = maxDelay.max(delay)
-
+//    println("Output latency: delay " + delay + " with time "+ marker.getMarkedTime + " at " + System.currentTimeMillis())
     super.reportOrForwardLatencyMarker(marker)
   }
 
