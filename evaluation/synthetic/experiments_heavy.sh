@@ -69,7 +69,7 @@ for procs in $PROCESSORS; do
 
                         INPUT_FILE="$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
 
-                        JOB_NAME="genh_flink_ft_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
+                        JOB_NAME="genh_flink_monpoly_ft_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_1_${i}"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
@@ -105,7 +105,7 @@ for procs in $PROCESSORS; do
                         INPUT_FILE="$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
                         HEAVY_FILE="$OUTPUT_DIR/heavy_${numcpus}_${formula}_${heavy_set}.csv"
 
-                        JOB_NAME    ="genh_flink_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_${i}"
+                        JOB_NAME    ="genh_flink_monpoly_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_1_${i}"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 

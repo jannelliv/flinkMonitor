@@ -42,7 +42,7 @@ for formula in $FORMULAS; do
 
             if [[ "$acc" = "0" ]]; then
 
-                TIME_REPORT="$REPORT_DIR/nokiaCMP_monpoly_${formula}_${acc}_${i}_time.txt"
+                TIME_REPORT="$REPORT_DIR/nokiaCMP_monpoly_${formula}_${acc}_0_${i}_time.txt"
 
                 rm -r "$VERDICT_FILE" 2> /dev/null
                 cat "$ROOT_DIR/ldcc_sample_linear.log" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/nokia/ldcc.sig" -formula "$WORK_DIR/nokia/$formula.mfotl" -negate > "$VERDICT_FILE"
@@ -50,8 +50,8 @@ for formula in $FORMULAS; do
 
             else
 
-                DELAY_REPORT="$REPORT_DIR/nokiaCMP_monpoly_${formula}_${acc}_${i}_delay.txt"
-                TIME_REPORT="$REPORT_DIR/nokiaCMP_monpoly_${formula}_${acc}_${i}_time.txt"
+                DELAY_REPORT="$REPORT_DIR/nokiaCMP_monpoly_${formula}_${acc}_1_${i}_delay.txt"
+                TIME_REPORT="$REPORT_DIR/nokiaCMP_monpoly_${formula}_${acc}_1_${i}_time.txt"
 
                 rm -r "$VERDICT_FILE" 2> /dev/null
                 (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly-linear "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
@@ -75,15 +75,15 @@ for formula in $FORMULAS; do
 
             if [[ "$acc" = "0" ]]; then
 
-                TIME_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_${i}_time.txt"
+                TIME_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_0_${i}_time.txt"
 
                 rm -r "$VERDICT_FILE" 2> /dev/null
                 cat "$ROOT_DIR/ldcc_sample_linear.dvu" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "$WORK_DIR/nokia/$formula.mfotl.neg.qtl"  20 "print" > "$VERDICT_FILE"
 
             else
 
-                DELAY_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_${i}_delay.txt"
-                TIME_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_${i}_time.txt"
+                DELAY_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_1_${i}_delay.txt"
+                TIME_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_1_${i}_time.txt"
 
                 rm -r "$VERDICT_FILE" 2> /dev/null
                 (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f dejavu-linear "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
@@ -117,7 +117,7 @@ for procs in $PROCESSORS; do
                 if [[ "$acc" = "0" ]]; then
 
                     echo "          Monpoly ..."
-                    JOB_NAME="nokiaCMP_flink_monpoly_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_monpoly_${numcpus}_${formula}_${acc}_0_${i}"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -128,7 +128,7 @@ for procs in $PROCESSORS; do
 
 
                     echo "          Dejavu ..."
-                    JOB_NAME="nokiaCMP_flink_dejavu_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_dejavu_${numcpus}_${formula}_${acc}_0_${i}"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -141,7 +141,7 @@ for procs in $PROCESSORS; do
                 else
 
                     echo "          Monpoly ..."
-                    JOB_NAME="nokiaCMP_flink_monpoly_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_monpoly_${numcpus}_${formula}_${acc}_1_${i}"
                     DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
@@ -154,7 +154,7 @@ for procs in $PROCESSORS; do
 
 
                     echo "          Dejavu ..."
-                    JOB_NAME="nokiaCMP_flink_dejavu_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_dejavu_${numcpus}_${formula}_${acc}_1_${i}"
                     DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
@@ -196,7 +196,7 @@ for procs in $PROCESSORS; do
                 if [[ "$acc" = "0" ]]; then
 
                     echo "          Monpoly ..."
-                    JOB_NAME="nokiaCMP_stats_flink_monpoly_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_monpoly_stats_${numcpus}_${formula}_${acc}_0_${i}"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -208,7 +208,7 @@ for procs in $PROCESSORS; do
 
 
                     echo "          Dejavu ..."
-                    JOB_NAME="nokiaCMP_stats_flink_dejavu_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_dejavu_stats_${numcpus}_${formula}_${acc}_0_${i}"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -222,7 +222,7 @@ for procs in $PROCESSORS; do
                 else
 
                     echo "          Monpoly ..."
-                    JOB_NAME="nokiaCMP_stats_flink_monpoly_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_monpoly_stats_${numcpus}_${formula}_${acc}_1_${i}"
                     DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
@@ -236,7 +236,7 @@ for procs in $PROCESSORS; do
 
 
                     echo "          Dejavu ..."
-                    JOB_NAME="nokiaCMP_stats_flink_dejavu_${numcpus}_${formula}_${acc}_${i}"
+                    JOB_NAME="nokiaCMP_flink_dejavu_stats_${numcpus}_${formula}_${acc}_1_${i}"
                     DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                     TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
@@ -265,7 +265,7 @@ end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
 echo
 echo "Scraping metrics from $start_time to $end_time ..."
-(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time nokia)
+(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time nokiaCMP)
 
 echo
 echo "Evaluation complete!"

@@ -97,7 +97,7 @@ for procs in $PROCESSORS; do
                         if [[ "$acc" = "0" ]]; then
 
                             INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                            JOB_NAME="gen_flink_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                            JOB_NAME="gen_flink_monpoly_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
                             TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                             BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                             JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -109,7 +109,7 @@ for procs in $PROCESSORS; do
                         else
 
                             INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                            JOB_NAME="gen_flink_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                            JOB_NAME="gen_flink_monpoly_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
                             DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                             TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                             BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
@@ -151,7 +151,7 @@ for procs in $PROCESSORS; do
                         echo "        Repetition $i ..."
 
                         INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                        JOB_NAME="gen_flink_ft_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                        JOB_NAME="gen_flink_monpoly_ft_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
@@ -190,7 +190,7 @@ for procs in $PROCESSORS; do
                         echo "        Repetition $i ..."
 
                         INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                        JOB_NAME="gen_flink_ft_stats_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                        JOB_NAME="gen_flink_monpoly_ft_stats_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
