@@ -14,15 +14,18 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.Objects;
 import java.util.concurrent.LinkedBlockingQueue;
 
 public class Replayer {
+    private static final int FACT_CHUNK_SIZE = 128;
+
     private double timeMultiplier = 1.0;
     private String commandPrefix = ">";
     private long timestampInterval = -1;
     private String timestampPrefix = "###";
-    private int queueCapacity = 100000;
+    private int queueCapacity = 1024;
     private TraceParser parser = new Crv2014CsvParser();
     private TraceFormatter formatter = new Crv2014CsvFormatter();
 
@@ -30,7 +33,7 @@ public class Replayer {
     private Output output;
     private Reporter reporter = new NullReporter();
 
-    private LinkedBlockingQueue<OutputItem> queue;
+    private LinkedBlockingQueue<ArrayList<OutputItem>> queue;
     private Thread inputThread;
 
     private static abstract class OutputItem {
@@ -343,13 +346,22 @@ public class Replayer {
         private boolean successful = false;
 
         private long firstTimestamp = -1;
-        private final ArrayList<OutputItem> readyItems = new ArrayList<>();
+        private final ArrayList<OutputItem> parsedItems = new ArrayList<>();
+        private ArrayList<OutputItem> currentChunk = new ArrayList<>(FACT_CHUNK_SIZE);
 
-        private void emitItems() throws InterruptedException {
-            for (OutputItem item : readyItems) {
-                queue.put(item);
+        private void putItem(OutputItem item, boolean force) throws InterruptedException {
+            currentChunk.add(item);
+            if (currentChunk.size() >= FACT_CHUNK_SIZE || force) {
+                queue.put(currentChunk);
+                currentChunk = new ArrayList<>(FACT_CHUNK_SIZE);
             }
-            readyItems.clear();
+        }
+
+        private void emitParsedItems() throws InterruptedException {
+            for (OutputItem item : parsedItems) {
+                putItem(item, false);
+            }
+            parsedItems.clear();
         }
 
         private void processFact(Fact fact) {
@@ -363,7 +375,7 @@ public class Replayer {
             } else {
                 emissionTime = 0;
             }
-            readyItems.add(new FactItem(emissionTime, fact));
+            parsedItems.add(new FactItem(emissionTime, fact));
         }
 
         public void run() {
@@ -372,15 +384,15 @@ public class Replayer {
                 while ((line = input.readLine()) != null) {
                     if (line.startsWith(commandPrefix)) {
                         CommandItem commandItem = new CommandItem(line);
-                        queue.put(commandItem);
+                        putItem(commandItem, false);
                     } else {
                         parser.parseLine(this::processFact, line);
-                        emitItems();
+                        emitParsedItems();
                     }
                 }
                 parser.endOfInput(this::processFact);
-                emitItems();
-                queue.put(new TerminalItem());
+                emitParsedItems();
+                putItem(new TerminalItem(), true);
                 successful = true;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -419,7 +431,8 @@ public class Replayer {
             long nextTimestampToEmit = 0;
             long lastOutputTime = 0;
 
-            OutputItem outputItem = queue.take();
+            Iterator<OutputItem> outputItems = queue.take().iterator();
+            OutputItem outputItem = outputItems.next();
             startTimeMillis = System.currentTimeMillis();
             startTimeNanos = System.nanoTime();
 
@@ -437,11 +450,15 @@ public class Replayer {
                 outputItem.emit(output);
                 outputItem.reportDelivery(reporter, startTimeNanos);
 
-                outputItem = queue.poll();
-                if (outputItem == null) {
-                    reporter.reportUnderrun();
-                    outputItem = queue.take();
+                if (!outputItems.hasNext()) {
+                    ArrayList<OutputItem> chunk = queue.poll();
+                    if (chunk == null) {
+                        reporter.reportUnderrun();
+                        chunk = queue.take();
+                    }
+                    outputItems = chunk.iterator();
                 }
+                outputItem = outputItems.next();
             }
 
             if (timestampInterval > 0) {
