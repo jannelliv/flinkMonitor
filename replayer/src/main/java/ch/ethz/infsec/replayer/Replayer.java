@@ -428,7 +428,7 @@ public class Replayer {
         }
 
         private void runInternal() throws InterruptedException, IOException {
-            long nextTimestampToEmit = 0;
+            long nextTimestampToEmit = timestampInterval;
             long lastOutputTime = 0;
 
             Iterator<OutputItem> outputItems = queue.take().iterator();
