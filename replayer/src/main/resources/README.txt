@@ -26,9 +26,9 @@ Options:
             <prefix> can be changed with -T <prefix> (default: "###").
 
     -q <buffer size>
-            Sets the size of the internal buffer between the reader and writer
-            thread (default: 100000). Increase this value if -vv repeatedly
-            reports underruns.
+            Sets the size of the internal buffer in chunks of 128 events
+            between the reader and writer thread (default: 1024). Increase this
+            value if -vv repeatedly reports underruns.
 
     -o <host>:<port>
             Opens a TCP server listening on the given host name and port.
