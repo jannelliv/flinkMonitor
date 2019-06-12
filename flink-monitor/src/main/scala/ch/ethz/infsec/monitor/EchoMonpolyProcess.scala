@@ -6,14 +6,14 @@ import ch.ethz.infsec.trace.{KeyedDejavuPrinter, KeyedMonpolyPrinter, Record}
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
-class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[DejavuRequest, String] {
+class EchoMonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[MonpolyRequest, String] {
   override def open(): Unit = open(command)
 
   override def open(initialState: Array[Byte]): Unit = open()
   override def open(initialStates: Iterable[(Int, Array[Byte])]): Unit = open()
 
-  override def writeRequest[SubRequest >: DejavuRequest](request: SubRequest): Unit = {
-    val r = request.asInstanceOf[DejavuRequest]
+  override def writeRequest[SubRequest >: MonpolyRequest](request: SubRequest): Unit = {
+    val r = request.asInstanceOf[MonpolyRequest]
     writer.write(r.in)
     writer.flush()
   }
@@ -37,11 +37,11 @@ class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[Deja
 //  def apply(cmd:Seq[String]):ExternalProcess[MonitorRequest,String] = new EchoProcess(cmd).asInstanceOf[ExternalProcess[MonitorRequest,String]]
 //}
 
-class EchoProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
-  override protected def createPre[MonpolyRequest >: MonitorRequest](): Processor[(Int, Record), MonitorRequest] = new KeyedDejavuPrinter[Int]
-  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoProcess(cmd)
+class EchoMonpolyProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
+  override protected def createPre[MonpolyRequest >: MonitorRequest](): Processor[(Int, Record), MonitorRequest] = new KeyedMonpolyPrinter[Int]
+  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoMonpolyProcess(cmd)
   override protected def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
 }
-object EchoProcessFactory{
-  def apply(cmd: Seq[String]): EchoProcessFactory = new EchoProcessFactory(cmd)
+object EchoMonpolyProcessFactory{
+  def apply(cmd: Seq[String]): EchoMonpolyProcessFactory = new EchoMonpolyProcessFactory(cmd)
 }

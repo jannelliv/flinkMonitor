@@ -37,7 +37,8 @@ object StreamMonitoring {
   private val logger = LoggerFactory.getLogger(StreamMonitoring.getClass)
 
   private val MONPOLY_CMD = "monpoly"
-  private val ECHO_CMD    = "echo"
+  private val ECHO_DEJAVU_CMD    = "echo-dejavu"
+  private val ECHO_MONPOLY_CMD = "echo-monpoly"
   private val DEJAVU_CMD  = "dejavu"
   private val CUSTOM_CMD  = "custom"
 
@@ -157,10 +158,15 @@ object StreamMonitoring {
           logger.info("Monitor command: {}", margs.mkString(" "))
           MonpolyProcessFactory(margs, slicer)
         }
-        case ECHO_CMD => {
+        case ECHO_DEJAVU_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           logger.info("Monitor command: {}", monitorArgs.mkString(" "))
           EchoProcessFactory(monitorArgs)
+        }
+        case ECHO_MONPOLY_CMD => {
+          val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
+          logger.info("Monitor command: {}", monitorArgs.mkString(" "))
+          EchoMonpolyProcessFactory(monitorArgs)
         }
         case DEJAVU_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
