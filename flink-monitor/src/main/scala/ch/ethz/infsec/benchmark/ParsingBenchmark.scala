@@ -1,6 +1,6 @@
 package ch.ethz.infsec.benchmark
 
-import ch.ethz.infsec.trace.{CsvFormat, Record}
+import ch.ethz.infsec.trace.{CsvFormat, DejavuFormat, MonpolyFormat, Record}
 import ch.ethz.infsec.{Processor, StatelessProcessor}
 
 import scala.io.Source
@@ -32,6 +32,8 @@ object ParsingBenchmark {
     val parser = formatName match {
       case "null" => new NullParser
       case "csv" => CsvFormat.createParser()
+      case "monpoly" => MonpolyFormat.createParser()
+      case "dejavu" => DejavuFormat.createParser()
     }
 
     val inputFileName = args(1)
