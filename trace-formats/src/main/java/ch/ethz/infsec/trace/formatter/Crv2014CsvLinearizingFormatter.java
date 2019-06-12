@@ -3,25 +3,14 @@ package ch.ethz.infsec.trace.formatter;
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.trace.Trace;
 
-import java.io.Serializable;
-
-public class Crv2014CsvFormatter implements TraceFormatter, Serializable {
-    private static final long serialVersionUID = -1880412127233585471L;
-
-    protected long currentTimePoint;
-
-    public Crv2014CsvFormatter() {
-        this.currentTimePoint = 0;
-    }
+public class Crv2014CsvLinearizingFormatter  extends  Crv2014CsvFormatter {
 
     @Override
     public void printFact(StringBuilder sink, Fact fact) {
-        if (Trace.isEventFact(fact)) {
-            ++currentTimePoint;
-        } else {
+        if (!Trace.isEventFact(fact)) {
             sink.append(fact.getName());
             sink.append(", tp=");
-            sink.append(currentTimePoint);
+            sink.append(currentTimePoint++);
             sink.append(", ts=");
             sink.append(fact.getTimestamp());
 
@@ -35,4 +24,6 @@ public class Crv2014CsvFormatter implements TraceFormatter, Serializable {
             sink.append("\n");
         }
     }
+
+
 }

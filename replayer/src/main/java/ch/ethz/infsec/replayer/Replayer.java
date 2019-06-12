@@ -546,6 +546,8 @@ public class Replayer {
         switch (format) {
             case "csv":
                 return new Crv2014CsvFormatter();
+            case "csv-linear":
+                return new Crv2014CsvLinearizingFormatter();
             case "monpoly":
                 return new MonpolyTraceFormatter();
             case "monpoly-linear":
