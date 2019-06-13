@@ -60,6 +60,7 @@ object StreamMonitoring {
   var formulaFile: String = ""
   var signatureFile: String = ""
   var negate:Boolean = false
+  var queueSize = 256
 
 
   var formula: Formula = policy.False()
@@ -132,6 +133,8 @@ object StreamMonitoring {
         sys.exit(1)
       case Right(phi) => phi
     }
+
+    queueSize = params.getInt("queueSize", queueSize)
   }
 
   def exename(str: String):String = {
@@ -287,7 +290,7 @@ object StreamMonitoring {
         slicer,
         slicedTrace,
         processFactory,
-        256).setParallelism(processors).setMaxParallelism(processors).name("Monitor").uid("monitor")
+        queueSize).setParallelism(processors).setMaxParallelism(processors).name("Monitor").uid("monitor")
 
       //Single node
 
