@@ -1,35 +1,79 @@
 #!/bin/bash
 
 #
-# DejaVu - a tool for checking past time temporal logic properties in QTL against traces in CSV format.
+# DejaVu - a tool for checking past time temporal logic properties in QTL against streams in CSV format.
 #
 # To use, call (after making executable with: chmod +x dejavu) as follows:
 #
-#   dejavu <specFile> <traceFile> [<bitsPerVariable> [debug]]
+#   dejavu < compile <specFile> | run <monitorLocation> [<bitsPerVariable> [debug | print]] >
 
-FMA=`cd "$(dirname "$1")"; pwd`
-FMA="${FMA}/$(basename $1)"
-BDDSIZE=${2:-20} # default number of bits per variable = 20
-DEBUG=${3:-} # default is no debugging
+CMD=$1
+
+case "$CMD" in
+  compile|Compile ) 
+
+    FMA=`cd "$(dirname "$2")"; pwd`
+    FMA="${FMA}/$(basename $2)"
+
+    FMAID=($(sha1sum $FMA))
+
+    CURRDIR=`pwd`
+    DEJAVU=`cd "$(dirname "$BASH_SOURCE")"; pwd`
+    TMPDIR="/tmp/dejavu-$FMAID"
+
+    if [[ ! -d "$TMPDIR" ]]; then 
+
+      mkdir -p $TMPDIR
+      cp $DEJAVU/dejavu.jar $TMPDIR
+
+      cd $TMPDIR
+
+      # Parse specification and synthesize monitor:
+      java -cp ./dejavu.jar dejavu.Verify $FMA > /dev/null 2>&1
+
+      # Compile synthesized monitor:
+      scalac -cp .:./dejavu.jar TraceMonitor.scala > /dev/null 2>&1
+
+      cd $CURRDIR
+
+    fi
+
+    echo $TMPDIR
+  
+  ;;
+  run|Run ) 
+
+     TMPDIR=$2
+      BDDSIZE=${3:-20} # default number of bits per variable = 20
+      DEBUG=${4:-} # default is no debugging
+
+      if [[ -d "$TMPDIR" ]]; then
+
+        CURRDIR=`pwd`
+        cd $TMPDIR
+        # Run the compiled monitor on trace:
+        scala -J-Xmx16g -cp .:./dejavu.jar TraceMonitor - $BDDSIZE $DEBUG 
+
+        
+        cd $CURRDIR
+        # rm -rf $TMPDIR
+
+      else
+        echo "Cannot run the monitor: needs to be compiled first"
+      fi
+  
+  ;;
+  clean|Clean ) 
+
+    echo "Cleaning all /tmp/dejavu-* folders"
+    rm -rf /tmp/dejavu-*
+    
+
+  ;;
 
 
-CURRDIR=`pwd`
-DEJAVU=`cd "$(dirname "$BASH_SOURCE")"; pwd`
-TMPDIR="/tmp/dejavu$$"
-mkdir -p $TMPDIR
-cp $DEJAVU/dejavu.jar $TMPDIR
+  * ) echo "Invalid command. Try 'compile', 'run' or 'clean'";;
+esac
 
-cd $TMPDIR
 
-# Parse specification and synthesize monitor:
-java -cp ./dejavu.jar dejavu.Verify $FMA > /dev/null 2>&1
 
-# Compile synthesized monitor:
-scalac -cp .:./dejavu.jar TraceMonitor.scala > /dev/null 2>&1
-
-# Run the compiled monitor on trace:
-scala -J-Xmx16g -cp .:./dejavu.jar TraceMonitor - $BDDSIZE $DEBUG | egrep "\*\*\*\*"
-
-# Clean up:
-cd $CURRDIR
-rm -rf $TMPDIR

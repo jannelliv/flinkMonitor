@@ -1,6 +1,8 @@
 package ch.ethz.infsec
 
-import java.io.{File, FileOutputStream, PrintWriter}
+import java.io._
+import java.lang.ProcessBuilder.Redirect
+import java.util.concurrent.{Callable, ExecutorService, Executors, TimeUnit}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
@@ -28,7 +30,7 @@ import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 
-import scala.collection.mutable
+import scala.collection.{JavaConverters, mutable}
 import scala.io.Source
 
 
@@ -147,7 +149,7 @@ object StreamMonitoring {
     else {
       init(params)
 
-      if (formula.freeVariables.isEmpty) { logger.error("Closed formula cannot be sliced"); sys.exit(-1) }
+      if (formula.freeVariables.isEmpty) { logger.error("Closed formula cannot be sliced"); sys.exit(1) }
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
 
@@ -174,9 +176,32 @@ object StreamMonitoring {
           val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile,false))
           writer.write(formula.toQTLString(negate))
           writer.close()
-          val margs = monitorArgs ++ List(dejavuFormulaFile, "20", "print")
-          logger.info("Monitor command: {}", margs.mkString(" "))
-          DejavuProcessFactory(margs)
+
+          //Compiling the monitor
+          val compileArgs = monitorArgs ++ List("compile",dejavuFormulaFile)
+          val process = new ProcessBuilder(JavaConverters.seqAsJavaList(compileArgs))
+            .redirectError(Redirect.INHERIT)
+            .start()
+          val reader = new BufferedReader(new InputStreamReader(process.getInputStream))
+
+          val readerThread = new Callable[String] {
+            override def call(): String = reader.readLine()
+          }
+
+          try {
+            val executor = Executors.newFixedThreadPool(1)
+            val monitorLocation = executor.submit(readerThread).get(20, TimeUnit.SECONDS)
+            executor.shutdown()
+            val runArgs = monitorArgs ++ List("run", monitorLocation, "20", "print")
+            logger.info("Monitor command: {}", runArgs.mkString(" "))
+            DejavuProcessFactory(runArgs)
+          } catch {
+            case e : Exception => {
+              logger.error("Dejavu monitor compilation failed: \n")
+              logger.error(e.getMessage)
+              sys.exit(1)
+            }
+          }
         }
         case CUSTOM_CMD => {
           if (command.isEmpty) {
