@@ -57,7 +57,7 @@ class DejavuParser extends  StatelessProcessor[String, Record] with Serializable
 class DejavuVerdictFilter extends StatelessProcessor[String,String] with Serializable{
 
   override def process(in: String, f: String => Unit): Unit = {
-    if (in!=null && in.length>DejavuProcess.VIOLATION_PREFIX.length) {
+    if (in!=null && in.length>DejavuProcess.VIOLATION_PREFIX.length && in.startsWith(DejavuProcess.VIOLATION_PREFIX)) {
       f(in.substring(DejavuProcess.VIOLATION_PREFIX.length-1, in.length - 1))
     }
   }
