@@ -52,7 +52,7 @@ case "$CMD" in
         CURRDIR=`pwd`
         cd $TMPDIR
         # Run the compiled monitor on trace:
-        scala -J-Xmx16g -cp .:./dejavu.jar TraceMonitor - $BDDSIZE $DEBUG 
+        scala -J-Xmx16g -cp .:./dejavu.jar TraceMonitor - $BDDSIZE $DEBUG
 
         
         cd $CURRDIR
