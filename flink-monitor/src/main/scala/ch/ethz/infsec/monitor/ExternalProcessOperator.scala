@@ -236,7 +236,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     writerThread.start()
 
     readerThread = new ServiceThread {
-      private var buffer = new ArrayBuffer[POUT]()
+      private var bufferCapacity = 300
+      private var transientBuffer = new ArrayBuffer[POUT](1)
+      private var buffer = new ArrayBuffer[OutputItem[OUT]](bufferCapacity)
 
 
       private def putResult(result: PendingResult): Unit = {
@@ -250,6 +252,18 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       }
 
 
+      private def processVerdicts():Unit = {
+        try {
+          for(result <- buffer) {
+            resultQueue.add(result)
+          }
+          resultQueueNonEmpty.signalAll()
+        } finally {
+          resultLock.unlock()
+          buffer.clear()
+        }
+      }
+
 
       override def handle(): Unit = {
         val request = processingQueue.take()
@@ -260,29 +274,34 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case InputItem(record) => {
             while (true) {
               try {
-                process.readResults(buffer)
-                assert(buffer.size<=1)
-                if (buffer.size==1){
-                  val result = buffer.head
+                process.readResults(transientBuffer)
+                assert(transientBuffer.size<=1)
+
+                if (transientBuffer.nonEmpty){
+                  val result = transientBuffer.head
                   if (!process.SYNC_BARRIER_OUT(result)) {
-                    resultLock.lock()
-                    try {
-                      postprocessing.process(
-                        result, r => resultQueue.add(OutputItem(outputRecord(record, r))))
-                      resultQueueNonEmpty.signalAll()
-                    } finally {
-                      resultLock.unlock()
+                    postprocessing.process(
+                      result, r => buffer+=OutputItem(outputRecord(record, r)))
+
+                    if(buffer.size<bufferCapacity){
+                      if(resultLock.tryLock()){
+                        processVerdicts()
+                      }
+                    } else {
+                      resultLock.lock()
+                      processVerdicts()
                     }
 
                   } else {
+                    resultLock.lock()
+                    processVerdicts()
                     return
                   }
 
                 }
 
-
               } finally {
-                buffer.clear()
+                transientBuffer.clear()
               }
             }
           }
@@ -300,11 +319,11 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
             snapshotReady.release()
           case shutdown@ShutdownItem() =>
-            process.drainResults(buffer)
+            process.drainResults(transientBuffer)
 
             resultLock.lock()
             try{
-              for (result <- buffer)
+              for (result <- transientBuffer)
                 postprocessing.process(
                   result, r =>
                     resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
