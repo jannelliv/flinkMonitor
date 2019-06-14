@@ -92,10 +92,11 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
       case EventItem(r.in) => ()
     }
 
+
+
     writer.write(r.in)
-    writer.write(GET_INDEX_COMMAND)
-    // TODO(JS): Do not flush if there are more requests in the queue
-    writer.flush()
+    if(r.in == GET_INDEX_COMMAND)
+      writer.flush()
   }
 
   override def initSnapshot(): Unit = {
@@ -113,16 +114,8 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
   }
 
   override def readResults(buffer: mutable.Buffer[String]): Unit = {
-    var more = true
-    do {
-      val line = reader.readLine()
-      if (line == null || line.startsWith(GET_INDEX_PREFIX)) {
-        more = false
-      } else {
-        // TODO(JS): Check that line is a verdict before adding it to the buffer.
-        buffer += line
-      }
-    } while (more)
+    val line = reader.readLine()
+    buffer += line
   }
 
   override def drainResults(buffer: mutable.Buffer[String]): Unit = {
@@ -218,6 +211,9 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
     if(digits == "") -1
     else Integer.parseInt(digits)
   }
+
+  override val SYNC_BARRIER_IN: MonpolyRequest = EventItem(GET_INDEX_COMMAND)
+  override val SYNC_BARRIER_OUT: String => Boolean = _.startsWith(GET_INDEX_PREFIX)
 }
 
 

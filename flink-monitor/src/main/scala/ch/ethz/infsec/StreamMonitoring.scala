@@ -166,7 +166,7 @@ object StreamMonitoring {
         case ECHO_DEJAVU_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-          EchoProcessFactory(monitorArgs)
+          EchoDejavuProcessFactory(monitorArgs)
         }
         case ECHO_MONPOLY_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
@@ -213,7 +213,6 @@ object StreamMonitoring {
           }
           logger.info("Monitor command: {}", command.mkString(" "))
           new ExternalProcessFactory[(Int,Record),IndexedRecord,String,String] {
-            import fastparse.all._
             override protected def createPre[UIN >: IndexedRecord](): Processor[(Int, Record), UIN] = new StatelessProcessor[(Int, Record),IndexedRecord] {
               override def process(in: (Int, Record), f: IndexedRecord => Unit): Unit = f(new IndexedRecord(in))
               override def terminate(f: IndexedRecord => Unit): Unit = ()
@@ -223,6 +222,9 @@ object StreamMonitoring {
               override def parseLine(line: String): String = line
 
               override def isEndMarker(t: String): Boolean = t.equals("")
+
+              override val SYNC_BARRIER_IN: IndexedRecord = (-1,Record(-1l, "", emptyTuple, "SYNC", ""))
+              override val SYNC_BARRIER_OUT: String => Boolean = _ == "SYNC"
             }
 
             override protected def createPost(): Processor[String, String] = StatelessProcessor.identity[String]

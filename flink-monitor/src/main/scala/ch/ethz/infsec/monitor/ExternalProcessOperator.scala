@@ -1,6 +1,7 @@
 package ch.ethz.infsec.monitor
 
 import java.util
+import java.util.concurrent.locks.{ReentrantLock, Condition}
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
 import ch.ethz.infsec.Processor
@@ -30,7 +31,7 @@ private case class InputItem[IN](input: StreamRecord[IN]) extends PendingRequest
 
 private case class OutputItem[OUT](output: StreamRecord[OUT]) extends PendingResult
 
-private case class OutputSeparatorItem() extends PendingResult
+private case class OutputSeparatorItem(batchsize:Int) extends PendingResult with PendingRequest
 
 private case class WatermarkItem(mark: Watermark) extends PendingRequest with PendingResult
 
@@ -62,11 +63,14 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   private val RESULT_STATE_NAME = "_external_process_operator_result_state_"
   private val PROCESS_STATE_NAME = "_external_process_operator_process_state_"
 
+  @transient private var maxBatchsize:Long = _
+
   @transient private var taskLock: AnyRef = _
 
   @transient private var requestQueue: LinkedBlockingQueue[PendingRequest] = _
   @transient private var processingQueue: LinkedBlockingQueue[PendingRequest] = _
-  @transient private var resultLock: Object = _
+  @transient private var resultLock: ReentrantLock = _
+  @transient private var resultQueueNonEmpty: Condition = _
   @transient private var resultQueue: util.ArrayDeque[PendingResult] = _
 
   @transient private var snapshotReady: Semaphore = _
@@ -95,10 +99,13 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     output: Output[StreamRecord[OUT]]): Unit = {
 
     super.setup(containingTask, config, output)
+
+    maxBatchsize = Math.round(capacity*0.9)
     taskLock = getContainingTask.getCheckpointLock
     requestQueue = new LinkedBlockingQueue[PendingRequest]()
     processingQueue = new LinkedBlockingQueue[PendingRequest]()
-    resultLock = new Object()
+    resultLock = new ReentrantLock()
+    resultQueueNonEmpty = resultLock.newCondition()
     resultQueue = new util.ArrayDeque[PendingResult]()
     snapshotReady = new Semaphore(0)
 
@@ -170,20 +177,59 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     resultState.clear()
 
     writerThread = new ServiceThread {
+      private var batch = false
+      private var batchsize = 0
       override def handle(): Unit = {
         val request = requestQueue.take()
-        processingQueue.put(request)
+
+//        println("From queue: " + request.toString)
+
         request match {
           case InputItem(record)   => {
+            if (!batch){
+              batch=true
+              processingQueue.put(request)
+            }
             process.writeRequest(record.asRecord[PIN]().getValue)
+            batchsize+=1
+            if(batchsize>=maxBatchsize){
+              process.writeRequest(process.SYNC_BARRIER_IN)
+              processingQueue.put(OutputSeparatorItem(batchsize))
+              batch=false
+              batchsize=0
+            }
           }
-          case WatermarkItem(_) => ()
-          case LatencyMarkerItem(_) => ()
-          case SnapshotRequestItem() =>
+          case WatermarkItem(_) | LatencyMarkerItem(_) => {
+            if (batch) {
+              process.writeRequest(process.SYNC_BARRIER_IN)
+              processingQueue.put(OutputSeparatorItem(batchsize))
+              batch=false
+              batchsize=0
+            }
+            processingQueue.put(request)
+          }
+          case SnapshotRequestItem() => {
+            if (batch) {
+              process.writeRequest(process.SYNC_BARRIER_IN)
+              processingQueue.put(OutputSeparatorItem(batchsize))
+              batch=false
+              batchsize=0
+            }
+            processingQueue.put(request)
             process.initSnapshot()
-          case ShutdownItem() =>
+          }
+          case ShutdownItem() => {
+//            println("From queue: " + request + "batch: " + batch)
+            if (batch) {
+              process.writeRequest(process.SYNC_BARRIER_IN)
+              processingQueue.put(OutputSeparatorItem(batchsize))
+              batch=false
+              batchsize=0
+            }
+            processingQueue.put(request)
             process.shutdown()
             running = false
+          }
         }
       }
     }
@@ -192,28 +238,54 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     readerThread = new ServiceThread {
       private var buffer = new ArrayBuffer[POUT]()
 
-      private def putResult(result: PendingResult): Unit = resultLock.synchronized {
-        resultQueue.add(result)
-        resultLock.notifyAll()
+
+      private def putResult(result: PendingResult): Unit = {
+        resultLock.lock()
+        try {
+          resultQueue.add(result)
+          resultQueueNonEmpty.signalAll()
+        } finally {
+          resultLock.unlock()
+        }
       }
+
+
 
       override def handle(): Unit = {
         val request = processingQueue.take()
-        request match {
-          case InputItem(record) =>
-            try {
-              process.readResults(buffer)
-              resultLock.synchronized {
-                for (result <- buffer)
-                  postprocessing.process(
-                    result, r => resultQueue.add(OutputItem(outputRecord(record, r))))
-                resultQueue.add(OutputSeparatorItem())
-                resultLock.notifyAll()
-              }
-            } finally {
-              buffer.clear()
-            }
 
+//        println("Received in queue: " + request.toString)
+
+        request match {
+          case InputItem(record) => {
+            while (true) {
+              try {
+                process.readResults(buffer)
+                if (buffer.size==1){
+                  val result = buffer.head
+                  if (!process.SYNC_BARRIER_OUT(result)) {
+                    resultLock.lock()
+                    try {
+                      postprocessing.process(
+                        result, r => resultQueue.add(OutputItem(outputRecord(record, r))))
+                      resultQueueNonEmpty.signalAll()
+                    } finally {
+                      resultLock.unlock()
+                    }
+
+                  } else {
+                    return
+                  }
+
+                }
+
+
+              } finally {
+                buffer.clear()
+              }
+            }
+          }
+          case separator@OutputSeparatorItem(_) => putResult(separator)
           case mark@WatermarkItem(_) => putResult(mark)
           case marker@LatencyMarkerItem(_) => putResult(marker)
           case SnapshotRequestItem() =>
@@ -229,15 +301,17 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case shutdown@ShutdownItem() =>
             process.drainResults(buffer)
 
-            resultLock.synchronized {
+            resultLock.lock()
+            try{
               for (result <- buffer)
                 postprocessing.process(
                   result, r =>
                     resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
               postprocessing.terminate(r =>
                 resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
-              resultQueue.add(OutputSeparatorItem())
-              resultLock.notifyAll()
+              resultQueueNonEmpty.signalAll()
+            } finally {
+              resultLock.unlock()
             }
             process.join()
             putResult(shutdown)
@@ -250,17 +324,23 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     emitterThread = new ServiceThread {
       override def handle(): Unit = {
         var result = null
-        resultLock.synchronized {
+        resultLock.lock()
+        try{
           while (resultQueue.isEmpty)
-            resultLock.wait()
+            resultQueueNonEmpty.await()
+        } finally {
+          resultLock.unlock()
         }
 
         taskLock.synchronized {
           var result: PendingResult = null
-          resultLock.synchronized {
+          resultLock.lock()
+          try{
             if (resultQueue.isEmpty)
               return
             result = resultQueue.removeFirst()
+          } finally {
+            resultLock.unlock()
           }
           if (result == null)
             return
@@ -269,7 +349,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           // Do we want to do the same here?
           result match {
             case OutputItem(record) => output.collect(record.asRecord())
-            case OutputSeparatorItem() => pendingCount -= 1
+            case OutputSeparatorItem(size) => pendingCount -= size
             case WatermarkItem(mark) =>
               output.emitWatermark(mark)
               pendingCount = -1
@@ -380,12 +460,13 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       var gotSnapshot = false
       val results = new ArrayBuffer[PendingResult]()
 
-      resultLock.synchronized {
+      resultLock.lock()
+      try{
         for (result: PendingResult <- resultQueue.asScala) {
           gotSnapshot = false
           result match {
             case OutputItem(_) => results += result
-            case OutputSeparatorItem() => results += result
+            case OutputSeparatorItem(_) => results += result
             case WatermarkItem(_) => results += result
             case LatencyMarkerItem(_) => results += result
             case SnapshotResultItem(states) =>
@@ -394,6 +475,8 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
             case ShutdownItem() => throw new Exception("Unexpected shutdown of process while taking snapshot.")
           }
         }
+      } finally {
+        resultLock.unlock()
       }
       assert(gotSnapshot)
       resultState.add(results.toArray)

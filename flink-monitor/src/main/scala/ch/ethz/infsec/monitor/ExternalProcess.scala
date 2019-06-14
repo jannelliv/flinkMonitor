@@ -25,6 +25,10 @@ trait ExternalProcess[+IN, OUT] extends Serializable {
   def join(): Unit
 
   def dispose(): Unit
+
+  val SYNC_BARRIER_IN:IN
+  val SYNC_BARRIER_OUT:OUT=>Boolean
+
 }
 
 trait ExternalProcessFactory[IN, +PIN, POUT, OUT] extends Serializable{

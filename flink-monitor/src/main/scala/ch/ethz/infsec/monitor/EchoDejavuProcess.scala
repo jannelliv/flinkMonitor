@@ -6,7 +6,7 @@ import ch.ethz.infsec.trace.{KeyedDejavuPrinter, KeyedMonpolyPrinter, Record}
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
-class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[DejavuRequest, String] {
+class EchoDejavuProcess(override val command: Seq[String]) extends DejavuProcess(command) {
   override def open(): Unit = open(command)
 
   override def open(initialState: Array[Byte]): Unit = open()
@@ -31,17 +31,18 @@ class EchoProcess(val command: Seq[String]) extends AbstractExternalProcess[Deja
 
   override def readSnapshot(): Array[Byte] = Array.emptyByteArray
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = ListSet.empty
+
 }
 
 //object EchoProcess{
 //  def apply(cmd:Seq[String]):ExternalProcess[MonitorRequest,String] = new EchoProcess(cmd).asInstanceOf[ExternalProcess[MonitorRequest,String]]
 //}
 
-class EchoProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
+class EchoDejavuProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
   override protected def createPre[MonpolyRequest >: MonitorRequest](): Processor[(Int, Record), MonitorRequest] = new KeyedDejavuPrinter[Int]
-  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoProcess(cmd)
+  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoDejavuProcess(cmd)
   override protected def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
 }
-object EchoProcessFactory{
-  def apply(cmd: Seq[String]): EchoProcessFactory = new EchoProcessFactory(cmd)
+object EchoDejavuProcessFactory{
+  def apply(cmd: Seq[String]): EchoDejavuProcessFactory = new EchoDejavuProcessFactory(cmd)
 }

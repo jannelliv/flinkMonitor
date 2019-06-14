@@ -32,7 +32,8 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
   override def initSnapshot(slicer: String): Unit = throw new UnsupportedOperationException
 
   override def readResults(buffer: mutable.Buffer[String]): Unit = {
-    readResultsUntil(buffer, s => s.startsWith(DejavuProcess.GET_INDEX_PREFIX))
+    val line = reader.readLine()
+    buffer += line
   }
 
   override def drainResults(buffer: mutable.Buffer[String]): Unit = {
@@ -56,11 +57,16 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
   override def readSnapshot(): Array[Byte] =  throw new UnsupportedOperationException
 
   override def readSnapshots(): Iterable[(Int, Array[Byte])] =  throw new UnsupportedOperationException
+
+  override val SYNC_BARRIER_IN: DejavuRequest = DejavuEventItem(DejavuProcess.SYNC)
+  override val SYNC_BARRIER_OUT: String => Boolean = _ == DejavuProcess.SYNC_OUT
 }
 
 object DejavuProcess {
   val VIOLATION_PREFIX = "**** Property violated on event number "
   val GET_INDEX_PREFIX = "**** Time point "
+  val SYNC = "SYNC!"
+  val SYNC_OUT = "**** " + SYNC
 }
 
 
