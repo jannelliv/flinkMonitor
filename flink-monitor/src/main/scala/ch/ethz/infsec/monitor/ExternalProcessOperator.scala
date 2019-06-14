@@ -261,6 +261,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
             while (true) {
               try {
                 process.readResults(buffer)
+                assert(buffer.size<=1)
                 if (buffer.size==1){
                   val result = buffer.head
                   if (!process.SYNC_BARRIER_OUT(result)) {
