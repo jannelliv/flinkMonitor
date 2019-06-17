@@ -14,6 +14,7 @@ class DataSlicerTest extends FunSuite with Matchers {
 
     override val formula: Formula = GenFormula.resolve(
       All("b", And(Pred("A", Var("b"), Var("x")), Pred("B", Var("y"), Var("b")))))
+    override val maxDegree = 4
     override val degree = 4
 
     override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]): Unit =

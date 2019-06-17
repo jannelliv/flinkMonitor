@@ -13,6 +13,9 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
   override type State = Array[Byte]
 
   val formula: Formula
+
+  // TODO(JS): Required for commands. Can be eliminated once elastic rescaling is implemented.
+  val maxDegree: Int
   val degree: Int
 
   var pendingSlicer: String = _
@@ -48,7 +51,8 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
 
     setSlicer(record)
 
-    while (i < degree) {
+    // Send commands to all slices, including unused ones.
+    while (i < maxDegree) {
       f((i, record))
       i += 1
     }
@@ -63,6 +67,8 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
     // The end of a timepoint is always broadcast to all slices.
     if (record.isEndMarker) {
       var i = 0
+      // Only send databases to slices that are in used.
+      // This is important for soundness if the verdict filtering is disabled!
       while (i < degree) {
         f((i, record))
         i += 1

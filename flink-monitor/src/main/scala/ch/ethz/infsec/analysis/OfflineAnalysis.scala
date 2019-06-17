@@ -105,6 +105,7 @@ object OfflineAnalysis {
               valuation: Array[Domain],
               slices: mutable.HashSet[Int]): Unit = slices += 0
 
+            override val maxDegree: Int = 1
             override val degree: Int = 1
             override val formula: Formula = monitoringFormula.get
 

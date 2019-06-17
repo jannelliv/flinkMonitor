@@ -286,6 +286,7 @@ object StreamMonitoring {
 
       // Parallel node
       // TODO(JS): Timeout? Capacity?
+      // TODO(JS): Set parallelism to slicer.degree once elastic rescaling is implemented.
       val verdicts = ExternalProcessOperator.transform[(Int, Record), MonitorRequest, String, String](
         slicer,
         slicedTrace,
