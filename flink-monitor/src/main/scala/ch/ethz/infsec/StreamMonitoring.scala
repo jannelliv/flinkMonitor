@@ -2,35 +2,30 @@ package ch.ethz.infsec
 
 import java.io._
 import java.lang.ProcessBuilder.Redirect
-import java.util.concurrent.{Callable, ExecutorService, Executors, TimeUnit}
+import java.util.concurrent.{Callable, Executors, TimeUnit}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.slicer.ColissionlessKeyGenerator
 import ch.ethz.infsec.tools.Rescaler
 import ch.ethz.infsec.tools.Rescaler.RescaleInitiator
-import ch.ethz.infsec.trace._
-import ch.ethz.infsec.analysis.TraceAnalysis
-import ch.ethz.infsec.policy.Policy
-import ch.ethz.infsec.tools.Rescaler
-import ch.ethz.infsec.trace.{CsvFormat, KeyedMonpolyPrinter, MonpolyFormat, MonpolyVerdictFilter, TraceMonitor}
+import ch.ethz.infsec.trace.{CsvFormat, MonpolyFormat, TraceMonitor, _}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.IdPartitioner
-import org.apache.flink.api.java.io.{TextInputFormat, TextOutputFormat}
+import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
 import org.apache.flink.core.fs.Path
-import org.apache.flink.runtime.state.StateBackend
 import org.apache.flink.streaming.api.TimeCharacteristic
-import org.apache.flink.streaming.api.functions.sink.{OutputFormatSinkFunction, PrintSinkFunction, SocketClientSink}
+import org.apache.flink.streaming.api.functions.sink.{PrintSinkFunction, SocketClientSink}
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
 import org.apache.flink.streaming.api.scala._
-import org.slf4j.LoggerFactory
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
+import org.slf4j.LoggerFactory
+import org.slf4j.helpers.MessageFormatter
 
-import scala.collection.{JavaConverters, mutable}
+import scala.collection.JavaConverters
 import scala.io.Source
 
 
@@ -78,6 +73,12 @@ object StreamMonitoring {
   }
   */
 
+  private def fail(message: String, values: Object*): Nothing = {
+    logger.error(message, values:_*)
+    System.err.println("Error: " + MessageFormatter.arrayFormat(message, values.toArray).getMessage)
+    sys.exit(1)
+  }
+
   def parseArgs(ss: String): Option[Either[(String, Int), String]] = {
     try {
       if (ss.isEmpty) None
@@ -108,9 +109,7 @@ object StreamMonitoring {
       case "monpoly" => MonpolyFormat
       case "csv" => CsvFormat
       case "dejavu" => DejavuFormat
-      case format =>
-        logger.error("Unknown trace format " + format)
-        sys.exit(1)
+      case format => fail("Unknown trace format " + format)
     }
 
     watchInput = params.getBoolean("watch", false)
@@ -128,9 +127,7 @@ object StreamMonitoring {
     formulaFile = params.get("formula")
     val formulaSource = Source.fromFile(formulaFile).mkString
     formula = Policy.read(formulaSource) match {
-      case Left(err) =>
-        logger.error("Cannot parse the formula: " + err)
-        sys.exit(1)
+      case Left(err) => fail("Cannot parse the formula: " + err)
       case Right(phi) => phi
     }
 
@@ -152,7 +149,7 @@ object StreamMonitoring {
     else {
       init(params)
 
-      if (formula.freeVariables.isEmpty) { logger.error("Closed formula cannot be sliced"); sys.exit(1) }
+      if (formula.freeVariables.isEmpty) { fail("Closed formula cannot be sliced") }
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
 
@@ -175,8 +172,7 @@ object StreamMonitoring {
         }
         case DEJAVU_CMD => {
           if (slicer.requiresFilter) {
-            logger.error("Formulas containing equality or duplicate predicate names cannot be used with DejaVu")
-            sys.exit(1)
+            fail("Formulas containing equality or duplicate predicate names cannot be used with DejaVu")
           }
 
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
@@ -205,20 +201,16 @@ object StreamMonitoring {
             DejavuProcessFactory(runArgs)
           } catch {
             case e : Exception => {
-              logger.error("Dejavu monitor compilation failed: \n")
-              logger.error(e.getMessage)
-              sys.exit(1)
+              fail("Dejavu monitor compilation failed: {}", e.getMessage)
             }
           }
         }
         case CUSTOM_CMD => {
           if (command.isEmpty) {
-            logger.error("Custom monitor must have a --command argument")
-            sys.exit(1)
+            fail("Custom monitor must have a --command argument")
           }
           logger.info("Monitor command: {}", command.mkString(" "))
           new ExternalProcessFactory[(Int,Record),IndexedRecord,String,String] {
-            import fastparse.all._
             override protected def createPre[UIN >: IndexedRecord](): Processor[(Int, Record), UIN] = new StatelessProcessor[(Int, Record),IndexedRecord] {
               override def process(in: (Int, Record), f: IndexedRecord => Unit): Unit = f(new IndexedRecord(in))
               override def terminate(f: IndexedRecord => Unit): Unit = ()
@@ -233,11 +225,7 @@ object StreamMonitoring {
             override protected def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
           }
         }
-        case c@_ => {
-          logger.error("Cannot parse the monitor command: " + c)
-          sys.exit(1)
-        }
-
+        case c@_ => fail("Cannot parse the monitor command: {}", c)
       }
 
       val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
@@ -274,7 +262,7 @@ object StreamMonitoring {
               .uid("file-watch-source")
           else
             env.readTextFile(f).name("file-source").uid("File source")
-        case _ => logger.error("Cannot parse the input argument"); sys.exit(1)
+        case _ => fail("Cannot parse the input argument")
       }
 
       val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), new RescaleInitiator().rescale)))
