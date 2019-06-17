@@ -6,7 +6,7 @@ import ch.ethz.infsec.monitor.Domain
 // This is explicitly not a case class, such that each instance represent a fresh variable name.
 class VariableID(val nameHint: String, val freeID: Int = -1) extends Serializable {
   def isFree: Boolean = freeID >= 0
-  override def toString: String = if (isFree) s"$nameHint$freeID" else "<bound>"
+  override def toString: String = if (isFree) s"$nameHint$freeID" else s"${nameHint}bound"
 }
 
 trait VariableMapper[V, W] {

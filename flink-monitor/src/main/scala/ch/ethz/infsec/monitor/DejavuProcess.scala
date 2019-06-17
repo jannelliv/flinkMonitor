@@ -18,6 +18,8 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
 
   override def writeRequest[SubRequest >: DejavuRequest](req: SubRequest): Unit = {
     val r = req.asInstanceOf[DejavuRequest]
+
+
     r match {
       case DejavuCommandItem(cmd) => ()
       case DejavuEventItem(ev) => {
@@ -65,8 +67,8 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
 object DejavuProcess {
   val VIOLATION_PREFIX = "**** Property violated on event number "
   val GET_INDEX_PREFIX = "**** Time point "
-  val SYNC = "SYNC!"
-  val SYNC_OUT = "**** " + SYNC
+  val SYNC = "SYNC!\n"
+  val SYNC_OUT = "**** SYNC!"
 }
 
 

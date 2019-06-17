@@ -195,7 +195,7 @@ object StreamMonitoring {
             val executor = Executors.newFixedThreadPool(1)
             val monitorLocation = executor.submit(readerThread).get(20, TimeUnit.SECONDS)
             executor.shutdown()
-            val runArgs = monitorArgs ++ List("run", monitorLocation, "20", "print")
+            val runArgs = monitorArgs ++ List("run", monitorLocation, "20")
             logger.info("Monitor command: {}", runArgs.mkString(" "))
             DejavuProcessFactory(runArgs)
           } catch {
@@ -252,7 +252,7 @@ object StreamMonitoring {
       // Performance tuning
       env.getConfig.enableObjectReuse()
 
-      env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
+      //env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
       env.setMaxParallelism(1)
       env.setParallelism(1)
 
