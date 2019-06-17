@@ -142,5 +142,7 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
 //    })
 //  }
 
+  def requiresFilter: Boolean
+
   def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean
 }

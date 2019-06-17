@@ -79,6 +79,7 @@ object Interval {
 
 sealed trait GenFormula[V] extends Serializable {
   def atoms: Set[Pred[V]]
+  def atomsInOrder: Seq[Pred[V]]
   def freeVariables: Set[V]
   def freeVariablesInOrder: Seq[V]
   def map[W](mapper: VariableMapper[V, W]): GenFormula[W]
@@ -100,6 +101,7 @@ sealed trait GenFormula[V] extends Serializable {
 
 case class True[V]() extends GenFormula[V] {
   override val atoms: Set[Pred[V]] = Set.empty
+  override val atomsInOrder: Seq[Pred[V]] = Seq.empty
   override val freeVariables: Set[V] = Set.empty
   override val freeVariablesInOrder: Seq[V] = Seq.empty
   override def map[W](mapper: VariableMapper[V, W]): True[W] = True()
@@ -110,6 +112,7 @@ case class True[V]() extends GenFormula[V] {
 
 case class False[V]() extends GenFormula[V] {
   override val atoms: Set[Pred[V]] = Set.empty
+  override val atomsInOrder: Seq[Pred[V]] = Seq.empty
   override val freeVariables: Set[V] = Set.empty
   override val freeVariablesInOrder: Seq[V] = Seq.empty
   override def map[W](mapper: VariableMapper[V, W]): False[W] = False()
@@ -120,6 +123,7 @@ case class False[V]() extends GenFormula[V] {
 
 case class Pred[V](relation: String, args: Term[V]*) extends GenFormula[V] {
   override val atoms: Set[Pred[V]] = Set(this)
+  override val atomsInOrder: Seq[Pred[V]] = Seq(this)
   override lazy val freeVariables: Set[V] = args.flatMap(_.freeVariables).toSet
   override lazy val freeVariablesInOrder: Seq[V] = args.flatMap(_.freeVariables)
   override def map[W](mapper: VariableMapper[V, W]): Pred[W] = Pred(relation, args.map(_.map(mapper)):_*)
@@ -130,6 +134,7 @@ case class Pred[V](relation: String, args: Term[V]*) extends GenFormula[V] {
 
 case class Not[V](arg: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg.atomsInOrder
   override lazy val freeVariables: Set[V] = arg.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Not[W] = Not(arg.map(mapper))
@@ -140,6 +145,7 @@ case class Not[V](arg: GenFormula[V]) extends GenFormula[V] {
 
 case class And[V](arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg1.atoms ++ arg2.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg1.atomsInOrder ++ arg2.atomsInOrder
   override lazy val freeVariables: Set[V] = arg1.freeVariables ++ arg2.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg1.freeVariablesInOrder ++ arg2.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): And[W] = And(arg1.map(mapper), arg2.map(mapper))
@@ -150,6 +156,7 @@ case class And[V](arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V
 
 case class Or[V](arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg1.atoms ++ arg2.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg1.atomsInOrder ++ arg2.atomsInOrder
   override lazy val freeVariables: Set[V] = arg1.freeVariables ++ arg2.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg1.freeVariablesInOrder ++ arg2.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Or[W] = Or(arg1.map(mapper), arg2.map(mapper))
@@ -160,6 +167,7 @@ case class Or[V](arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V]
 
 case class All[V](variable: V, arg: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg.atomsInOrder
   override lazy val freeVariables: Set[V] = arg.freeVariables - variable
   override lazy val freeVariablesInOrder: Seq[V] = arg.freeVariablesInOrder.filter(_ != variable)
 
@@ -176,6 +184,7 @@ case class All[V](variable: V, arg: GenFormula[V]) extends GenFormula[V] {
 
 case class Ex[V](variable: V, arg: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg.atomsInOrder
   override lazy val freeVariables: Set[V] = arg.freeVariables - variable
   override lazy val freeVariablesInOrder: Seq[V] = arg.freeVariablesInOrder.filter(_ != variable)
 
@@ -192,6 +201,7 @@ case class Ex[V](variable: V, arg: GenFormula[V]) extends GenFormula[V] {
 
 case class Prev[V](interval: Interval, arg: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg.atomsInOrder
   override lazy val freeVariables: Set[V] = arg.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Prev[W] = Prev(interval, arg.map(mapper))
@@ -202,6 +212,7 @@ case class Prev[V](interval: Interval, arg: GenFormula[V]) extends GenFormula[V]
 
 case class Next[V](interval: Interval, arg: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg.atomsInOrder
   override lazy val freeVariables: Set[V] = arg.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Next[W] = Next(interval, arg.map(mapper))
@@ -212,6 +223,7 @@ case class Next[V](interval: Interval, arg: GenFormula[V]) extends GenFormula[V]
 
 case class Since[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg1.atoms ++ arg2.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg1.atomsInOrder ++ arg2.atomsInOrder
   override lazy val freeVariables: Set[V] = arg1.freeVariables ++ arg2.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg1.freeVariablesInOrder ++ arg2.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Since[W] = Since(interval, arg1.map(mapper), arg2.map(mapper))
@@ -222,6 +234,7 @@ case class Since[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]
 
 case class Trigger[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg1.atoms ++ arg2.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg1.atomsInOrder ++ arg2.atomsInOrder
   override lazy val freeVariables: Set[V] = arg1.freeVariables ++ arg2.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg1.freeVariablesInOrder ++ arg2.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Trigger[W] = Trigger(interval, arg1.map(mapper), arg2.map(mapper))
@@ -232,6 +245,7 @@ case class Trigger[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[
 
 case class Until[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg1.atoms ++ arg2.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg1.atomsInOrder ++ arg2.atomsInOrder
   override lazy val freeVariables: Set[V] = arg1.freeVariables ++ arg2.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg1.freeVariablesInOrder ++ arg2.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Until[W] = Until(interval, arg1.map(mapper), arg2.map(mapper))
@@ -242,6 +256,7 @@ case class Until[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]
 
 case class Release[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg1.atoms ++ arg2.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg1.atomsInOrder ++ arg2.atomsInOrder
   override lazy val freeVariables: Set[V] = arg1.freeVariables ++ arg2.freeVariables
   override lazy val freeVariablesInOrder: Seq[V] = arg1.freeVariablesInOrder ++ arg2.freeVariablesInOrder
   override def map[W](mapper: VariableMapper[V, W]): Release[W] = Release(interval, arg1.map(mapper), arg2.map(mapper))

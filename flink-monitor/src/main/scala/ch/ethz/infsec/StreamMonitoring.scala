@@ -174,6 +174,11 @@ object StreamMonitoring {
           EchoMonpolyProcessFactory(monitorArgs)
         }
         case DEJAVU_CMD => {
+          if (slicer.requiresFilter) {
+            logger.error("Formulas containing equality or duplicate predicate names cannot be used with DejaVu")
+            sys.exit(1)
+          }
+
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           val dejavuFormulaFile = formulaFile+".qtl"
           val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile,false))

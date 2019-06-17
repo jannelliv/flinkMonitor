@@ -284,40 +284,58 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
   }
 
   test("Compare optimized shares for power of 2 old implementation") {
-      val formula1 = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
-        Pred("r", Var("z"), Var("x")))))
+    val formula1 = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
+      Pred("r", Var("z"), Var("x")))))
 
-      val statistics1 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
-      val slicer1 = HypercubeSlicer.optimize(formula1, 16, statistics1)
-      val reference1 = optimizeSingleSetPowerOf2(formula1, 4, statistics1, Set(0, 1, 2))
-      slicer1.shares(0) should contain theSameElementsInOrderAs reference1
+    val statistics1 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+    val slicer1 = HypercubeSlicer.optimize(formula1, 16, statistics1)
+    val reference1 = optimizeSingleSetPowerOf2(formula1, 4, statistics1, Set(0, 1, 2))
+    slicer1.shares(0) should contain theSameElementsInOrderAs reference1
 
-      val statistics2 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
-      val slicer2 = HypercubeSlicer.optimize(formula1, 1024, statistics2)
-      val reference2 = optimizeSingleSetPowerOf2(formula1, 10, statistics2, Set(0, 1, 2))
-      slicer2.shares(0) should contain theSameElementsInOrderAs reference2
+    val statistics2 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+    val slicer2 = HypercubeSlicer.optimize(formula1, 1024, statistics2)
+    val reference2 = optimizeSingleSetPowerOf2(formula1, 10, statistics2, Set(0, 1, 2))
+    slicer2.shares(0) should contain theSameElementsInOrderAs reference2
 
-      val statistics3 = Statistics.simple("p" -> 1000, "q" -> 1, "r" -> 1)
-      val slicer3 = HypercubeSlicer.optimize(formula1, 1024, statistics3)
-      val reference3 = optimizeSingleSetPowerOf2(formula1, 10, statistics3, Set(0, 1, 2))
-      slicer3.shares(0) should contain theSameElementsInOrderAs reference3
+    val statistics3 = Statistics.simple("p" -> 1000, "q" -> 1, "r" -> 1)
+    val slicer3 = HypercubeSlicer.optimize(formula1, 1024, statistics3)
+    val reference3 = optimizeSingleSetPowerOf2(formula1, 10, statistics3, Set(0, 1, 2))
+    slicer3.shares(0) should contain theSameElementsInOrderAs reference3
 
-      val formula2 = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
-        Pred("r", Var("z"), Var("a")))))
+    val formula2 = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
+      Pred("r", Var("z"), Var("a")))))
 
-      val statistics4 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
-      val slicer4 = HypercubeSlicer.optimize(formula2, 16, statistics4)
-      val reference4 = optimizeSingleSetPowerOf2(formula2, 4, statistics4, Set(0, 1, 2, 3))
-      slicer4.shares(0) should contain theSameElementsInOrderAs reference4
+    val statistics4 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+    val slicer4 = HypercubeSlicer.optimize(formula2, 16, statistics4)
+    val reference4 = optimizeSingleSetPowerOf2(formula2, 4, statistics4, Set(0, 1, 2, 3))
+    slicer4.shares(0) should contain theSameElementsInOrderAs reference4
 
-      val statistics5 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
-      val slicer5 = HypercubeSlicer.optimize(formula2, 1024, statistics5)
-      val reference5 = optimizeSingleSetPowerOf2(formula2, 10, statistics5, Set(0, 1, 2, 3))
-      slicer5.shares(0) should contain theSameElementsInOrderAs reference5
+    val statistics5 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
+    val slicer5 = HypercubeSlicer.optimize(formula2, 1024, statistics5)
+    val reference5 = optimizeSingleSetPowerOf2(formula2, 10, statistics5, Set(0, 1, 2, 3))
+    slicer5.shares(0) should contain theSameElementsInOrderAs reference5
 
-      val statistics6 = Statistics.simple("p" -> 1000, "q" -> 1, "r" -> 1)
-      val slicer6 = HypercubeSlicer.optimize(formula2, 1024, statistics6)
-      val reference6 = optimizeSingleSetPowerOf2(formula2, 10, statistics6, Set(0, 1, 2, 3))
-      slicer6.shares(0) should contain theSameElementsInOrderAs reference6
+    val statistics6 = Statistics.simple("p" -> 1000, "q" -> 1, "r" -> 1)
+    val slicer6 = HypercubeSlicer.optimize(formula2, 1024, statistics6)
+    val reference6 = optimizeSingleSetPowerOf2(formula2, 10, statistics6, Set(0, 1, 2, 3))
+    slicer6.shares(0) should contain theSameElementsInOrderAs reference6
+  }
+
+  test("Verdicts must be filtered if two different atoms refer to the same predicate") {
+    val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("p", Var("y"))))
+    val slicer = HypercubeSlicer.optimize(formula, 16, Statistics.simple("p" -> 1))
+    slicer.requiresFilter shouldBe true
+  }
+
+  test("Verdicts must be filtered if a variable is compared to a constant") {
+    val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("__eq", Const(IntegralValue(1)), Var("x"))))
+    val slicer = HypercubeSlicer.optimize(formula, 16, Statistics.simple("p" -> 1))
+    slicer.requiresFilter shouldBe true
+  }
+
+  test("Verdict filtering may be skipped") {
+    val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("y"))))
+    val slicer = HypercubeSlicer.optimize(formula, 16, Statistics.simple("p" -> 1, "q" -> 1))
+    slicer.requiresFilter shouldBe false
   }
 }

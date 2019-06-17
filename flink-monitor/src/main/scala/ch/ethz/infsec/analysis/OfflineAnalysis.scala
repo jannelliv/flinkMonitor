@@ -113,6 +113,8 @@ object OfflineAnalysis {
 
             override def restoreState(state: Option[Array[Byte]]): Unit = {}
 
+            override val requiresFilter: Boolean = false
+
             override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
           }
           eventStream.flatMap(new ProcessorFunction(dataSlicer)).map(_._2)

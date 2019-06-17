@@ -28,6 +28,8 @@ class DataSlicerTest extends FunSuite with Matchers {
 
     override def restoreState(state: Option[Array[Byte]]): Unit = {}
 
+    override val requiresFilter: Boolean = false
+
     override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
   }
 
