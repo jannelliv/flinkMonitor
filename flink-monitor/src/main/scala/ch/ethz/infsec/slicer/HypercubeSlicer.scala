@@ -14,6 +14,7 @@ class HypercubeSlicer(
                        val formula: Formula,
                        var heavy: IndexedSeq[(Int, Set[Domain])],
                        var shares: IndexedSeq[IndexedSeq[Int]],
+                       val maxDegree: Int,
                        val seed: Long = 1234) extends DataSlicer with Serializable {
   override type State = Array[Byte]
 
@@ -22,16 +23,15 @@ class HypercubeSlicer(
   // The number of variables with heavy hitters is limited to 30 because of the internal encoding
   // of variable sets as bit masks. A higher limit is probably unreasonable.
   require(heavy.count(x => x._1 >= 0) <= 30)
-  require(heavy.forall{case (k, _) => k < 30})
+  require(heavy.forall{case (k, h) => k < 30 && ((k < 0) == h.isEmpty)})
+  require({val bits = heavy.filter(x => x._1 >= 0).map(_._1); bits.size == bits.distinct.size})
   require(shares.length == (1 << heavy.count(x => x._1 >= 0)))
   require(shares.zipWithIndex.forall{case (s, _) => s.length == formula.freeVariables.size})
 
   val dimensions: Int = formula.freeVariables.size
 
-  override val degree: Int = {
-    val simpleShares = shares(0)
-    if (simpleShares.isEmpty) 1 else simpleShares.product
-  }
+  override val degree: Int = shares.map(s => if (s.isEmpty) 1 else s.product).max
+  require(degree <= maxDegree)
 
   private var seeds: Array[Array[Int]] = {
     val random = new Random(seed)
@@ -200,6 +200,12 @@ class HypercubeSlicer(
   }
 
   override def updateState(state: Array[Byte]): Unit = parseSlicer(state.map(_.toChar).mkString(""))
+
+  // TODO(JS): Relax restriction on rigid predicates.
+  override val requiresFilter: Boolean = {
+    val relations = formula.atomsInOrder.map(_.relation)
+    relations.size != relations.distinct.size || relations.exists(HypercubeSlicer.isRigidRelation)
+  }
 }
 
 object HypercubeSlicer {
@@ -210,7 +216,7 @@ object HypercubeSlicer {
     val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])}
     val sharesById: Map[Int, Int] = shares.map { case (v, e) => (v.freeID, e) }.withDefaultValue(1)
     val simpleShares = Array.tabulate(formula.freeVariables.size)(sharesById(_))
-    new HypercubeSlicer(formula, heavy, Array[IndexedSeq[Int]](simpleShares))
+    new HypercubeSlicer(formula, heavy, Array[IndexedSeq[Int]](simpleShares), shares.values.product)
   }
 
   def optimizeSingleSet(
@@ -284,7 +290,7 @@ object HypercubeSlicer {
       optimizeSingleSet(formula, degree, statistics, activeVariables)
     })
 
-    val slicer = new HypercubeSlicer(formula, heavy, shares)
+    val slicer = new HypercubeSlicer(formula, heavy, shares, degree)
     //println(slicer.stringify())
     slicer
   }
