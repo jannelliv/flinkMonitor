@@ -539,8 +539,14 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       case _ => ()
     }
 
-    preprocessing.process(streamRecord.getValue, x =>
-      enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))))
+    // We do not send any commands to unused submonitors. In particular, we cannot use their state fragments
+    // because the state is not synchronized with the global progress. Ideally, we would not even create
+    // such submonitors.
+    // TODO(JS): Check the splitting/merging logic in the case of unused submonitors.
+    if (getRuntimeContext.getIndexOfThisSubtask < slicer.degree) {
+      preprocessing.process(streamRecord.getValue, x =>
+        enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))))
+    }
   }
 
   def failOperator(throwable: Throwable): Unit = {

@@ -16,7 +16,7 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
 
   // TODO(JS): Required for commands. Can be eliminated once elastic rescaling is implemented.
   val maxDegree: Int
-  val degree: Int
+  def degree: Int
 
   var pendingSlicer: String = _
 

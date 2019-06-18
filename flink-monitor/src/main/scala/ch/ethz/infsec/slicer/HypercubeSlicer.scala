@@ -30,7 +30,10 @@ class HypercubeSlicer(
 
   val dimensions: Int = formula.freeVariables.size
 
-  override val degree: Int = shares.map(s => if (s.isEmpty) 1 else s.product).max
+  private def calcDegree: Int = shares.map(s => if (s.isEmpty) 1 else s.product).max
+
+  private var _degree: Int = calcDegree
+  override def degree: Int = _degree
   require(degree <= maxDegree)
 
   private var seeds: Array[Array[Int]] = {
@@ -197,6 +200,7 @@ class HypercubeSlicer(
     shares = res._2
     seeds = res._3
     strides = calcStrides
+    _degree = calcDegree
   }
 
   override def updateState(state: Array[Byte]): Unit = parseSlicer(state.map(_.toChar).mkString(""))
