@@ -13,6 +13,7 @@ HEAVY_SETS_STATS="h1"
 PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 AUX_CPU_LIST="10-11,34-35"
 REPLAYER_QUEUE=2000
+FLINK_QUEUE=100000
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
@@ -74,7 +75,7 @@ for procs in $PROCESSORS; do
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                         rm -r "$VERDICT_FILE" 2> /dev/null
-                        "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly -command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                        "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly -command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
                     done
                 done
@@ -110,7 +111,7 @@ for procs in $PROCESSORS; do
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                         rm -r "$VERDICT_FILE" 2> /dev/null
-                        "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.3333,B=0.3333,C=0.3333" --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
+                        "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.3333,B=0.3333,C=0.3333" --heavy "$HEAVY_FILE" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
                     done
                 done

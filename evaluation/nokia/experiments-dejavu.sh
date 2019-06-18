@@ -10,6 +10,7 @@ PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 REPLAYER_QUEUE=2000
+FLINK_QUEUE=100000
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
@@ -123,7 +124,7 @@ for procs in $PROCESSORS; do
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.log" --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.log" --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
@@ -134,7 +135,7 @@ for procs in $PROCESSORS; do
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.dvu" --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.dvu" --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
@@ -149,7 +150,7 @@ for procs in $PROCESSORS; do
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
                     taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly-linear -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
@@ -162,7 +163,7 @@ for procs in $PROCESSORS; do
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
                     taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f dejavu-linear -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
@@ -203,7 +204,7 @@ for procs in $PROCESSORS; do
                     HEAVY_FILE="$WORK_DIR/nokia/stats_nokia.txt"
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.log" --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.log" --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
@@ -215,7 +216,7 @@ for procs in $PROCESSORS; do
                     HEAVY_FILE="$WORK_DIR/nokia/stats_nokia.txt"
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.dvu" --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample_linear.dvu" --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
@@ -231,7 +232,7 @@ for procs in $PROCESSORS; do
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
                     taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly-linear -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format monpoly --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -negate" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
@@ -245,7 +246,7 @@ for procs in $PROCESSORS; do
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
                     taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f dejavu-linear -t 1000 -o localhost:$STREAM_PORT "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT" &
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format dejavu --out "$VERDICT_FILE" --monitor dejavu --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $DEJAVU_EXE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --heavy "$HEAVY_FILE" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                     wait
 
 
