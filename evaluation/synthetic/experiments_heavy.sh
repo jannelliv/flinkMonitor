@@ -6,7 +6,7 @@ source "$WORK_DIR/config.sh"
 REPETITIONS=3
 FORMULAS="star-neg linear-neg triangle-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
-EVENT_RATES="2000 4000 8000"
+EVENT_RATES="1000 2000 4000"
 INDEX_RATES="1000"
 HEAVY_SETS_NO_STATS="h0 h1"
 HEAVY_SETS_STATS="h1"
@@ -27,7 +27,7 @@ make_log() {
 
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 60 > "$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 30 > "$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
         done
     done
 }

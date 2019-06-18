@@ -8,7 +8,7 @@ FORMULAS="star-past-ltl-neg linear-past-ltl-neg triangle-past-ltl-neg"
 #TODO: remember to change dejavu formulas for standalone (to remove the negation)
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 NEGATE_DEJAVU="--negate true" # if formulas above are suffixed with -neg this should be "--negate true", otherwise ""
-EVENT_RATES="2000 4000 8000"
+EVENT_RATES="1000 2000 4000"
 ACCELERATIONS="0"
 #INDEX_RATES="1 1000" #do not exist for dejavu
 PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
@@ -25,8 +25,10 @@ make_log() {
     flag=$1
     formula=$2
     for er in $EVENT_RATES; do
-        "$WORK_DIR/generator.sh" $flag -e $er -i $er -w 10 -pA 0.01 -pB 0.495 60 > "$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+        "$WORK_DIR/generator.sh" $flag -e $er -i $er -w 10 -pA 0.01 -pB 0.495 30 > "$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+
         "$WORK_DIR/replayer.sh" -a 0 -q $REPLAYER_QUEUE -i csv -f monpoly-linear "$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv" > "$OUTPUT_DIR/gen_${formula}_${er}_${er}.log"
+
         "$WORK_DIR/replayer.sh" -a 0 -q $REPLAYER_QUEUE -i csv -f dejavu-linear "$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv" > "$OUTPUT_DIR/gen_${formula}_${er}_${er}.dvu"
     done
 }
