@@ -244,7 +244,7 @@ object HypercubeSlicer {
       if (remainingVars >= 1) {
         val variable = remainingVars - 1
         val maxShare = if (activeVariables contains variable) remainingShares else 1
-        for (p <- 1 to maxShare if remainingShares % p == 0)
+        for (p <- 1 to maxShare)
           search(remainingVars - 1, remainingShares / p, p :: shares)
       } else {
         // TODO(JS): This cost function does not consider constant constraints nor non-linear atoms.

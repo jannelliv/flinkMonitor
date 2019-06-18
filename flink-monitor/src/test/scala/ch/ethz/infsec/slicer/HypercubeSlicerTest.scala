@@ -140,28 +140,15 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     slicer.shares(0) should contain theSameElementsInOrderAs List(1)
   }
 
-  test("Odd degrees are admissible") {
-    val formula = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
-      Pred("r", Var("z"), Var("x")))))
-    val slicer = HypercubeSlicer.optimize(formula, 20,
-      Statistics.simple("p" -> 1.0, "q" -> 1.0, "r" -> 1.0))
-    slicer.degree shouldBe 20
-    slicer.shares should have length 1
-    slicer.shares(0) should contain theSameElementsAs List(2, 2, 5)
-  }
-
-  // NOTE(JS): Not yet implemented.
-  /*
   test("Less slices than the given degree may be used") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x"), Var("y")), And(Pred("q", Var("y"), Var("z")),
       Pred("r", Var("z"), Var("x")))))
     val slicer = HypercubeSlicer.optimize(formula, 65,
       Statistics.simple("p" -> 1.0, "q" -> 1.0, "r" -> 1.0))
-    //slicer.degree shouldBe 64
+    slicer.degree shouldBe 64
     slicer.shares should have length 1
     slicer.shares(0) should contain theSameElementsAs List(4, 4, 4)
   }
-  */
 
   test("Optimal shares with symmetric conditions are symmetric") {
     val formula1 = GenFormula.resolve(
@@ -293,8 +280,8 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     slicer1.shares(0) should contain theSameElementsInOrderAs reference1
 
     val statistics2 = Statistics.simple("p" -> 1, "q" -> 1, "r" -> 1)
-    val slicer2 = HypercubeSlicer.optimize(formula1, 1024, statistics2)
-    val reference2 = optimizeSingleSetPowerOf2(formula1, 10, statistics2, Set(0, 1, 2))
+    val slicer2 = HypercubeSlicer.optimize(formula1, 512, statistics2)
+    val reference2 = optimizeSingleSetPowerOf2(formula1, 9, statistics2, Set(0, 1, 2))
     slicer2.shares(0) should contain theSameElementsInOrderAs reference2
 
     val statistics3 = Statistics.simple("p" -> 1000, "q" -> 1, "r" -> 1)
