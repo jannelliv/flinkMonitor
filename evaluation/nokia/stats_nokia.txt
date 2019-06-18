@@ -9,7 +9,6 @@ insert,0,"triggers"
 insert,0,"script"
 insert,1,"db2"
 insert,1,"db3"
-insert,2,6
 insert,2,3
 insert,2,2
 insert,2,1
