@@ -1,1 +1,1 @@
-prop fma: ! (Forall d3. (Forall c2. (Forall b1. (Forall a0. ((P  ((P  (A(a0, b1))) & (B(b1, c2)))) & (C(c2, d3)))))))
+prop fma: ! (Exists d3. (Exists c2. (Exists b1. (Exists a0. ((P  ((P  (A(a0, b1))) & (B(b1, c2)))) & (C(c2, d3)))))))
