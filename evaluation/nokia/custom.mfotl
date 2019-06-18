@@ -1,2 +1,2 @@
-EXISTS x1, db1. select(x1, db1, y1, data)
-  AND (ONCE [0,*) EXISTS x2, db2. insert(x2, db2, y2, data))
+FORALL x1, db1. select(x1, db1, y1, data)
+  IMPLIES NOT (ONCE [0,*) EXISTS x2, db2. insert(x2, db2, y2, data))

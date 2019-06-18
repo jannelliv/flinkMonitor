@@ -1,1 +1,1 @@
-prop fma: ! (Forall data0. (Forall y22. (Forall y11. (Exists x1bound. (Exists db1bound. ((select(x1bound, db1bound, y11, data0)) & (P  (Exists x2bound. (Exists db2bound. (insert(x2bound, db2bound, y22, data0)))))))))))
+prop fma: ! (Exists data0. (Exists y22. (Exists y11. (Exists x1bound. (Exists db1bound. ((select(x1bound, db1bound, y11, data0)) & (P  (Exists x2bound. (Exists db2bound. (insert(x2bound, db2bound, y22, data0)))))))))))
