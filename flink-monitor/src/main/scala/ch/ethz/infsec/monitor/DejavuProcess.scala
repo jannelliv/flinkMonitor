@@ -24,7 +24,8 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
       case DejavuCommandItem(cmd) => ()
       case DejavuEventItem(ev) => {
         writer.write(ev)
-        writer.flush()
+        if (ev==DejavuProcess.SYNC)
+          writer.flush()
       }
     }
   }

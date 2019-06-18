@@ -5,7 +5,7 @@
 #
 # To use, call (after making executable with: chmod +x dejavu) as follows:
 #
-#   dejavu < compile <specFile> | run <monitorLocation> [<bitsPerVariable> [debug | print]] >
+#   dejavu < compile <specFile> | run <monitorLocation> [<bitsPerVariable> [debug | print]] | clean >
 
 CMD=$1
 

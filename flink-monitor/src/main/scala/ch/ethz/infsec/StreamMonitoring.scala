@@ -196,7 +196,7 @@ object StreamMonitoring {
             val executor = Executors.newFixedThreadPool(1)
             val monitorLocation = executor.submit(readerThread).get(20, TimeUnit.SECONDS)
             executor.shutdown()
-            val runArgs = monitorArgs ++ List("run", monitorLocation, "20")
+            val runArgs = monitorArgs ++ List("run", monitorLocation, "25")
             logger.info("Monitor command: {}", runArgs.mkString(" "))
             DejavuProcessFactory(runArgs)
           } catch {
