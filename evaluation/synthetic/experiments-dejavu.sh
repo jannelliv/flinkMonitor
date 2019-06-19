@@ -85,13 +85,15 @@ for formula in $FORMULAS; do
             for i in $(seq 1 $REPETITIONS); do
                 echo "      Repetition $i ..."
 
+                fma=$("$DEJAVU_EXE" "compile" "$WORK_DIR/synthetic/$formula.mfotl.neg.qtl")
+
                 if [[ "$acc" = "0" ]]; then
 
                     INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.dvu"
                     TIME_REPORT="$REPORT_DIR/genCMP_dejavu_${formula}_${er}_${er}_${acc}_${i}_time.txt"
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
-                    cat "$INPUT_FILE" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "$WORK_DIR/synthetic/$formula.mfotl.neg.qtl" 20 "print" > "$VERDICT_FILE"
+                    cat "$INPUT_FILE" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "run" "$fma" 25 > "$VERDICT_FILE"
 
                 else
 
@@ -101,7 +103,7 @@ for formula in $FORMULAS; do
 
                     rm -r "$VERDICT_FILE" 2> /dev/null
                     (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f dejavu-linear "$INPUT_FILE" 2> "$DELAY_REPORT") \
-                        | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "$WORK_DIR/synthetic/$formula.mfotl.neg.qtl" 20 "print" > "$VERDICT_FILE"
+                        | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "run" "$fma" 25 > "$VERDICT_FILE"
 
 
                 fi

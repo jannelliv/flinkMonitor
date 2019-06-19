@@ -5,7 +5,7 @@ source "$WORK_DIR/config.sh"
 
 REPETITIONS=3
 FORMULAS="custom"
-ACCELERATIONS="500 1000 1500 2000 2500 3000 3500 4000"
+ACCELERATIONS="500 1000 2000 3000 4000"
 PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
@@ -74,12 +74,14 @@ for formula in $FORMULAS; do
         for i in $(seq 1 $REPETITIONS); do
             echo "      Repetition $i ..."
 
+            fma=$("$DEJAVU_EXE" "compile" "$WORK_DIR/nokia/$formula.mfotl.neg.qtl")
+
             if [[ "$acc" = "0" ]]; then
 
                 TIME_REPORT="$REPORT_DIR/nokiaCMP_dejavu_${formula}_${acc}_0_${i}_time.txt"
 
                 rm -r "$VERDICT_FILE" 2> /dev/null
-                cat "$ROOT_DIR/ldcc_sample_linear.dvu" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "$WORK_DIR/nokia/$formula.mfotl.neg.qtl"  20 "print" > "$VERDICT_FILE"
+                cat "$ROOT_DIR/ldcc_sample_linear.dvu" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "run" "$fma" 25 > "$VERDICT_FILE"
 
             else
 
@@ -88,7 +90,7 @@ for formula in $FORMULAS; do
 
                 rm -r "$VERDICT_FILE" 2> /dev/null
                 (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f dejavu-linear "$ROOT_DIR/ldcc_sample.csv" 2> "$DELAY_REPORT") \
-                    | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "$WORK_DIR/nokia/$formula.mfotl.neg.qtl"  20 "print" > "$VERDICT_FILE"
+                    | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$DEJAVU_EXE" "run" "$fma" 25 > "$VERDICT_FILE"
 
             fi
 
