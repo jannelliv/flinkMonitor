@@ -155,6 +155,7 @@ mkdir -p checkpoints
 mkdir -p output
 mkdir -p reports
 mkdir -p logs
+mkdir -p state
 
 ###############################################################################
 

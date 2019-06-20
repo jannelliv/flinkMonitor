@@ -178,7 +178,7 @@ object StreamMonitoring {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           val dejavuFormulaFile = formulaFile+".qtl"
           val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile,false))
-          writer.write(formula.toQTLString(negate))
+          writer.write(formula.toQTLString(!negate))
           writer.close()
 
           //Compiling the monitor

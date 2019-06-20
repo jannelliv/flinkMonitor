@@ -3,7 +3,6 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-REPETITIONS=3
 FORMULAS="star-neg linear-neg triangle-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 EVENT_RATES="1000 2000 4000"

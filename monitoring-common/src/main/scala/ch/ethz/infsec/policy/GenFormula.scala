@@ -84,16 +84,17 @@ sealed trait GenFormula[V] extends Serializable {
   def freeVariablesInOrder: Seq[V]
   def map[W](mapper: VariableMapper[V, W]): GenFormula[W]
   def check: List[String]
-  def close: GenFormula[V] = {
-    val vars = freeVariables
-    closeFormula(this, vars.toList)
+  def close(neg:Boolean): GenFormula[V] = {
+    def closeFormula(fma:GenFormula[V],vars:List[V]):GenFormula[V] = vars match {
+      case Nil => fma
+      case v::vs => closeFormula(if (neg) Ex(v,fma) else All(v,fma) ,vs)
+    }
+    closeFormula(this, freeVariables.toList)
   }
-  private def closeFormula(fma:GenFormula[V],vars:List[V]):GenFormula[V] = vars match {
-    case Nil => fma
-    case v::vs => closeFormula(Ex(v,fma),vs)
-  }
+
   def toQTLString(neg:Boolean):String = {
-    val f = if (neg) Not(this.close) else this.close
+    val closed = this.close(neg)
+    val f = if (neg) Not(closed) else closed
     "prop fma: " + f.toQTL
   }
   def toQTL:String
