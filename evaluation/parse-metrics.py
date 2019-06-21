@@ -31,6 +31,7 @@ with open(sys.argv[1]+"_records.json") as f_record:
 
 job_map_record = {}
 
+
 for i in range(len(data_record['all'])):
     for j in range(len(data_record['all'][i]['data']['result'])):
         job = str(data_record['all'][i]['data']['result'][j]['metric']['job_name'])
@@ -153,6 +154,14 @@ def d2l(d):
     dictlist.sort(key=lambda x: x[0])
     return dictlist
 
+def l2d(l):
+    dict = {}
+    length = len(l)
+    for i in range(0, length):
+        key, value = l[i]
+        dict[key]=value
+    return dict
+
 for job in common_jobs:
     output_file = open("metrics_"+job+".csv", 'w')
     writer = csv.writer(output_file)
@@ -162,8 +171,9 @@ for job in common_jobs:
     index = 0
     #Gets lists from dicts
     peak_list = d2l(job_map_peak[job])
+    peak_map = l2d(peak_list)
     max_list  = recalculateMax(d2l(job_map_max[job]))
-    avg_list  = recalculateAverage(peak_list)
+    avg_map  = l2d(recalculateAverage(peak_list))
 
     job_record_dict = {}
 
@@ -173,35 +183,24 @@ for job in common_jobs:
     offset = {}
 
     for i in range(0,length):
-        skip=False
-        ts_p, peak = peak_list[i]
-        ts_m, max_n  = max_list[i]
-        ts_a, avg  = avg_list[i]
+        try:
+            ts, max_val = max_list[i]
+            peak_val = peak_map[ts]
+            avg_val = avg_map[ts]
 
-        #assert (ts_a == ts_m == ts_p), "latency timestamps are misaligned"
-        ts = max(ts_p,ts_m,ts_a)
-        r = [ts,peak,max_n,avg]
-        records = []
-        for m in range(ms):
-            try:
-                ts_r, rec = d2l(job_map_record[job][m])[i]
-                if not m in offset:
-                    offset[m] = 0
-                ts_r += offset[m]
+            r = [ts,peak_val,max_val,avg_val]
+            records = []
+            for m in range(ms):
+                rec = job_map_record[job][m][ts]
                 records = records + [rec]
-            except IndexError:
-                records = records + [0]
-                # number of samples misaligned
-                #print("Number of samples misaligned")
-                #print("Len: %d vs Len: %d" % (len(job_map_max[job]), len(d2l(job_map_record[job][m]))))
-                #print("Job: %s, m: %d, i: %d" % (job, m, i))
-        if skip:
+
+            sum_tp = sum(records)
+            r = r + [sum_tp] + records
+            writer.writerow(r)
+
+        except:
+            sys.stderr.write("TS mismatch on " + job + "with ts = " + str(ts) + "\n")
             continue
-        sum_tp = sum(records)
-        r = r + [sum_tp] + records
-        writer.writerow(r)
-    #except:
-    #    ()
     output_file.close()
 
 f_max.close()
