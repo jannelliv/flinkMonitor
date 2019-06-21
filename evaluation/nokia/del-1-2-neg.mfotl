@@ -1,1 +1,4 @@
-(((delete(x,"db1",y,data) AND NOT data = "[unknown]") AND NOT ONCE[0,108000) EXISTS u, v. insert(u,"db1",v,data)) OR ((delete(x,"db1",y,data) AND NOT data = "[unknown]") AND ((ONCE[0,108000) EXISTS u, v. insert(u,"db2",v,data)) OR EVENTUALLY[0,108000) EXISTS u, v. insert(u,"db2",v,data)))) AND NOT EVENTUALLY[0,108000) EXISTS u, v. delete(u,"db2",v,data)
+(((delete(x,"db1",y,data) AND NOT data = "[unknown]")
+AND (NOT (ONCE[0,108000) (EXISTS u, v. insert(u,"db1",v,data)))))
+OR ((delete(x,"db1",y,data) AND (NOT (data = "[unknown]"))) AND ((ONCE[0,108000) (EXISTS u, v. insert(u,"db2",v,data)))
+OR (EVENTUALLY[0,108000) (EXISTS u, v. insert(u,"db2",v,data)))))) AND (NOT (EVENTUALLY[0,108000) (EXISTS u, v. delete(u,"db2",v,data))))
