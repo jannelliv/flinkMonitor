@@ -9,10 +9,14 @@ insert,0,"triggers"
 insert,0,"script"
 insert,1,"db2"
 insert,1,"db3"
+insert,2,6
+insert,2,3
+insert,2,2
 insert,2,1
+insert,2,4
 insert,2,184
 insert,2,185
-insert,2,176
+insert,2,5
 update,0,"triggers"
 update,0,"script"
 update,1,"db2"
