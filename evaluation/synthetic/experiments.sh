@@ -5,14 +5,12 @@ source "$WORK_DIR/config.sh"
 
 FORMULAS="star-neg linear-neg triangle-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
-EVENT_RATES="1000 2000 3000 4000 5000"
+EVENT_RATES="10000 15000 20000 25000"
 ACCELERATIONS="0 1"
 INDEX_RATES="1 1000"
 PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
-REPLAYER_QUEUE=2000
-FLINK_QUEUE=100000
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
@@ -23,7 +21,7 @@ make_log() {
     formula=$2
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.01 -pB 0.495 30 > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.01 -pB 0.495 60 > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
             "$WORK_DIR/replayer.sh" -a 0 -q $REPLAYER_QUEUE -i csv -f monpoly "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv" > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.log"
         done
     done

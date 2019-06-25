@@ -11,8 +11,6 @@ HEAVY_SETS_NO_STATS="h0 h1"
 HEAVY_SETS_STATS="h1"
 PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 AUX_CPU_LIST="10-11,34-35"
-REPLAYER_QUEUE=2000
-FLINK_QUEUE=100000
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
@@ -106,7 +104,7 @@ for procs in $PROCESSORS; do
                         INPUT_FILE="$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
                         HEAVY_FILE="$OUTPUT_DIR/heavy_${numcpus}_${formula}_${heavy_set}.csv"
 
-                        JOB_NAME    ="genh_flink_monpoly_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_1_${i}"
+                        JOB_NAME="genh_flink_monpoly_ft_stats_${numcpus}_${formula}_${heavy_set}_${er}_${ir}_1_${i}"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
