@@ -1,10 +1,9 @@
 package ch.ethz.infsec.monitor
 
-import java.nio.file.{Files, Path}
 import java.io.File
+import java.nio.file.{Files, Path}
 
 import ch.ethz.infsec
-import ch.ethz.infsec.StatelessProcessor
 import ch.ethz.infsec.slicer.HypercubeSlicer
 import ch.ethz.infsec.trace.{KeyedMonpolyPrinter, MonpolyVerdictFilter, Record}
 import org.slf4j.LoggerFactory
@@ -12,7 +11,9 @@ import org.slf4j.LoggerFactory
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
-class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[MonpolyRequest, String] {
+class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[String])
+    extends AbstractExternalProcess[MonpolyRequest, String] {
+
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current timepoint: "
   private val SLICING_PREFIX = "Slicing "
@@ -37,23 +38,31 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 
   private val logger = LoggerFactory.getLogger(getClass)
 
+  private def openAndLoadState(path: String): Unit = {
+    val loadCommand = command ++ List("-load", path)
+    open(loadCommand)
+    val reply = reader.readLine()
+    if (reply != LOAD_STATE_OK)
+      throw new Exception("Monitor process failed to load state. Reply: " + reply)
+  }
 
   override def open(): Unit = {
     createTempFile()
-    open(command)
-    println("Opened Monpoly")
+    initialStateFile match {
+      case None =>
+        open(command)
+        println("Opened Monpoly")
+      case Some(path) =>
+        openAndLoadState(path)
+        println("Opened Monpoly and loaded state from file: " + path.toString)
+    }
   }
 
   override def open(initialState: Array[Byte]): Unit = {
     createTempFile()
     Files.write(tempStateFile, initialState)
-
-    val loadCommand = command ++ List("-load", tempStateFile.toString)
     try {
-      open(loadCommand)
-      val reply =  reader.readLine()
-      if (reply != LOAD_STATE_OK)
-        throw new Exception("Monitor process failed to load state. Reply: " + reply)
+      openAndLoadState(tempStateFile.toString)
     } finally {
       Files.delete(tempStateFile)
     }
@@ -217,12 +226,10 @@ class MonpolyProcess(val command: Seq[String]) extends AbstractExternalProcess[M
 }
 
 
-class MonpolyProcessFactory(cmd: Seq[String], slicer:HypercubeSlicer) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
-  override protected def createPre[MonpolyRequest >: MonitorRequest](): infsec.Processor[(Int, Record), MonitorRequest] = new KeyedMonpolyPrinter[Int]
-  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new MonpolyProcess(cmd)
-  override protected def createPost(): infsec.Processor[String, String] = new MonpolyVerdictFilter(slicer.mkVerdictFilter)
-}
+class MonpolyProcessFactory(cmd: Seq[String], slicer: HypercubeSlicer, val initialStateFile: Option[String])
+    extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
 
-object MonpolyProcessFactory {
-  def apply(cmd: Seq[String], slicer: HypercubeSlicer): MonpolyProcessFactory = new MonpolyProcessFactory(cmd, slicer)
+  override protected def createPre[MonpolyRequest >: MonitorRequest](): infsec.Processor[(Int, Record), MonitorRequest] = new KeyedMonpolyPrinter[Int]
+  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new MonpolyProcess(cmd, initialStateFile)
+  override protected def createPost(): infsec.Processor[String, String] = new MonpolyVerdictFilter(slicer.mkVerdictFilter)
 }

@@ -6,7 +6,7 @@ import ch.ethz.infsec.trace.{KeyedDejavuPrinter, KeyedMonpolyPrinter, Record}
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
-class EchoMonpolyProcess(override val command: Seq[String]) extends MonpolyProcess(command) {
+class EchoMonpolyProcess(override val command: Seq[String]) extends MonpolyProcess(command, None) {
   override def open(): Unit = open(command)
 
   override def open(initialState: Array[Byte]): Unit = open()
