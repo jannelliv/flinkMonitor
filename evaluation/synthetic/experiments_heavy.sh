@@ -11,6 +11,9 @@ HEAVY_SETS_NO_STATS="h0 h1"
 HEAVY_SETS_STATS="h1"
 PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 AUX_CPU_LIST="10-11,34-35"
+LOG_LENGTH=30
+
+echo $LOG_LENGTH > "$REPORT_DIR/genh.length"
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
@@ -24,7 +27,7 @@ make_log() {
 
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" 30 > "$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.3333 -pB 0.3333 -z "$exponents" $LOG_LENGTH > "$OUTPUT_DIR/genh_${formula}_${heavy_set}_${er}_${ir}.csv"
         done
     done
 }

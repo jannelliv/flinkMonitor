@@ -10,6 +10,8 @@ PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 
+cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
+
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
 echo "=== Nokia experiments ==="

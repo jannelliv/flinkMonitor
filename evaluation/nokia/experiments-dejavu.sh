@@ -11,9 +11,19 @@ PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 
+cat "$ROOT_DIR/ldcc_sample_linear.csv" | wc -l > "$REPORT_DIR/nokiaCMP.events"
+
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
 echo "=== Nokia experiments cmp w/ Dejavu ==="
+
+echo "Creating a linear version of the log ..."
+
+if [[ -a "$ROOT_DIR/ldcc_sample_linear.csv" ]]; then
+    echo "linear version already exists, skipping"
+else
+    "$WORK_DIR/replayer.sh" -a 0 -q $REPLAYER_QUEUE -i csv -f csv-linear "$ROOT_DIR/ldcc_sample.csv" > "$ROOT_DIR/ldcc_sample_linear.csv"
+fi
 
 echo "Creating a linear monpoly version of the log ..."
 

@@ -13,6 +13,9 @@ ACCELERATIONS="0"
 PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
+LOG_LENGTH=60
+
+echo $LOG_LENGTH > "$REPORT_DIR/genCMP.length"
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
@@ -22,7 +25,7 @@ make_log() {
     flag=$1
     formula=$2
     for er in $EVENT_RATES; do
-        "$WORK_DIR/generator.sh" $flag -e $er -i $er -w 10 -pA 0.01 -pB 0.495 60 > "$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+        "$WORK_DIR/generator.sh" $flag -e $er -i $er -w 10 -pA 0.01 -pB 0.495 $LOG_LENGTH > "$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
 
         "$WORK_DIR/replayer.sh" -a 0 -q $REPLAYER_QUEUE -i csv -f monpoly-linear "$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv" > "$OUTPUT_DIR/gen_${formula}_${er}_${er}.log"
 

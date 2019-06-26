@@ -11,6 +11,9 @@ INDEX_RATES="1 1000"
 PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
+LOG_LENGTH=60
+
+echo $LOG_LENGTH > "$REPORT_DIR/gen.length"
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
 
@@ -21,7 +24,7 @@ make_log() {
     formula=$2
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.01 -pB 0.495 60 > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.01 -pB 0.495 $LOG_LENGTH > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
             "$WORK_DIR/replayer.sh" -a 0 -q $REPLAYER_QUEUE -i csv -f monpoly "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv" > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.log"
         done
     done
