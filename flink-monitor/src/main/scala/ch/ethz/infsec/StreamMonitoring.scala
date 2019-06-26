@@ -17,7 +17,6 @@ import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
 import org.apache.flink.core.fs.Path
-import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.functions.sink.{PrintSinkFunction, SocketClientSink}
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
 import org.apache.flink.streaming.api.scala._
@@ -54,6 +53,7 @@ object StreamMonitoring {
   var command: Seq[String] = Seq.empty
   var formulaFile: String = ""
   var signatureFile: String = ""
+  var initialStateFile: Option[String] = None
   var negate:Boolean = false
   var queueSize = 256
 
@@ -131,6 +131,8 @@ object StreamMonitoring {
       case Right(phi) => phi
     }
 
+    initialStateFile = Option(params.get("load"))
+
     queueSize = params.getInt("queueSize", queueSize)
   }
 
@@ -158,7 +160,7 @@ object StreamMonitoring {
           val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand::List("-negate") else List(monitorCommand))
           val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)
           logger.info("Monitor command: {}", margs.mkString(" "))
-          MonpolyProcessFactory(margs, slicer)
+          new MonpolyProcessFactory(margs, slicer, initialStateFile)
         }
         case ECHO_DEJAVU_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)

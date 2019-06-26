@@ -3,7 +3,7 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-FORMULAS="star-neg linear-neg triangle-neg"
+FORMULAS="star-neg linear-neg triangle-neg"  # These must match the formulas in mk_heavy.py!
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 EVENT_RATES="250 500 1000"
 INDEX_RATES="1"

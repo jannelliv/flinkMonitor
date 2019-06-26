@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 
 configurations = {
-    "star": [
+    "star-neg": [
         ["A,0", "B,0", "C,0"],
         ["A,1"]
     ],
-    "linear": [
+    "linear-neg": [
         ["A,1", "B,0"],
         ["B,1", "C,0"]
     ],
-    "triangle": [
+    "triangle-neg": [
         ["A,0", "C,1"],
         ["A,1", "B,0"]
     ]
