@@ -229,7 +229,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
 class MonpolyProcessFactory(cmd: Seq[String], slicer: HypercubeSlicer, val initialStateFile: Option[String])
     extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
 
-  override protected def createPre[MonpolyRequest >: MonitorRequest](): infsec.Processor[(Int, Record), MonitorRequest] = new KeyedMonpolyPrinter[Int]
-  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new MonpolyProcess(cmd, initialStateFile)
-  override protected def createPost(): infsec.Processor[String, String] = new MonpolyVerdictFilter(slicer.mkVerdictFilter)
+  override def createPre[T,MonpolyRequest >: MonitorRequest](): infsec.Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] = new KeyedMonpolyPrinter[Int,T]
+  override def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new MonpolyProcess(cmd, initialStateFile)
+  override def createPost(): infsec.Processor[String, String] = new MonpolyVerdictFilter(slicer.mkVerdictFilter)
 }

@@ -39,9 +39,9 @@ class EchoDejavuProcess(override val command: Seq[String]) extends DejavuProcess
 //}
 
 class EchoDejavuProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
-  override protected def createPre[MonpolyRequest >: MonitorRequest](): Processor[(Int, Record), MonitorRequest] = new KeyedDejavuPrinter[Int]
-  override protected def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoDejavuProcess(cmd)
-  override protected def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
+  override def createPre[T,MonpolyRequest >: MonitorRequest](): Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] = new KeyedDejavuPrinter[Int,T]
+  override def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoDejavuProcess(cmd)
+  override def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
 }
 object EchoDejavuProcessFactory{
   def apply(cmd: Seq[String]): EchoDejavuProcessFactory = new EchoDejavuProcessFactory(cmd)

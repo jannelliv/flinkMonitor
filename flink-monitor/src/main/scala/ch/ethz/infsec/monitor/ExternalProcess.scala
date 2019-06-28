@@ -32,13 +32,12 @@ trait ExternalProcess[+IN, OUT] extends Serializable {
 }
 
 trait ExternalProcessFactory[IN, +PIN, POUT, OUT] extends Serializable{
-  def create[UIN >: PIN]():(Processor[IN,UIN], ExternalProcess[UIN,POUT], Processor[POUT,OUT]) = (createPre(),createProc(),createPost())
-  protected def createPre[UIN >: PIN]():Processor[IN,UIN]
-  protected def createProc[UIN >: PIN]():ExternalProcess[UIN,POUT]
-  protected def createPost():Processor[POUT,OUT]
+  def createPre[T,UIN >: PIN]():Processor[Either[IN,T],Either[UIN,T]]
+  def createProc[UIN >: PIN]():ExternalProcess[UIN,POUT]
+  def createPost():Processor[POUT,OUT]
 }
 
 trait DirectExternalProcessFactory[IN, OUT] extends ExternalProcessFactory[IN, IN, OUT, OUT]{
-  override protected def createPre[UIN >: IN]():Processor[IN,UIN] = StatelessProcessor.identity[IN]
-  override protected def createPost():Processor[OUT,OUT] = StatelessProcessor.identity[OUT]
+  override def createPre[T,UIN >: IN]():Processor[Either[IN,T],Either[UIN,T]] = StatelessProcessor.identity[Either[IN,T]]
+  override def createPost():Processor[OUT,OUT] = StatelessProcessor.identity[OUT]
 }

@@ -38,7 +38,7 @@ class MonpolyFormatTest extends FunSuite with Matchers {
 
   test("Print/parse round-trip") {
     def roundTrip(records: Seq[Record]): Seq[Record] =
-      createParser().processAll((new MonpolyPrinter).processAll(records).map(_.in))
+      createParser().processAll((new MonpolyPrinter[Unit]).processAll(records.map(Left(_))).map(_.left.get.in))
 
     val empty1 = List(Record.markEnd(1))
     roundTrip(empty1) should contain theSameElementsAs empty1

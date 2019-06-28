@@ -6,8 +6,8 @@ import ch.ethz.infsec.{Processor, StatelessProcessor}
 import fastparse.WhitespaceApi
 import fastparse.noApi._
 
-
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 object DejavuParsers{
   private object Token {
@@ -65,9 +65,10 @@ class DejavuVerdictFilter extends StatelessProcessor[String,String] with Seriali
   override def terminate(f: String => Unit): Unit = ()
 }
 
-class DejavuPrinter extends Processor[Record, DejavuRequest] with Serializable {
-  override type State = Option[Option[Record]]
-  protected var rec: State = None
+class DejavuPrinter[T] extends Processor[Either[Record,T], Either[DejavuRequest,T]] with Serializable {
+  override type State = (Option[Option[Record]], Vector[T])
+  protected var rec: Option[Option[Record]] = None
+  protected var delayBuffer =  new ArrayBuffer[T]()
   /*
     State semantics:
     None = Empty trace
@@ -76,18 +77,17 @@ class DejavuPrinter extends Processor[Record, DejavuRequest] with Serializable {
 
    */
 
-
-  override def getState: Option[Option[Record]] = rec
+  override def getState: State = (rec,delayBuffer.toVector)
 
   override def restoreState(state: Option[State]): Unit = state  match {
-    case Some(r) => rec = r
+    case Some((r,db)) => rec = r; delayBuffer ++=db
     case None => rec = None
   }
 
   // DejaVu ignores commands
-  def processCommand(record: Record, f: DejavuRequest => Unit): Unit = ()
+  def processCommand(record: Record, f: Either[DejavuRequest,T] => Unit): Unit = ()
 
-  def processEvent(record: Record, f: DejavuRequest => Unit): Unit = {
+  def processEvent(record: Record, f: Either[DejavuRequest,T] => Unit): Unit = {
     if (record.isEndMarker) {
       rec match {
         case None => rec = Some(None)
@@ -103,10 +103,11 @@ class DejavuPrinter extends Processor[Record, DejavuRequest] with Serializable {
   }
 
 
-  override def process(record: Record, f: DejavuRequest => Unit): Unit = {
+  override def process(record: Either[Record,T], f: Either[DejavuRequest,T] => Unit) {
     record match {
-      case CommandRecord(record.command, record.parameters) => processCommand(record, f)
-      case EventRecord(record.timestamp, record.label, record.data) => processEvent(record, f)
+      case Left(rec@CommandRecord(_, _)) => processCommand(rec, f)
+      case Left(rec@EventRecord(_, _, _)) => processEvent(rec, f)
+      case Right(value) => delayBuffer += value
     }
   }
 
@@ -125,13 +126,17 @@ class DejavuPrinter extends Processor[Record, DejavuRequest] with Serializable {
   }
 
 
-  override def terminate(f: DejavuRequest => Unit): Unit = {
+  override def terminate(f: Either[DejavuRequest,T] => Unit): Unit = {
     rec match {
-      case Some(Some(r)) => f(DejavuEventItem(writetoCSV(r)))
-      case Some(None) => f(DejavuEventItem(writetoCSV(DejavuPrinter.DUMMY)))
+      case Some(Some(r)) => f(Left(DejavuEventItem(writetoCSV(r))))
+      case Some(None) => f(Left(DejavuEventItem(writetoCSV(DejavuPrinter.DUMMY))))
       case None => ()
     }
     rec = None
+    for (i <- delayBuffer){
+      f(Right(i))
+    }
+    delayBuffer.clear()
   }
 }
 
@@ -139,27 +144,33 @@ object DejavuPrinter{
   val DUMMY: Record = EventRecord(0,"DummyEventForTimeSkipping",IndexedSeq.empty)
 }
 
-class KeyedDejavuPrinter[K] extends Processor[(K, Record), DejavuRequest] with Serializable {
-  private val internalPrinter = new DejavuPrinter
+class KeyedDejavuPrinter[K,T] extends Processor[Either[(K, Record),T], Either[DejavuRequest,T]] with Serializable {
+  private val internalPrinter = new DejavuPrinter[T]
 
   @transient @volatile private var numberOfEvents: Long = 0
 
-  override type State = DejavuPrinter#State
+  override type State = DejavuPrinter[T]#State
 
-  override def getState: DejavuPrinter#State = internalPrinter.getState
+  override def getState: DejavuPrinter[T]#State = internalPrinter.getState
 
-  override def restoreState(state: Option[DejavuPrinter#State]): Unit = {
+  override def restoreState(state: Option[DejavuPrinter[T]#State]): Unit = {
     internalPrinter.restoreState(state)
     numberOfEvents = 0
   }
 
-  override def process(in: (K, Record), f: DejavuRequest => Unit): Unit = {
-    if (!in._2.isEndMarker)
-      numberOfEvents += 1
-    internalPrinter.process(in._2, f)
+  override def process(in: Either[(K, Record),T], f: Either[DejavuRequest,T] => Unit): Unit = {
+    in match {
+      case Left((_,rec)) => {
+        if (!rec.isEndMarker)
+          numberOfEvents += 1
+        internalPrinter.process(Left(rec), f)
+      }
+      case Right(r) => internalPrinter.process(Right(r),f)
+    }
+
   }
 
-  override def terminate(f: DejavuRequest => Unit): Unit = internalPrinter.terminate(f)
+  override def terminate(f: Either[DejavuRequest,T] => Unit): Unit = internalPrinter.terminate(f)
 
   // TODO(JS): This doesn't really belong here.
   override def getCustomCounter: Long = numberOfEvents

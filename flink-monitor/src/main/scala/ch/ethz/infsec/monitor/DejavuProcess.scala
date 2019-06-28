@@ -74,9 +74,9 @@ object DejavuProcess {
 
 
 class DejavuProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
-  override protected def createPre[DejavuRequest >: MonitorRequest](): Processor[(Int, Record), MonitorRequest] = new KeyedDejavuPrinter[Int]
-  override protected def createProc[DejavuRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new DejavuProcess(cmd)
-  override protected def createPost(): Processor[String, String] = new DejavuVerdictFilter()
+  override def createPre[T,DejavuRequest >: MonitorRequest](): Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] = new KeyedDejavuPrinter[Int,T]
+  override def createProc[DejavuRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new DejavuProcess(cmd)
+  override def createPost(): Processor[String, String] = new DejavuVerdictFilter()
 }
 
 object DejavuProcessFactory {

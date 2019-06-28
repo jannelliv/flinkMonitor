@@ -213,12 +213,17 @@ object StreamMonitoring {
           }
           logger.info("Monitor command: {}", command.mkString(" "))
           new ExternalProcessFactory[(Int,Record),IndexedRecord,String,String] {
-            override protected def createPre[UIN >: IndexedRecord](): Processor[(Int, Record), UIN] = new StatelessProcessor[(Int, Record),IndexedRecord] {
-              override def process(in: (Int, Record), f: IndexedRecord => Unit): Unit = f(new IndexedRecord(in))
-              override def terminate(f: IndexedRecord => Unit): Unit = ()
+            override def createPre[T,UIN >: IndexedRecord](): Processor[Either[(Int, Record),T], Either[UIN,T]] = new StatelessProcessor[Either[(Int, Record),T],Either[IndexedRecord,T]] {
+              override def process(in: Either[(Int, Record),T], f: Either[IndexedRecord,T]=> Unit): Unit = f(
+                in match {
+                case Left(t) => Left(new IndexedRecord(t))
+                case Right(r) => Right(r)
+
+              })
+              override def terminate(f: Either[IndexedRecord,T] => Unit): Unit = ()
             }
 
-            override protected def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, String] = new DirectProcess[IndexedRecord,String](command) {
+            override def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, String] = new DirectProcess[IndexedRecord,String](command) {
               override def parseLine(line: String): String = line
 
               override def isEndMarker(t: String): Boolean = t.equals("")
@@ -227,7 +232,7 @@ object StreamMonitoring {
               override val SYNC_BARRIER_OUT: String => Boolean = _ == "SYNC"
             }
 
-            override protected def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
+            override def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
           }
         }
         case c@_ => fail("Cannot parse the monitor command: {}", c)

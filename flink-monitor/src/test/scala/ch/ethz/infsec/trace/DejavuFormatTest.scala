@@ -31,7 +31,7 @@ class DejavuFormatTest extends FunSuite with Matchers {
 
   test("Print/parse round-trip") {
     def roundTrip(records: Seq[Record]): Seq[Record] =
-      createParser().processAll((new DejavuPrinter).processAll(records).map(_.in))
+      createParser().processAll((new DejavuPrinter[Unit]).processAll(records.map(Left(_))).map(_.left.get.in))
 
     def nullTS(r: Record) = Record(0, r.label, r.data, r.command, r.parameters)
 

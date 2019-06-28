@@ -159,47 +159,52 @@ class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
   def updatePending(slicer: Array[Byte]): Unit = this.pendingSlicer = slicer
 }
 
-class MonpolyPrinter extends Processor[Record, MonpolyRequest] with Serializable {
+class MonpolyPrinter[T] extends Processor[Either[Record,T], Either[MonpolyRequest,T]] with Serializable {
   protected var buffer = new ArrayBuffer[Record]()
+  protected var delayBuffer = new ArrayBuffer[T]()
 
-  override type State = Vector[Record]
+  override type State = (Vector[Record],Vector[T])
 
-  override def getState: Vector[Record] = buffer.toVector
 
-  override def restoreState(state: Option[Vector[Record]]): Unit = {
+  override def getState: State = (buffer.toVector,delayBuffer.toVector)
+
+
+  override def restoreState(state: Option[State]): Unit = {
+    delayBuffer.clear()
     buffer.clear()
     state match {
-      case Some(b) => buffer ++= b
+      case Some((b,db)) => buffer ++= b; delayBuffer ++= db
       case None => ()
     }
   }
 
-  override def process(record: Record, f: MonpolyRequest => Unit) {
+  override def process(record: Either[Record,T], f: Either[MonpolyRequest,T] => Unit) {
     record match {
-      case CommandRecord(record.command, record.parameters) => processCommand(record, f)
-      case EventRecord(record.timestamp, record.label, record.data) => processEvent(record, f)
+      case Left(rec@CommandRecord(_, _)) => processCommand(rec, f)
+      case Left(rec@EventRecord(_, _, _)) => processEvent(rec, f)
+      case Right(value) => delayBuffer += value
     }
   }
 
-  def processEvent(record: Record, f: MonpolyRequest => Unit): Unit = {
+  def processEvent(record: Record, f:  Either[MonpolyRequest,T] => Unit): Unit = {
     buffer += record
     if (record.isEndMarker)
       terminate(f)
   }
 
-  def processCommand(record: Record, f: MonpolyRequest => Unit) {
+  def processCommand(record: Record, f:  Either[MonpolyRequest,T] => Unit) {
     buffer += record
 
     if (buffer.nonEmpty) {
       val str = new mutable.StringBuilder()
       str.append('>').append(buffer.head.command).append(" ").append(buffer.head.parameters).append('<')
       str.append('\n')
-      f(CommandItem(str.toString()))
+      f(Left(CommandItem(str.toString())))
       buffer.clear()
     }
   }
 
-  override def terminate(f: MonpolyRequest => Unit) {
+  override def terminate(f:  Either[MonpolyRequest,T] => Unit) {
     if (buffer.nonEmpty) {
       val str = new mutable.StringBuilder()
       str.append('@').append(buffer.head.timestamp)
@@ -216,9 +221,13 @@ class MonpolyPrinter extends Processor[Record, MonpolyRequest] with Serializable
         }
       }
       str.append('\n')
-      f(EventItem(str.toString()))
+      f(Left(EventItem(str.toString())))
       buffer.clear()
     }
+    for (i <- delayBuffer){
+      f(Right(i))
+    }
+    delayBuffer.clear()
   }
 }
 
@@ -234,27 +243,32 @@ object MonpolyPrinter {
   }
 }
 
-class KeyedMonpolyPrinter[K] extends Processor[(K, Record), MonpolyRequest] with Serializable {
-  private val internalPrinter = new MonpolyPrinter
+class KeyedMonpolyPrinter[K,T] extends Processor[Either[(K, Record),T], Either[MonpolyRequest,T]] with Serializable {
+  private val internalPrinter = new MonpolyPrinter[T]
 
   @transient @volatile private var numberOfEvents: Long = 0
 
-  override type State = MonpolyPrinter#State
+  override type State = MonpolyPrinter[T]#State
 
-  override def getState: MonpolyPrinter#State = internalPrinter.getState
+  override def getState: MonpolyPrinter[T]#State = internalPrinter.getState
 
-  override def restoreState(state: Option[MonpolyPrinter#State]): Unit = {
+  override def restoreState(state: Option[MonpolyPrinter[T]#State]): Unit = {
     internalPrinter.restoreState(state)
     numberOfEvents = 0
   }
 
-  override def process(in: (K, Record), f: MonpolyRequest => Unit): Unit = {
-    if (!in._2.isEndMarker)
-      numberOfEvents += 1
-    internalPrinter.process(in._2, f)
+  override def process(in: Either[(K, Record),T], f: Either[MonpolyRequest,T] => Unit): Unit = {
+    in match {
+      case Left((_,rec)) => {
+        if (!rec.isEndMarker)
+          numberOfEvents += 1
+        internalPrinter.process(Left(rec), f)
+      }
+      case Right(r) => internalPrinter.process(Right(r),f)
+    }
   }
 
-  override def terminate(f: MonpolyRequest => Unit): Unit = internalPrinter.terminate(f)
+  override def terminate(f: Either[MonpolyRequest,T] => Unit): Unit = internalPrinter.terminate(f)
 
   // TODO(JS): This doesn't really belong here.
   override def getCustomCounter: Long = numberOfEvents

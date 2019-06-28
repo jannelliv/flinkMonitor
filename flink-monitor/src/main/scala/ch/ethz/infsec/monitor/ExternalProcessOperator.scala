@@ -49,9 +49,7 @@ private case class ShutdownItem() extends PendingRequest with PendingResult
 // is not obvious how the synchronization during snapshotting would work.
 class ExternalProcessOperator[IN, PIN, POUT, OUT](
   slicer: HypercubeSlicer,
-  preprocessing: Processor[IN, PIN],
-  process: ExternalProcess[PIN, POUT],
-  postprocessing: Processor[POUT, OUT],
+  processFactory: ExternalProcessFactory[IN,PIN,POUT,OUT],
   timeout: Long,
   capacity: Int)
   extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
@@ -62,6 +60,10 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   private val POSTPROCESSING_STATE_NAME = "_external_process_operator_postprocessing_state_"
   private val RESULT_STATE_NAME = "_external_process_operator_result_state_"
   private val PROCESS_STATE_NAME = "_external_process_operator_process_state_"
+
+  private val preprocessing: Processor[Either[IN,PendingRequest], Either[PIN,PendingRequest]] = processFactory.createPre[PendingRequest,PIN]()
+  private val process: ExternalProcess[PIN, POUT] = processFactory.createProc()
+  private val postprocessing: Processor[POUT, OUT] = processFactory.createPost()
 
   @transient private var maxBatchsize:Long = _
 
@@ -388,7 +390,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
   override def close(): Unit = {
     try {
-      preprocessing.terminate(x => enqueueRequest(InputItem(new StreamRecord[PIN](x))))
+      preprocessing.terminate(x => enqueueRequest(wrap(None)(x)))
 
       requestQueue.put(ShutdownItem())
 
@@ -524,11 +526,13 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
   }
 
   override def processWatermark(mark: Watermark): Unit = {
-    enqueueRequest(WatermarkItem(mark))
+    preprocessing.process(Right(WatermarkItem(mark)), x =>
+      enqueueRequest(wrap(None)(x)))
   }
 
   override def processLatencyMarker(marker: LatencyMarker): Unit = {
-    enqueueRequest(LatencyMarkerItem(marker))
+    preprocessing.process(Right(LatencyMarkerItem(marker)), x =>
+      enqueueRequest(wrap(None)(x)))
   }
 
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
@@ -546,10 +550,22 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     // such submonitors.
     // TODO(JS): Check the splitting/merging logic in the case of unused submonitors.
     if (getRuntimeContext.getIndexOfThisSubtask < slicer.degree) {
-      preprocessing.process(streamRecord.getValue, x =>
-        enqueueRequest(InputItem(new StreamRecord[PIN](x, streamRecord.getTimestamp))))
+      preprocessing.process(Left(streamRecord.getValue), x =>
+        enqueueRequest(wrap(Some(streamRecord.getTimestamp))(x)))
     }
   }
+
+  private def wrap(timestamp: Option[Long])(in: Either[PIN,PendingRequest]): PendingRequest = {
+    in match {
+      case Left(p) =>
+        timestamp match  {
+          case Some(t) => InputItem(new StreamRecord[PIN](p, t))
+          case None => InputItem(new StreamRecord[PIN](p))
+        }
+        case Right(r) => r
+      }
+    }
+
 
   def failOperator(throwable: Throwable): Unit = {
     getContainingTask.getEnvironment.failExternally(throwable)
@@ -606,9 +622,8 @@ object ExternalProcessOperator {
       in: DataStream[(Int, Record)],
       processFactory: ExternalProcessFactory[(Int, Record), PIN, POUT, OUT],
       capacity: Int): DataStream[OUT] = {
-    val (preprocessing,process,postprocessing) = processFactory.create()
     in.transform(
       "External Process",
-      new ExternalProcessOperator[(Int, Record), PIN, POUT, OUT](slicer, preprocessing, process, postprocessing, 0, capacity))
+      new ExternalProcessOperator[(Int, Record), PIN, POUT, OUT](slicer, processFactory, 0, capacity))
   }
 }
