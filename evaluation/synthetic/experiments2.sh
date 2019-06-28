@@ -5,10 +5,10 @@ source "$WORK_DIR/config.sh"
 
 FORMULAS="star-neg linear-neg triangle-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
-EVENT_RATES="10000 15000 20000"
+EVENT_RATES="25000 30000 35000"
 ACCELERATIONS="0 1"
 INDEX_RATES="1 1000"
-PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
+PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
