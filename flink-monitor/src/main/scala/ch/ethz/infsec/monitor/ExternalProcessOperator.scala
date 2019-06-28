@@ -265,7 +265,6 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       override def handle(): Unit = {
         val request = processingQueue.take()
 
-
         request match {
           case InputItem(record) => {
             while (true) {
@@ -316,14 +315,17 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
             snapshotReady.release()
           case shutdown@ShutdownItem() =>
+
             process.drainResults(transientBuffer)
 
             resultLock.lock()
             try{
+
               for (result <- transientBuffer)
                 postprocessing.process(
                   result, r =>
                     resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
+
               postprocessing.terminate(r =>
                 resultQueue.add(OutputItem(new StreamRecord[OUT](r))))
               resultQueueNonEmpty.signalAll()
@@ -390,13 +392,13 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
       requestQueue.put(ShutdownItem())
 
-      writerThread.join()
-      readerThread.join()
-
       if (Thread.holdsLock(taskLock)) {
         while (emitterThread.isAlive)
           taskLock.wait(100L)
       }
+
+      writerThread.join()
+      readerThread.join()
       emitterThread.join()
     } catch {
       // TODO(JS): Not sure whether this correct.
