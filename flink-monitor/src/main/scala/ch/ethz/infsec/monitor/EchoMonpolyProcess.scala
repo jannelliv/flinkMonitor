@@ -38,11 +38,9 @@ class EchoMonpolyProcess(override val command: Seq[String]) extends MonpolyProce
 //  def apply(cmd:Seq[String]):ExternalProcess[MonitorRequest,String] = new EchoProcess(cmd).asInstanceOf[ExternalProcess[MonitorRequest,String]]
 //}
 
-class EchoMonpolyProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
-  override def createPre[T,MonpolyRequest >: MonitorRequest](): Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] = new KeyedMonpolyPrinter[Int,T]
+class EchoMonpolyProcessFactory(cmd: Seq[String], markDatabaseEnd: Boolean) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
+  override def createPre[T,MonpolyRequest >: MonitorRequest](): Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] =
+    new KeyedMonpolyPrinter[Int,T](markDatabaseEnd)
   override def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoMonpolyProcess(cmd)
   override def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
-}
-object EchoMonpolyProcessFactory{
-  def apply(cmd: Seq[String]): EchoMonpolyProcessFactory = new EchoMonpolyProcessFactory(cmd)
 }

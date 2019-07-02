@@ -5,7 +5,7 @@ import ch.ethz.infsec.trace.Trace;
 
 import java.util.List;
 
-public class MonpolyLinearizingTraceFormatter extends  MonpolyTraceFormatter {
+public class MonpolyLinearizingTraceFormatter extends MonpolyTraceFormatter {
 
     @Override
     public void printFact(StringBuilder sink, Fact fact) {
@@ -24,7 +24,10 @@ public class MonpolyLinearizingTraceFormatter extends  MonpolyTraceFormatter {
                 }
             }
             sink.append(')');
-            sink.append("\n");
+            if (getMarkDatabaseEnd()) {
+                sink.append(';');
+            }
+            sink.append('\n');
         }
     }
 }

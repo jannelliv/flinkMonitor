@@ -26,7 +26,7 @@ public class MonpolyTraceParserTest {
 
     @Test
     public void testSuccessfulParse() throws Exception {
-        parser.parse(sink::add, "@123 @ 456 a b () \n");
+        parser.parse(sink::add, "@123 @ 456 a b () \n;");
         parser.parse(sink::add, "@ 456 abc()() def1(123");
         parser.parse(sink::add, ")\n\n(foo) def2([foo],\"(bar)\") ( a1 , \" 2b \")\r\n @789");
         parser.endOfInput(sink::add);
@@ -50,6 +50,15 @@ public class MonpolyTraceParserTest {
         assertEquals(Arrays.asList(
                 new Fact("a", "123", "b", "c"),
                 new Fact("a", "123", "d", "e"),
+                new Fact(Trace.EVENT_FACT, "123")
+        ), sink);
+    }
+
+    @Test
+    public void testDatabaseTerminator() throws Exception {
+        parser.parse(sink::add, "@123 a();");
+        assertEquals(Arrays.asList(
+                new Fact("a", "123"),
                 new Fact(Trace.EVENT_FACT, "123")
         ), sink);
     }

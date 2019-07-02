@@ -27,7 +27,7 @@ class MonpolyFormatTest extends FunSuite with Matchers {
   }
 
   test("Parsing multiple events") {
-    val events = List("@123 P(4)", "invalid!", "@456 Q(7)")
+    val events = List("@123 P(4)", "invalid!", "@456 Q(7) ; ")
     createParser().processAll(events) should contain theSameElementsAs List(
       EventRecord(123, "P", Tuple(4)),
       Record.markEnd(123),
@@ -38,7 +38,36 @@ class MonpolyFormatTest extends FunSuite with Matchers {
 
   test("Print/parse round-trip") {
     def roundTrip(records: Seq[Record]): Seq[Record] =
-      createParser().processAll((new MonpolyPrinter[Unit]).processAll(records.map(Left(_))).map(_.left.get.in))
+      createParser().processAll(new MonpolyPrinter[Unit](false).processAll(records.map(Left(_))).map(_.left.get.in))
+
+    val empty1 = List(Record.markEnd(1))
+    roundTrip(empty1) should contain theSameElementsAs empty1
+
+    val empty2 = List(
+      EventRecord(22, "p", Tuple()),
+      EventRecord(22, "q", Tuple()),
+      Record.markEnd(22)
+    )
+    roundTrip(empty2) should contain theSameElementsAs empty2
+
+    val single = List(
+      EventRecord(333, "p", Tuple(42)),
+      Record.markEnd(333)
+    )
+    roundTrip(single) should contain theSameElementsAs single
+
+    val many = List(
+      EventRecord(444, "Foo", Tuple(-101, "AbC", 1234)),
+      EventRecord(444, "Foo", Tuple(-102, "dEf", 4321)),
+      EventRecord(444, "Bar", Tuple("hello, world!")),
+      Record.markEnd(444)
+    )
+    roundTrip(many) should contain theSameElementsAs many
+  }
+
+  test("Print/parse round-trip with end markers") {
+    def roundTrip(records: Seq[Record]): Seq[Record] =
+      createParser().processAll(new MonpolyPrinter[Unit](true).processAll(records.map(Left(_))).map(_.left.get.in))
 
     val empty1 = List(Record.markEnd(1))
     roundTrip(empty1) should contain theSameElementsAs empty1

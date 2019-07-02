@@ -45,6 +45,7 @@ object StreamMonitoring {
   var in: Option[Either[(String, Int), String]] = _
   var out: Option[Either[(String, Int), String]] = _
   var inputFormat: TraceFormat = _
+  var markDatabaseEnd: Boolean = false
   var watchInput: Boolean = false
 
   var processors: Int = 0
@@ -111,6 +112,7 @@ object StreamMonitoring {
       case "dejavu" => DejavuFormat
       case format => fail("Unknown trace format " + format)
     }
+    markDatabaseEnd = params.getBoolean("mark-database-end", false)
 
     watchInput = params.getBoolean("watch", false)
 
@@ -160,7 +162,7 @@ object StreamMonitoring {
           val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand::List("-negate") else List(monitorCommand))
           val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)
           logger.info("Monitor command: {}", margs.mkString(" "))
-          new MonpolyProcessFactory(margs, slicer, initialStateFile)
+          new MonpolyProcessFactory(margs, slicer, initialStateFile, markDatabaseEnd)
         }
         case ECHO_DEJAVU_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
@@ -170,7 +172,7 @@ object StreamMonitoring {
         case ECHO_MONPOLY_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-          EchoMonpolyProcessFactory(monitorArgs)
+          new EchoMonpolyProcessFactory(monitorArgs, markDatabaseEnd)
         }
         case DEJAVU_CMD => {
           if (slicer.requiresFilter) {

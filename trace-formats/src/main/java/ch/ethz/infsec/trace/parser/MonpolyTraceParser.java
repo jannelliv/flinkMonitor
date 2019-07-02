@@ -24,6 +24,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
         RIGHT_PAREN,
         COMMA,
         STRING,
+        SEMICOLON,
         END
     }
 
@@ -101,6 +102,9 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                         case ',':
                             ++position;
                             return TokenType.COMMA;
+                        case ';':
+                            ++position;
+                            return TokenType.SEMICOLON;
                         case '#':
                             lexerState = LexerState.LINE_COMMENT;
                             ++position;
@@ -225,6 +229,9 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                     } else if (tokenType == TokenType.AT) {
                         finishDatabase(sink);
                         parserState = ParserState.TIMESTAMP;
+                    } else if (tokenType == TokenType.SEMICOLON) {
+                        finishDatabase(sink);
+                        parserState = ParserState.INITIAL;
                     } else if (tokenType == TokenType.END) {
                         finishDatabase(sink);
                         parserState = ParserState.INITIAL;
@@ -242,6 +249,9 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                     } else if (tokenType == TokenType.AT) {
                         finishDatabase(sink);
                         parserState = ParserState.TIMESTAMP;
+                    } else if (tokenType == TokenType.SEMICOLON) {
+                        finishDatabase(sink);
+                        parserState = ParserState.INITIAL;
                     } else if (tokenType == TokenType.END) {
                         finishDatabase(sink);
                         parserState = ParserState.INITIAL;

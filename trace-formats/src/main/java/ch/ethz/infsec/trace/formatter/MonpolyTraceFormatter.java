@@ -12,6 +12,7 @@ import java.util.Map;
 public class MonpolyTraceFormatter implements TraceFormatter, Serializable {
     private static final long serialVersionUID = -4455544905696931178L;
 
+    private boolean markDatabaseEnd = false;
     private final LinkedHashMap<String, ArrayList<Fact>> currentDatabase;
 
     public MonpolyTraceFormatter() {
@@ -80,9 +81,20 @@ public class MonpolyTraceFormatter implements TraceFormatter, Serializable {
             sink.append('@');
             printString(sink, fact.getTimestamp());
             printAndClearDatabase(sink);
+            if (markDatabaseEnd) {
+                sink.append(';');
+            }
             sink.append('\n');
         } else {
             addFact(fact);
         }
+    }
+
+    public boolean getMarkDatabaseEnd() {
+        return markDatabaseEnd;
+    }
+
+    public void setMarkDatabaseEnd(boolean markDatabaseEnd) {
+        this.markDatabaseEnd = markDatabaseEnd;
     }
 }

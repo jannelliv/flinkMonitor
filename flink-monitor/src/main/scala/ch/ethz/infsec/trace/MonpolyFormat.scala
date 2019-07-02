@@ -57,7 +57,7 @@ object MonpolyParsers {
   })
 
   val Event: P[(Long, Seq[Record])] = P(
-    (Token.Whitespace ~/ "@" ~/ Token.IntegerDot ~/ Database ~/ Token.Whitespace ~/ End).map {
+    (Token.Whitespace ~/ "@" ~/ Token.IntegerDot ~/ Database ~/ ";".? ~/ Token.Whitespace ~/ End).map {
       case (ts, db) =>
       (ts, db.flatMap {
         case (rel, data) => data.map(t => EventRecord(ts, rel, t))
@@ -159,7 +159,7 @@ class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
   def updatePending(slicer: Array[Byte]): Unit = this.pendingSlicer = slicer
 }
 
-class MonpolyPrinter[T] extends Processor[Either[Record,T], Either[MonpolyRequest,T]] with Serializable {
+class MonpolyPrinter[T](markDatabaseEnd: Boolean) extends Processor[Either[Record,T], Either[MonpolyRequest,T]] with Serializable {
   protected var buffer = new ArrayBuffer[Record]()
   protected var delayBuffer = new ArrayBuffer[T]()
 
@@ -220,6 +220,9 @@ class MonpolyPrinter[T] extends Processor[Either[Record,T], Either[MonpolyReques
           str.append(')')
         }
       }
+      if (markDatabaseEnd) {
+        str.append(';')
+      }
       str.append('\n')
       f(Left(EventItem(str.toString())))
       buffer.clear()
@@ -243,8 +246,9 @@ object MonpolyPrinter {
   }
 }
 
-class KeyedMonpolyPrinter[K,T] extends Processor[Either[(K, Record),T], Either[MonpolyRequest,T]] with Serializable {
-  private val internalPrinter = new MonpolyPrinter[T]
+// TODO(JS): Refactor (shared code with DejavuFormat)
+class KeyedMonpolyPrinter[K,T](markDatabaseEnd: Boolean) extends Processor[Either[(K, Record),T], Either[MonpolyRequest,T]] with Serializable {
+  private val internalPrinter = new MonpolyPrinter[T](markDatabaseEnd)
 
   @transient @volatile private var numberOfEvents: Long = 0
 
