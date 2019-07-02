@@ -3,9 +3,9 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-FORMULAS="star-neg linear-neg triangle-neg"
+FORMULAS="star-neg triangle-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
-EVENT_RATES="40000 45000 50000"
+EVENT_RATES="55000 60000 65000 70000 75000"
 ACCELERATIONS="1"
 INDEX_RATES="1 1000"
 PROCESSORS="8/0-9,24-33 16/0-8,12-20,24-32,36-44"

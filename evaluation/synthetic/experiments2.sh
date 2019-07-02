@@ -36,44 +36,6 @@ make_log -L linear-neg
 make_log -T triangle-neg
 
 
-echo "Monpoly standalone:"
-for formula in $FORMULAS; do
-    echo "  Evaluating $formula:"
-    for er in $EVENT_RATES; do
-        for ir in $INDEX_RATES; do
-        echo "    Event rate $er, index rate $ir:"
-            for acc in $ACCELERATIONS; do
-            echo "    Acceleration $acc:"
-                for i in $(seq 1 $REPETITIONS); do
-                    echo "      Repetition $i ..."
-
-                    if [[ "$acc" = "0" ]]; then
-
-                        INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.log"
-                        TIME_REPORT="$REPORT_DIR/gen_monpoly_${formula}_${er}_${ir}_${acc}_${i}_time.txt"
-
-                        rm -r "$VERDICT_FILE" 2> /dev/null
-                        cat "$INPUT_FILE" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/synthetic/synth.sig" -formula "$WORK_DIR/synthetic/$formula.mfotl" $NEGATE > "$VERDICT_FILE"
-
-                    else
-
-                        INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                        DELAY_REPORT="$REPORT_DIR/gen_monpoly_${formula}_${er}_${ir}_${acc}_${i}_delay.txt"
-                        TIME_REPORT="$REPORT_DIR/gen_monpoly_${formula}_${er}_${ir}_${acc}_${i}_time.txt"
-
-                        rm -r "$VERDICT_FILE" 2> /dev/null
-                        (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly "$INPUT_FILE" 2> "$DELAY_REPORT") \
-                            | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/synthetic/synth.sig" -formula "$WORK_DIR/synthetic/$formula.mfotl" $NEGATE -nonewlastts > "$VERDICT_FILE"
-
-                    fi
-
-
-                done
-            done
-        done
-    done
-done
-
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
 echo "Flink without checkpointing:"
