@@ -14,7 +14,7 @@ import java.util.concurrent.Semaphore;
 
 import static org.junit.Assert.assertEquals;
 
-public class ReplayerIT {
+public class ReplayerWithEndMarkersIT {
     private Process process;
     private ArrayList<Pair<Integer, String>> output;
     private Semaphore doneReading;
@@ -28,7 +28,7 @@ public class ReplayerIT {
     public void setUp() throws IOException {
         Path executablePath = Paths.get(System.getProperty("basedir")).getParent().resolve("replayer.sh");
         process = new ProcessBuilder(executablePath.toString(),
-                "-a", "10", "-f", "monpoly", "-t", "1000", "-T", "TIME:", "-C", "CMD:", "-no-end-marker")
+                "-a", "10", "-f", "monpoly", "-t", "1000", "-T", "TIME:", "-C", "CMD:")
                 .redirectError(ProcessBuilder.Redirect.INHERIT)
                 .start();
 
@@ -87,14 +87,14 @@ public class ReplayerIT {
 
         assertEquals(0, process.exitValue());
         assertEquals(Arrays.asList(
-                Pair.of(0, "@1000 abc(foo)(bar)"),
-                Pair.of(0, "@1000 def(1234)"),
+                Pair.of(0, "@1000 abc(foo)(bar);"),
+                Pair.of(0, "@1000 def(1234);"),
                 Pair.of(1000, "TIME:1000"),
                 Pair.of(2000, "TIME:2000"),
                 Pair.of(2000, "CMD:this is a command"),
-                Pair.of(2000, "@1020 def(5678)"),
+                Pair.of(2000, "@1020 def(5678);"),
                 Pair.of(3000, "TIME:3000"),
-                Pair.of(3000, "@1030 xyz(1,2)(3,4)"),
+                Pair.of(3000, "@1030 xyz(1,2)(3,4);"),
                 Pair.of(3000, "TIME:3000")
         ), output);
     }
