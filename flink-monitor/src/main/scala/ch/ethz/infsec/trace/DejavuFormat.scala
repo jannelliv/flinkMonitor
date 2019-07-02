@@ -107,6 +107,7 @@ class DejavuPrinter[T] extends Processor[Either[Record,T], Either[DejavuRequest,
     record match {
       case Left(rec@CommandRecord(_, _)) => processCommand(rec, f)
       case Left(rec@EventRecord(_, _, _)) => processEvent(rec, f)
+      case Right(value) if rec.isEmpty => f(Right(value))
       case Right(value) => delayBuffer += value
     }
   }
