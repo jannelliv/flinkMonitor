@@ -87,7 +87,6 @@ public class ReplayerIT {
 
         assertEquals(0, process.exitValue());
         assertEquals(Arrays.asList(
-                Pair.of(0, "TIME:0"),
                 Pair.of(0, "@1000 abc(foo)(bar)"),
                 Pair.of(0, "@1000 def(1234)"),
                 Pair.of(1000, "TIME:1000"),
