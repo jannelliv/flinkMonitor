@@ -41,14 +41,15 @@ public class Crv2014CsvParserTest {
 
         sink.clear();
         parser.parseLine(sink::add, "ab, tp = 1, ts = 11, x = y");
-        assertEquals(Collections.singletonList(new Fact("ab", "11", "y")), sink);
+        parser.parseLine(sink::add, ";;\n");
+        assertEquals(Arrays.asList(
+                new Fact("ab", "11", "y"),
+                new Fact(Trace.EVENT_FACT, "11")
+        ), sink);
 
         sink.clear();
         parser.parseLine(sink::add, " cde , tp = 2 , ts = 11 , x =  y\r\n");
-        assertEquals(Arrays.asList(
-                new Fact(Trace.EVENT_FACT, "11"),
-                new Fact("cde", "11", "y")
-        ), sink);
+        assertEquals(Collections.singletonList(new Fact("cde", "11", "y")), sink);
 
         sink.clear();
         parser.parseLine(sink::add, "a, tp=2, ts=12, x=y, 123 = 4Foo56   ");

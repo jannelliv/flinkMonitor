@@ -2,6 +2,8 @@ package ch.ethz.infsec.trace
 
 import org.scalatest.{FunSuite, Inside, Matchers}
 
+import scala.collection.mutable.ArrayBuffer
+
 class CsvFormatTest extends FunSuite with Matchers {
   test("Parsing individual lines") {
     CsvParser.parseLine("rel1, tp = 123, ts = 456, a = 10") shouldBe (123, 456, "rel1", Tuple(10))
@@ -54,6 +56,7 @@ class CsvFormatTest extends FunSuite with Matchers {
     val input = "withdraw, tp = 0, ts = 1, u = u109, a = 32\n" +
       "withdraw, tp = 0, ts = 1, u = u438, a = 55\n" +
       "withdraw, tp = 1, ts = 1, u = u642, a = 58\n" +
+      ";;\n" +
       "login, tp = 2, ts = 3, u = u321\n" +
       "withdraw, tp = 2, ts = 3, u = u285, a = 60\n" +
       "withdraw, tp = 2, ts = 3, u = u383, a = 67\n"
@@ -67,6 +70,17 @@ class CsvFormatTest extends FunSuite with Matchers {
       EventRecord(3, "login", Tuple("u321")),
       EventRecord(3, "withdraw", Tuple("u285", 60)),
       EventRecord(3, "withdraw", Tuple("u383", 67)),
+      Record.markEnd(3)
+    )
+  }
+
+  test("Parsing an end marker should terminate the database") {
+    val parser = CsvFormat.createParser()
+    val buffer = new ArrayBuffer[Record]()
+    parser.process("login, tp = 2, ts = 3, u = u321", buffer.append(_))
+    parser.process(";;", buffer.append(_))
+    buffer should contain theSameElementsInOrderAs List(
+      EventRecord(3, "login", Tuple("u321")),
       Record.markEnd(3)
     )
   }

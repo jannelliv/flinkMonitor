@@ -49,6 +49,34 @@ public class Crv2014CsvFormatterTest {
     }
 
     @Test
+    public void testPrintFactWithEndMarkers() {
+        formatter.setMarkDatabaseEnd(true);
+
+        formatter.printFact(sink, new Fact("abc", "123"));
+        assertEquals("abc, tp=0, ts=123\n", sink.toString());
+
+        sink.setLength(0);
+        formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));
+        assertEquals(";;\n", sink.toString());
+
+        sink.setLength(0);
+        formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));
+        assertEquals(";;\n", sink.toString());
+
+        sink.setLength(0);
+        formatter.printFact(sink, new Fact("abc", "456"));
+        assertEquals("abc, tp=2, ts=456\n", sink.toString());
+
+        sink.setLength(0);
+        formatter.printFact(sink, new Fact("def", "456", "uvw", "xyz"));
+        assertEquals("def, tp=2, ts=456, x0=uvw, x1=xyz\n", sink.toString());
+
+        sink.setLength(0);
+        formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "456"));
+        assertEquals(";;\n", sink.toString());
+    }
+
+    @Test
     public void testSerialization() throws Exception {
         formatter.printFact(sink, new Fact("abc", "123"));
         formatter.printFact(sink, new Fact(Trace.EVENT_FACT, "123"));

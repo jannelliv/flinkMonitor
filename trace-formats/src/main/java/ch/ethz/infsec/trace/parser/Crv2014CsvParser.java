@@ -13,28 +13,41 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
 
     private String lastTimePoint;
     private String lastTimestamp;
+    private boolean alreadyTerminated;
 
     public Crv2014CsvParser() {
         this.lastTimePoint = null;
         this.lastTimestamp = null;
+        this.alreadyTerminated = false;
     }
 
-    private void terminateEvent(Consumer<Fact> sink, String newTimePoint, String newTimestamp) {
-        if (lastTimePoint != null) {
+    private void terminateEvent(Consumer<Fact> sink) {
+        if (lastTimePoint != null && !alreadyTerminated) {
             sink.accept(new Fact(Trace.EVENT_FACT, lastTimestamp, Collections.emptyList()));
         }
+    }
+
+    private void beginNewEvent(Consumer<Fact> sink, String newTimePoint, String newTimestamp) {
+        terminateEvent(sink);
         lastTimePoint = newTimePoint;
         lastTimestamp = newTimestamp;
+        alreadyTerminated = false;
     }
 
     @Override
     public void endOfInput(Consumer<Fact> sink) {
-        terminateEvent(sink, null, null);
+        beginNewEvent(sink, null, null);
     }
 
     @Override
     public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
-        if (line.trim().isEmpty()) {
+        final String trimmed = line.trim();
+        if (trimmed.isEmpty()) {
+            return;
+        }
+        if (trimmed.equals(";;")) {
+            terminateEvent(sink);
+            alreadyTerminated = true;
             return;
         }
 
@@ -82,7 +95,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         }
 
         if (!(timePoint.equals(lastTimePoint) && timestamp.equals(lastTimestamp))) {
-            terminateEvent(sink, timePoint, timestamp);
+            beginNewEvent(sink, timePoint, timestamp);
         }
 
         sink.accept(new Fact(factName, timestamp, arguments));

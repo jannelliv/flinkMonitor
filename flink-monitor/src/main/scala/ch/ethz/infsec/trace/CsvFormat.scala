@@ -15,6 +15,7 @@ class CsvParser extends Processor[String, Record] with Serializable {
   // NOTE(JS): We assume that timepoints are non-negative.
   protected var currentTimepoint: Long = -1
   protected var currentTimestamp: Long = 0
+  protected var alreadyTerminated: Boolean = false
 
   override type State = (Timestamp, Timestamp)
 
@@ -33,21 +34,25 @@ class CsvParser extends Processor[String, Record] with Serializable {
     if(line.startsWith(">")) {
       //Important, terminate previous timepoint
       terminate(f)
-      val (command, parameters ) = CsvParser.parseCommand(line)
+      val (command, parameters) = CsvParser.parseCommand(line)
       f(CommandRecord(command, parameters))
+    } else if (line.trim == ";;") {
+      terminate(f)
+      alreadyTerminated = true
     } else {
       val (timepoint, timestamp, relation, tuple) = CsvParser.parseLine(line)
       if (timepoint != currentTimepoint) {
         terminate(f)
         currentTimepoint = timepoint
         currentTimestamp = timestamp
+        alreadyTerminated = false
       }
       f(EventRecord(timestamp, relation, tuple))
     }
   }
 
   override def terminate(f: Record => Unit) {
-    if (currentTimepoint >= 0) {
+    if (currentTimepoint >= 0 && !alreadyTerminated) {
       f(Record.markEnd(currentTimestamp))
       currentTimepoint = -1
     }

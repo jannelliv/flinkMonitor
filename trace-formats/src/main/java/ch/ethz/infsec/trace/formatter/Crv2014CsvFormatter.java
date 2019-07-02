@@ -8,6 +8,7 @@ import java.io.Serializable;
 public class Crv2014CsvFormatter implements TraceFormatter, Serializable {
     private static final long serialVersionUID = -1880412127233585471L;
 
+    private boolean markDatabaseEnd = false;
     protected long currentTimePoint;
 
     public Crv2014CsvFormatter() {
@@ -17,6 +18,9 @@ public class Crv2014CsvFormatter implements TraceFormatter, Serializable {
     @Override
     public void printFact(StringBuilder sink, Fact fact) {
         if (Trace.isEventFact(fact)) {
+            if (markDatabaseEnd) {
+                sink.append(";;\n");
+            }
             ++currentTimePoint;
         } else {
             sink.append(fact.getName());
@@ -34,5 +38,13 @@ public class Crv2014CsvFormatter implements TraceFormatter, Serializable {
             }
             sink.append("\n");
         }
+    }
+
+    public boolean getMarkDatabaseEnd() {
+        return markDatabaseEnd;
+    }
+
+    public void setMarkDatabaseEnd(boolean markDatabaseEnd) {
+        this.markDatabaseEnd = markDatabaseEnd;
     }
 }

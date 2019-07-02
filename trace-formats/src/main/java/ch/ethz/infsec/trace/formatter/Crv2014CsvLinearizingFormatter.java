@@ -21,7 +21,11 @@ public class Crv2014CsvLinearizingFormatter  extends  Crv2014CsvFormatter {
                 sink.append("=");
                 sink.append(fact.getArgument(i));
             }
-            sink.append("\n");
+            if (getMarkDatabaseEnd()) {
+                sink.append("\n;;\n");
+            } else {
+                sink.append("\n");
+            }
         }
     }
 
