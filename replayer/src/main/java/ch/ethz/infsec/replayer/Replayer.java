@@ -538,8 +538,8 @@ public class Replayer {
                 return new MonpolyTraceParser();
             default:
                 invalidArgument();
+                throw new RuntimeException("unreachable");
         }
-        return null;
     }
 
     private static TraceFormatter getTraceFormatter(String format) {
@@ -558,8 +558,8 @@ public class Replayer {
                 return new DejavuLinearizingTraceFormatter();
             default:
                 invalidArgument();
+                throw new RuntimeException("unreachable");
         }
-        return null;
     }
 
     public static void main(String[] args) {
@@ -569,6 +569,7 @@ public class Replayer {
         String outputHost = null;
         int outputPort = 0;
         boolean reconnect = false;
+        boolean markDatabaseEnd = false;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -653,6 +654,9 @@ public class Replayer {
                         }
                         replayer.commandPrefix = args[i];
                         break;
+                    case "-mark-database-end":
+                        markDatabaseEnd = true;
+                        break;
                     default:
                         if (args[i].startsWith("-") || inputFilename != null) {
                             invalidArgument();
@@ -692,6 +696,8 @@ public class Replayer {
                 return;
             }
         }
+
+        replayer.formatter.setMarkDatabaseEnd(markDatabaseEnd);
 
         if (!replayer.run()) {
             System.exit(1);

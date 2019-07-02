@@ -30,5 +30,15 @@ public class DejavuTraceFormatter implements TraceFormatter, Serializable{
             relation=fact;
         }
     }
+
+    @Override
+    public boolean getMarkDatabaseEnd() {
+        return true;
+    }
+
+    @Override
+    public void setMarkDatabaseEnd(boolean markDatabaseEnd) {
+        // ignored: there are no databases in Dejavu's format
+    }
 }
 
