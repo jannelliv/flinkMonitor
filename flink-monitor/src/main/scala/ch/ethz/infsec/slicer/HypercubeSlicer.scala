@@ -206,9 +206,10 @@ class HypercubeSlicer(
   override def updateState(state: Array[Byte]): Unit = parseSlicer(state.map(_.toChar).mkString(""))
 
   // TODO(JS): Relax restriction on rigid predicates.
-  override val requiresFilter: Boolean = {
+  override def requiresFilter: Boolean = {
     val relations = formula.atomsInOrder.map(_.relation)
-    relations.size != relations.distinct.size || relations.exists(HypercubeSlicer.isRigidRelation)
+    relations.size != relations.distinct.size || relations.exists(HypercubeSlicer.isRigidRelation) ||
+      heavy.exists(x => x._1 >= 0)
   }
 }
 
