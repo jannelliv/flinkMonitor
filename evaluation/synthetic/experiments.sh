@@ -214,7 +214,7 @@ end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
 echo
 echo "Scraping metrics from $start_time to $end_time ..."
-(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time gen)
+(cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time gen1)
 
 echo
 echo "Evaluation complete!"
