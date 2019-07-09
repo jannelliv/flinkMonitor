@@ -7,10 +7,10 @@ FORMULAS="star-past-ltl-neg linear-past-ltl-neg triangle-past-ltl-neg"
 #TODO: remember to change dejavu formulas for standalone (to remove the negation)
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 NEGATE_DEJAVU=""  #"--negate false" # if formulas above are suffixed with -neg this should be "--negate true", otherwise ""
-EVENT_RATES="1000 2000"
+EVENT_RATES="10000 15000"
 ACCELERATIONS="0 1"
 #INDEX_RATES="1 1000" #do not exist for dejavu
-PROCESSORS="1/0-2,24-26 4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
+PROCESSORS="8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
