@@ -45,7 +45,7 @@ object StreamMonitoring {
   var in: Option[Either[(String, Int), String]] = _
   var out: Option[Either[(String, Int), String]] = _
   var inputFormat: TraceFormat = _
-  var markDatabaseEnd: Boolean = false
+  var markDatabaseEnd: Boolean = true
   var watchInput: Boolean = false
 
   var processors: Int = 0
@@ -112,7 +112,7 @@ object StreamMonitoring {
       case "dejavu" => DejavuFormat
       case format => fail("Unknown trace format " + format)
     }
-    markDatabaseEnd = params.getBoolean("mark-database-end", false)
+    markDatabaseEnd = params.getBoolean("end-marker", true)
 
     watchInput = params.getBoolean("watch", false)
 

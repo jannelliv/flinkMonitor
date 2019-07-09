@@ -34,6 +34,7 @@ class CsvParser extends Processor[String, Record] with Serializable {
     if(line.startsWith(">")) {
       //Important, terminate previous timepoint
       terminate(f)
+      alreadyTerminated = true
       val (command, parameters) = CsvParser.parseCommand(line)
       f(CommandRecord(command, parameters))
     } else if (line.trim == ";;") {

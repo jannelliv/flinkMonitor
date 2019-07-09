@@ -320,6 +320,19 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     slicer.requiresFilter shouldBe true
   }
 
+  test("Verdicts must be filtered if there are heavy hitters") {
+    val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("y"))))
+    val slicer = HypercubeSlicer.optimize(formula, 16, new Statistics {
+      override def relationSize(relation: String): Double = 1.0
+
+      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
+        case ("p", 0) => Set(0)
+        case _ => Set.empty
+      }
+    })
+    slicer.requiresFilter shouldBe true
+  }
+
   test("Verdict filtering may be skipped") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("y"))))
     val slicer = HypercubeSlicer.optimize(formula, 16, Statistics.simple("p" -> 1, "q" -> 1))

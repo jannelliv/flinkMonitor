@@ -569,7 +569,7 @@ public class Replayer {
         String outputHost = null;
         int outputPort = 0;
         boolean reconnect = false;
-        boolean markDatabaseEnd = false;
+        boolean markDatabaseEnd = true;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -654,8 +654,8 @@ public class Replayer {
                         }
                         replayer.commandPrefix = args[i];
                         break;
-                    case "-mark-database-end":
-                        markDatabaseEnd = true;
+                    case "-no-end-marker":
+                        markDatabaseEnd = false;
                         break;
                     default:
                         if (args[i].startsWith("-") || inputFilename != null) {
