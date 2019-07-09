@@ -496,30 +496,38 @@ if __name__ == '__main__':
         paths = map(pathlib.Path, sys.argv[1:])
         summary, slices, series, throughput = Loader.load(paths)
 
-        # PLOTTING...
+        # print(summary.df)
 
-        # SYNTHETIC
-        gen_nproc = summary.select(experiment='gen', statistics=False, index_rate=1000)
-        gen_nproc.plot('event_rate', ['peak', 'max'], series_levels=['tool', 'processors'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
+        # print(slices.df)
 
-        gen_memory = summary.select(experiment='gen', checkpointing=False, statistics=False, index_rate=1000)
-        gen_memory.plot('event_rate', 'memory', series_levels=['tool', 'processors'], column_levels=['formula'], title="Max. monitor memory (synthetic, 1000)" , path="gen_memory.pdf")
+        # print(series.df)
 
-        gen_formulas = summary.select(experiment='gen', tool='flink_monpoly', checkpointing=True, statistics=False)
-        gen_formulas.plot('event_rate', ['peak', 'max'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas_monpoly.pdf")
+        # print(throughput.df)
 
-        gen_throughput = throughput.select(experiment='gen', stage=0)
-        gen_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic)" , path="gen_throughput_monpoly.pdf")
-        gen_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic)" , path="gen_runtime_monpoly.pdf")
+        # EXPLORATORY PLOTTING...
+
+        # # SYNTHETIC
+        # gen_nproc = summary.select(experiment='gen', stage = 1, index_rate=1000)
+        # gen_nproc.plot('event_rate', ['peak', 'max'], series_levels=['tool', 'processors'], column_levels=['statistics'], title="Latency (synthetic, 1000)" , path="gen_nproc.pdf")
+
+        # gen_memory = summary.select(experiment='gen', checkpointing=False, statistics=False, index_rate=1000)
+        # gen_memory.plot('event_rate', 'memory', series_levels=['tool', 'processors'], column_levels=['formula'], title="Max. monitor memory (synthetic, 1000)" , path="gen_memory.pdf")
+
+        # gen_formulas = summary.select(experiment='gen',  checkpointing=True, statistics=False)
+        # gen_formulas.plot('event_rate', ['peak', 'max'], series_levels=['formula', 'index_rate'], title="Latency (synthetic)", path="gen_formulas_monpoly.pdf")
+
+        # gen_throughput = throughput.select(experiment='gen', stage=0)
+        # gen_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic)" , path="gen_throughput_monpoly.pdf")
+        # gen_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic)" , path="gen_runtime_monpoly.pdf")
 
 
-        gen_series = series.select(experiment='gen', statistics=False, stage=1)
-        gen_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (gen)", path="gen_series.pdf")
+        # gen_series = series.select(experiment='gen', statistics=False, stage=1)
+        # gen_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (gen)", path="gen_series.pdf")
 
 
         # gen_nproc = summary.select(experiment='genCMP')
         # gen_nproc.df.reset_index('index_rate', drop=True, inplace=True)
-        # gen_nproc.plot('event_rate', ['peak','max'], series_levels=['tool', 'processors'], column_levels=['statistics'], title="Latency (synthetic, 1000)" , path="genCMP_nproc.pdf")
+        # gen_nproc.plot('event_rate', ['max'], series_levels=['tool', 'processors'], column_levels=['statistics'], title="Latency (synthetic, 1000)" , path="genCMP_nproc.pdf")
 
         # gen_memory = summary.select(experiment='genCMP', tool='flink_dejavu')
         # gen_memory.df.reset_index('index_rate', drop=True, inplace=True)
@@ -527,7 +535,7 @@ if __name__ == '__main__':
 
         # gen_formulas = summary.select(experiment='genCMP')
         # gen_formulas.df.reset_index('index_rate', drop=True, inplace=True)
-        # gen_formulas.plot('event_rate', ['peak', 'max'], series_levels=['formula'], column_levels=['statistics'], title="Latency (synthetic)", path="genCMP_formulas.pdf")
+        # gen_formulas.plot('event_rate', ['max'], series_levels=['formula'], column_levels=['statistics'], title="Latency (synthetic)", path="genCMP_formulas.pdf")
 
         # gen_throughput = throughput.select(experiment='genCMP', stage=0)
         # gen_throughput.df.reset_index('index_rate', drop=True, inplace=True)
@@ -535,68 +543,87 @@ if __name__ == '__main__':
         # gen_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic with Dejavu)" , path="gen_runtime_dejavu.pdf")
 
 
-        # NOKIA
+        # # NOKIA
 
-        nokia_nproc = summary.select(experiment='nokia', statistics=False, stage=1)
-        nokia_nproc.plot('event_rate', ['peak', 'max'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokia_nproc.pdf")
+        # nokia_nproc = summary.select(experiment='nokia', stage=1)
+        # nokia_nproc.plot('event_rate', ['max'], series_levels=['tool', 'processors'], column_levels=['statistics'],  title="Latency (Nokia)" , path="nokia_nproc.pdf")
 
-        nokia_formulas = summary.select(experiment='nokia', tool='flink_monpoly', checkpointing=True, statistics=False, stage=1)
-        nokia_formulas.plot('event_rate', ['peak', 'max'], series_levels=['formula'], title="Latency (Nokia)", path="nokia_formulas.pdf")
+        # nokia_formulas = summary.select(experiment='nokia', tool='flink_monpoly', checkpointing=True, stage=1)
+        # nokia_formulas.plot('event_rate', ['max'], series_levels=['formula'], column_levels=['statistics'], title="Latency (Nokia)", path="nokia_formulas.pdf")
 
-        nokia_series = series.select(experiment='nokia', statistics=False, stage=1)
-        nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
+        # nokia_series = series.select(experiment='nokia', statistics=False, stage=1)
+        # nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
 
-        nokia_throughput = throughput.select(experiment='nokia', stage=1)
-        nokia_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_throughput_monpoly.pdf")
-        nokia_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_runtime_monpoly.pdf")
+        # nokia_throughput = throughput.select(experiment='nokia', stage=1)
+        # nokia_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_throughput_monpoly.pdf")
+        # nokia_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_runtime_monpoly.pdf")
 
 
         # nokia_nproc = summary.select(experiment='nokiaCMP', stage=1)
-        # nokia_nproc.plot('event_rate', ['peak', 'max'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokiaCMP_nproc.pdf")
+        # nokia_nproc.plot('event_rate', ['max'], series_levels=['tool', 'processors'], title="Latency (Nokia)" , path="nokiaCMP_nproc.pdf")
 
-        # nokia_series = series.select(experiment='nokiaCMP', statistics=False, stage=1)
+        # nokia_series = series.select(experiment='nokiaCMP', stage=1)
         # nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokiaCMP_series.pdf")
 
         # nokia_throughput = throughput.select(experiment='nokiaCMP', stage=1)
         # nokia_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia with Dejavu)" , path="nokia_throughput_dejavu.pdf")
         # nokia_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia with Dejavu)" , path="nokia_runtime_dejavu.pdf")
-
         
-        # SLICES
-        # gen_slices = slices.select(experiment='gen', tool='flink_monpoly', checkpointing=False, index_rate=1000)
+        # # SLICES
+        # gen_slices = slices.select(experiment='gen', tool='flink_monpoly', checkpointing=False, index_rate=1)
         # gen_slices.plot('processors', 'total_events', column_levels=['formula'], box_plot='monitor', title="Slice sizes (synthetic)", path="gen_slices.pdf")
 
-        # genh_slices = slices.select(experiment='genh', tool='flink_monpoly', checkpointing=True, event_rate=4000, index_rate=1000)
-        # genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh3_slices.pdf")
+        # genh_slices = slices.select(experiment='genh', tool='flink_monpoly', checkpointing=True, event_rate=750, index_rate=1, stage=1)
+        # monitors=['monitor_tp0','monitor_tp1','monitor_tp2','monitor_tp3','monitor_tp4','monitor_tp5','monitor_tp6','monitor_tp7','monitor_tp8','monitor_tp9','monitor_tp10','monitor_tp11','monitor_tp12','monitor_tp13','monitor_tp14','monitor_tp15']
+        # genh_slices.df=genh_slices.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,monitors), :]
+        # genh_slices.plot('processors', 'total_events', column_levels=['statistics', 'heavy_hitters'], box_plot='monitor', title="Slice sizes (synthetic w/ skew)", path="genh_slices.pdf")
+
 
         # EXPORTING...
-
-        # gen_nproc_export = summary.select(experiment='gen', checkpointing=True, statistics=False, formula='star', index_rate=1000)
-        # gen_nproc_export.export('max', 'memory', path="gen_nproc.csv")
-        
+       
         # # ALL
         # gen_nproc_export = summary.select()
         # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="all.csv")
 
         # # PLOT1
-        # gen_nproc_export = summary.select(experiment='gen',checkpointing=True)
-        # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="plot-synthetic.csv")
+        synth_export = summary.select(experiment='gen', heavy_hitters=0, stage=1)
+        synth_export.export('max', 'memory', path="plot1-latency.csv")
+
+        synth_export = throughput.select(experiment='gen', heavy_hitters=0, stage=0)
+        synth_export.export('throughput', path="plot1-throughput.csv")
+
+        # # PLOT1-dejavu
+        synth_export = summary.select(experiment='genCMP',checkpointing=False, heavy_hitters=0, stage=1)
+        synth_export.export('max', 'memory', path="plot1-dejavu-latency.csv")
+
+        synth_export = throughput.select(experiment='genCMP',checkpointing=False, heavy_hitters=0, stage=0)
+        synth_export.export('throughput', path="plot1-dejavu-throughput.csv")
+
 
         # # PLOT2
-        # nokia_nproc = summary.select(experiment='nokia', statistics=False)
-        # nokia_nproc.export('max', 'peak', 'average', 'current_events', 'memory', 'sum_tp', path="plot-nokia.csv")
+        nokia_export = summary.select(experiment='nokia', statistics=False, heavy_hitters=0, stage=1)
+        nokia_export.export('max', 'memory', path="plot2-latency.csv")
+
+        nokia_export = series.select(experiment='nokia', statistics=False, heavy_hitters=0, stage=1)
+        nokia_export.df=nokia_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,1), :]
+        nokia_export.export('peak', 'memory', path="plot2-series.csv")
+
+
+        # # PLOT2-dejavu
+        nokia_export = summary.select(experiment='nokiaCMP', statistics=False, heavy_hitters=0, stage=1)
+        nokia_export.export('max', 'memory', path="plot2-dejavu-latency.csv")
+
+        nokia_export = series.select(experiment='nokiaCMP', statistics=False, heavy_hitters=0, stage=1)
+        nokia_export.df=nokia_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,1), :]
+        nokia_export.export('peak', 'memory', path="plot2-dejavu-series.csv")
 
         # # PLOT3
-        # nokia_series = series.select(experiment='nokia', checkpointing=False, repetition=2, statistics=False)
-        # nokia_series.export('peak', path="plot-nokia-time-f.csv")
+        genh_slices_export = slices.select(experiment='genh', tool='flink_monpoly', checkpointing=True, event_rate=750, index_rate=1, stage=1)
+        monitors=['monitor_tp0','monitor_tp1','monitor_tp2','monitor_tp3','monitor_tp4','monitor_tp5','monitor_tp6','monitor_tp7','monitor_tp8','monitor_tp9','monitor_tp10','monitor_tp11','monitor_tp12','monitor_tp13','monitor_tp14','monitor_tp15']
+        genh_slices_export.df=genh_slices_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,monitors), :]
+        genh_slices_export.export('total_events', drop_levels=['monitor'], path="plot3-slices.csv")
 
-        # # PLOT4
-        # nokia_series = series.select(experiment='nokia', checkpointing=True, repetition=2, statistics=False)
-        # nokia_series.export('peak', path="plot-nokia-time-t.csv")
-    
-        # # PLOT5
-        # genh_slices_export = slices.select(experiment='genh', tool='flink', heavy_hitters=[0,1], event_rate=4000, index_rate=1000)
-        # genh_slices_export.export('total_events', drop_levels=['monitor'], path="genh_slices.csv")
+
 
     else:
         sys.stderr.write("Usage: {} path ...\n".format(sys.argv[0]))

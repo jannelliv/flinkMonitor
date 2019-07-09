@@ -1,8 +1,10 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import csv
 import sys
 import json
+import re
+
 
 from pprint import pprint
 
@@ -148,7 +150,7 @@ def recalculateAverage(peak):
 
 def d2l(d):
     dictlist = []
-    for key, value in d.iteritems():
+    for key, value in d.items():
         temp = [key,value]
         dictlist.append(temp)
     dictlist.sort(key=lambda x: x[0])
@@ -162,11 +164,18 @@ def l2d(l):
         dict[key]=value
     return dict
 
+def get_subprocesses(j):
+    job_regex = re.compile(r"(nokia|nokiaCMP|gen|genCMP|genh)(_flink)?_(monpoly|dejavu)(_ft)?(_stats)?(?:_(\d+))?_([a-zA-Z0-9-_]+neg)(?:_h(\d+))?_(\d+)(?:_(\d+))?_([01])_(\d+)")
+    job_match = job_regex.fullmatch(j)
+    return int(job_match.group(6) or 1)
+
+
+
 for job in common_jobs:
     output_file = open("metrics_"+job+".csv", 'w')
     writer = csv.writer(output_file)
-    ms = len(job_map_record[job])
-    writer.writerow(['timestamp', 'peak', 'max', 'average', 'sum_tp']+ map(lambda x: "monitor_tp"+str(x), range(0,ms)))
+    ms = get_subprocesses(job)
+    writer.writerow(['timestamp', 'peak', 'max', 'average', 'sum_tp']+ list(map(lambda x: "monitor_tp"+str(x), range(0,ms))))
     
     index = 0
     #Gets lists from dicts
@@ -191,7 +200,10 @@ for job in common_jobs:
             r = [ts,peak_val,max_val,avg_val]
             records = []
             for m in range(ms):
-                rec = job_map_record[job][m][ts]
+                try:
+                    rec = job_map_record[job][m][ts]
+                except:
+                    rec = 0
                 records = records + [rec]
 
             sum_tp = sum(records)
