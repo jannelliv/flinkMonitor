@@ -14,6 +14,7 @@ REPLAYER_JAR="$PROJECT_DIR/replayer/target/replayer-1.0-SNAPSHOT.jar"
 TOOL_JAR="$PROJECT_DIR/trace-generator/target/trace-generator-1.0-SNAPSHOT.jar"
 DEJAVU_EXE="$PROJECT_DIR/evaluation/dejavu/dejavu"
 MONPOLY_EXE="$ROOT_DIR/monpoly/monpoly"
+BLANK_MONPOLY_EXE="$WORK_DIR/run-blank-monpoly.sh"
 
 CHECKPOINT_DIR="$ROOT_DIR/checkpoints"
 OUTPUT_DIR="$ROOT_DIR/output"

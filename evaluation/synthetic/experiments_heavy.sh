@@ -5,13 +5,13 @@ source "$WORK_DIR/config.sh"
 
 FORMULAS="star-neg linear-neg triangle-neg"  # These must match the formulas in mk_heavy.py!
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
-EVENT_RATES="250 500 750"
-INDEX_RATES="1"
-HEAVY_SETS_NO_STATS="h0 h1"
-HEAVY_SETS_STATS="h1"
+EVENT_RATES="50000"
+INDEX_RATES="1 1000"
+HEAVY_SETS_NO_STATS="h0 h1 h2"
+HEAVY_SETS_STATS="h1 h2"
 PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
 AUX_CPU_LIST="10-11,34-35"
-LOG_LENGTH=30
+LOG_LENGTH=60
 
 echo $LOG_LENGTH > "$REPORT_DIR/genh.length"
 
@@ -76,7 +76,7 @@ for procs in $PROCESSORS; do
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                         rm -r "$VERDICT_FILE" 2> /dev/null
-                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly -command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
+                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly -command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $BLANK_MONPOLY_EXE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
                     done
                 done
@@ -113,7 +113,7 @@ for procs in $PROCESSORS; do
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                         rm -r "$VERDICT_FILE" 2> /dev/null
-                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.3333,B=0.3333,C=0.3333" --heavy "$HEAVY_FILE" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
+                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $BLANK_MONPOLY_EXE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.3333,B=0.3333,C=0.3333" --heavy "$HEAVY_FILE" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                         wait
                     done
                 done
