@@ -39,41 +39,41 @@ make_log -L linear-past-ltl-neg
 make_log -T triangle-past-ltl-neg
 
 
-echo "Monpoly standalone:"
-for formula in $FORMULAS; do
-    echo "  Evaluating $formula:"
-    for er in $EVENT_RATES; do
-        echo "    Event rate $er, index rate $er:"
-        for acc in $ACCELERATIONS; do
-            echo "    Acceleration $acc:"
-            for i in $(seq 1 $REPETITIONS); do
-                echo "      Repetition $i ..."
+# echo "Monpoly standalone:"
+# for formula in $FORMULAS; do
+#     echo "  Evaluating $formula:"
+#     for er in $EVENT_RATES; do
+#         echo "    Event rate $er, index rate $er:"
+#         for acc in $ACCELERATIONS; do
+#             echo "    Acceleration $acc:"
+#             for i in $(seq 1 $REPETITIONS); do
+#                 echo "      Repetition $i ..."
 
-                if [[ "$acc" = "0" ]]; then
+#                 if [[ "$acc" = "0" ]]; then
 
-                    INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.log"
-                    TIME_REPORT="$REPORT_DIR/genCMP_monpoly_${formula}_${er}_${er}_${acc}_${i}_time.txt"
+#                     INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.log"
+#                     TIME_REPORT="$REPORT_DIR/genCMP_monpoly_${formula}_${er}_${er}_${acc}_${i}_time.txt"
 
-                    rm -r "$VERDICT_FILE" 2> /dev/null
-                    cat "$INPUT_FILE" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/synthetic/synth.sig" -formula "$WORK_DIR/synthetic/$formula.mfotl" $NEGATE > "$VERDICT_FILE"
+#                     rm -r "$VERDICT_FILE" 2> /dev/null
+#                     cat "$INPUT_FILE" | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/synthetic/synth.sig" -formula "$WORK_DIR/synthetic/$formula.mfotl" $NEGATE > "$VERDICT_FILE"
 
 
-                else
+#                 else
 
-                    INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
-                    DELAY_REPORT="$REPORT_DIR/genCMP_monpoly_${formula}_${er}_${er}_${acc}_${i}_delay.txt"
-                    TIME_REPORT="$REPORT_DIR/genCMP_monpoly_${formula}_${er}_${er}_${acc}_${i}_time.txt"
+#                     INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+#                     DELAY_REPORT="$REPORT_DIR/genCMP_monpoly_${formula}_${er}_${er}_${acc}_${i}_delay.txt"
+#                     TIME_REPORT="$REPORT_DIR/genCMP_monpoly_${formula}_${er}_${er}_${acc}_${i}_time.txt"
 
-                    rm -r "$VERDICT_FILE" 2> /dev/null
-                    (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly-linear "$INPUT_FILE" 2> "$DELAY_REPORT") \
-                        | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/synthetic/synth.sig" -formula "$WORK_DIR/synthetic/$formula.mfotl" $NEGATE -nonewlastts > "$VERDICT_FILE"
+#                     rm -r "$VERDICT_FILE" 2> /dev/null
+#                     (taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f monpoly-linear "$INPUT_FILE" 2> "$DELAY_REPORT") \
+#                         | taskset -c $MONPOLY_CPU_LIST "$TIME_COMMAND" -f "%e;%M" -o "$TIME_REPORT" "$MONPOLY_EXE" -sig "$WORK_DIR/synthetic/synth.sig" -formula "$WORK_DIR/synthetic/$formula.mfotl" $NEGATE -nonewlastts > "$VERDICT_FILE"
 
-                fi
+#                 fi
 
-            done
-        done
-    done
-done
+#             done
+#         done
+#     done
+# done
 
 echo "Dejavu standalone:"
 for formula in $FORMULAS; do
@@ -137,17 +137,17 @@ for procs in $PROCESSORS; do
 
                     if [[ "$acc" = "0" ]]; then
 
-                        echo "          Monpoly ..."
+                        # echo "          Monpoly ..."
 
-                        INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
-                        JOB_NAME="genCMP_flink_monpoly_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
-                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                        BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                        # INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+                        # JOB_NAME="genCMP_flink_monpoly_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
+                        # TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                        # BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                        # JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                        rm -r "$VERDICT_FILE" 2> /dev/null
-                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
-                        wait
+                        # rm -r "$VERDICT_FILE" 2> /dev/null
+                        # "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
+                        # wait
 
                         echo "          Dejavu..."
 
@@ -163,19 +163,19 @@ for procs in $PROCESSORS; do
 
                     else
 
-                        echo "          Monpoly ..."
+                        # echo "          Monpoly ..."
 
-                        INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
-                        JOB_NAME="genCMP_flink_monpoly_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
-                        DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                        BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                        # INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+                        # JOB_NAME="genCMP_flink_monpoly_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
+                        # DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                        # TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                        # BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                        # JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                        rm -r "$VERDICT_FILE" 2> /dev/null
-                        taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv-linear -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
-                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
-                        wait
+                        # rm -r "$VERDICT_FILE" 2> /dev/null
+                        # taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv-linear -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
+                        # "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
+                        # wait
 
                         echo "          Dejavu..."
 
@@ -225,17 +225,17 @@ for procs in $PROCESSORS; do
 
                  if [[ "$acc" = "0" ]]; then
 
-                    echo "          Monpoly ..."
+                    # echo "          Monpoly ..."
 
-                    INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
-                    JOB_NAME="genCMP_flink_monpoly_stats_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
-                    TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                    BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                    JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                    # INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+                    # JOB_NAME="genCMP_flink_monpoly_stats_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
+                    # TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                    # BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                    # JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                    rm -r "$VERDICT_FILE" 2> /dev/null
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.01,B=0.495,C=0.495" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
-                    wait
+                    # rm -r "$VERDICT_FILE" 2> /dev/null
+                    # "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.01,B=0.495,C=0.495" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    # wait
 
                     echo "          Dejavu ..."
 
@@ -252,19 +252,19 @@ for procs in $PROCESSORS; do
 
                  else
 
-                    echo "          Monpoly ..."
+                    # echo "          Monpoly ..."
 
-                    INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
-                    JOB_NAME="genCMP_flink_monpoly_stats_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
-                    DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                    TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                    BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                    JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                    # INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${er}.csv"
+                    # JOB_NAME="genCMP_flink_monpoly_stats_${numcpus}_${formula}_${er}_${er}_${acc}_${i}"
+                    # DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                    # TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                    # BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                    # JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                    rm -r "$VERDICT_FILE" 2> /dev/null
-                    taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv-linear -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.01,B=0.495,C=0.495" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
-                    wait
+                    # rm -r "$VERDICT_FILE" 2> /dev/null
+                    # taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv-linear -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
+                    # "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --rates "A=0.01,B=0.495,C=0.495" --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
+                    # wait
 
                     echo "          Dejavu ..."
 
