@@ -8,19 +8,11 @@ import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
 import ch.ethz.infsec.tools.Rescaler
-import ch.ethz.infsec.tools.Rescaler.RescaleInitiator
-import ch.ethz.infsec.trace.{CsvFormat, MonpolyFormat, TraceMonitor, _}
+import ch.ethz.infsec.trace.{CsvFormat, MonpolyFormat, _}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
-import org.apache.flink.api.common.serialization.SimpleStringSchema
-import org.apache.flink.api.java.functions.IdPartitioner
-import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
-import org.apache.flink.core.fs.Path
-import org.apache.flink.streaming.api.functions.sink.{PrintSinkFunction, SocketClientSink}
-import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
 import org.apache.flink.streaming.api.scala._
-import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 import org.slf4j.LoggerFactory
 import org.slf4j.helpers.MessageFormatter
 
@@ -259,66 +251,20 @@ object StreamMonitoring {
       env.setMaxParallelism(1)
       env.setParallelism(1)
 
-      //Single node
+      val monitor = new StreamMonitorBuilder(env)
+
       val textStream = in match {
-        case Some(Left((h, p))) =>
-          LatencyTrackingExtensions.addSourceWithProvidedMarkers(
-          env,
-          new SocketTextStreamFunction(h, p, "\n", 0),
-          "Socket source")
-          .uid("socket-source")
-        case Some(Right(f)) =>
-          if (watchInput)
-            env.readFile(new TextInputFormat(new Path(f)), f, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
-              .name("File watch source")
-              .uid("file-watch-source")
-          else
-            env.readTextFile(f).name("file-source").uid("File source")
+        case Some(Left((h, p))) => monitor.socketSource(h, p)
+        case Some(Right(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case _ => fail("Cannot parse the input argument")
       }
 
-      val parsedTrace = textStream.flatMap(new ProcessorFunction(new TraceMonitor(inputFormat.createParser(), new RescaleInitiator().rescale)))
-        .name("Parser")
-        .uid("input-parser")
-        .setMaxParallelism(1)
-        .setParallelism(1)
-
-      val slicedTrace = parsedTrace
-        .flatMap(new ProcessorFunction(slicer)).name("Slicer").uid("slicer")
-        .setMaxParallelism(1)
-        .setParallelism(1)
-        .partitionCustom(new IdPartitioner, 0)
-
-      // Parallel node
-      // TODO(JS): Timeout? Capacity?
-      // TODO(JS): Set parallelism to slicer.degree once elastic rescaling is implemented.
-      val verdicts = ExternalProcessOperator.transform[(Int, Record), MonitorRequest, String, String](
-        slicer,
-        slicedTrace,
-        processFactory,
-        queueSize).setParallelism(processors).setMaxParallelism(processors).name("Monitor").uid("monitor")
-
-      //Single node
-
-
+      val verdicts = monitor.assemble(textStream, inputFormat, slicer, processFactory, queueSize)
 
       out match {
-        case Some(Left((h, p))) =>
-          val outVerdicts = verdicts.map(v => v + "\n").setParallelism(1).name("Add newline").uid("add-newline")
-          LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
-            outVerdicts,
-            new SocketClientSink[String](h, p, new SimpleStringSchema(), 0))
-            .setParallelism(1).name("Socket sink").uid("socket-sink")
-        case Some(Right(f)) =>
-          LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
-            verdicts,
-            new BucketingSink[String](f))
-            .setParallelism(1).name("File sink").uid("file-sink")
-        case _ =>
-          LatencyTrackingExtensions.addPreciseLatencyTrackingSink(
-            verdicts,
-            new PrintSinkFunction[String]())
-            .setParallelism(1).name("Print sink").uid("print-sink")
+        case Some(Left((h, p))) => monitor.socketSink(verdicts, h, p)
+        case Some(Right(f)) => monitor.fileSink(verdicts, f)
+        case _ => monitor.printSink(verdicts)
       }
 
       Rescaler.create(jobName, "127.0.0.1", processors)

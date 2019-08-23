@@ -1,5 +1,7 @@
 package ch.ethz
 
+import ch.ethz.infsec.monitor.{ExternalProcessFactory, MonitorRequest}
+import ch.ethz.infsec.trace.Record
 import org.apache.flink.api.common.functions.RichFlatMapFunction
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
@@ -8,8 +10,8 @@ import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSn
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.util.Collector
 
-import scala.collection.mutable.ArrayBuffer
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ArrayBuffer
 
 package object infsec {
 
@@ -99,4 +101,5 @@ package object infsec {
     }
   }
 
+  type MonitorFactory = ExternalProcessFactory[(Int, Record), MonitorRequest, String, String]
 }
