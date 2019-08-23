@@ -1,12 +1,12 @@
 package ch.ethz.infsec.monitor
 
-import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
+import java.io._
 import java.lang.ProcessBuilder.Redirect
 
 import scala.collection.JavaConverters
 
 abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT] {
-  @transient private var process: Process = _
+  @transient protected var process: Process = _
 
   @transient protected var writer: BufferedWriter = _
   @transient protected var reader: BufferedReader = _

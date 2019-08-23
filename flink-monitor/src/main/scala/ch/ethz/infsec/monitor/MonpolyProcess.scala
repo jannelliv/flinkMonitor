@@ -2,6 +2,7 @@ package ch.ethz.infsec.monitor
 
 import java.io.File
 import java.nio.file.{Files, Path}
+import java.util
 
 import ch.ethz.infsec
 import ch.ethz.infsec.slicer.HypercubeSlicer
@@ -12,10 +13,10 @@ import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
 class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[String])
-    extends AbstractExternalProcess[MonpolyRequest, String] {
+    extends AbstractExternalProcess[MonpolyRequest, MonpolyRequest] {
 
   private val GET_INDEX_COMMAND = ">get_pos<\n"
-  private val GET_INDEX_PREFIX = "Current timepoint: "
+  private val GET_INDEX_PREFIX = "Current timepoint:"
   private val SLICING_PREFIX = "Slicing "
 
   private val COMMAND_PREFIX = ">"
@@ -92,23 +93,101 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     println("Opened Monpoly after rescale")
   }
 
+  private val indexCommandTimingBuffer = new java.util.concurrent.LinkedBlockingQueue[Either[CommandItem,Long]]()
+  private var processTimeMovingAverage = 0.0
+  def yes(x: Long): Unit = {
+    processTimeMovingAverage = processTimeMovingAverage * 0.9 + x * 0.1
+  }
+
   override def writeRequest[SubRequest >: MonpolyRequest](request: SubRequest): Unit = {
     val r = request.asInstanceOf[MonpolyRequest]
-    r match {
-      case CommandItem(r.in) =>
-        logger.info("Pending Slicer set")
-        pendingSlicer = true
-      case EventItem(r.in) => ()
+
+/*    if(!started) {
+      started = true
+      tempF = new FileWriter("monpolyIn"+(process.hashCode()%10000)+".log",false)
+    }
+    tempF.write(request.in)
+    tempF.flush()*/
+
+    //canHandle represents wether this is something for monpoly or for further down in the pipeline
+    if(pendingSlicer) {
+      var tempF = new FileWriter("monpolyError.log",true)
+      tempF.write("we got a message after pending slicer was set:"+r.in+"\n")
+      tempF.flush()
+      tempF.close()
     }
 
-
-
-    writer.write(r.in)
-    if(r.in == GET_INDEX_COMMAND)
+    var canHandle = false
+    r match {
+      case r@CommandItem(in) =>
+        if(in.startsWith(">set_slicer")) {
+          logger.info("Pending Slicer set")
+          pendingSlicer = true
+          canHandle = true
+          var tempF = new FileWriter("monpolyError.log",true)
+          tempF.write("we set slicer to true, slicer:"+in+"\n")
+          tempF.flush()
+          tempF.close()
+        }else if(in.startsWith(">gapt")) {
+          canHandle = true
+        }else{
+          indexCommandTimingBuffer.put(Left(r))
+        }
+      case EventItem(_) => canHandle = true
+    }
+    try {
+      if(canHandle)
+      {
+          indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
+          writer.write(in)
+      }
+      //TODO(CF): This is inefficient in the case of internal commands, but necessary to get an output because each write needs a matching read
+      writer.write(GET_INDEX_COMMAND)
+      // TODO(JS): Do not flush if there are more requests in the queue
       writer.flush()
+    }catch{
+      case e:Throwable => {
+        var tempF = new FileWriter("monpolyError.log",true)
+        tempF.write("ran into error in monpoly at request: "+r.toString+"\nhad pending slicer set?"+pendingSlicer+"\n")
+        tempF.flush()
+        tempF.close()
+        throw e
+      }
+    }
+
+  }
+
+  var memory = ""
+
+  def readResidentialMemory(): Unit = {
+    var pid = MonpolyProcessJavaHelper.getPidOfProcess(process)
+    if(pid != -1) {
+      var lines = Files.readAllLines(Paths.get("/proc/"+pid+"/status"))
+      if(lines != null) {
+        //java collection, so the java way
+        var i = 0
+        while(i < lines.size()) {
+          var l = lines.get(i)
+          if(l.startsWith("VmRSS:")) {
+            memory = l.drop("VmRSS:".length).trim.dropRight("kB".length).trim
+            return
+          }
+          i = i+1
+        }
+      }
+    }
+  }
+
+  def snapshotHelper(): Unit = {
+    readResidentialMemory()
+    var tempF = new FileWriter("monpolyError.log",true)
+    tempF.write("we started snapshotting\n")
+    tempF.flush()
+    tempF.close()
   }
 
   override def initSnapshot(): Unit = {
+    snapshotHelper()
     var command = ""
     if(pendingSlicer) command = SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state")
     else command = SAVE_STATE_COMMAND.format(tempStateFile.toString)
@@ -117,29 +196,146 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
   }
 
   override def initSnapshot(slicer: String): Unit = {
+    snapshotHelper()
     writer.write(SET_SLICER_COMMAND.format(slicer))
     writer.write(SPLIT_SAVE_COMMAND.format(tempDirectory.toString + "/state"))
     writer.flush()
   }
 
-  override def readResults(buffer: mutable.Buffer[String]): Unit = {
-    val line = reader.readLine()
-    buffer += line
-  }
+/*  var started2 = false
+  var tempF2 : FileWriter = null*/
 
-  override def drainResults(buffer: mutable.Buffer[String]): Unit = {
+  override def readResults(buffer: mutable.Buffer[MonpolyRequest]): Unit = {
+/*    if(!started2) {
+      started2 = true
+      tempF2 = new FileWriter("monpolyOut"+(process.hashCode()%10000)+".log",false)
+    }*/
+    if(pendingSlicer) {
+      var tempF = new FileWriter("monpolyError.log",true)
+      tempF.write("we called readResults after pending slicer was set\n")
+      tempF.flush()
+      tempF.close()
+    }
     var more = true
     do {
+      if(pendingSlicer) {
+        var tempF = new FileWriter("monpolyError.log",true)
+        tempF.write("In readResults loop after pending slicer was set\n")
+        tempF.flush()
+        tempF.close()
+      }
       val line = reader.readLine()
-      if (line == null)
+        if(pendingSlicer) {
+        var tempF = new FileWriter("monpolyError.log",true)
+        tempF.write("but it okay because it had data: "+line+"\n")
+        tempF.flush()
+        tempF.close()
+      }
+
+/*      if(line != null) {
+        tempF2.write(line+"\n")
+        tempF2.flush()
+      }*/
+
+      while(!indexCommandTimingBuffer.isEmpty && indexCommandTimingBuffer.peek().isLeft)
+      {
+        val com = indexCommandTimingBuffer.poll().left.get
+/*        tempF2.write("command got to other side: "+com+"\n")
+        tempF2.flush()*/
+/*        if(com.in.startsWith(">gapt"))
+        {
+/*          tempF2.write("response: "+">gaptr "+processTimeMovingAverage.toString()+"<\n")
+          tempF2.flush()*/
+          buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
+/*        }else if(com.in.startsWith(">gsdt")) {
+          var tempF = new FileWriter("monpolyError.log",true)
+          tempF.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
+          tempF.flush()
+          tempF.close()
+          buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")*/
+        }else*/
+        if(com.in.startsWith(">gsdms")){
+          if(memory == "")
+            readResidentialMemory()
+/*          tempF2.write(">gsdmsr " + memory + "<\n")
+          tempF2.flush()*/
+          buffer += CommandItem(">gsdmsr " + memory + "<")
+        }else {
+          buffer += com
+        }
+      }
+
+      if (line == null) {
         more = false
-      else
-      // TODO(JS): Check that line is a verdict before adding it to the buffer.
-        buffer += line
+      } else if (line.startsWith(GET_INDEX_PREFIX)) {
+        more = false
+        buffer += CommandItem(">"+line+"<\n")
+/*        tempF2.write("non-empty buffer: "+(!indexCommandTimingBuffer.isEmpty)+"\n")
+        if(indexCommandTimingBuffer.isEmpty) {
+          tempF2.write("indexCommandTimingBuffer was empty? On line: "+line+"\n")
+        }
+        tempF2.flush()*/
+        //todo: in theory this nonEmpty-check should not be necessary, but something's being strange still
+        if(!indexCommandTimingBuffer.isEmpty) {
+          val k = indexCommandTimingBuffer.poll()
+/*          tempF2.write("k is right? " + k.isRight + "\n")
+          tempF2.flush()*/
+          yes(System.currentTimeMillis() - k.right.get)
+        }
+      }else if(line.startsWith("gaptr")) {
+        buffer += CommandItem(">"+line+"<\n")
+      }else{
+          // TODO(JS): Check that line is a verdict before adding it to the buffer.
+          buffer += EventItem(line)
+      }
+/*      tempF2.write("Content in buffer: \n")
+      buffer.foreach(abc => tempF2.write(abc+"\n"))
+      tempF2.flush()*/
+    } while (more)
+/*    tempF2.write("done with loop!\n")
+    tempF2.flush()*/
+  }
+
+  override def drainResults(buffer: mutable.Buffer[MonpolyRequest]): Unit = {
+    var more = true
+    do {
+
+      val line = reader.readLine()
+
+      while(!indexCommandTimingBuffer.isEmpty && indexCommandTimingBuffer.peek().isLeft)
+      {
+        val com = indexCommandTimingBuffer.poll().left.get
+        if(com.in.startsWith(">gapt"))
+        {
+          buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
+        }else{
+          buffer += com
+        }
+      }
+
+      if (line == null) {
+        more = false
+      } else if (line.startsWith(GET_INDEX_PREFIX)) {
+        //the only change in drainResults compared to readResults should be that this line is commented out
+        //more = false
+        //todo: in theory this nonEmpty-check should not be necessary, but something's being strange still
+        if(!indexCommandTimingBuffer.isEmpty) {
+          val k = indexCommandTimingBuffer.poll()
+          assert(k.isRight)
+          yes(System.currentTimeMillis() - k.right.get)
+        }
+      }else{
+        // TODO(JS): Check that line is a verdict before adding it to the buffer.
+        buffer += EventItem(line)
+      }
     } while (more)
   }
 
   override def readSnapshot(): Array[Byte] = {
+    var tempF = new FileWriter("monpolyError.log",true)
+    tempF.write("we finish snapshotting\n")
+    tempF.flush()
+    tempF.close()
     val line = reader.readLine()
     if (line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)
@@ -170,6 +366,10 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
 
 
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = {
+    var tempF = new FileWriter("monpolyError.log",true)
+    tempF.write("we finish snapshotting\n")
+    tempF.flush()
+    tempF.close()
     val line = reader.readLine()
     if(line != SAVE_STATE_OK)
       throw new Exception("Monitor process failed to save state. Reply: " + line)

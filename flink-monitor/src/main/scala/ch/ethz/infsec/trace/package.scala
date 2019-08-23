@@ -49,6 +49,13 @@ package object trace {
         case _ => ""
       }
     }
+
+    def toMonpoly: String = {
+      this match {
+        case EventRecord(_,_,_) => if (isEndMarker) "" else s"@$timestamp $label(${data.mkString(", ")})"
+        case CommandRecord(a,b) => s">$a $b"
+      }
+    }
   }
 
   class CommandRecord(cmd: String, param: String) {
@@ -79,6 +86,18 @@ package object trace {
     def unapply(record: Record): Option[(Timestamp, String, Tuple)] = if(record.timestamp != -1l) Some((record.timestamp, record.label, record.data)) else None
 
   }
+
+  /*
+  Known commands:
+  set_slicer <slicerstring>  -  sets the next slicer to be used
+  gapt - Get Average Monpoly Processing Time from monpoly operators
+  gaptr <timedelta in ms> - Get Average Processing Time Answer, to be combined and redirected to the start
+  gsdt - Get Shutdown Time taken for last shutdown from monpoly operators
+  gsdtr <time in ms> - Get Shutdown Time taken response, to be combined and redirected to the start
+  gsdms - Get residential memory of monpoly at shutdown time (just before shutdown got initiated)
+  gsdmsr <size in kB> - the response to gsdms, to be combined and redirected to the start
+  OutsideInfluenceAddresse <ip>:<port> - the ip+port to which to connect to to send things over the backedge.
+  */
 
   object CommandRecord{
     def apply(command: String, parameters: String): Record = Record(-1l, "", emptyTuple, command, parameters)

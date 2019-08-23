@@ -2,9 +2,10 @@ package ch.ethz.infsec
 
 import java.io._
 import java.lang.ProcessBuilder.Redirect
+import java.util.Properties
 import java.util.concurrent.{Callable, Executors, TimeUnit}
 
-import ch.ethz.infsec.analysis.TraceAnalysis
+import ch.ethz.autobalancer.{AllState, DeciderFlatMapSimple}
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
 import ch.ethz.infsec.tools.Rescaler
@@ -130,6 +131,78 @@ object StreamMonitoring {
     queueSize = params.getInt("queueSize", queueSize)
   }
 
+  def calculateSlicing(params: ParameterTool): Unit =
+  {
+    val degree = params.getInt("degree",4)
+    formulaFile = params.get("formula")
+    val formulaSource = Source.fromFile(formulaFile).mkString
+    formula = Policy.read(formulaSource) match {
+      case Left(err) =>
+        logger.error("Cannot parse the formula: " + err)
+        sys.exit(1)
+      case Right(phi) => phi
+    }
+    var dfms = new DeciderFlatMapSimple(degree,formula,Double.MaxValue)
+    val file = params.get("file")
+    var content = Source.fromFile(file).mkString.split("\n").map(_.trim)
+    val parser = MonpolyFormat.createParser()
+   // var arr = scala.collection.mutable.ArrayBuffer[Record]()
+    var arr = parser.processAll(content)
+    //explicit nulling to aid the JVM in GCing
+    content = null
+
+    val slicer = params.get("slicer",null)
+    var strategy : HypercubeSlicer = null
+    if(slicer == null) {
+      arr.foreach(x => {
+        if (!x.isEndMarker)
+          dfms.windowStatistics.addEvent(x)
+      })
+      dfms.windowStatistics.nextFrame()
+      strategy = dfms.getSlicingStrategy(dfms.windowStatistics)
+    }else{
+      val res = new SlicerParser().parseSlicer(slicer)
+      strategy = new HypercubeSlicer(formula,res._1,res._2,1234)
+      strategy.parseSlicer(slicer)
+    }
+    val strategyStr = strategy.stringify()
+    val writer = new java.io.PrintWriter("strategyOutput")
+    writer.println(strategyStr)
+    writer.close()
+    var outs = strategy.processAll(arr)
+    //explicit nulling to aid the JVM in GCing
+    arr = null
+    var sortedOuts = scala.collection.mutable.Map[Int,scala.collection.mutable.ArrayBuffer[Record]]()
+    outs.foreach(x => {
+        if(!sortedOuts.contains(x._1))
+          sortedOuts += ((x._1,scala.collection.mutable.ArrayBuffer[Record]()))
+        sortedOuts(x._1) += x._2
+    })
+    //explicit nulling to aid the JVM in GCing
+    outs = null
+    var printer = new KeyedMonpolyPrinter[Int]
+    sortedOuts.foreach(x => {
+      val w2 = new java.io.PrintWriter("slicedOutput"+x._1)
+      x._2.foreach(rec => {
+        printer.process((x._1,rec),y => w2.println(y.in))
+      })
+      w2.close()
+    })
+    sortedOuts = null
+    val w3 = new PrintWriter("otherStuff")
+    w3.println("relationSet size: "+dfms.windowStatistics.relations.size)
+    w3.println("heavy hitter size: "+dfms.windowStatistics.heavyHitter.values.size)
+    w3.println("heavy hitters:")
+    dfms.windowStatistics.heavyHitter.foreach(x => {
+      w3.println(x)
+    })
+    w3.println("relation sizes:")
+    dfms.windowStatistics.relations.foreach(x => {
+      w3.println(x._1 + " - " + x._2 + "(relation) " + dfms.windowStatistics.relationSize(x._1) + "(relationSize)")
+    })
+    w3.close()
+  }
+
   def exename(str: String):String = {
     val ss = str.split('/')
     ss(ss.length-1)
@@ -140,9 +213,11 @@ object StreamMonitoring {
     val params = ParameterTool.fromArgs(args)
 
     val analysis = params.getBoolean("analysis", false)
+    val calcSlice = params.getBoolean("calcSlice",false)
 
     if (analysis) TraceAnalysis.prepareSimulation(params)
-    else {
+    else if(calcSlice) calculateSlicing(params)
+    else{
       init(params)
 
       if (formula.freeVariables.isEmpty) { fail("Closed formula cannot be sliced") }
@@ -253,6 +328,7 @@ object StreamMonitoring {
 
       val monitor = new StreamMonitorBuilder(env)
 
+      // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
       val textStream = in match {
         case Some(Left((h, p))) => monitor.socketSource(h, p)
         case Some(Right(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)

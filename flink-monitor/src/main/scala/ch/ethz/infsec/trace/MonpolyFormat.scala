@@ -1,7 +1,10 @@
 package ch.ethz.infsec.trace
 
-import ch.ethz.infsec.monitor._
-import ch.ethz.infsec.{Processor, StatelessProcessor}
+import java.io.FileWriter
+
+import ch.eth.inf.infsec.monitor.{CommandItem, EventItem, MonpolyRequest}
+import ch.eth.inf.infsec.{Processor, StatelessProcessor}
+
 import fastparse.WhitespaceApi
 import fastparse.noApi._
 
@@ -94,6 +97,40 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
   }
 
   override def terminate(f: Record => Unit): Unit = ()
+}
+
+class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRequest,MonpolyRequest] with Serializable{
+  val proc2 = proc
+  override type State = proc2.State
+
+  override def isStateful: Boolean = proc2.isStateful
+
+  override def getState: State = proc2.getState
+
+  override def restoreState(state: Option[State]): Unit = proc2.restoreState(state)
+
+/*  var started = false
+  var tempF : FileWriter = null
+*/
+
+  override def process(in: MonpolyRequest, f: MonpolyRequest => Unit): Unit = {
+/*    if(!started) {
+      started = true
+      tempF = new FileWriter("LiftProcessor.log",false)
+    }
+    tempF.write(in.in + "\n")
+    tempF.flush()
+*/
+    in match {
+      case c@CommandItem(a) => f(c)
+      case EventItem(b) => proc2.process(b,x => f(EventItem(x)))
+    }
+  }
+
+  override def terminate(f: MonpolyRequest => Unit): Unit = {
+    proc2.terminate(x => f(EventItem(x)))
+  }
+  def accessInternalProcessor : Processor[String,String] = proc2
 }
 
 class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)

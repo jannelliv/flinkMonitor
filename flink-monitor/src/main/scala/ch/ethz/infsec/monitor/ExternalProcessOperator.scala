@@ -1,12 +1,13 @@
 package ch.ethz.infsec.monitor
 
+import java.io.FileWriter
 import java.util
 import java.util.concurrent.locks.{ReentrantLock, Condition}
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
 import ch.ethz.infsec.Processor
 import ch.ethz.infsec.slicer.HypercubeSlicer
-import ch.ethz.infsec.trace.{CommandRecord, MonpolyVerdictFilter, Record}
+import ch.ethz.infsec.trace.{CommandRecord, LiftProcessor, MonpolyVerdictFilter, Record}
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
@@ -19,6 +20,7 @@ import org.apache.flink.streaming.api.watermark.Watermark
 import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRecord}
 import org.apache.flink.streaming.runtime.tasks.StreamTask
 import org.apache.flink.util.ExceptionUtils
+import org.slf4j.LoggerFactory
 
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
@@ -152,9 +154,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     postProcessState match {
       case Some(x) =>
         slicer.updateState(x.asInstanceOf[Array[Byte]])
-        if(postprocessing.isInstanceOf[MonpolyVerdictFilter]) postprocessing.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
+        postprocessing.asInstanceOf[LiftProcessor].accessInternalProcessor.asInstanceOf[MonpolyVerdictFilter].updateProcessingFunction(slicer.mkVerdictFilter)
       case None =>
-        if(postprocessing.isInstanceOf[MonpolyVerdictFilter]) postprocessing.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
+        postprocessing.asInstanceOf[LiftProcessor].accessInternalProcessor.asInstanceOf[MonpolyVerdictFilter].setCurrent(slicer.getState())
     }
     postprocessing.setParallelInstanceIndex(subtaskIndex)
 
@@ -181,6 +183,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     writerThread = new ServiceThread {
       private var batch = false
       private var batchsize = 0
+
       override def handle(): Unit = {
         val request = requestQueue.take()
 
@@ -307,6 +310,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           case mark@WatermarkItem(_) => putResult(mark)
           case marker@LatencyMarkerItem(_) => putResult(marker)
           case SnapshotRequestItem() =>
+            LoggerFactory.getLogger(getClass).info("SnapshotRequestItem in reader thread")
             val results = process.readSnapshots()
             if(results.size == 1){
               val result = results.head
@@ -338,7 +342,9 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
             putResult(shutdown)
             running = false
         }
-      }
+/*        tempF3.write("end of request\n")
+        tempF3.flush()
+*/      }
     }
     readerThread.start()
 
@@ -453,16 +459,19 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
     // In particular, we _must not_ release the checkpointing lock, which would allow the emitter thread to
     // send pending results downstream. Since the barrier has already been sent to downstream operators at
     // this point, this would result in inconsistent snapshots.
-
     if (waitingRequest != null) {
       requestQueue.put(waitingRequest)
       pendingCount += 1
       waitingRequest = null
     }
+    val logger = LoggerFactory.getLogger(getClass)
+    logger.info("inserting snapshotRequestItem")
     requestQueue.put(SnapshotRequestItem())
 
+    logger.info("aquiring snapshotReady")
     // Wait until the process snapshot has been created.
     snapshotReady.acquire()
+    logger.info("snapshotReady aquired")
     assert(snapshotReady.availablePermits() == 0)
     assert(requestQueue.isEmpty)
 
@@ -475,6 +484,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
 
     resultState.clear()
     processState.clear()
+    logger.info("doing snapshot")
 
     try {
       var gotSnapshot = false
@@ -506,6 +516,7 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
           "Could not add pending results to operator state backend of operator" +
             getOperatorName + ".", e)
     }
+    logger.info("done snapshot")
   }
 
   override def initializeState(context: StateInitializationContext): Unit = {
@@ -535,12 +546,23 @@ class ExternalProcessOperator[IN, PIN, POUT, OUT](
       enqueueRequest(wrap(None)(x)))
   }
 
+/*  var started = false
+  var tempF : FileWriter = null*/
+
+
   override def processElement(streamRecord: StreamRecord[IN]): Unit = {
+/*    if(!started) {
+      started = true
+      tempF = new FileWriter("EXPOProcessElement.log",false)
+    }
+    tempF.write("("+streamRecord.getValue.asInstanceOf[(Int,Record)]._1+","+streamRecord.getValue.asInstanceOf[(Int,Record)]._2.toMonpoly + ")\n")
+    tempF.write("PendingCount before this: "+pendingCount+"\n")
+    tempF.flush()*/
     // TODO(JS): Implement timeout
     val tuple = streamRecord.getValue.asInstanceOf[(Int, Record)]
     tuple._2 match {
-      case CommandRecord(_, parameters) =>
-        if(postprocessing.isInstanceOf[MonpolyVerdictFilter]) postprocessing.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
+      case CommandRecord("set_slicer", parameters) =>
+        postprocessing.asInstanceOf[LiftProcessor].accessInternalProcessor.asInstanceOf[MonpolyVerdictFilter].updatePending(parameters.toCharArray.map(_.toByte))
         pendingSlicer = parameters
       case _ => ()
     }

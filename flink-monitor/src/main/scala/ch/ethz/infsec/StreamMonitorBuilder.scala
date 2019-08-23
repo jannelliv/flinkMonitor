@@ -75,7 +75,16 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .setMaxParallelism(1)
       .setParallelism(1)
 
-    val slicedTrace = parsedTrace
+    val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record]((new OutsideInfluence(true)).asInstanceOf[Processor[Record,Record] with Serializable]))
+
+    var observedTrace : DataStream[Record] = if(params.has("noDecider")) injectedTrace else {
+      //todo: proper arguments
+      injectedTrace.flatMap(new ProcessorFunction[Record, Record](new AllState(new DeciderFlatMapSimple(slicer.degree, formula, windowSize)))).setMaxParallelism(1).name("Decider").uid("decider")
+        .setMaxParallelism(1)
+        .setParallelism(1)
+    }
+
+    val slicedTrace = observedTrace
       .flatMap(new ProcessorFunction(slicer))
       .name("Slicer")
       .uid("slicer")
@@ -83,12 +92,12 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .setParallelism(1)
       .partitionCustom(new IdPartitioner, 0)
 
-    val verdicts = ExternalProcessOperator.transform(slicer, slicedTrace, monitorFactory, queueSize)
+    val verdictsAndOtherThings = ExternalProcessOperator.transform(slicer, slicedTrace, monitorFactory, queueSize)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Monitor")
       .uid("monitor")
 
-    verdicts
+    verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract(slicer.degree)))
   }
 }

@@ -165,7 +165,6 @@ class HypercubeSlicer(
       expectedSlice += theStrides(variableID) * Math.floorMod(hash(value, theSeeds(variableID)), theShares(variableID))
       i += 1
     }
-
     slice == expectedSlice
   }
 
@@ -182,6 +181,10 @@ class HypercubeSlicer(
     parser.stringify(heavy, shares, seeds)
   }
 
+  override def toString: String = {
+    stringify()
+  }
+
   override def restoreState(state: Option[State]): Unit = {
     var stringifiedSlicer: String = null
 
@@ -194,7 +197,7 @@ class HypercubeSlicer(
     }
   }
 
-  private def parseSlicer(slicer: String): Unit = {
+  def parseSlicer(slicer: String): Unit = {
     val res = parser.parseSlicer(slicer)
     heavy = res._1
     shares = res._2

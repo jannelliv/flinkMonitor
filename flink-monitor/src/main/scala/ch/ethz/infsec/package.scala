@@ -2,6 +2,9 @@ package ch.ethz
 
 import ch.ethz.infsec.monitor.{ExternalProcessFactory, MonitorRequest}
 import ch.ethz.infsec.trace.Record
+
+import java.io.FileWriter
+
 import org.apache.flink.api.common.functions.RichFlatMapFunction
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
@@ -67,6 +70,10 @@ package object infsec {
     @transient
     private var checkpointedState: ListState[processor.State] = _
 
+
+    var logFile : FileWriter = _
+    var started = false
+
     override def open(parameters: Configuration): Unit = {
       super.open(parameters)
       val index = getRuntimeContext.getIndexOfThisSubtask
@@ -75,11 +82,25 @@ package object infsec {
       //if (index > 0 && processor.isStateful)
       //  throw new Exception("Stateful processors cannot be used in parallel.")
       processor.setParallelInstanceIndex(index)
+      if(!started) {
+        started = true
+        logFile = new FileWriter("ProcFunc.log", true)
+        logFile.write("started\n")
+      }
+      logFile.write("open\n")
+      logFile.flush()
     }
 
     override def flatMap(t: I, collector: Collector[O]): Unit = processor.process(t, collector.collect)
 
     override def snapshotState(context: FunctionSnapshotContext): Unit = {
+      if(!started) {
+        started = true
+        logFile = new FileWriter("ProcFunc.log", true)
+        logFile.write("started\n")
+      }
+      logFile.write("snapshotState\n")
+      logFile.flush()
       if (processor.isStateful) {
         checkpointedState.clear()
         checkpointedState.add(processor.getState)
@@ -87,6 +108,13 @@ package object infsec {
     }
 
     override def initializeState(context: FunctionInitializationContext) {
+      if(!started) {
+        started = true
+        logFile = new FileWriter("ProcFunc.log", true)
+        logFile.write("started\n")
+      }
+      logFile.write("initializeState\n")
+      logFile.flush()
       if (processor.isStateful) {
         val descriptor = new ListStateDescriptor[processor.State](
           "state",

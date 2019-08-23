@@ -48,6 +48,7 @@ class FlinkIntegration extends FunSuite with Matchers with BeforeAndAfterAll{
                         " --out 127.0.0.1:9001"
                         )))
       .redirectError(Redirect.INHERIT)
+      .redirectOutput(Redirect.INHERIT)
       .start()
 
     monpoly = new ProcessBuilder(
@@ -57,27 +58,29 @@ class FlinkIntegration extends FunSuite with Matchers with BeforeAndAfterAll{
             "-formula",formula,
             "-negate")))
       .redirectError(Redirect.INHERIT)
+      .redirectOutput(Redirect.INHERIT)
       .start()
 
   }
 
   test("Flink vs Monpoly") {
 
-    //run monpoly
+/*    //run monpoly
     val inputMonpoly = new BufferedWriter(new OutputStreamWriter(monpoly.getOutputStream))
     val outputMonpoly = new BufferedReader(new InputStreamReader(monpoly.getInputStream))
 
     var t = new ReadingThread(outputMonpoly, monpolyVerdicts, monpoly,READTIMEOUT)
     inputMonpoly.write(log)
     inputMonpoly.flush()
+    inputMonpoly.close()
     t.start()
-    t.join()
+    t.join()*/
 
     //run flink
     val inputFlink = new BufferedWriter(new OutputStreamWriter(ncIN.getOutputStream))
     val outputFlink = new BufferedReader(new InputStreamReader(ncOUT.getInputStream))
 
-    t = new ReadingThread(outputFlink,flinkVerdicts,flink,READTIMEOUT)
+    var t = new ReadingThread(outputFlink,flinkVerdicts,flink,READTIMEOUT)
 
     inputFlink.write(log)
     inputFlink.flush()
