@@ -336,8 +336,10 @@ object StreamMonitoring {
         case _ => fail("Cannot parse the input argument")
       }
 
-      val dfms = if(params.has("noDecider")) None else
+      val dfms = if(params.has("decider"))
         Some(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
+      else
+        None
       val verdicts = monitor.assemble(textStream, inputFormat, dfms, slicer, processFactory, queueSize)
 
       out match {
