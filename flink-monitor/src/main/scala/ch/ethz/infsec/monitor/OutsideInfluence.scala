@@ -1,11 +1,11 @@
-package ch.eth.inf.infsec.monitor
+package ch.ethz.infsec.monitor
 
 import java.io._
 import java.net.{InetAddress, ServerSocket, Socket}
 import java.util.concurrent.LinkedBlockingQueue
 
-import ch.eth.inf.infsec.StatelessProcessor
-import ch.eth.inf.infsec.trace.{CommandRecord, Record}
+import ch.ethz.infsec.StatelessProcessor
+import ch.ethz.infsec.trace.{CommandRecord, Record}
 
 
 

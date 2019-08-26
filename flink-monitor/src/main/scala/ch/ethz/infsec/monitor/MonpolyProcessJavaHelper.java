@@ -1,4 +1,4 @@
-package ch.eth.inf.infsec.monitor;
+package ch.ethz.infsec.monitor;
 
 import java.lang.reflect.Field;
 

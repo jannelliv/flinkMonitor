@@ -1,11 +1,12 @@
 package ch.ethz.infsec
 package monitor
 
+import ch.ethz.infsec.trace.{DejavuVerdictFilter, KeyedDejavuPrinter, LiftProcessor, Record}
+
 import scala.collection.mutable
-import ch.ethz.infsec.trace.{KeyedDejavuPrinter, DejavuVerdictFilter, Record}
 
 
-class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[DejavuRequest, String] {
+class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[DejavuRequest, MonitorResponse] {
 
   override def open(): Unit = {
     open(command)
@@ -34,25 +35,24 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
 
   override def initSnapshot(slicer: String): Unit = throw new UnsupportedOperationException
 
-  override def readResults(buffer: mutable.Buffer[String]): Unit = {
+  override def readResults(buffer: mutable.Buffer[MonitorResponse]): Unit = {
     val line = reader.readLine()
-    buffer += line
+    buffer += VerdictItem(line)
   }
 
-  override def drainResults(buffer: mutable.Buffer[String]): Unit = {
+  override def drainResults(buffer: mutable.Buffer[MonitorResponse]): Unit = {
     readResultsUntil(buffer, s => false)
   }
 
 
-  private def readResultsUntil(buffer:mutable.Buffer[String], until: String => Boolean):Unit = {
+  private def readResultsUntil(buffer:mutable.Buffer[MonitorResponse], until: String => Boolean):Unit = {
     var more = true
     do {
       val line = reader.readLine()
       if (line == null || until(line)) {
         more = false
       } else {
-        buffer += line
-      }
+        buffer += VerdictItem(line)      }
     } while (more)
   }
 
@@ -62,7 +62,7 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[De
   override def readSnapshots(): Iterable[(Int, Array[Byte])] =  throw new UnsupportedOperationException
 
   override val SYNC_BARRIER_IN: DejavuRequest = DejavuEventItem(DejavuProcess.SYNC)
-  override val SYNC_BARRIER_OUT: String => Boolean = _ == DejavuProcess.SYNC_OUT
+  override val SYNC_BARRIER_OUT: MonitorResponse => Boolean = _.in == DejavuProcess.SYNC_OUT
 }
 
 object DejavuProcess {
@@ -73,10 +73,10 @@ object DejavuProcess {
 }
 
 
-class DejavuProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
+class DejavuProcessFactory(cmd: Seq[String]) extends MonitorFactory {
   override def createPre[T,DejavuRequest >: MonitorRequest](): Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] = new KeyedDejavuPrinter[Int,T]
-  override def createProc[DejavuRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new DejavuProcess(cmd)
-  override def createPost(): Processor[String, String] = new DejavuVerdictFilter()
+  override def createProc[DejavuRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, MonitorResponse] = new DejavuProcess(cmd)
+  override def createPost(): Processor[MonitorResponse, MonitorResponse] = new LiftProcessor(new DejavuVerdictFilter())
 }
 
 object DejavuProcessFactory {

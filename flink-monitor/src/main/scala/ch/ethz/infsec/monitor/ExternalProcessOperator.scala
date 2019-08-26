@@ -1,8 +1,7 @@
 package ch.ethz.infsec.monitor
 
-import java.io.FileWriter
 import java.util
-import java.util.concurrent.locks.{ReentrantLock, Condition}
+import java.util.concurrent.locks.{Condition, ReentrantLock}
 import java.util.concurrent.{LinkedBlockingQueue, Semaphore}
 
 import ch.ethz.infsec.Processor

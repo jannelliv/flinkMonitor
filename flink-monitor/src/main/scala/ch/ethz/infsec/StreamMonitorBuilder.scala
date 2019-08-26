@@ -1,9 +1,10 @@
 package ch.ethz.infsec
 
-import ch.ethz.infsec.monitor.ExternalProcessOperator
+import ch.ethz.infsec.autobalancer.{AllState, DeciderFlatMapSimple}
+import ch.ethz.infsec.monitor.{ExternalProcessOperator, KnowledgeExtract, OutsideInfluence}
 import ch.ethz.infsec.slicer.HypercubeSlicer
 import ch.ethz.infsec.tools.Rescaler.RescaleInitiator
-import ch.ethz.infsec.trace.{TraceFormat, TraceMonitor}
+import ch.ethz.infsec.trace.{Record, TraceFormat, TraceMonitor}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.io.TextInputFormat
@@ -64,6 +65,7 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
 
   def assemble(inputStream: DataStream[String],
                traceFormat: TraceFormat,
+               decider: Option[DeciderFlatMapSimple],
                slicer: HypercubeSlicer,
                monitorFactory: MonitorFactory,
                queueSize: Int): DataStream[String] = {
@@ -75,13 +77,17 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .setMaxParallelism(1)
       .setParallelism(1)
 
-    val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record]((new OutsideInfluence(true)).asInstanceOf[Processor[Record,Record] with Serializable]))
+    val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record](new OutsideInfluence(true).asInstanceOf[Processor[Record,Record] with Serializable]))
 
-    var observedTrace : DataStream[Record] = if(params.has("noDecider")) injectedTrace else {
-      //todo: proper arguments
-      injectedTrace.flatMap(new ProcessorFunction[Record, Record](new AllState(new DeciderFlatMapSimple(slicer.degree, formula, windowSize)))).setMaxParallelism(1).name("Decider").uid("decider")
-        .setMaxParallelism(1)
-        .setParallelism(1)
+    val observedTrace = decider match {
+      case None => injectedTrace
+      case Some(deciderFlatMap) =>
+        //todo: proper arguments
+        injectedTrace.flatMap(new ProcessorFunction[Record, Record](new AllState(deciderFlatMap)))
+          .setMaxParallelism(1)
+          .setParallelism(1)
+          .name("Decider")
+          .uid("decider")
     }
 
     val slicedTrace = observedTrace

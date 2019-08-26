@@ -2,7 +2,6 @@ package ch.ethz.infsec
 package trace
 
 import ch.ethz.infsec.monitor._
-import ch.ethz.infsec.{Processor, StatelessProcessor}
 import fastparse.WhitespaceApi
 import fastparse.noApi._
 

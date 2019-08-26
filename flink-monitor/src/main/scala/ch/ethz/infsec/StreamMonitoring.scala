@@ -2,12 +2,13 @@ package ch.ethz.infsec
 
 import java.io._
 import java.lang.ProcessBuilder.Redirect
-import java.util.Properties
 import java.util.concurrent.{Callable, Executors, TimeUnit}
 
-import ch.ethz.autobalancer.{AllState, DeciderFlatMapSimple}
+import ch.ethz.infsec.analysis.TraceAnalysis
+import ch.ethz.infsec.autobalancer.DeciderFlatMapSimple
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
+import ch.ethz.infsec.slicer.{HypercubeSlicer, SlicerParser}
 import ch.ethz.infsec.tools.Rescaler
 import ch.ethz.infsec.trace.{CsvFormat, MonpolyFormat, _}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
@@ -180,11 +181,11 @@ object StreamMonitoring {
     })
     //explicit nulling to aid the JVM in GCing
     outs = null
-    var printer = new KeyedMonpolyPrinter[Int]
+    var printer = new KeyedMonpolyPrinter[Int, Nothing](false)
     sortedOuts.foreach(x => {
       val w2 = new java.io.PrintWriter("slicedOutput"+x._1)
       x._2.foreach(rec => {
-        printer.process((x._1,rec),y => w2.println(y.in))
+        printer.process(Left((x._1,rec)), {case Left(y) => w2.println(y.in); case Right(_) => ()})
       })
       w2.close()
     })
@@ -224,7 +225,7 @@ object StreamMonitoring {
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
 
-      val processFactory:ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] = monitorCommand match {
+      val processFactory: MonitorFactory = monitorCommand match {
         case MONPOLY_CMD => {
           val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand::List("-negate") else List(monitorCommand))
           val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)
@@ -281,7 +282,7 @@ object StreamMonitoring {
             fail("Custom monitor must have a --command argument")
           }
           logger.info("Monitor command: {}", command.mkString(" "))
-          new ExternalProcessFactory[(Int,Record),IndexedRecord,String,String] {
+          new ExternalProcessFactory[(Int,Record),IndexedRecord,MonitorResponse,MonitorResponse] {
             override def createPre[T,UIN >: IndexedRecord](): Processor[Either[(Int, Record),T], Either[UIN,T]] = new StatelessProcessor[Either[(Int, Record),T],Either[IndexedRecord,T]] {
               override def process(in: Either[(Int, Record),T], f: Either[IndexedRecord,T]=> Unit): Unit = f(
                 in match {
@@ -292,16 +293,16 @@ object StreamMonitoring {
               override def terminate(f: Either[IndexedRecord,T] => Unit): Unit = ()
             }
 
-            override def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, String] = new DirectProcess[IndexedRecord,String](command) {
-              override def parseLine(line: String): String = line
+            override def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, MonitorResponse] = new DirectProcess[IndexedRecord,MonitorResponse](command) {
+              override def parseLine(line: String): MonitorResponse = VerdictItem(line)
 
-              override def isEndMarker(t: String): Boolean = t.equals("")
+              override def isEndMarker(t: MonitorResponse): Boolean = t.in.equals("")
 
               override val SYNC_BARRIER_IN: IndexedRecord = (-1,Record(-1l, "", emptyTuple, "SYNC", ""))
-              override val SYNC_BARRIER_OUT: String => Boolean = _ == "SYNC"
+              override val SYNC_BARRIER_OUT: MonitorResponse => Boolean = _.in == "SYNC"
             }
 
-            override def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
+            override def createPost(): Processor[MonitorResponse, MonitorResponse] = StatelessProcessor.identity[MonitorResponse]
           }
         }
         case c@_ => fail("Cannot parse the monitor command: {}", c)
@@ -335,7 +336,9 @@ object StreamMonitoring {
         case _ => fail("Cannot parse the input argument")
       }
 
-      val verdicts = monitor.assemble(textStream, inputFormat, slicer, processFactory, queueSize)
+      val dfms = if(params.has("noDecider")) None else
+        Some(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
+      val verdicts = monitor.assemble(textStream, inputFormat, dfms, slicer, processFactory, queueSize)
 
       out match {
         case Some(Left((h, p))) => monitor.socketSink(verdicts, h, p)

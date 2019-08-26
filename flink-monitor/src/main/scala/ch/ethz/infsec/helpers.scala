@@ -1,4 +1,4 @@
-package ch.eth.inf.infsec
+package ch.ethz.infsec
 
 import java.util.Properties
 

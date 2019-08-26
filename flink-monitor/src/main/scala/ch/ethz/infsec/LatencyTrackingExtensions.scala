@@ -9,7 +9,7 @@ import org.apache.flink.streaming.api.datastream.{DataStreamSink, DataStreamSour
 import org.apache.flink.streaming.api.functions.sink.SinkFunction
 import org.apache.flink.streaming.api.functions.source.SourceFunction
 import org.apache.flink.streaming.api.graph.StreamConfig
-import org.apache.flink.streaming.api.operators.{Output, StreamOperator, StreamSink, StreamSource}
+import org.apache.flink.streaming.api.operators.{Output, StreamSink, StreamSource}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.watermark.Watermark
 import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRecord}

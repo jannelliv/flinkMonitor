@@ -1,14 +1,14 @@
-package ch.eth.inf.infsec.monitor
+package ch.ethz.infsec.monitor
 
-import java.io.{BufferedWriter, FileWriter, OutputStream, OutputStreamWriter}
+import java.io.{BufferedWriter, FileWriter, OutputStreamWriter}
 import java.net.{InetSocketAddress, Socket}
 
-import ch.eth.inf.infsec.StatelessProcessor
+import ch.ethz.infsec.StatelessProcessor
 import org.slf4j.LoggerFactory
 
 
 
-class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,String] with Serializable {
+class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonitorResponse,String] with Serializable {
   @transient private var connectedSocket: Socket = _
   @transient private var outputStream : BufferedWriter = _
   private val logger = LoggerFactory.getLogger(this.getClass)
@@ -42,7 +42,7 @@ class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,S
     }
   }
 
-  override def process(in: MonpolyRequest, f: String => Unit): Unit = {
+  override def process(in: MonitorResponse, f: String => Unit): Unit = {
     if(!started) {
       started = true
       tempF = new FileWriter("knowledgeExtractEvents.log",true)
@@ -51,7 +51,7 @@ class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,S
     tempF.flush()
 
     in match {
-      case CommandItem(a) => {
+      case BypassCommandItem(a) => {
         //todo: better parsing
         if(a.startsWith(">gaptr ")) {
           //wait for all, combine and only send highest
@@ -118,7 +118,7 @@ class KnowledgeExtract(degree : Int) extends StatelessProcessor[MonpolyRequest,S
           //todo: error
         }
     }
-      case EventItem(b) => f(b)
+      case VerdictItem(b) => f(b)
     }
   }
 

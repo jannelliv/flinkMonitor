@@ -1,10 +1,9 @@
 package ch.ethz
 
-import ch.ethz.infsec.monitor.{ExternalProcessFactory, MonitorRequest}
-import ch.ethz.infsec.trace.Record
-
 import java.io.FileWriter
 
+import ch.ethz.infsec.monitor.{ExternalProcessFactory, MonitorRequest, MonitorResponse}
+import ch.ethz.infsec.trace.Record
 import org.apache.flink.api.common.functions.RichFlatMapFunction
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
@@ -129,5 +128,5 @@ package object infsec {
     }
   }
 
-  type MonitorFactory = ExternalProcessFactory[(Int, Record), MonitorRequest, String, String]
+  type MonitorFactory = ExternalProcessFactory[(Int, Record), MonitorRequest, MonitorResponse, MonitorResponse]
 }

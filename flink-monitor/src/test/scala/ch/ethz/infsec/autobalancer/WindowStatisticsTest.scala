@@ -1,8 +1,9 @@
-package ch.eth.inf.infsec.autobalancer
+package ch.ethz.infsec.autobalancer
 
-import org.scalatest.{FunSuite, Inside, Matchers}
-import ch.eth.inf.infsec.trace
-import ch.eth.inf.infsec.trace.Record
+import ch.ethz.infsec.monitor.IntegralValue
+import ch.ethz.infsec.trace
+import ch.ethz.infsec.trace.Record
+import org.scalatest.{FunSuite, Matchers}
 
 class WindowStatisticsTest extends FunSuite with Matchers{
   test("endmarkers are not added") {
@@ -29,10 +30,12 @@ class WindowStatisticsTest extends FunSuite with Matchers{
     ws.nextFrame()
     ws.nextFrame()
     ws.nextFrame()
-    ws.nextFrame()
-    //only the thing we added should be there and it should be 0
     ws.relations.size shouldBe 1
-    ws.relations("a") shouldBe 0
+    ws.relations("a") shouldBe 1
+    ws.relationSize("a") shouldBe 1
+
+    ws.nextFrame()
+    ws.relations shouldBe empty
     ws.relationSize("a") shouldBe 0
   }
   test("moving forward by timestamp works") {
@@ -59,13 +62,13 @@ class WindowStatisticsTest extends FunSuite with Matchers{
 
   test("heavy hitters") {
     //todo: since our definition of heavy hitter may change this test is brittle
-    val ws = new WindowStatistics(5, 10.0,4)
-    ws.addEvent(Record(0,"a",trace.Tuple(trace.IntegralValue(2)),"",""))
-    ws.addEvent(Record(2,"a",trace.Tuple(trace.IntegralValue(3)),"",""))
-    ws.addEvent(Record(4,"a",trace.Tuple(trace.IntegralValue(4)),"",""))
-    ws.addEvent(Record(6,"a",trace.Tuple(trace.IntegralValue(5)),"",""))
-    ws.addEvent(Record(8,"a",trace.Tuple(trace.IntegralValue(6)),"",""))
-    ws.addEvent(Record(10,"a",trace.Tuple(trace.IntegralValue(2)),"",""))
+    val ws = new WindowStatistics(5, 10.0,2)
+    ws.addEvent(Record(0,"a",trace.Tuple(IntegralValue(2)),"",""))
+    ws.addEvent(Record(2,"a",trace.Tuple(IntegralValue(3)),"",""))
+    ws.addEvent(Record(4,"a",trace.Tuple(IntegralValue(4)),"",""))
+    ws.addEvent(Record(6,"a",trace.Tuple(IntegralValue(5)),"",""))
+    ws.addEvent(Record(8,"a",trace.Tuple(IntegralValue(6)),"",""))
+    ws.addEvent(Record(10,"a",trace.Tuple(IntegralValue(2)),"",""))
     ws.nextFrame()
     ws.heavyHitters("a",0).size shouldBe 1
     ws.heavyHitters("a",0)(2) shouldBe true

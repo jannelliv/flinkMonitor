@@ -1,7 +1,7 @@
 package ch.ethz.infsec
 package monitor
 
-import ch.ethz.infsec.trace.{KeyedDejavuPrinter, KeyedMonpolyPrinter, Record}
+import ch.ethz.infsec.trace.{KeyedDejavuPrinter, Record}
 
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
@@ -21,13 +21,13 @@ class EchoDejavuProcess(override val command: Seq[String]) extends DejavuProcess
   override def initSnapshot(): Unit = ()
   override def initSnapshot(slicer: String): Unit = ()
 
-  override def readResults(buffer: mutable.Buffer[String]): Unit = {
+  override def readResults(buffer: mutable.Buffer[MonitorResponse]): Unit = {
     val line = reader.readLine()
     if (line != null)
-      buffer += line
+      buffer += VerdictItem(line)
   }
 
-  override def drainResults(buffer: mutable.Buffer[String]): Unit = readResults(buffer)
+  override def drainResults(buffer: mutable.Buffer[MonitorResponse]): Unit = readResults(buffer)
 
   override def readSnapshot(): Array[Byte] = Array.emptyByteArray
   override def readSnapshots(): Iterable[(Int, Array[Byte])] = ListSet.empty
@@ -38,10 +38,10 @@ class EchoDejavuProcess(override val command: Seq[String]) extends DejavuProcess
 //  def apply(cmd:Seq[String]):ExternalProcess[MonitorRequest,String] = new EchoProcess(cmd).asInstanceOf[ExternalProcess[MonitorRequest,String]]
 //}
 
-class EchoDejavuProcessFactory(cmd: Seq[String]) extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
+class EchoDejavuProcessFactory(cmd: Seq[String]) extends MonitorFactory {
   override def createPre[T,MonpolyRequest >: MonitorRequest](): Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] = new KeyedDejavuPrinter[Int,T]
-  override def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new EchoDejavuProcess(cmd)
-  override def createPost(): Processor[String, String] = StatelessProcessor.identity[String]
+  override def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, MonitorResponse] = new EchoDejavuProcess(cmd)
+  override def createPost(): Processor[MonitorResponse, MonitorResponse] = StatelessProcessor.identity[MonitorResponse]
 }
 object EchoDejavuProcessFactory{
   def apply(cmd: Seq[String]): EchoDejavuProcessFactory = new EchoDejavuProcessFactory(cmd)

@@ -1,26 +1,15 @@
-package ch.eth.inf.infsec.autobalancer
+package ch.ethz.infsec.autobalancer
 
 import java.io.FileWriter
 
-import ch.eth.inf.infsec.{Processor, StreamMonitoring}
-import ch.eth.inf.infsec.slicer.{HypercubeSlicer, Statistics}
-import ch.eth.inf.infsec.trace.{CommandRecord, EventRecord, Record}
-import org.apache.flink.api.common.functions.{FlatMapFunction, RichFlatMapFunction, RichFunction}
-import org.apache.flink.util.Collector
+import ch.ethz.infsec.Processor
+import ch.ethz.infsec.policy.Formula
+import ch.ethz.infsec.slicer.{HypercubeSlicer, Statistics}
+import ch.ethz.infsec.tools.Rescaler.RescaleInitiator
+import ch.ethz.infsec.trace.{CommandRecord, EventRecord, Record}
 
 import scala.collection.mutable.ArrayBuffer
-import ch.eth.inf.infsec.policy.Formula
-import ch.eth.inf.infsec.tools.Rescaler.RescaleInitiator
-import org.apache.flink.api.common.state.{ListState, ListStateDescriptor, ValueState, ValueStateDescriptor}
-import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
-import org.apache.flink.api.common.typeutils.TypeSerializer
-import org.apache.flink.configuration.Configuration
-import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext, StateInitializationContext}
-import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
-import org.apache.flink.streaming.api.operators.AbstractUdfStreamOperator
-
 import scala.util.Random
-import scala.collection.JavaConversions._
 //problem: how to solve "final bit of stream needs to be processed to"
 //proposed solution: "end of stream message"
 
@@ -284,11 +273,11 @@ class HypercubeCostSlicerTracker(initialSlicer : HypercubeSlicer, degree : Int) 
 class DeciderFlatMapSimple(degree : Int, formula : Formula, windowSize : Double) extends DeciderFlatMap[HypercubeSlicer](degree,windowSize,false,true) {
   override def firstSlicing: HypercubeSlicer = {
     HypercubeSlicer.optimize(
-      formula, StreamMonitoring.floorLog2(degree),Statistics.constant)
+      formula, degree,Statistics.constant)
   }
   override def getSlicingStrategy(ws : WindowStatistics) : HypercubeSlicer = {
     HypercubeSlicer.optimize(
-      formula, StreamMonitoring.floorLog2(degree), ws)
+      formula, degree, ws)
   }
 
   override def slicingCost(strat: HypercubeSlicer, events: ArrayBuffer[Record]): Double = {

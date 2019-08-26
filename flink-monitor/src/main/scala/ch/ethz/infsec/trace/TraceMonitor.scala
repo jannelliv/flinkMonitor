@@ -1,8 +1,8 @@
 package ch.ethz.infsec.trace
 
 import ch.ethz.infsec.Processor
-import org.slf4j.LoggerFactory
 import ch.ethz.infsec.slicer.SlicerParser
+import org.slf4j.LoggerFactory
 
 class TraceMonitor(protected val processor: Processor[String, Record], rescale: Int => Unit) extends Processor[String, Record] with Serializable {
   private val logger = LoggerFactory.getLogger(this.getClass)

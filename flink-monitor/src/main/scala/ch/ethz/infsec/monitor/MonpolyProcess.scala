@@ -1,19 +1,19 @@
 package ch.ethz.infsec.monitor
 
-import java.io.File
-import java.nio.file.{Files, Path}
-import java.util
+import java.io.{File, FileWriter}
+import java.nio.file.{Files, Path, Paths}
 
 import ch.ethz.infsec
+import ch.ethz.infsec.MonitorFactory
 import ch.ethz.infsec.slicer.HypercubeSlicer
-import ch.ethz.infsec.trace.{KeyedMonpolyPrinter, MonpolyVerdictFilter, Record}
+import ch.ethz.infsec.trace.{KeyedMonpolyPrinter, LiftProcessor, MonpolyVerdictFilter, Record}
 import org.slf4j.LoggerFactory
 
 import scala.collection.immutable.ListSet
 import scala.collection.mutable
 
 class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[String])
-    extends AbstractExternalProcess[MonpolyRequest, MonpolyRequest] {
+    extends AbstractExternalProcess[MonpolyRequest, MonitorResponse] {
 
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_PREFIX = "Current timepoint:"
@@ -139,7 +139,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       if(canHandle)
       {
           indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
-          writer.write(in)
+          writer.write(r.in)
       }
       //TODO(CF): This is inefficient in the case of internal commands, but necessary to get an output because each write needs a matching read
       writer.write(GET_INDEX_COMMAND)
@@ -205,7 +205,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
 /*  var started2 = false
   var tempF2 : FileWriter = null*/
 
-  override def readResults(buffer: mutable.Buffer[MonpolyRequest]): Unit = {
+  override def readResults(buffer: mutable.Buffer[MonitorResponse]): Unit = {
 /*    if(!started2) {
       started2 = true
       tempF2 = new FileWriter("monpolyOut"+(process.hashCode()%10000)+".log",false)
@@ -259,9 +259,9 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
             readResidentialMemory()
 /*          tempF2.write(">gsdmsr " + memory + "<\n")
           tempF2.flush()*/
-          buffer += CommandItem(">gsdmsr " + memory + "<")
+          buffer += BypassCommandItem(">gsdmsr " + memory + "<")
         }else {
-          buffer += com
+          buffer += BypassCommandItem(com.in)
         }
       }
 
@@ -269,7 +269,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
         more = false
       } else if (line.startsWith(GET_INDEX_PREFIX)) {
         more = false
-        buffer += CommandItem(">"+line+"<\n")
+        buffer += BypassCommandItem(">"+line+"<\n")
 /*        tempF2.write("non-empty buffer: "+(!indexCommandTimingBuffer.isEmpty)+"\n")
         if(indexCommandTimingBuffer.isEmpty) {
           tempF2.write("indexCommandTimingBuffer was empty? On line: "+line+"\n")
@@ -283,10 +283,10 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
           yes(System.currentTimeMillis() - k.right.get)
         }
       }else if(line.startsWith("gaptr")) {
-        buffer += CommandItem(">"+line+"<\n")
+        buffer += BypassCommandItem(">"+line+"<\n")
       }else{
           // TODO(JS): Check that line is a verdict before adding it to the buffer.
-          buffer += EventItem(line)
+          buffer += VerdictItem(line)
       }
 /*      tempF2.write("Content in buffer: \n")
       buffer.foreach(abc => tempF2.write(abc+"\n"))
@@ -296,7 +296,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     tempF2.flush()*/
   }
 
-  override def drainResults(buffer: mutable.Buffer[MonpolyRequest]): Unit = {
+  override def drainResults(buffer: mutable.Buffer[MonitorResponse]): Unit = {
     var more = true
     do {
 
@@ -307,9 +307,9 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
         val com = indexCommandTimingBuffer.poll().left.get
         if(com.in.startsWith(">gapt"))
         {
-          buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
+          buffer += BypassCommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
         }else{
-          buffer += com
+          buffer += BypassCommandItem(com.in)
         }
       }
 
@@ -326,7 +326,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
         }
       }else{
         // TODO(JS): Check that line is a verdict before adding it to the buffer.
-        buffer += EventItem(line)
+        buffer += VerdictItem(line)
       }
     } while (more)
   }
@@ -422,15 +422,15 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
   }
 
   override val SYNC_BARRIER_IN: MonpolyRequest = EventItem(GET_INDEX_COMMAND)
-  override val SYNC_BARRIER_OUT: String => Boolean = _.startsWith(GET_INDEX_PREFIX)
+  override val SYNC_BARRIER_OUT: MonitorResponse => Boolean = _.in.startsWith(GET_INDEX_PREFIX)
 }
 
 
 class MonpolyProcessFactory(cmd: Seq[String], slicer: HypercubeSlicer, val initialStateFile: Option[String], markDatabaseEnd: Boolean)
-    extends ExternalProcessFactory[(Int, Record), MonitorRequest, String, String] {
+    extends MonitorFactory {
 
   override def createPre[T,MonpolyRequest >: MonitorRequest](): infsec.Processor[Either[(Int, Record),T], Either[MonitorRequest,T]] =
     new KeyedMonpolyPrinter[Int,T](markDatabaseEnd)
-  override def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, String] = new MonpolyProcess(cmd, initialStateFile)
-  override def createPost(): infsec.Processor[String, String] = new MonpolyVerdictFilter(slicer.mkVerdictFilter)
+  override def createProc[MonpolyRequest >: MonitorRequest](): ExternalProcess[MonitorRequest, MonitorResponse] = new MonpolyProcess(cmd, initialStateFile)
+  override def createPost(): infsec.Processor[MonitorResponse, MonitorResponse] = new LiftProcessor(new MonpolyVerdictFilter(slicer.mkVerdictFilter))
 }

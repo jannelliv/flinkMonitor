@@ -1,9 +1,10 @@
-package ch.eth.inf.infsec.autobalancer
+package ch.ethz.infsec.autobalancer
 
 import java.io.Serializable
 
-import ch.eth.inf.infsec.slicer.Statistics
-import ch.eth.inf.infsec.trace.{Domain, Record, Timestamp}
+import ch.ethz.infsec.monitor.Domain
+import ch.ethz.infsec.slicer.Statistics
+import ch.ethz.infsec.trace.Record
 
 
 object Helpers

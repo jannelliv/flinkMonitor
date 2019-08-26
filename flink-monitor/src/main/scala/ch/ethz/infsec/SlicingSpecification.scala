@@ -2,8 +2,8 @@ package ch.ethz.infsec
 
 import java.io.PrintWriter
 
-import ch.ethz.infsec.policy.Formula
 import ch.ethz.infsec.monitor.{Domain, IntegralValue, StringValue}
+import ch.ethz.infsec.policy.Formula
 import ch.ethz.infsec.slicer.HypercubeSlicer
 import org.apache.flink.api.java.utils.ParameterTool
 import org.slf4j.{Logger, LoggerFactory}

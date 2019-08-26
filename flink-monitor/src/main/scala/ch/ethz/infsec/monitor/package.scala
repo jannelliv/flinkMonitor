@@ -4,7 +4,7 @@ package object monitor {
 
   trait MonitorRequest
 
-  trait MonpolyRequest extends  MonitorRequest{
+  trait MonpolyRequest extends MonitorRequest{
     val in: String
   }
 
@@ -20,4 +20,10 @@ package object monitor {
 
   implicit class IndexedRecord(t:(Int,trace.Record)) extends MonitorRequest
 
+  trait MonitorResponse {
+    val in: String
+  }
+
+  case class VerdictItem(in: String) extends MonitorResponse
+  case class BypassCommandItem(in: String) extends MonitorResponse
 }

@@ -1,10 +1,7 @@
 package ch.ethz.infsec.trace
 
-import java.io.FileWriter
-
-import ch.eth.inf.infsec.monitor.{CommandItem, EventItem, MonpolyRequest}
-import ch.eth.inf.infsec.{Processor, StatelessProcessor}
-
+import ch.ethz.infsec.monitor.{BypassCommandItem, CommandItem, Domain, EventItem, IntegralValue, MonitorResponse, MonpolyRequest, StringValue, VerdictItem}
+import ch.ethz.infsec.{Processor, StatelessProcessor}
 import fastparse.WhitespaceApi
 import fastparse.noApi._
 
@@ -99,7 +96,8 @@ class MonpolyParser extends StatelessProcessor[String, Record] with Serializable
   override def terminate(f: Record => Unit): Unit = ()
 }
 
-class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRequest,MonpolyRequest] with Serializable{
+// TODO(JS): Not specific to Monpoly -> move out.
+class LiftProcessor(proc : Processor[String,String]) extends Processor[MonitorResponse,MonitorResponse] with Serializable{
   val proc2 = proc
   override type State = proc2.State
 
@@ -113,7 +111,7 @@ class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRe
   var tempF : FileWriter = null
 */
 
-  override def process(in: MonpolyRequest, f: MonpolyRequest => Unit): Unit = {
+  override def process(in: MonitorResponse, f: MonitorResponse => Unit): Unit = {
 /*    if(!started) {
       started = true
       tempF = new FileWriter("LiftProcessor.log",false)
@@ -122,13 +120,13 @@ class LiftProcessor(proc : Processor[String,String]) extends Processor[MonpolyRe
     tempF.flush()
 */
     in match {
-      case c@CommandItem(a) => f(c)
-      case EventItem(b) => proc2.process(b,x => f(EventItem(x)))
+      case i@BypassCommandItem(_) => f(i)
+      case VerdictItem(b) => proc2.process(b,x => f(VerdictItem(x)))
     }
   }
 
-  override def terminate(f: MonpolyRequest => Unit): Unit = {
-    proc2.terminate(x => f(EventItem(x)))
+  override def terminate(f: MonitorResponse => Unit): Unit = {
+    proc2.terminate(x => f(VerdictItem(x)))
   }
   def accessInternalProcessor : Processor[String,String] = proc2
 }
