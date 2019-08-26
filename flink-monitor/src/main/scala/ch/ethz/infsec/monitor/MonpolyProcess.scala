@@ -138,13 +138,12 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     try {
       if(canHandle)
       {
-          indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
-          writer.write(r.in)
+        indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
+        writer.write(r.in)
+        writer.write(GET_INDEX_COMMAND)
+        // TODO(JS): Do not flush if there are more requests in the queue
+        writer.flush()
       }
-      //TODO(CF): This is inefficient in the case of internal commands, but necessary to get an output because each write needs a matching read
-      writer.write(GET_INDEX_COMMAND)
-      // TODO(JS): Do not flush if there are more requests in the queue
-      writer.flush()
     }catch{
       case e:Throwable => {
         var tempF = new FileWriter("monpolyError.log",true)
@@ -216,60 +215,47 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       tempF.flush()
       tempF.close()
     }
-    var more = true
-    do {
-      if(pendingSlicer) {
-        var tempF = new FileWriter("monpolyError.log",true)
-        tempF.write("In readResults loop after pending slicer was set\n")
-        tempF.flush()
-        tempF.close()
+
+    if(!indexCommandTimingBuffer.isEmpty && indexCommandTimingBuffer.peek().isLeft)
+    {
+      val com = indexCommandTimingBuffer.poll().left.get
+      /*        tempF2.write("command got to other side: "+com+"\n")
+              tempF2.flush()*/
+      /*        if(com.in.startsWith(">gapt"))
+              {
+      /*          tempF2.write("response: "+">gaptr "+processTimeMovingAverage.toString()+"<\n")
+                tempF2.flush()*/
+                buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
+      /*        }else if(com.in.startsWith(">gsdt")) {
+                var tempF = new FileWriter("monpolyError.log",true)
+                tempF.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
+                tempF.flush()
+                tempF.close()
+                buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")*/
+              }else*/
+      if(com.in.startsWith(">gsdms")){
+        if(memory == "")
+          readResidentialMemory()
+        /*          tempF2.write(">gsdmsr " + memory + "<\n")
+                  tempF2.flush()*/
+        buffer += BypassCommandItem(">gsdmsr " + memory + "<")
+      }else {
+        buffer += BypassCommandItem(com.in)
       }
-      val line = reader.readLine()
-        if(pendingSlicer) {
+      return
+    }
+
+    val line = reader.readLine()
+    if (line != null) {
+      if (pendingSlicer) {
         var tempF = new FileWriter("monpolyError.log",true)
         tempF.write("but it okay because it had data: "+line+"\n")
         tempF.flush()
         tempF.close()
       }
 
-/*      if(line != null) {
-        tempF2.write(line+"\n")
-        tempF2.flush()
-      }*/
-
-      while(!indexCommandTimingBuffer.isEmpty && indexCommandTimingBuffer.peek().isLeft)
-      {
-        val com = indexCommandTimingBuffer.poll().left.get
-/*        tempF2.write("command got to other side: "+com+"\n")
-        tempF2.flush()*/
-/*        if(com.in.startsWith(">gapt"))
-        {
-/*          tempF2.write("response: "+">gaptr "+processTimeMovingAverage.toString()+"<\n")
-          tempF2.flush()*/
-          buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
-/*        }else if(com.in.startsWith(">gsdt")) {
-          var tempF = new FileWriter("monpolyError.log",true)
-          tempF.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
-          tempF.flush()
-          tempF.close()
-          buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")*/
-        }else*/
-        if(com.in.startsWith(">gsdms")){
-          if(memory == "")
-            readResidentialMemory()
-/*          tempF2.write(">gsdmsr " + memory + "<\n")
-          tempF2.flush()*/
-          buffer += BypassCommandItem(">gsdmsr " + memory + "<")
-        }else {
-          buffer += BypassCommandItem(com.in)
-        }
-      }
-
-      if (line == null) {
-        more = false
-      } else if (line.startsWith(GET_INDEX_PREFIX)) {
-        more = false
-        buffer += BypassCommandItem(">"+line+"<\n")
+      if (line.startsWith(GET_INDEX_PREFIX)) {
+        buffer += BypassCommandItem(line)
 /*        tempF2.write("non-empty buffer: "+(!indexCommandTimingBuffer.isEmpty)+"\n")
         if(indexCommandTimingBuffer.isEmpty) {
           tempF2.write("indexCommandTimingBuffer was empty? On line: "+line+"\n")
@@ -285,13 +271,13 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       }else if(line.startsWith("gaptr")) {
         buffer += BypassCommandItem(">"+line+"<\n")
       }else{
-          // TODO(JS): Check that line is a verdict before adding it to the buffer.
-          buffer += VerdictItem(line)
+        // TODO(JS): Check that line is a verdict before adding it to the buffer.
+        buffer += VerdictItem(line)
       }
-/*      tempF2.write("Content in buffer: \n")
-      buffer.foreach(abc => tempF2.write(abc+"\n"))
-      tempF2.flush()*/
-    } while (more)
+    }
+    /*      tempF2.write("Content in buffer: \n")
+          buffer.foreach(abc => tempF2.write(abc+"\n"))
+          tempF2.flush()*/
 /*    tempF2.write("done with loop!\n")
     tempF2.flush()*/
   }
@@ -421,7 +407,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     else Integer.parseInt(digits)
   }
 
-  override val SYNC_BARRIER_IN: MonpolyRequest = EventItem(GET_INDEX_COMMAND)
+  override val SYNC_BARRIER_IN: MonpolyRequest = CommandItem(GET_INDEX_COMMAND)
   override val SYNC_BARRIER_OUT: MonitorResponse => Boolean = _.in.startsWith(GET_INDEX_PREFIX)
 }
 

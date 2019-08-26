@@ -129,6 +129,10 @@ class LiftProcessor(proc : Processor[String,String]) extends Processor[MonitorRe
     proc2.terminate(x => f(VerdictItem(x)))
   }
   def accessInternalProcessor : Processor[String,String] = proc2
+
+  override def setParallelInstanceIndex(instance: Int): Unit = proc2.setParallelInstanceIndex(instance)
+
+  override def getCustomCounter: Timestamp = proc2.getCustomCounter
 }
 
 class MonpolyVerdictFilter(var mkFilter: Int => Tuple => Boolean)
