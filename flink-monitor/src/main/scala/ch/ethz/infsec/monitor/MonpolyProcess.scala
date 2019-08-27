@@ -140,10 +140,11 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       {
         indexCommandTimingBuffer.put(Right(System.currentTimeMillis()))
         writer.write(r.in)
-        writer.write(GET_INDEX_COMMAND)
-        // TODO(JS): Do not flush if there are more requests in the queue
-        writer.flush()
       }
+      //TODO(CF): This is inefficient in the case of internal commands, but necessary to get an output because each write needs a matching read
+      writer.write(GET_INDEX_COMMAND)
+      // TODO(JS): Do not flush if there are more requests in the queue
+      writer.flush()
     }catch{
       case e:Throwable => {
         var tempF = new FileWriter("monpolyError.log",true)
@@ -216,35 +217,6 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       tempF.close()
     }
 
-    if(!indexCommandTimingBuffer.isEmpty && indexCommandTimingBuffer.peek().isLeft)
-    {
-      val com = indexCommandTimingBuffer.poll().left.get
-      /*        tempF2.write("command got to other side: "+com+"\n")
-              tempF2.flush()*/
-      /*        if(com.in.startsWith(">gapt"))
-              {
-      /*          tempF2.write("response: "+">gaptr "+processTimeMovingAverage.toString()+"<\n")
-                tempF2.flush()*/
-                buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
-      /*        }else if(com.in.startsWith(">gsdt")) {
-                var tempF = new FileWriter("monpolyError.log",true)
-                tempF.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
-                tempF.flush()
-                tempF.close()
-                buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")*/
-              }else*/
-      if(com.in.startsWith(">gsdms")){
-        if(memory == "")
-          readResidentialMemory()
-        /*          tempF2.write(">gsdmsr " + memory + "<\n")
-                  tempF2.flush()*/
-        buffer += BypassCommandItem(">gsdmsr " + memory + "<")
-      }else {
-        buffer += BypassCommandItem(com.in)
-      }
-      return
-    }
-
     val line = reader.readLine()
     if (line != null) {
       if (pendingSlicer) {
@@ -255,18 +227,46 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       }
 
       if (line.startsWith(GET_INDEX_PREFIX)) {
-        buffer += BypassCommandItem(line)
-/*        tempF2.write("non-empty buffer: "+(!indexCommandTimingBuffer.isEmpty)+"\n")
+        if(!indexCommandTimingBuffer.isEmpty && indexCommandTimingBuffer.peek().isLeft)
+        {
+          val com = indexCommandTimingBuffer.poll().left.get
+          /*        tempF2.write("command got to other side: "+com+"\n")
+                  tempF2.flush()*/
+          /*        if(com.in.startsWith(">gapt"))
+                  {
+          /*          tempF2.write("response: "+">gaptr "+processTimeMovingAverage.toString()+"<\n")
+                    tempF2.flush()*/
+                    buffer += CommandItem(">gaptr "+processTimeMovingAverage.toString()+"<")
+          /*        }else if(com.in.startsWith(">gsdt")) {
+                    var tempF = new FileWriter("monpolyError.log",true)
+                    tempF.write(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<\n")
+                    tempF.flush()
+                    tempF.close()
+                    buffer += CommandItem(">gsdtr " + (lastShutdownCompletedTime - lastShutdownInitiatedTime).toString() + "<")*/
+                  }else*/
+          if(com.in.startsWith(">gsdms")){
+            if(memory == "")
+              readResidentialMemory()
+            /*          tempF2.write(">gsdmsr " + memory + "<\n")
+                      tempF2.flush()*/
+            buffer += BypassCommandItem(">gsdmsr " + memory + "<")
+          }else {
+            buffer += BypassCommandItem(com.in)
+          }
+        } else {
+          buffer += BypassCommandItem(line)
+          /*        tempF2.write("non-empty buffer: "+(!indexCommandTimingBuffer.isEmpty)+"\n")
         if(indexCommandTimingBuffer.isEmpty) {
           tempF2.write("indexCommandTimingBuffer was empty? On line: "+line+"\n")
         }
         tempF2.flush()*/
-        //todo: in theory this nonEmpty-check should not be necessary, but something's being strange still
-        if(!indexCommandTimingBuffer.isEmpty) {
-          val k = indexCommandTimingBuffer.poll()
-/*          tempF2.write("k is right? " + k.isRight + "\n")
+          //todo: in theory this nonEmpty-check should not be necessary, but something's being strange still
+          if (!indexCommandTimingBuffer.isEmpty) {
+            val k = indexCommandTimingBuffer.poll()
+            /*          tempF2.write("k is right? " + k.isRight + "\n")
           tempF2.flush()*/
-          yes(System.currentTimeMillis() - k.right.get)
+            yes(System.currentTimeMillis() - k.right.get)
+          }
         }
       }else if(line.startsWith("gaptr")) {
         buffer += BypassCommandItem(">"+line+"<\n")
