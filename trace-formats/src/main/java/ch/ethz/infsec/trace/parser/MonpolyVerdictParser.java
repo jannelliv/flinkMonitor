@@ -7,80 +7,68 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.function.Consumer;
 
-public class MonpolyTraceParser implements TraceParser, Serializable {
-    private static final long serialVersionUID = 2830977317994540001L;
+public class MonpolyVerdictParser implements TraceParser, Serializable {
+    private static final long serialVersionUID = -2756131507581696530L;
 
     private enum ParserState {
         INITIAL,
         TIMESTAMP,
-        TABLE,
+        TIMEPOINT_0,
+        TIMEPOINT_1,
+        TIMEPOINT_2,
+        TIMEPOINT_3,
+        TIMEPOINT_4,
+        TIMEPOINT_5,
         TUPLE,
         FIELD_1,
         AFTER_FIELD,
-        FIELD_N,
-        COMMAND_ARG_1,
-        COMMAND_ARG_N
+        FIELD_N
     }
 
     private MonpolyLexer lexer;
     private ParserState parserState;
     private String timestamp;
-    private String relationName;
+    private String timepoint;
     private final ArrayList<String> fields;
-    private final ArrayList<Fact> factBuffer;
 
-    public MonpolyTraceParser() {
+    public MonpolyVerdictParser() {
         this.lexer = new MonpolyLexer();
         this.parserState = ParserState.INITIAL;
         this.timestamp = null;
-        this.relationName = null;
+        this.timepoint = null;
         this.fields = new ArrayList<>();
-        this.factBuffer = new ArrayList<>();
     }
 
     private void error() throws ParseException {
         lexer.reset();
         parserState = ParserState.INITIAL;
         timestamp = null;
-        relationName = null;
+        timepoint = null;
         fields.clear();
-        factBuffer.clear();
         throw new ParseException(lexer.currentInput());
     }
 
-    private void beginDatabase() {
+    private void beginVerdict() {
         timestamp = null;
-        relationName = null;
+        timepoint = null;
         fields.clear();
-        factBuffer.clear();
     }
 
-    private void finishDatabase(Consumer<Fact> sink) {
-        factBuffer.forEach(sink);
+    private void finishVerdict(Consumer<Fact> sink) {
         sink.accept(Fact.terminator(timestamp));
         timestamp = null;
-        relationName = null;
-        factBuffer.clear();
+        timepoint = null;
+        fields.clear();
     }
 
     private void beginTuple() {
         fields.clear();
+        fields.add(timepoint);
     }
 
-    private void finishTuple() {
-        factBuffer.add(new Fact(relationName, timestamp, new ArrayList<>(fields)));
+    private void finishTuple(Consumer<Fact> sink) {
+        sink.accept(new Fact("", timestamp, new ArrayList<>(fields)));
         fields.clear();
-    }
-
-    private void beginCommand() {
-        relationName = null;
-        fields.clear();
-    }
-
-    private void finishCommand(Consumer<Fact> sink) {
-        sink.accept(new Fact(relationName, null, new ArrayList<>(fields)));
-        fields.clear();
-        relationName = null;
     }
 
     private void runParser(Consumer<Fact> sink) throws ParseException {
@@ -97,11 +85,8 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
             switch (parserState) {
                 case INITIAL:
                     if (tokenType == TokenType.AT) {
-                        beginDatabase();
+                        beginVerdict();
                         parserState = ParserState.TIMESTAMP;
-                    } else if (tokenType == TokenType.RIGHT_ANGLE) {
-                        beginCommand();
-                        parserState = ParserState.COMMAND_ARG_1;
                     } else if (tokenType != TokenType.END) {
                         error();
                     }
@@ -109,28 +94,55 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                 case TIMESTAMP:
                     if (tokenType == TokenType.STRING) {
                         timestamp = lexer.takeTokenValue();
-                        parserState = ParserState.TABLE;
+                        if (timestamp.endsWith(".")) {
+                            timestamp = timestamp.substring(0, timestamp.length() - 1);
+                        } else {
+                            error();
+                        }
+                        parserState = ParserState.TIMEPOINT_0;
                     } else {
                         error();
                     }
                     break;
-                case TABLE:
+                case TIMEPOINT_0:
+                    if (tokenType == TokenType.LEFT_PAREN) {
+                        parserState = ParserState.TIMEPOINT_1;
+                    } else {
+                        error();
+                    }
+                    break;
+                case TIMEPOINT_1:
+                    if (tokenType == TokenType.STRING && lexer.takeTokenValue().equals("time")) {
+                        parserState = ParserState.TIMEPOINT_2;
+                    } else {
+                        error();
+                    }
+                    break;
+                case TIMEPOINT_2:
+                    if (tokenType == TokenType.STRING && lexer.takeTokenValue().equals("point")) {
+                        parserState = ParserState.TIMEPOINT_3;
+                    } else {
+                        error();
+                    }
+                    break;
+                case TIMEPOINT_3:
                     if (tokenType == TokenType.STRING) {
-                        relationName = lexer.takeTokenValue();
+                        timepoint = lexer.takeTokenValue();
+                        parserState = ParserState.TIMEPOINT_4;
+                    } else {
+                        error();
+                    }
+                    break;
+                case TIMEPOINT_4:
+                    if (tokenType == TokenType.RIGHT_PAREN) {
+                        parserState = ParserState.TIMEPOINT_5;
+                    } else {
+                        error();
+                    }
+                    break;
+                case TIMEPOINT_5:
+                    if (tokenType == TokenType.STRING && lexer.takeTokenValue().equals(":")) {
                         parserState = ParserState.TUPLE;
-                    } else if (tokenType == TokenType.AT) {
-                        finishDatabase(sink);
-                        parserState = ParserState.TIMESTAMP;
-                    } else if (tokenType == TokenType.SEMICOLON) {
-                        finishDatabase(sink);
-                        parserState = ParserState.INITIAL;
-                    } else if (tokenType == TokenType.RIGHT_ANGLE) {
-                        finishDatabase(sink);
-                        parserState = ParserState.COMMAND_ARG_1;
-                    } else if (tokenType == TokenType.END) {
-                        finishDatabase(sink);
-                        parserState = ParserState.INITIAL;
-                        return;
                     } else {
                         error();
                     }
@@ -140,18 +152,15 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                         beginTuple();
                         parserState = ParserState.FIELD_1;
                     } else if (tokenType == TokenType.STRING) {
-                        relationName = lexer.takeTokenValue();
-                    } else if (tokenType == TokenType.AT) {
-                        finishDatabase(sink);
-                        parserState = ParserState.TIMESTAMP;
-                    } else if (tokenType == TokenType.SEMICOLON) {
-                        finishDatabase(sink);
-                        parserState = ParserState.INITIAL;
-                    } else if (tokenType == TokenType.RIGHT_ANGLE) {
-                        finishDatabase(sink);
-                        parserState = ParserState.COMMAND_ARG_1;
+                        final String value = lexer.takeTokenValue();
+                        if (value.equals("true")) {
+                            beginTuple();
+                            finishTuple(sink);
+                        } else {
+                            error();
+                        }
                     } else if (tokenType == TokenType.END) {
-                        finishDatabase(sink);
+                        finishVerdict(sink);
                         parserState = ParserState.INITIAL;
                         return;
                     } else {
@@ -163,7 +172,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                         fields.add(lexer.takeTokenValue());
                         parserState = ParserState.AFTER_FIELD;
                     } else if (tokenType == TokenType.RIGHT_PAREN) {
-                        finishTuple();
+                        finishTuple(sink);
                         parserState = ParserState.TUPLE;
                     } else {
                         error();
@@ -173,7 +182,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                     if (tokenType == TokenType.COMMA) {
                         parserState = ParserState.FIELD_N;
                     } else if (tokenType == TokenType.RIGHT_PAREN) {
-                        finishTuple();
+                        finishTuple(sink);
                         parserState = ParserState.TUPLE;
                     } else {
                         error();
@@ -187,42 +196,19 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
                         error();
                     }
                     break;
-                case COMMAND_ARG_1:
-                    if (tokenType == TokenType.STRING) {
-                        relationName = lexer.takeTokenValue();
-                        parserState = ParserState.COMMAND_ARG_N;
-                    } else {
-                        error();
-                    }
-                    break;
-                case COMMAND_ARG_N:
-                    if (tokenType == TokenType.STRING) {
-                        fields.add(lexer.takeTokenValue());
-                    } else if (tokenType == TokenType.LEFT_ANGLE) {
-                        finishCommand(sink);
-                        parserState = ParserState.INITIAL;
-                    } else {
-                        error();
-                    }
-                    break;
             }
         } while (true);
     }
 
     @Override
-    public void endOfInput(Consumer<Fact> sink) throws ParseException {
-        lexer.atEnd();
-        runParser(sink);
-    }
-
-    public void parse(Consumer<Fact> sink, String input) throws ParseException {
-        lexer.setPartialInput(input);
+    public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
+        lexer.setCompleteInput(line);
         runParser(sink);
     }
 
     @Override
-    public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
-        parse(sink, line);
+    public void endOfInput(Consumer<Fact> sink) throws ParseException {
+        // Verdicts are self-contained lines.
     }
 
     @Override

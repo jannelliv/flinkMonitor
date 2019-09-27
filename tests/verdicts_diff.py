@@ -15,6 +15,8 @@ def read_verdicts(path, fail_unknown):
     with open(path, 'r') as f:
         for line in f:
             line = line.rstrip()
+            if not line:
+                continue
             match = verdict_re.match(line)
             if match is None:
                 if fail_unknown:

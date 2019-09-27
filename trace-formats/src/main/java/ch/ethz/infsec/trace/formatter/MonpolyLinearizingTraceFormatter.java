@@ -1,33 +1,39 @@
 package ch.ethz.infsec.trace.formatter;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.Trace;
 
+import java.io.IOException;
 import java.util.List;
+import java.util.function.Consumer;
 
+// NOTE(JS): Does not support commands/meta facts. Should be removed anyway.
 public class MonpolyLinearizingTraceFormatter extends MonpolyTraceFormatter {
 
     @Override
-    public void printFact(StringBuilder sink, Fact fact) {
-        if (!Trace.isEventFact(fact)) {
-            sink.append('@');
-            printString(sink, fact.getTimestamp());
-            sink.append(' ');
-            printString(sink, fact.getName());
-            List<String> arguments = fact.getArguments();
-            sink.append('(');
+    public void printFact(TraceConsumer sink, Fact fact) throws IOException {
+        if (!fact.isTerminator()) {
+            builder.append('@');
+            printString(fact.getTimestamp());
+            builder.append(' ');
+            printString(fact.getName());
+            List<Object> arguments = fact.getArguments();
+            builder.append('(');
             if (!arguments.isEmpty()) {
-                printString(sink, arguments.get(0));
+                // TODO(JS): Add support for other domain types.
+                printString((String) arguments.get(0));
                 for (int i = 1; i < arguments.size(); ++i) {
-                    sink.append(',');
-                    printString(sink, arguments.get(i));
+                    builder.append(',');
+                    printString((String) arguments.get(i));
                 }
             }
-            sink.append(')');
+            builder.append(')');
             if (getMarkDatabaseEnd()) {
-                sink.append(';');
+                builder.append(';');
             }
-            sink.append('\n');
+            builder.append('\n');
+
+            sink.accept(builder.toString());
+            builder.setLength(0);
         }
     }
 }

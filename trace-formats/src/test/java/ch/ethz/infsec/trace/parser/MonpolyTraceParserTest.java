@@ -1,7 +1,6 @@
 package ch.ethz.infsec.trace.parser;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.Trace;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -32,25 +31,44 @@ public class MonpolyTraceParserTest {
         parser.endOfInput(sink::add);
 
         assertEquals(Arrays.asList(
-                new Fact(Trace.EVENT_FACT, "123"),
-                new Fact("b", "456"),
-                new Fact(Trace.EVENT_FACT, "456"),
-                new Fact("abc", "456"),
-                new Fact("abc", "456"),
-                new Fact("def1", "456", "123"),
-                new Fact("def1", "456", "foo"),
-                new Fact("def2", "456", "[foo]", "(bar)"),
-                new Fact("def2", "456", "a1", " 2b "),
-                new Fact(Trace.EVENT_FACT, "456"),
-                new Fact(Trace.EVENT_FACT, "789")
+                Fact.terminator("123"),
+                Fact.make("b", "456"),
+                Fact.terminator("456"),
+                Fact.make("abc", "456"),
+                Fact.make("abc", "456"),
+                Fact.make("def1", "456", "123"),
+                Fact.make("def1", "456", "foo"),
+                Fact.make("def2", "456", "[foo]", "(bar)"),
+                Fact.make("def2", "456", "a1", " 2b "),
+                Fact.terminator("456"),
+                Fact.terminator("789")
         ), sink);
 
         sink.clear();
         parser.parse(sink::add, "@123 a (b,c)(d,e) @456");
         assertEquals(Arrays.asList(
-                new Fact("a", "123", "b", "c"),
-                new Fact("a", "123", "d", "e"),
-                new Fact(Trace.EVENT_FACT, "123")
+                Fact.make("a", "123", "b", "c"),
+                Fact.make("a", "123", "d", "e"),
+                Fact.terminator("123")
+        ), sink);
+    }
+
+    @Test
+    public void testCommand() throws Exception {
+        parser.parse(sink::add, ">foo<\n@1 p()");
+        parser.endOfInput(sink::add);
+        assertEquals(Arrays.asList(
+                Fact.meta("foo"),
+                Fact.make("p", "1"),
+                Fact.terminator("1")
+        ), sink);
+
+        sink.clear();
+        parser.parse(sink::add, "@1 p(q) >foo \"bar <\" 123<");
+        assertEquals(Arrays.asList(
+                Fact.make("p", "1", "q"),
+                Fact.terminator("1"),
+                Fact.meta("foo", "bar <", "123")
         ), sink);
     }
 
@@ -58,8 +76,8 @@ public class MonpolyTraceParserTest {
     public void testDatabaseTerminator() throws Exception {
         parser.parse(sink::add, "@123 a();");
         assertEquals(Arrays.asList(
-                new Fact("a", "123"),
-                new Fact(Trace.EVENT_FACT, "123")
+                Fact.make("a", "123"),
+                Fact.terminator("123")
         ), sink);
     }
 
@@ -82,9 +100,9 @@ public class MonpolyTraceParserTest {
 
         parser.parse(sink::add, "@123 a (b,c)(d,e) @456");
         assertEquals(Arrays.asList(
-                new Fact("a", "123", "b", "c"),
-                new Fact("a", "123", "d", "e"),
-                new Fact(Trace.EVENT_FACT, "123")
+                Fact.make("a", "123", "b", "c"),
+                Fact.make("a", "123", "d", "e"),
+                Fact.terminator("123")
         ), sink);
     }
 
@@ -104,10 +122,10 @@ public class MonpolyTraceParserTest {
         parser.parse(sink::add, "f) @456");
         parser.endOfInput(sink::add);
         assertEquals(Arrays.asList(
-                new Fact("a", "123", "b", "c"),
-                new Fact("a", "123", "d", "ef"),
-                new Fact(Trace.EVENT_FACT, "123"),
-                new Fact(Trace.EVENT_FACT, "456")
+                Fact.make("a", "123", "b", "c"),
+                Fact.make("a", "123", "d", "ef"),
+                Fact.terminator("123"),
+                Fact.terminator("456")
         ), sink);
     }
 }

@@ -1,9 +1,9 @@
 package ch.ethz.infsec.slicer
 
+import ch.ethz.infsec.TestHelpers
+import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy._
-import ch.ethz.infsec.monitor.{Domain, IntegralValue}
 import ch.ethz.infsec.policy.GenFormula
-import ch.ethz.infsec.trace.Record
 import org.scalacheck.{Arbitrary, Gen}
 import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
 import org.scalatest.{FunSuite, Matchers}
@@ -20,7 +20,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
   )
 
   def mkSimpleSlicer(formula: Formula, shares: IndexedSeq[Int], seed: Long = 1234): HypercubeSlicer =
-    new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])},
+    new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
       IndexedSeq(shares), shares.product, seed)
 
   test("The number of dimensions should equal the number of free variables") {
@@ -39,15 +39,15 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("x"), Var("y"))))
     val slicer1 = mkSimpleSlicer(formula, Array(256, 1), 314159)
     forAll { (x: Int, y: Int) =>
-      slicer1.slicesOfValuation(Array(IntegralValue(x), null)) should contain theSameElementsAs
-        slicer1.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y)))
+      slicer1.slicesOfValuation(Array(Long.box(x), null)) should contain theSameElementsAs
+        slicer1.slicesOfValuation(Array(Long.box(x), Long.box(y)))
     }
 
-    val slicer2 = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Domain]), (-1, Set.empty: Set[Domain])),
+    val slicer2 = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Any]), (-1, Set.empty: Set[Any])),
       Array(IndexedSeq(256, 1), IndexedSeq(128, 1)), 314159)
     forAll (withHeavy, Arbitrary.arbInt.arbitrary) { (x: Int, y: Int) =>
-      slicer2.slicesOfValuation(Array(IntegralValue(x), null)) should contain theSameElementsAs
-        slicer2.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y)))
+      slicer2.slicesOfValuation(Array(Long.box(x), null)) should contain theSameElementsAs
+        slicer2.slicesOfValuation(Array(Long.box(x), Long.box(y)))
     }
   }
 
@@ -55,27 +55,27 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     val formula = GenFormula.resolve(And(Pred("p", Var("y")), Pred("q", Var("x"), Var("y"))))
     val slicer1 = mkSimpleSlicer(formula, Array(8, 256), 314159)
     forAll { (x: Int, y: Int) =>
-      val slices = slicer1.slicesOfValuation(Array(null, IntegralValue(y)))
+      val slices = slicer1.slicesOfValuation(Array(null, Long.box(y)))
       slices should have size 8
-      slices should contain (slicer1.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y))).head)
+      slices should contain (slicer1.slicesOfValuation(Array(Long.box(x), Long.box(y))).head)
     }
 
-    val slicer2 = new HypercubeSlicer(formula, Array((-1, Set.empty: Set[Domain]), (0, Set(-1, 0, 2): Set[Domain])),
+    val slicer2 = new HypercubeSlicer(formula, Array((-1, Set.empty: Set[Any]), (0, Set(-1, 0, 2): Set[Any])),
       Array(IndexedSeq(8, 256), IndexedSeq(64, 1)), 314159)
     forAll (Arbitrary.arbInt.arbitrary, withHeavy) { (x: Int, y: Int) =>
-      val slices = slicer2.slicesOfValuation(Array(null, IntegralValue(y)))
+      val slices = slicer2.slicesOfValuation(Array(null, Long.box(y)))
       slices should (have size 8 or have size 64)
-      slices should contain (slicer2.slicesOfValuation(Array(IntegralValue(x), IntegralValue(y))).head)
+      slices should contain (slicer2.slicesOfValuation(Array(Long.box(x), Long.box(y))).head)
     }
   }
 
   test("Records should be sent according to all relevant heavy-hitter configurations") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("y"))))
-    val slicer = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Domain]), (-1, Set.empty: Set[Domain])),
+    val slicer = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Any]), (-1, Set.empty: Set[Any])),
       Array(IndexedSeq(32, 32), IndexedSeq(1, 2)), 314159)
     forAll (withHeavy, Arbitrary.arbInt.arbitrary) { (x: Int, y: Int) =>
-      val pSlices = slicer.slicesOfValuation(Array(IntegralValue(x), null))
-      val qSlices = slicer.slicesOfValuation(Array(null, IntegralValue(y)))
+      val pSlices = slicer.slicesOfValuation(Array(Long.box(x), null))
+      val qSlices = slicer.slicesOfValuation(Array(null, Long.box(y)))
       pSlices.intersect(qSlices) should not be empty
     }
   }
@@ -86,7 +86,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
       var seenSlices = new mutable.HashSet[Int]()
       for (_ <- 1 to 1000) {
         val slices = slicer.slicesOfValuation(
-          Array(IntegralValue(random.nextInt()), IntegralValue(random.nextInt()), IntegralValue(random.nextInt(maxZ))))
+          Array(Long.box(random.nextInt()), Long.box(random.nextInt()), Long.box(random.nextInt(maxZ))))
         seenSlices ++= slices
       }
 
@@ -94,28 +94,28 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     }
 
     val formula = GenFormula.resolve(Pred("p", Var("x"), Var("y"), Var("z")))
-    val heavyZ = Set[Domain](0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
+    val heavyZ = Set[Any](0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
     check(mkSimpleSlicer(formula, Array(2, 1, 4), 314159))
     check(new HypercubeSlicer(formula,
-      Array((-1, Set.empty: Set[Domain]), (-1, Set.empty: Set[Domain]), (0, heavyZ)),
+      Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159))
     check(new HypercubeSlicer(formula,
-      Array((-1, Set.empty: Set[Domain]), (-1, Set.empty: Set[Domain]), (0, heavyZ)),
+      Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159), 1)
     check(new HypercubeSlicer(formula,
-      Array((-1, Set.empty: Set[Domain]), (-1, Set.empty: Set[Domain]), (0, heavyZ)),
+      Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159), 10)
     check(new HypercubeSlicer(formula,
-      Array((-1, Set.empty: Set[Domain]), (-1, Set.empty: Set[Domain]), (0, heavyZ)),
+      Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(3, 3, 1)), 314159), 10)
   }
 
   test("Unused slices should not receive end markers") {
     val formula = GenFormula.resolve(Pred("p", Var("x"), Var("y"), Var("z")))
-    val slicer = new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])},
+    val slicer = new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
       IndexedSeq(IndexedSeq(2, 2, 2)), 11, 314159)
     val seenSlices = new mutable.HashSet[Int]()
-    slicer.process(Record.markEnd(1234), x => seenSlices += x._1)
+    seenSlices ++= TestHelpers.flatMapAll(slicer, List(Fact.terminator("1234"))).map(_._1)
     seenSlices should contain theSameElementsAs Range(0, 8)
   }
 
@@ -176,7 +176,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     val slicer1 = HypercubeSlicer.optimize(formula, 1024, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
-      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
+      override def heavyHitters(relation: String, attribute: Int): Set[Any] = (relation, attribute) match {
         case ("p", 0) => Set(0)
         case _ => Set.empty
       }
@@ -188,7 +188,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     val slicer2 = HypercubeSlicer.optimize(formula, 1024, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
-      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
+      override def heavyHitters(relation: String, attribute: Int): Set[Any] = (relation, attribute) match {
         case ("p", 0) => Set(0)
         case ("p", 1) => Set(1, 2, 3)
         case _ => Set.empty
@@ -201,27 +201,27 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     slicer2.shares(3) should contain theSameElementsInOrderAs List(1, 1)
   }
 
-  test("Verdicts should filtered if and only if they do not belong to the slice") {
+  test("Verdicts should be filtered if and only if they do not belong to the slice") {
     val formula = GenFormula.resolve(Pred("p", Var("y"), Var("x")))
 
     val slicer = HypercubeSlicer.optimize(formula, 1024, new Statistics {
       override def relationSize(relation: String): Double = 100.0
 
-      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
+      override def heavyHitters(relation: String, attribute: Int): Set[Any] = (relation, attribute) match {
         case ("p", 0) => Set(2)
         case _ => Set.empty
       }
     })
 
     forAll (Arbitrary.arbInt.arbitrary, withHeavy) { (x: Int, y: Int) =>
-      val valuation = Array(IntegralValue(x): Domain, IntegralValue(y))
-      val verdict = Array(IntegralValue(y): Domain, IntegralValue(x))
+      val valuation = Array(Long.box(x): Any, Long.box(y))
+      val verdict = Fact.make("", "", Long.box(0), Long.box(y), Long.box(x))
 
       val slices = slicer.slicesOfValuation(valuation)
       slices should have size 1
 
-      slicer.mkVerdictFilter(slices.head)(verdict) shouldBe true
-      (0 until 1024).count(i => slicer.mkVerdictFilter(i)(verdict)) shouldBe 1
+      slicer.filterVerdict(slices.head, verdict) shouldBe true
+      (0 until 1024).count(i => slicer.filterVerdict(i, verdict)) shouldBe 1
     }
   }
 
@@ -315,7 +315,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
   }
 
   test("Verdicts must be filtered if a variable is compared to a constant") {
-    val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("__eq", Const(IntegralValue(1)), Var("x"))))
+    val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("__eq", Const(Long.box(1)), Var("x"))))
     val slicer = HypercubeSlicer.optimize(formula, 16, Statistics.simple("p" -> 1))
     slicer.requiresFilter shouldBe true
   }
@@ -325,7 +325,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     val slicer = HypercubeSlicer.optimize(formula, 16, new Statistics {
       override def relationSize(relation: String): Double = 1.0
 
-      override def heavyHitters(relation: String, attribute: Int): Set[Domain] = (relation, attribute) match {
+      override def heavyHitters(relation: String, attribute: Int): Set[Any] = (relation, attribute) match {
         case ("p", 0) => Set(0)
         case _ => Set.empty
       }

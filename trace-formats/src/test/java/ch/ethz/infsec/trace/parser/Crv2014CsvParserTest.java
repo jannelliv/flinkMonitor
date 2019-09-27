@@ -1,7 +1,6 @@
 package ch.ethz.infsec.trace.parser;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.Trace;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -37,37 +36,58 @@ public class Crv2014CsvParserTest {
         assertTrue(sink.isEmpty());
 
         parser.parseLine(sink::add, "a,tp=1,ts=11");
-        assertEquals(Collections.singletonList(new Fact("a", "11")), sink);
+        assertEquals(Collections.singletonList(Fact.make("a", "11")), sink);
 
         sink.clear();
         parser.parseLine(sink::add, "ab, tp = 1, ts = 11, x = y");
         parser.parseLine(sink::add, ";;\n");
         assertEquals(Arrays.asList(
-                new Fact("ab", "11", "y"),
-                new Fact(Trace.EVENT_FACT, "11")
+                Fact.make("ab", "11", "y"),
+                Fact.terminator("11")
         ), sink);
 
         sink.clear();
         parser.parseLine(sink::add, " cde , tp = 2 , ts = 11 , x =  y\r\n");
-        assertEquals(Collections.singletonList(new Fact("cde", "11", "y")), sink);
+        assertEquals(Collections.singletonList(Fact.make("cde", "11", "y")), sink);
 
         sink.clear();
         parser.parseLine(sink::add, "a, tp=2, ts=12, x=y, 123 = 4Foo56   ");
         assertEquals(Arrays.asList(
-                new Fact(Trace.EVENT_FACT, "11"),
-                new Fact("a", "12", "y", "4Foo56")
+                Fact.terminator("11"),
+                Fact.make("a", "12", "y", "4Foo56")
         ), sink);
 
         sink.clear();
         parser.endOfInput(sink::add);
-        assertEquals(Collections.singletonList(new Fact(Trace.EVENT_FACT, "12")), sink);
+        assertEquals(Collections.singletonList(Fact.terminator("12")), sink);
 
         sink.clear();
         parser.endOfInput(sink::add);
         assertTrue(sink.isEmpty());
 
         parser.parseLine(sink::add, "xyz, tp = 1, ts = 2");
-        assertEquals(Collections.singletonList(new Fact("xyz", "2")), sink);
+        assertEquals(Collections.singletonList(Fact.make("xyz", "2")), sink);
+    }
+
+    @Test
+    public void testCommand() throws Exception {
+        parser.parseLine(sink::add, "> foo<");
+        parser.parseLine(sink::add, "a,tp=1,ts=1,x=y");
+        parser.endOfInput(sink::add);
+        assertEquals(Arrays.asList(
+                Fact.meta("foo"),
+                Fact.make("a", "1", "y"),
+                Fact.terminator("1")
+        ), sink);
+
+        sink.clear();
+        parser.parseLine(sink::add, "a,tp=1,ts=1,x=y");
+        parser.parseLine(sink::add, ">foo \"hello <\" 123<");
+        assertEquals(Arrays.asList(
+                Fact.make("a", "1", "y"),
+                Fact.terminator("1"),
+                Fact.meta("foo", "hello <", "123")
+        ), sink);
     }
 
     private void assertParseFailure(String line) {
@@ -85,7 +105,7 @@ public class Crv2014CsvParserTest {
         assertParseFailure("abc, tp=1, ts=1, foo, bar");
 
         parser.parseLine(sink::add, "abc, tp=1, ts=1, x=y");
-        assertEquals(Collections.singletonList(new Fact("abc", "1", "y")), sink);
+        assertEquals(Collections.singletonList(Fact.make("abc", "1", "y")), sink);
     }
 
     @Test
@@ -103,8 +123,8 @@ public class Crv2014CsvParserTest {
 
         parser.parseLine(sink::add, "def, tp=2, ts=2, foo=bar");
         assertEquals(Arrays.asList(
-                new Fact(Trace.EVENT_FACT, "1"),
-                new Fact("def", "2", "bar")
+                Fact.terminator("1"),
+                Fact.make("def", "2", "bar")
         ), sink);
     }
 }

@@ -1,10 +1,10 @@
 package ch.ethz.infsec
 
-import ch.ethz.infsec.autobalancer.{AllState, DeciderFlatMapSimple}
-import ch.ethz.infsec.monitor.{ExternalProcessOperator, KnowledgeExtract, OutsideInfluence}
-import ch.ethz.infsec.slicer.HypercubeSlicer
-import ch.ethz.infsec.tools.Rescaler.RescaleInitiator
-import ch.ethz.infsec.trace.{Record, TraceFormat, TraceMonitor}
+import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
+import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
+import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
+import ch.ethz.infsec.trace.parser.TraceParser
+import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.IdPartitioner
 import org.apache.flink.api.java.io.TextInputFormat
@@ -37,13 +37,8 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
   }
 
   def socketSink(verdicts: DataStream[String], host: String, port: Int): Unit = {
-    val outVerdicts = verdicts.map(v => v + "\n")
-      .setParallelism(1)
-      .name("Add newline")
-      .uid("add-newline")
-
     val sink = new SocketClientSink[String](host, port, new SimpleStringSchema(), 0)
-    LatencyTrackingExtensions.addPreciseLatencyTrackingSink(outVerdicts, sink)
+    LatencyTrackingExtensions.addPreciseLatencyTrackingSink(verdicts, sink)
       .setParallelism(1)
       .name("Socket sink")
       .uid("socket-sink")
@@ -64,19 +59,20 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
   }
 
   def assemble(inputStream: DataStream[String],
-               traceFormat: TraceFormat,
-               decider: Option[DeciderFlatMapSimple],
+               traceFormat: TraceParser,
+//               decider: Option[DeciderFlatMapSimple],
                slicer: HypercubeSlicer,
-               monitorFactory: MonitorFactory,
+               monitorProcess: ExternalProcess[Fact, Fact],
                queueSize: Int): DataStream[String] = {
 
-    val parser = new TraceMonitor(traceFormat.createParser(), new RescaleInitiator().rescale)
-    val parsedTrace = inputStream.flatMap(new ProcessorFunction(parser))
+//    val parser = new TraceMonitor(traceFormat.createParser(), new RescaleInitiator().rescale)
+    val parsedTrace = inputStream.flatMap(new ParsingFunction(traceFormat))
       .name("Trace parser")
       .uid("trace-parser")
       .setMaxParallelism(1)
       .setParallelism(1)
 
+    /*
     val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record](new OutsideInfluence(true).asInstanceOf[Processor[Record,Record] with Serializable]))
 
     val observedTrace = decider match {
@@ -89,21 +85,48 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
           .name("Decider")
           .uid("decider")
     }
+    */
 
-    val slicedTrace = observedTrace
-      .flatMap(new ProcessorFunction(slicer))
+    val slicedTrace = parsedTrace
+      .flatMap(slicer)
       .name("Slicer")
       .uid("slicer")
       .setMaxParallelism(1)
       .setParallelism(1)
       .partitionCustom(new IdPartitioner, 0)
 
-    val verdictsAndOtherThings = ExternalProcessOperator.transform(slicer, slicedTrace, monitorFactory, queueSize)
+    val slicedTraceWithoutIds = slicedTrace.map(_._2)
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Remove slice ID")
+      .uid("remove-id")
+
+    // XXX(JS): Implement this comment here:
+    // We do not send any commands to unused submonitors. In particular, we cannot use their state fragments
+    // because the state is not synchronized with the global progress. Ideally, we would not even create
+    // such submonitors.
+    // TODO(JS): Check the splitting/merging logic in the case of unused submonitors.
+
+    val rawVerdicts = ExternalProcessOperator.transform(slicedTraceWithoutIds, monitorProcess, queueSize)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Monitor")
       .uid("monitor")
 
-    verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract(slicer.degree)))
+    //verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract(slicer.degree)))
+
+    val filteredVerdicts = rawVerdicts.filter(new VerdictFilter(slicer))
+        .setParallelism(slicer.degree)
+        .setMaxParallelism(slicer.degree)
+        .name("Verdict filter")
+        .uid("verdict-filter")
+
+    val printedVerdicts = filteredVerdicts.flatMap(new PrintingFunction(new MonpolyVerdictFormatter))
+        .setParallelism(slicer.degree)
+        .setMaxParallelism(slicer.degree)
+        .name("Verdict printer")
+        .uid("verdict-printer")
+
+    printedVerdicts
   }
 }

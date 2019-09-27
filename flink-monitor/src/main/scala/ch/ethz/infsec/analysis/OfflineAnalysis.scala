@@ -1,11 +1,11 @@
 package ch.ethz.infsec.analysis
 
 import ch.ethz.infsec._
+import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy.{Formula, GenFormula, Policy}
 import ch.ethz.infsec.slicer.DataSlicer
-import ch.ethz.infsec.monitor.{Domain}
-import ch.ethz.infsec.trace.{TraceFormat,MonpolyFormat,CsvFormat,Tuple}
-import ch.ethz.infsec.policy.{GenFormula, Policy}
+import ch.ethz.infsec.trace.ParsingFunction
+import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala._
@@ -40,9 +40,9 @@ object OfflineAnalysis {
     val outputFileName = parameters.getRequired("out")
 
     val formatName = parameters.get("format", "monpoly")
-    val format: TraceFormat = formatName match {
-      case "monpoly" => MonpolyFormat
-      case "csv" => CsvFormat
+    val format: TraceParser = formatName match {
+      case "monpoly" => new MonpolyTraceParser
+      case "csv" => new Crv2014CsvParser
       case name => throw new IllegalArgumentException(s"Unknown log format: $name")
     }
 
@@ -85,13 +85,13 @@ object OfflineAnalysis {
 
     // TODO(JS): This skips the last event, because we have to flush the parser once the end of the file is reached.
     val eventStream = env.readTextFile(logFileName)
-      .flatMap(new ProcessorFunction(format.createParser()))
-      .assignAscendingTimestamps(_.timestamp * 1000)
+      .flatMap(new ParsingFunction(format))
+      .assignAscendingTimestamps(_.getTimestamp.toLong * 1000)
 
     val resultStream = slicer match {
       case Some(theSlicer) =>
         logger.info("Collecting slice statistics")
-        val slicedStream = eventStream.flatMap(new ProcessorFunction(theSlicer))
+        val slicedStream = eventStream.flatMap(theSlicer)
         TraceStatistics.analyzeSlices(slicedStream, windowSize)
           .mapWith { case (startTime, (slice, relation), count) =>
             s"${startTime / 1000},$slice,$relation,$count"
@@ -102,22 +102,22 @@ object OfflineAnalysis {
           logger.info("Collecting trace statistics with filtering")
           val dataSlicer = new DataSlicer with Serializable {
             override def addSlicesOfValuation(
-              valuation: Array[Domain],
+              valuation: Array[Any],
               slices: mutable.HashSet[Int]): Unit = slices += 0
 
             override val maxDegree: Int = 1
             override val degree: Int = 1
             override val formula: Formula = monitoringFormula.get
 
-            override def getState(): Array[Byte] = Array.emptyByteArray
+            override def stringify: String = ""
 
-            override def restoreState(state: Option[Array[Byte]]): Unit = {}
+            override def unstringify(s: String): Unit = ()
 
             override val requiresFilter: Boolean = false
 
-            override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = true
+            override def filterVerdict(slice: Int, verdict: Fact): Boolean = true
           }
-          eventStream.flatMap(new ProcessorFunction(dataSlicer)).map(_._2)
+          eventStream.flatMap(dataSlicer).map(_._2)
         } else {
           logger.info("Collecting trace statistics without filtering")
           eventStream

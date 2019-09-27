@@ -1,18 +1,16 @@
 package ch.ethz.infsec
 
-import ch.ethz.infsec.monitor.{Domain, IntegralValue, StringValue}
-
 package object slicer {
   class SlicerParser extends Serializable {
-    def parseDomain(str: String): Domain = {
-      val value: Domain = if (str.startsWith("\""))
-        StringValue(str.stripPrefix("\"").stripSuffix("\""))
+    def parseDomain(str: String): Any = {
+      val value: Any = if (str.startsWith("\""))
+        str.stripPrefix("\"").stripSuffix("\"")
       else
-        IntegralValue(str.toLong)
+        Long.box(str.toLong)
       value
     }
 
-    private def parseHeavy(str: String): IndexedSeq[(Int, Set[Domain])] = {
+    private def parseHeavy(str: String): IndexedSeq[(Int, Set[Any])] = {
       val it = str.substring(1, str.length - 1).split("\\),\\(")
       it.map(str => {
         val tuple = str.split(",\\(")
@@ -20,7 +18,7 @@ package object slicer {
           val domain = tuple(1).substring(0, tuple(1).length - 1).split(",").map(parseDomain)
           (Integer.parseInt(tuple(0)), domain.toSet)
         } else
-          (Integer.parseInt(tuple(0)), Set.empty[Domain])
+          (Integer.parseInt(tuple(0)), Set.empty[Any])
       })
     }
 
@@ -39,7 +37,7 @@ package object slicer {
       if (simpleShares.isEmpty) 1 else simpleShares.product
     }
 
-    def parseSlicer(str: String): (IndexedSeq[(Int, Set[Domain])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]]) ={
+    def parseSlicer(str: String): (IndexedSeq[(Int, Set[Any])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]]) ={
       val trim = str.substring(2, str.length - 2)
 
       val params = trim.split("\\},\\{")
@@ -51,23 +49,28 @@ package object slicer {
       (heavy, shares, seeds.map(_.toArray).toArray)
     }
 
-    private def stringifyDomain(domain: Set[Domain]): String = {
+    private def stringifyDomain(value: Any): String = value match {
+      case x: java.lang.Long => x.toString
+      case x: String => "\"" + x + "\""
+    }
+
+    private def stringifyDomainSet(domain: Set[Any]): String = {
       val it = domain.iterator
       val sb = new StringBuilder
       while (it.hasNext) {
-        sb ++= it.next().toString
+        sb ++= stringifyDomain(it.next())
         if (it.hasNext) sb ++= ","
       }
       sb.mkString
     }
 
-    private def stringifyHeavy(heavy: Iterable[(Int, Set[Domain])]): String = {
+    private def stringifyHeavy(heavy: Iterable[(Int, Set[Any])]): String = {
       val it = heavy.iterator
       val sb = new StringBuilder
 
       while (it.hasNext) {
         val h = it.next
-        sb ++= "(%d,(%s))".format(h._1, stringifyDomain(h._2))
+        sb ++= "(%d,(%s))".format(h._1, stringifyDomainSet(h._2))
         if (it.hasNext) sb ++= ","
       }
       "{%s}".format(sb.mkString)
@@ -83,7 +86,7 @@ package object slicer {
       "{%s}".format(sb.mkString)
     }
 
-    def stringify(heavy: Iterable[(Int, Set[Domain])], shares: Iterable[Iterable[Int]], seeds: Array[Array[Int]]): String = {
+    def stringify(heavy: Iterable[(Int, Set[Any])], shares: Iterable[Iterable[Int]], seeds: Array[Array[Int]]): String = {
       val itSeeds = seeds.toIterable.map(_.toIterable)
 
       val sb = new StringBuilder

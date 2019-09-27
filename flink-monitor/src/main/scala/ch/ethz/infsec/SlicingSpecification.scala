@@ -2,7 +2,6 @@ package ch.ethz.infsec
 
 import java.io.PrintWriter
 
-import ch.ethz.infsec.monitor.{Domain, IntegralValue, StringValue}
 import ch.ethz.infsec.policy.Formula
 import ch.ethz.infsec.slicer.HypercubeSlicer
 import org.apache.flink.api.java.utils.ParameterTool
@@ -35,19 +34,19 @@ object SlicingSpecification {
     }
 
     val heavyName = parameters.get("heavy", "")
-    val heavyHittersMap = new mutable.HashMap[(String, Int), mutable.HashSet[Domain]]()
-      .withDefaultValue(new mutable.HashSet[Domain]())
+    val heavyHittersMap = new mutable.HashMap[(String, Int), mutable.HashSet[Any]]()
+      .withDefaultValue(new mutable.HashSet[Any]())
     if (heavyName.nonEmpty) {
       logger.info("Reading heavy hitters from file {}", heavyName)
       val heavySource = Source.fromFile(heavyName)
       try {
         for (line <- heavySource.getLines()) {
           val fields = line.split(",", 3)
-          val these = heavyHittersMap.getOrElseUpdate((fields(0), fields(1).toInt), new mutable.HashSet[Domain]())
-          val value: Domain = if (fields(2).startsWith("\""))
-            StringValue(fields(2).stripPrefix("\"").stripSuffix("\""))
+          val these = heavyHittersMap.getOrElseUpdate((fields(0), fields(1).toInt), new mutable.HashSet[Any]())
+          val value: Any = if (fields(2).startsWith("\""))
+            fields(2).stripPrefix("\"").stripSuffix("\"")
           else
-            IntegralValue(fields(2).toLong)
+            Long.box(fields(2).toLong)
           these += value
         }
       } finally {
@@ -65,7 +64,7 @@ object SlicingSpecification {
         formula, degree, new slicer.Statistics {
           override def relationSize(relation: String): Double = rates(relation)
 
-          override def heavyHitters(relation: String, attribute: Int): Set[Domain] =
+          override def heavyHitters(relation: String, attribute: Int): Set[Any] =
             heavyHittersMap((relation, attribute)).toSet
         })
     } else {

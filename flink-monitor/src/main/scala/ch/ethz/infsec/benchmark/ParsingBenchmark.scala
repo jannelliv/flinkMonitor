@@ -1,25 +1,29 @@
 package ch.ethz.infsec.benchmark
 
-import ch.ethz.infsec.trace.{CsvFormat, DejavuFormat, MonpolyFormat, Record}
-import ch.ethz.infsec.{Processor, StatelessProcessor}
+import java.util.function.Consumer
+
+import ch.ethz.infsec.monitor.Fact
+import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 
 import scala.io.Source
 
-class ParsingBenchmark(input: Iterator[String], parser: Processor[String, Record]) {
-  def step(): (List[Record], Long) = {
+class ParsingBenchmark(input: Iterator[String], parser: TraceParser) {
+  def step(): (List[Fact], Long) = {
     if (input.hasNext) {
       val line = input.next()
-      var records: List[Record] = Nil
-      parser.process(line, records ::= _)
+      var records: List[Fact] = Nil
+      parser.parseLine(records ::= _, line)
       (records, line.length)  // NOTE(JS): Ideally we would like return the number of bytes, but this is close enough
     } else (null, 0)
   }
 }
 
-class NullParser extends StatelessProcessor[String, Record] {
-  override def process(in: String, f: Record => Unit): Unit = f(Record.markEnd(in.length))
+class NullParser extends TraceParser {
+  override def parseLine(sink: Consumer[Fact], line: String): Unit = sink.accept(Fact.terminator(line))
 
-  override def terminate(f: Record => Unit) { }
+  override def endOfInput(sink: Consumer[Fact]): Unit = ()
+
+  override def inInitialState(): Boolean = true
 }
 
 object ParsingBenchmark {
@@ -31,9 +35,8 @@ object ParsingBenchmark {
     val formatName = args(0)
     val parser = formatName match {
       case "null" => new NullParser
-      case "csv" => CsvFormat.createParser()
-      case "monpoly" => MonpolyFormat.createParser()
-      case "dejavu" => DejavuFormat.createParser()
+      case "csv" => new Crv2014CsvParser
+      case "monpoly" => new MonpolyTraceParser
     }
 
     val inputFileName = args(1)

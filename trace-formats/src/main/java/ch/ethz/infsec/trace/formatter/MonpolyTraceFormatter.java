@@ -1,18 +1,21 @@
 package ch.ethz.infsec.trace.formatter;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.Trace;
 
+import java.io.IOException;
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 
-public class MonpolyTraceFormatter implements TraceFormatter, Serializable {
-    private static final long serialVersionUID = -4455544905696931178L;
+// TODO(JS): Can we stream out partial databases?
+public class MonpolyTraceFormatter extends AbstractMonpolyFormatter implements TraceFormatter, Serializable {
+    private static final long serialVersionUID = -4194915337286486289L;
 
     private boolean markDatabaseEnd = false;
+    private boolean initialState = true;
     private final LinkedHashMap<String, ArrayList<Fact>> currentDatabase;
 
     public MonpolyTraceFormatter() {
@@ -23,70 +26,60 @@ public class MonpolyTraceFormatter implements TraceFormatter, Serializable {
         final String name = fact.getName();
         final ArrayList<Fact> table = currentDatabase.computeIfAbsent(name, k -> new ArrayList<>());
         table.add(fact);
+        initialState = false;
     }
 
-    private boolean isSimpleStringChar(char c) {
-        return (c >= '0' && c <= '9') ||
-                (c >= 'A' && c <= 'Z') ||
-                (c >= 'a' && c <= 'z') ||
-                c == '_' || c == '[' || c == ']' || c == '/' ||
-                c == ':' || c == '-' || c == '.' || c == '!';
-    }
-
-    private boolean isSimpleString(String value) {
-        for (int i = 0; i < value.length(); ++i) {
-            if (!isSimpleStringChar(value.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    protected void printString(StringBuilder sink, String value) {
-        if (isSimpleString(value)) {
-            sink.append(value);
-        } else {
-            sink.append('"');
-            sink.append(value);
-            sink.append('"');
-        }
-    }
-
-    private void printAndClearDatabase(StringBuilder sink) {
+    private void printAndClearDatabase() {
         for (Map.Entry<String, ArrayList<Fact>> entry : currentDatabase.entrySet()) {
             final ArrayList<Fact> facts = entry.getValue();
             if (!facts.isEmpty()) {
-                sink.append(' ');
-                printString(sink, entry.getKey());
+                builder.append(' ');
+                printString(entry.getKey());
                 for (Fact fact : facts) {
-                    final List<String> arguments = fact.getArguments();
-                    sink.append('(');
+                    final List<Object> arguments = fact.getArguments();
+                    builder.append('(');
                     if (!arguments.isEmpty()) {
-                        printString(sink, arguments.get(0));
+                        // TODO(JS): Add support for other domain types.
+                        printString((String) arguments.get(0));
                         for (int i = 1; i < arguments.size(); ++i) {
-                            sink.append(',');
-                            printString(sink, arguments.get(i));
+                            builder.append(',');
+                            printString((String) arguments.get(i));
                         }
                     }
-                    sink.append(')');
+                    builder.append(')');
                 }
             }
             facts.clear();
         }
+        initialState = true;
     }
 
     @Override
-    public void printFact(StringBuilder sink, Fact fact) {
-        if (Trace.isEventFact(fact)) {
-            sink.append('@');
-            printString(sink, fact.getTimestamp());
-            printAndClearDatabase(sink);
-            if (markDatabaseEnd) {
-                sink.append(';');
+    public void printFact(TraceConsumer sink, Fact fact) throws IOException {
+        if (fact.isMeta()) {
+            builder.append('>');
+            printString(fact.getName());
+            for (Object arg : fact.getArguments()) {
+                builder.append(' ');
+                printString(arg.toString());
             }
-            sink.append('\n');
+            builder.append("<\n");
+            sink.accept(builder.toString());
+            builder.setLength(0);
         } else {
-            addFact(fact);
+            if (fact.isTerminator()) {
+                builder.append('@');
+                printString(fact.getTimestamp());
+                printAndClearDatabase();
+                if (markDatabaseEnd) {
+                    builder.append(';');
+                }
+                builder.append('\n');
+                sink.accept(builder.toString());
+                builder.setLength(0);
+            } else {
+                addFact(fact);
+            }
         }
     }
 
@@ -96,5 +89,10 @@ public class MonpolyTraceFormatter implements TraceFormatter, Serializable {
 
     public void setMarkDatabaseEnd(boolean markDatabaseEnd) {
         this.markDatabaseEnd = markDatabaseEnd;
+    }
+
+    @Override
+    public boolean inInitialState() {
+        return initialState;
     }
 }

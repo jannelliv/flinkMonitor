@@ -230,12 +230,12 @@ object TraceAnalysis {
     def getSlicer(heavy: String, rates: String): String = {
       val arguments = Array[String]("--heavy", heavy, "--rates", rates)
       val params = ParameterTool.fromArgs(arguments)
-      SlicingSpecification.mkSlicer(params, formula, degree).stringify()
+      SlicingSpecification.mkSlicer(params, formula, degree).stringify
     }
 
     def getDefaultSlicer(): String = {
       val params = ParameterTool.fromArgs(Array[String]())
-      SlicingSpecification.mkSlicer(params, formula, degree).stringify()
+      SlicingSpecification.mkSlicer(params, formula, degree).stringify
     }
   }
 

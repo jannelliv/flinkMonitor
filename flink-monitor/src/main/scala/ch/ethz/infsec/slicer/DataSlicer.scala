@@ -1,28 +1,36 @@
 package ch.ethz.infsec.slicer
 
-import ch.ethz.infsec.Processor
-import ch.ethz.infsec.monitor.Domain
-import ch.ethz.infsec.policy._
-import ch.ethz.infsec.trace.{CommandRecord, EventRecord, Record, Tuple}
-import ch.ethz.infsec.policy.{Pred, VariableID}
+import java.util
+
+import ch.ethz.infsec.monitor.Fact
+import ch.ethz.infsec.policy.{Pred, VariableID, _}
+import org.apache.flink.api.common.functions.FlatMapFunction
+import org.apache.flink.streaming.api.checkpoint.ListCheckpointed
+import org.apache.flink.util.Collector
 
 import scala.collection.mutable
 
 // NOTE(JS): Also performs basic filtering (constants).
-abstract class DataSlicer extends Processor[Record, (Int, Record)] {
-  override type State = Array[Byte]
-
+abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCheckpointed[String] {
   val formula: Formula
 
   // TODO(JS): Required for commands. Can be eliminated once elastic rescaling is implemented.
   val maxDegree: Int
+
   def degree: Int
 
   var pendingSlicer: String = _
 
-  def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int])
+  def setSlicer(fact: Fact): Unit = {
+    pendingSlicer = fact.getArgument(0).asInstanceOf[String]
+  }
 
-  def slicesOfValuation(valuation: Array[Domain]): collection.Set[Int] = {
+  def stringify: String
+  def unstringify(s: String): Unit
+
+  def addSlicesOfValuation(valuation: Array[Any], slices: mutable.HashSet[Int])
+
+  def slicesOfValuation(valuation: Array[Any]): collection.Set[Int] = {
     val slices = new mutable.HashSet[Int]()
     addSlicesOfValuation(valuation, slices)
     slices
@@ -31,46 +39,34 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
   // These arrays are reused in process() for performance.
   // We have to initialize them lazily, because they depend on properties provided by the implementing subclass.
   private var atoms: Array[Pred[VariableID]] = _
-  private var valuation: Array[Domain] = _
+  private var valuation: Array[Any] = _
 
-  override def process(record: Record, f: ((Int, Record)) => Unit) {
-    record match {
-      case CommandRecord(record.command, record.parameters) => processCommand(record, f)
-      case EventRecord(record.timestamp, record.label, record.data) =>   processEvent(record, f)
+  def processCommand(fact: Fact, f: Collector[(Int, Fact)]): Unit = {
+    if (fact.getName == "set_slicer") {
+      setSlicer(fact)
     }
-  }
-
-  def updateState(state: Array[Byte]): Unit = ()
-
-  def setSlicer(record: Record): Unit = {
-    pendingSlicer = record.parameters
-  }
-
-  def processCommand(record: Record, f: ((Int, Record)) => Unit): Unit ={
-    var i = 0
-
-    setSlicer(record)
 
     // Send commands to all slices, including unused ones.
+    var i = 0
     while (i < maxDegree) {
-      f((i, record))
+      f.collect((i, fact))
       i += 1
     }
   }
 
-  def processEvent(record: Record, f: ((Int, Record)) => Unit): Unit = {
+  def processEvent(fact: Fact, f: Collector[(Int, Fact)]): Unit = {
     if (atoms == null) {
       atoms = formula.atoms.toArray
       valuation = Array.fill(formula.freeVariables.size)(null)
     }
 
     // The end of a timepoint is always broadcast to all slices.
-    if (record.isEndMarker) {
+    if (fact.isTerminator) {
       var i = 0
       // Only send databases to slices that are in used.
       // This is important for soundness if the verdict filtering is disabled!
       while (i < degree) {
-        f((i, record))
+        f.collect((i, fact))
         i += 1
       }
       return
@@ -82,7 +78,7 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
     var i = 0
     while (i < atoms.length) {
       val atom = atoms(i)
-      if (atom.relation == record.label && atom.args.lengthCompare(record.data.length) == 0) {
+      if (atom.relation == fact.getName && atom.args.lengthCompare(fact.getArity) == 0) {
         var matches = true
         var j = 0
         while (j < valuation.length) {
@@ -92,9 +88,9 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
 
         // Determine whether the tuple matches the atom, and compute the induced valuation of free variables.
         j = 0
-        while (j < record.data.length) {
+        while (j < fact.getArity) {
           val term = atom.args(j)
-          val value = record.data(j)
+          val value = fact.getArgument(j)
           term match {
             case Const(c) if c != value => matches = false
             case Var(x) if x.isFree =>
@@ -113,36 +109,26 @@ abstract class DataSlicer extends Processor[Record, (Int, Record)] {
       i += 1
     }
 
-    slices.foreach(s => f(s, record))
+    slices.foreach(s => f.collect(s, fact))
   }
-
-  override def getState(): State
-
-  override def restoreState(state: Option[State]): Unit
-
-  override def terminate(f: ((Int, Record)) => Unit) { }
-
-//  override def apply(source: Stream[Event])(implicit in:TypeInfo[Event], out:TypeInfo[(Int, Event)]): source.Self[(Int, Event)] = {
-//    source.flatMap(e => {
-//      // TODO(JS): For efficiency, consider transposing the outermost layers of `slices`: relation -> slice id -> structure
-//      val slices = Array.fill(degree) {
-//        val slice = new mutable.HashMap[String, ArrayBuffer[Tuple]]()
-//        for (relation <- e.structure.keys)
-//          slice(relation) = new ArrayBuffer()
-//        slice
-//      }
-//
-//      for ((relation, data) <- e.structure)
-//        for (tuple <- data)
-//          for (i <- slicesOfTuple(relation, tuple))
-//            slices(i)(relation) += tuple
-//
-//      for (i <- slices.indices)
-//        yield (i, Event(e.timestamp, slices(i)))
-//    })
-//  }
 
   def requiresFilter: Boolean
 
-  def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean
+  def filterVerdict(slice: Int, verdict: Fact): Boolean
+
+  override def flatMap(fact: Fact, collector: Collector[(Int, Fact)]): Unit = {
+    if (fact.isMeta) {
+      processCommand(fact, collector)
+    } else {
+      processEvent(fact, collector)
+    }
+  }
+
+  override def snapshotState(checkpointId: Long, timestamp: Long): util.List[String] =
+    util.Collections.singletonList(if (pendingSlicer == null) stringify else pendingSlicer)
+
+  override def restoreState(state: util.List[String]): Unit = {
+    assert(state.size() == 1)
+    unstringify(state.get(0))
+  }
 }

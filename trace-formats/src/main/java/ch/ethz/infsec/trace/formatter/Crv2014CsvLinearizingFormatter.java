@@ -1,31 +1,36 @@
 package ch.ethz.infsec.trace.formatter;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.Trace;
 
-public class Crv2014CsvLinearizingFormatter  extends  Crv2014CsvFormatter {
+import java.io.IOException;
+
+// NOTE(JS): Does not support commands/meta facts. Should be removed anyway.
+public class Crv2014CsvLinearizingFormatter extends Crv2014CsvFormatter {
 
     @Override
-    public void printFact(StringBuilder sink, Fact fact) {
-        if (!Trace.isEventFact(fact)) {
-            sink.append(fact.getName());
-            sink.append(", tp=");
-            sink.append(currentTimePoint++);
-            sink.append(", ts=");
-            sink.append(fact.getTimestamp());
+    public void printFact(TraceConsumer sink, Fact fact) throws IOException {
+        if (!fact.isTerminator()) {
+            builder.append(fact.getName());
+            builder.append(", tp=");
+            builder.append(currentTimePoint++);
+            builder.append(", ts=");
+            builder.append(fact.getTimestamp());
 
             final int arity = fact.getArity();
             for (int i = 0; i < arity; ++i) {
-                sink.append(", x");
-                sink.append(i);
-                sink.append("=");
-                sink.append(fact.getArgument(i));
+                builder.append(", x");
+                builder.append(i);
+                builder.append("=");
+                builder.append(fact.getArgument(i));
             }
             if (getMarkDatabaseEnd()) {
-                sink.append("\n;;\n");
+                builder.append("\n;;\n");
             } else {
-                sink.append("\n");
+                builder.append("\n");
             }
+
+            sink.accept(builder.toString());
+            builder.setLength(0);
         }
     }
 

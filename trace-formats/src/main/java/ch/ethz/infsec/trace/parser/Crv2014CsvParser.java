@@ -1,12 +1,12 @@
 package ch.ethz.infsec.trace.parser;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.Trace;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Crv2014CsvParser implements TraceParser, Serializable {
     private static final long serialVersionUID = -919182766017476946L;
@@ -23,7 +23,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
 
     private void terminateEvent(Consumer<Fact> sink) {
         if (lastTimePoint != null && !alreadyTerminated) {
-            sink.accept(new Fact(Trace.EVENT_FACT, lastTimestamp, Collections.emptyList()));
+            sink.accept(Fact.terminator(lastTimestamp));
         }
     }
 
@@ -39,6 +39,8 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         beginNewEvent(sink, null, null);
     }
 
+    private static final Pattern commandArgumentPattern = Pattern.compile("\\s*(<|[^<\" ]+|\"[^\"]*\")");
+
     @Override
     public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
         final String trimmed = line.trim();
@@ -48,6 +50,32 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (trimmed.equals(";;")) {
             terminateEvent(sink);
             alreadyTerminated = true;
+            return;
+        }
+        if (trimmed.startsWith(">")) {
+            terminateEvent(sink);
+            alreadyTerminated = true;
+
+            final Matcher matcher = commandArgumentPattern.matcher(trimmed.substring(1));
+            String name;
+            if (matcher.lookingAt()) {
+                name = matcher.group(1);
+                matcher.region(matcher.end(), trimmed.length() - 1);
+            } else {
+                throw new ParseException(trimmed);
+            }
+            final ArrayList<Object> arguments = new ArrayList<>();
+            while (matcher.lookingAt() && !matcher.group(1).equals("<")) {
+                final String matched = matcher.group(1);
+                if (matched.startsWith("\"")) {
+                    arguments.add(matched.substring(1, matched.length() - 1));
+                } else {
+                    arguments.add(matched);
+                }
+                matcher.region(matcher.end(), trimmed.length() - 1);
+            }
+
+            sink.accept(new Fact(name, null, arguments));
             return;
         }
 
@@ -81,7 +109,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         }
         final String timestamp = line.substring(start, end).trim();
 
-        final ArrayList<String> arguments = new ArrayList<>();
+        final ArrayList<Object> arguments = new ArrayList<>();
         while (end < line.length()) {
             start = line.indexOf('=', end + 1) + 1;
             if (start <= 0) {
@@ -99,5 +127,10 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         }
 
         sink.accept(new Fact(factName, timestamp, arguments));
+    }
+
+    @Override
+    public boolean inInitialState() {
+        return lastTimePoint == null || alreadyTerminated;
     }
 }

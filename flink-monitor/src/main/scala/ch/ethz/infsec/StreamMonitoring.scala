@@ -5,12 +5,9 @@ import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.{Callable, Executors, TimeUnit}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
-import ch.ethz.infsec.autobalancer.DeciderFlatMapSimple
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.slicer.{HypercubeSlicer, SlicerParser}
-import ch.ethz.infsec.tools.Rescaler
-import ch.ethz.infsec.trace.{CsvFormat, MonpolyFormat, _}
+import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
@@ -27,10 +24,9 @@ object StreamMonitoring {
   private val logger = LoggerFactory.getLogger(StreamMonitoring.getClass)
 
   private val MONPOLY_CMD = "monpoly"
-  private val ECHO_DEJAVU_CMD    = "echo-dejavu"
+  private val ECHO_DEJAVU_CMD = "echo-dejavu"
   private val ECHO_MONPOLY_CMD = "echo-monpoly"
-  private val DEJAVU_CMD  = "dejavu"
-  private val CUSTOM_CMD  = "custom"
+  private val DEJAVU_CMD = "dejavu"
 
   var jobName: String = ""
 
@@ -38,8 +34,7 @@ object StreamMonitoring {
 
   var in: Option[Either[(String, Int), String]] = _
   var out: Option[Either[(String, Int), String]] = _
-  var inputFormat: TraceFormat = _
-  var markDatabaseEnd: Boolean = true
+  var inputFormat: TraceParser = _
   var watchInput: Boolean = false
 
   var processors: Int = 0
@@ -49,27 +44,13 @@ object StreamMonitoring {
   var formulaFile: String = ""
   var signatureFile: String = ""
   var initialStateFile: Option[String] = None
-  var negate:Boolean = false
-  var queueSize = 256
-
+  var negate: Boolean = false
+  var queueSize = 10000
 
   var formula: Formula = policy.False()
 
-  // FIXME(JS): Unused.
-  /*
-  def floorLog2(x: Int): Int = {
-    var remaining = x
-    var y = -1
-    while (remaining > 0) {
-      remaining >>= 1
-      y += 1
-    }
-    y
-  }
-  */
-
   private def fail(message: String, values: Object*): Nothing = {
-    logger.error(message, values:_*)
+    logger.error(message, values: _*)
     System.err.println("Error: " + MessageFormatter.arrayFormat(message, values.toArray).getMessage)
     sys.exit(1)
   }
@@ -101,24 +82,23 @@ object StreamMonitoring {
     out = parseArgs(params.get("out", ""))
 
     inputFormat = params.get("format", "monpoly") match {
-      case "monpoly" => MonpolyFormat
-      case "csv" => CsvFormat
-      case "dejavu" => DejavuFormat
+      case "monpoly" => new MonpolyTraceParser
+      case "csv" => new Crv2014CsvParser
+      //case "dejavu" => DejavuFormat
       case format => fail("Unknown trace format " + format)
     }
-    markDatabaseEnd = params.getBoolean("end-marker", true)
 
     watchInput = params.getBoolean("watch", false)
 
     processors = params.getInt("processors", 1)
     logger.info(s"Using $processors parallel monitors")
 
-    negate = params.getBoolean("negate",false)
+    negate = params.getBoolean("negate", false)
     monitorCommand = params.get("monitor", MONPOLY_CMD)
 
 
     val commandString = params.get("command")
-    command = if (commandString==null) Seq.empty else commandString.split(' ')
+    command = if (commandString == null) Seq.empty else commandString.split(' ')
     signatureFile = params.get("sig")
     formulaFile = params.get("formula")
     val formulaSource = Source.fromFile(formulaFile).mkString
@@ -132,6 +112,7 @@ object StreamMonitoring {
     queueSize = params.getInt("queueSize", queueSize)
   }
 
+  /*
   def calculateSlicing(params: ParameterTool): Unit =
   {
     val degree = params.getInt("degree",4)
@@ -208,39 +189,42 @@ object StreamMonitoring {
     val ss = str.split('/')
     ss(ss.length-1)
   }
+   */
 
 
   def main(args: Array[String]) {
     val params = ParameterTool.fromArgs(args)
 
     val analysis = params.getBoolean("analysis", false)
-    val calcSlice = params.getBoolean("calcSlice",false)
+    //val calcSlice = params.getBoolean("calcSlice",false)
 
     if (analysis) TraceAnalysis.prepareSimulation(params)
-    else if(calcSlice) calculateSlicing(params)
-    else{
+    //else if(calcSlice) calculateSlicing(params)
+    else {
       init(params)
 
-      if (formula.freeVariables.isEmpty) { fail("Closed formula cannot be sliced") }
+      if (formula.freeVariables.isEmpty) {
+        fail("Closed formula cannot be sliced")
+      }
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
 
-      val processFactory: MonitorFactory = monitorCommand match {
+      val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {
-          val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand::List("-negate") else List(monitorCommand))
+          val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand :: List("-negate") else List(monitorCommand))
           val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)
           logger.info("Monitor command: {}", margs.mkString(" "))
-          new MonpolyProcessFactory(margs, slicer, initialStateFile, markDatabaseEnd)
+          new MonpolyProcess(margs, initialStateFile)
         }
         case ECHO_DEJAVU_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-          EchoDejavuProcessFactory(monitorArgs)
+          new EchoDejavuProcess(monitorArgs)
         }
         case ECHO_MONPOLY_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-          new EchoMonpolyProcessFactory(monitorArgs, markDatabaseEnd)
+          new EchoMonpolyProcess(monitorArgs)
         }
         case DEJAVU_CMD => {
           if (slicer.requiresFilter) {
@@ -248,13 +232,13 @@ object StreamMonitoring {
           }
 
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
-          val dejavuFormulaFile = formulaFile+".qtl"
-          val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile,false))
+          val dejavuFormulaFile = formulaFile + ".qtl"
+          val writer = new PrintWriter(new FileOutputStream(dejavuFormulaFile, false))
           writer.write(formula.toQTLString(!negate))
           writer.close()
 
           //Compiling the monitor
-          val compileArgs = monitorArgs ++ List("compile",dejavuFormulaFile)
+          val compileArgs = monitorArgs ++ List("compile", dejavuFormulaFile)
           val process = new ProcessBuilder(JavaConverters.seqAsJavaList(compileArgs))
             .redirectError(Redirect.INHERIT)
             .start()
@@ -270,39 +254,11 @@ object StreamMonitoring {
             executor.shutdown()
             val runArgs = monitorArgs ++ List("run", monitorLocation, "25")
             logger.info("Monitor command: {}", runArgs.mkString(" "))
-            DejavuProcessFactory(runArgs)
+            new DejavuProcess(runArgs)
           } catch {
-            case e : Exception => {
+            case e: Exception => {
               fail("Dejavu monitor compilation failed: {}", e.getMessage)
             }
-          }
-        }
-        case CUSTOM_CMD => {
-          if (command.isEmpty) {
-            fail("Custom monitor must have a --command argument")
-          }
-          logger.info("Monitor command: {}", command.mkString(" "))
-          new ExternalProcessFactory[(Int,Record),IndexedRecord,MonitorResponse,MonitorResponse] {
-            override def createPre[T,UIN >: IndexedRecord](): Processor[Either[(Int, Record),T], Either[UIN,T]] = new StatelessProcessor[Either[(Int, Record),T],Either[IndexedRecord,T]] {
-              override def process(in: Either[(Int, Record),T], f: Either[IndexedRecord,T]=> Unit): Unit = f(
-                in match {
-                case Left(t) => Left(new IndexedRecord(t))
-                case Right(r) => Right(r)
-
-              })
-              override def terminate(f: Either[IndexedRecord,T] => Unit): Unit = ()
-            }
-
-            override def createProc[UIN >: IndexedRecord](): ExternalProcess[UIN, MonitorResponse] = new DirectProcess[IndexedRecord,MonitorResponse](command) {
-              override def parseLine(line: String): MonitorResponse = VerdictItem(line)
-
-              override def isEndMarker(t: MonitorResponse): Boolean = t.in.equals("")
-
-              override val SYNC_BARRIER_IN: IndexedRecord = (-1,Record(-1l, "", emptyTuple, "SYNC", ""))
-              override val SYNC_BARRIER_OUT: MonitorResponse => Boolean = _.in == "SYNC"
-            }
-
-            override def createPost(): Processor[MonitorResponse, MonitorResponse] = StatelessProcessor.identity[MonitorResponse]
           }
         }
         case c@_ => fail("Cannot parse the monitor command: {}", c)
@@ -322,6 +278,7 @@ object StreamMonitoring {
 
       // Performance tuning
       env.getConfig.enableObjectReuse()
+      env.getConfig.registerTypeWithKryoSerializer(classOf[Fact], new FactSerializer)
 
       //env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
       env.setMaxParallelism(1)
@@ -336,11 +293,13 @@ object StreamMonitoring {
         case _ => fail("Cannot parse the input argument")
       }
 
+      /*
       val dfms = if(params.has("decider"))
         Some(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
       else
         None
-      val verdicts = monitor.assemble(textStream, inputFormat, dfms, slicer, processFactory, queueSize)
+       */
+      val verdicts = monitor.assemble(textStream, inputFormat, slicer, monitorProcess, queueSize)
 
       out match {
         case Some(Left((h, p))) => monitor.socketSink(verdicts, h, p)
@@ -348,8 +307,10 @@ object StreamMonitoring {
         case _ => monitor.printSink(verdicts)
       }
 
+      /*
       Rescaler.create(jobName, "127.0.0.1", processors)
       Thread.sleep(2000)
+       */
       env.execute(jobName)
     }
   }

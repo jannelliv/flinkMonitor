@@ -1,7 +1,6 @@
 package ch.ethz.infsec.replayer;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.trace.Trace;
 import ch.ethz.infsec.trace.formatter.*;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
@@ -75,7 +74,7 @@ public class Replayer {
         @Override
         void emit(Output output) throws IOException {
             output.writeFact(fact);
-            if (Trace.isEventFact(fact)) {
+            if (fact.isTerminator()) {
                 output.flush();
             }
         }
@@ -105,14 +104,10 @@ public class Replayer {
     }
 
     private abstract class Output {
-        private final StringBuilder stringBuilder = new StringBuilder();
-
         abstract void writeString(String string) throws IOException;
 
         void writeFact(Fact fact) throws IOException {
-            formatter.printFact(stringBuilder, fact);
-            writeString(stringBuilder.toString());
-            stringBuilder.setLength(0);
+            formatter.printFact(this::writeString, fact);
         }
 
         abstract void flush() throws IOException;
@@ -263,7 +258,7 @@ public class Replayer {
 
         @Override
         public synchronized void reportDelivery(FactItem item, long startTime) {
-            if (Trace.isEventFact(item.fact)) {
+            if (item.fact.isTerminator()) {
                 long now = System.nanoTime();
 
                 ++indices;

@@ -1,10 +1,7 @@
 package ch.ethz.infsec.slicer
 
-import ch.ethz.infsec.monitor.{Domain, IntegralValue, StringValue}
-import ch.ethz.infsec.policy._
-import ch.ethz.infsec.trace
-import ch.ethz.infsec.trace.Tuple
-import ch.ethz.infsec.policy.{Pred, VariableID}
+import ch.ethz.infsec.monitor.Fact
+import ch.ethz.infsec.policy.{Pred, VariableID, _}
 
 import scala.collection.mutable
 import scala.util.Random
@@ -12,12 +9,10 @@ import scala.util.hashing.MurmurHash3
 
 class HypercubeSlicer(
                        val formula: Formula,
-                       var heavy: IndexedSeq[(Int, Set[Domain])],
+                       var heavy: IndexedSeq[(Int, Set[Any])],
                        var shares: IndexedSeq[IndexedSeq[Int]],
                        val maxDegree: Int,
                        val seed: Long = 1234) extends DataSlicer with Serializable {
-  override type State = Array[Byte]
-
   private val parser = new SlicerParser
 
   // The number of variables with heavy hitters is limited to 30 because of the internal encoding
@@ -58,15 +53,16 @@ class HypercubeSlicer(
     strides
   }
 
-  private def hash(value: Domain, seed: Int): Int = value match {
-    case IntegralValue(x) =>
-      val lo = x.toInt
-      val hi = (x >> 32).toInt
+  private def hash(value: Any, seed: Int): Int = value match {
+    case x: java.lang.Long =>
+      val y = x.longValue()
+      val lo = y.toInt
+      val hi = (y >> 32).toInt
       MurmurHash3.finalizeHash(MurmurHash3.mixLast(MurmurHash3.mix(seed, lo), hi), 0)
-    case StringValue(x) => MurmurHash3.stringHash(x, seed)
+    case x: String => MurmurHash3.stringHash(x, seed)
   }
 
-  override def addSlicesOfValuation(valuation: Array[Domain], slices: mutable.HashSet[Int]) {
+  override def addSlicesOfValuation(valuation: Array[Any], slices: mutable.HashSet[Int]) {
     //var internalSet = new mutable.HashSet[Int]()
     // Compute which variables hold heavy hitters. This determines the shares to use.
     // Additionally, we have to consider all combinations of variables that are not constrained by the valuation,
@@ -140,13 +136,13 @@ class HypercubeSlicer(
   // TODO(JS): Verify whether Monpoly enumerates free variable in DFS order.
   val variablesInOrder: Seq[VariableID] = formula.freeVariablesInOrder.distinct
 
-  override def mkVerdictFilter(slice: Int)(verdict: Tuple): Boolean = {
+  override def filterVerdict(slice: Int, verdict: Fact): Boolean = {
     var heavySet = 0
     // Note: Variables are in a different order here, so i is not the index into "heavy"!
     var i = 0
     while (i < variablesInOrder.length) {
       val variableID = variablesInOrder(i).freeID
-      val value = verdict(i)
+      val value = verdict.getArgument(i + 1)  // Argument 0 is the time-point.
       val heavyMap = heavy(variableID)
       if (heavyMap._1 >= 0 && (heavyMap._2 contains value))
         heavySet += (1 << heavyMap._1)
@@ -161,52 +157,25 @@ class HypercubeSlicer(
     i = 0
     while (i < variablesInOrder.length) {
       val variableID = variablesInOrder(i).freeID
-      val value = verdict(i)
+      val value = verdict.getArgument(i + 1)
       expectedSlice += theStrides(variableID) * Math.floorMod(hash(value, theSeeds(variableID)), theShares(variableID))
       i += 1
     }
     slice == expectedSlice
   }
 
-  override def setSlicer(record: trace.Record): Unit = super.setSlicer(record)
+  override def stringify: String = parser.stringify(heavy, shares, seeds)
 
-  override def getState(): State  = {
-    if (pendingSlicer != null)
-      pendingSlicer.toCharArray.map(_.toByte)
-    else
-      parser.stringify(heavy, shares, seeds).toCharArray.map(_.toByte)
-  }
+  override def toString: String = stringify
 
-  def stringify(): String = {
-    parser.stringify(heavy, shares, seeds)
-  }
-
-  override def toString: String = {
-    stringify()
-  }
-
-  override def restoreState(state: Option[State]): Unit = {
-    var stringifiedSlicer: String = null
-
-    state match {
-      case Some(x) =>
-        stringifiedSlicer = x.map(_.toChar).mkString("")
-        parseSlicer(stringifiedSlicer)
-       // println(">set_slicer %s<".format(stringifiedSlicer))
-      case None => throw new Exception("No state to restore slicer from")
-    }
-  }
-
-  def parseSlicer(slicer: String): Unit = {
-    val res = parser.parseSlicer(slicer)
+  override def unstringify(s: String): Unit = {
+    val res = parser.parseSlicer(s)
     heavy = res._1
     shares = res._2
     seeds = res._3
     strides = calcStrides
     _degree = calcDegree
   }
-
-  override def updateState(state: Array[Byte]): Unit = parseSlicer(state.map(_.toChar).mkString(""))
 
   // TODO(JS): Relax restriction on rigid predicates.
   override def requiresFilter: Boolean = {
@@ -221,7 +190,7 @@ object HypercubeSlicer {
   private def isRigidRelation(relation: String): Boolean = relation.startsWith("__")
 
   def fromSimpleShares(formula: Formula, shares: Map[VariableID, Int]): HypercubeSlicer = {
-    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])}
+    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])}
     val sharesById: Map[Int, Int] = shares.map { case (v, e) => (v.freeID, e) }.withDefaultValue(1)
     val simpleShares = Array.tabulate(formula.freeVariables.size)(sharesById(_))
     new HypercubeSlicer(formula, heavy, Array[IndexedSeq[Int]](simpleShares), shares.values.product)
@@ -272,7 +241,7 @@ object HypercubeSlicer {
   }
 
   def optimize(formula: Formula, degree: Int, statistics: Statistics): HypercubeSlicer = {
-    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Domain])}
+    val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])}
     var heavyIndex = 0
     for (atom <- formula.atoms) {
       for ((Var(v), i) <- atom.args.zipWithIndex if v.isFree) {

@@ -1,7 +1,5 @@
 package ch.ethz.infsec.policy
 
-import ch.ethz.infsec.monitor.Domain
-
 
 // This is explicitly not a case class, such that each instance represent a fresh variable name.
 class VariableID(val nameHint: String, val freeID: Int = -1) extends Serializable {
@@ -43,7 +41,7 @@ sealed trait Term[V] extends Serializable {
   def toQTL:String
 }
 
-case class Const[V](value: Domain) extends Term[V] {
+case class Const[V](value: Any) extends Term[V] {
   override val freeVariables: Set[V] = Set.empty
   override val freeVariablesInOrder: Seq[V] = Seq.empty
   override def map[W](mapper: VariableMapper[V, W]): Const[W] = Const(value)

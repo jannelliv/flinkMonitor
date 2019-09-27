@@ -29,6 +29,11 @@
             <artifactId>spec-parser</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <dependency>
+            <groupId>ch.ethz.infsec</groupId>
+            <artifactId>trace-formats</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <!-- Apache Flink dependencies -->
         <!-- These are provided by the Flink runtime and thus should not be packaged into the JAR. -->
