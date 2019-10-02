@@ -1,5 +1,7 @@
 package ch.ethz.infsec
 
+import java.util.Properties
+
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
@@ -13,6 +15,7 @@ import org.apache.flink.streaming.api.functions.sink.{PrintSinkFunction, SocketC
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 
 /**
  * Helper class that assembles the parallel monitor's data flow.
@@ -34,6 +37,16 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
     environment.readTextFile(path)
       .name("Simple file source")
       .uid("simple-file-source")
+  }
+
+  def kafkaSource(address: String, topic: String, group: String): DataStream[String] = {
+    val properties = new Properties()
+    properties.setProperty("bootstrap.servers", address)
+    properties.setProperty("group.id", group)
+    val consumer = new FlinkKafkaConsumer011[String](topic, new SimpleStringWithEndSchema, properties)
+    consumer.setStartFromEarliest()
+    LatencyTrackingExtensions.addSourceWithProvidedMarkers(environment, consumer, "Kafka source")
+      .uid("kafka-source")
   }
 
   def socketSink(verdicts: DataStream[String], host: String, port: Int): Unit = {
@@ -129,4 +142,9 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
 
     printedVerdicts
   }
+}
+
+// TODO(JS): Should the stop message be format specific because it is a command?
+private class SimpleStringWithEndSchema extends SimpleStringSchema with Serializable {
+  override def isEndOfStream(nextElement: String): Boolean = nextElement.startsWith(">end<")
 }

@@ -36,6 +36,8 @@ object StreamMonitoring {
   var out: Option[Either[(String, Int), String]] = _
   var inputFormat: TraceParser = _
   var watchInput: Boolean = false
+  var kafkaTopic: Option[String] = None
+  var kafkaGroup: String = ""
 
   var processors: Int = 0
 
@@ -89,6 +91,8 @@ object StreamMonitoring {
     }
 
     watchInput = params.getBoolean("watch", false)
+    kafkaTopic = Option(params.get("kafka-topic"))
+    kafkaGroup = params.get("kafka-group", "monitor")
 
     processors = params.getInt("processors", 1)
     logger.info(s"Using $processors parallel monitors")
@@ -286,9 +290,11 @@ object StreamMonitoring {
 
       val monitor = new StreamMonitorBuilder(env)
 
-      // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
       val textStream = in match {
-        case Some(Left((h, p))) => monitor.socketSource(h, p)
+        case Some(Left((h, p))) => kafkaTopic match {
+          case None => monitor.socketSource(h, p)
+          case Some(topic) => monitor.kafkaSource(h + ":" + p, topic, kafkaGroup)
+        }
         case Some(Right(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case _ => fail("Cannot parse the input argument")
       }
