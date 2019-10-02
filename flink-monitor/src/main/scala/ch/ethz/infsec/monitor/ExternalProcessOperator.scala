@@ -9,7 +9,7 @@ import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.common.typeutils.TypeSerializer
 import org.apache.flink.runtime.state.{StateInitializationContext, StateSnapshotContext}
 import org.apache.flink.streaming.api.graph.StreamConfig
-import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator, Output}
+import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, ChainingStrategy, OneInputStreamOperator, Output}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.api.watermark.Watermark
 import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRecord}
@@ -22,6 +22,8 @@ import scala.collection.mutable.ArrayBuffer
 
 class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capacity: Int)
   extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
+
+  chainingStrategy = ChainingStrategy.ALWAYS
 
   require(capacity > 0)
   private val maxBatchSize: Int = capacity / 10
