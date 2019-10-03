@@ -8,7 +8,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Consumer;
 
 // TODO(JS): Can we stream out partial databases?
 public class MonpolyTraceFormatter extends AbstractMonpolyFormatter implements TraceFormatter, Serializable {
@@ -34,16 +33,16 @@ public class MonpolyTraceFormatter extends AbstractMonpolyFormatter implements T
             final ArrayList<Fact> facts = entry.getValue();
             if (!facts.isEmpty()) {
                 builder.append(' ');
-                printString(entry.getKey());
+                printString(entry.getKey(), builder);
                 for (Fact fact : facts) {
                     final List<Object> arguments = fact.getArguments();
                     builder.append('(');
                     if (!arguments.isEmpty()) {
                         // TODO(JS): Add support for other domain types.
-                        printString((String) arguments.get(0));
+                        printString((String) arguments.get(0), builder);
                         for (int i = 1; i < arguments.size(); ++i) {
                             builder.append(',');
-                            printString((String) arguments.get(i));
+                            printString((String) arguments.get(i), builder);
                         }
                     }
                     builder.append(')');
@@ -57,19 +56,19 @@ public class MonpolyTraceFormatter extends AbstractMonpolyFormatter implements T
     @Override
     public void printFact(TraceConsumer sink, Fact fact) throws IOException {
         if (fact.isMeta()) {
-            builder.append('>');
-            printString(fact.getName());
+            final StringBuilder tempBuilder = new StringBuilder();
+            tempBuilder.append('>');
+            printString(fact.getName(), tempBuilder);
             for (Object arg : fact.getArguments()) {
-                builder.append(' ');
-                printString(arg.toString());
+                tempBuilder.append(' ');
+                printString(arg.toString(), tempBuilder);
             }
-            builder.append("<\n");
-            sink.accept(builder.toString());
-            builder.setLength(0);
+            tempBuilder.append("<\n");
+            sink.accept(tempBuilder.toString());
         } else {
             if (fact.isTerminator()) {
                 builder.append('@');
-                printString(fact.getTimestamp());
+                printString(fact.getTimestamp(), builder);
                 printAndClearDatabase();
                 if (markDatabaseEnd) {
                     builder.append(';');

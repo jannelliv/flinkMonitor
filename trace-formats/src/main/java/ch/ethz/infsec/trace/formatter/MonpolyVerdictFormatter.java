@@ -29,10 +29,10 @@ public class MonpolyVerdictFormatter extends AbstractMonpolyFormatter implements
                 builder.append("true");
             } else {
                 builder.append('(');
-                printString((String) fact.getArgument(1));
+                printString((String) fact.getArgument(1), builder);
                 for (int i = 2; i < fact.getArity(); ++i) {
                     builder.append(',');
-                    printString((String) fact.getArgument(i));
+                    printString((String) fact.getArgument(i), builder);
                 }
                 builder.append(')');
             }

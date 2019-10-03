@@ -24,7 +24,7 @@ abstract class AbstractMonpolyFormatter implements Serializable {
         return true;
     }
 
-    void printString(String value) {
+    void printString(String value, StringBuilder builder) {
         if (isSimpleString(value)) {
             builder.append(value);
         } else {
