@@ -27,13 +27,28 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
   @transient private var formatter: MonpolyTraceFormatter = _
   @transient private var parser: MonpolyVerdictParser = _
 
+  // TODO(JS): Calculate process time average in MonPoly. Then we would not have to synchronize on every database.
+
+  @transient protected var commandAndTimeQueue: java.util.concurrent.LinkedBlockingQueue[Either[Option[Fact], Long]] = _
+  @transient private var processTimeMovingAverage = 0.0 // owned by reading interface
+  @transient private var memory = ""
+
   override def supportsStateAccess: Boolean = true
 
-  override protected def open(command: Seq[String]): Unit = {
-    super.open(command)
+  private def initializeCommon(): Unit = {
     logger = LoggerFactory.getLogger(getClass)
     parser = new MonpolyVerdictParser
     commandAndTimeQueue = new java.util.concurrent.LinkedBlockingQueue()
+
+    tempDirectory = Files.createTempDirectory("monpoly-state")
+    tempDirectory.toFile.deleteOnExit()
+    tempStateFile = tempDirectory.resolve("state.bin")
+    tempStateFile.toFile.deleteOnExit()
+  }
+
+  private def initializeFormatter(): Unit = {
+    formatter = new MonpolyTraceFormatter
+    formatter.setMarkDatabaseEnd(true)
   }
 
   private def openAndLoadState(path: String): Unit = {
@@ -44,14 +59,9 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       throw new Exception("Monitor process failed to load state. Reply: " + reply)
   }
 
-  private def initializeFormatter(): Unit = {
-    formatter = new MonpolyTraceFormatter
-    formatter.setMarkDatabaseEnd(true)
-  }
-
   override def open(): Unit = {
+    initializeCommon()
     initializeFormatter()
-    createTempFile()
     initialStateFile match {
       case None =>
         open(command)
@@ -63,27 +73,33 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
   }
 
   override def openWithState(initialState: Array[Byte]): Unit = {
+    initializeCommon()
+
     val inputStream = new ObjectInputStream(new ByteArrayInputStream(initialState))
     if (inputStream.readBoolean()) {
+      logger.info("Restoring formatter from checkpoint")
       formatter = inputStream.readObject().asInstanceOf[MonpolyTraceFormatter]
     } else {
       initializeFormatter()
     }
-    val payloadSize = inputStream.readInt()
 
-    createTempFile()
-    Files.write(tempStateFile, initialState.slice(initialState.length - payloadSize, initialState.length))
+    val payloadSize = inputStream.readInt()
+    logger.info("Restoring MonPoly state with size = {}", payloadSize)
+    val payload = new Array[Byte](payloadSize)
+    inputStream.readFully(payload)
+    Files.write(tempStateFile, payload)
     try {
       openAndLoadState(tempStateFile.toString)
     } finally {
       Files.delete(tempStateFile)
     }
+
     logger.info("Opened Monpoly with single state")
   }
 
   override def openAndMerge(initialStates: Iterable[Array[Byte]]): Unit = {
+    initializeCommon()
     initializeFormatter()
-    createTempFile()
     createTempFiles(initialStates.size)
 
     for ((path, state) <- tempStateFiles.zip(initialStates)) {
@@ -105,15 +121,11 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
         Files.delete(file)
       }
     }
+
     logger.info("Opened Monpoly after rescale")
   }
 
   override def enablesSyncBarrier(in: Fact): Boolean = in.isTerminator || in.isMeta
-
-  // TODO(JS): Calculate process time average in MonPoly. Then we would not have to synchronize on every database.
-
-  @transient protected var commandAndTimeQueue: java.util.concurrent.LinkedBlockingQueue[Either[Option[Fact], Long]] = _
-  @transient private var processTimeMovingAverage = 0.0 // owned by reading interface
 
   private def printFact(fact: Fact): Unit = formatter.printFact(writer.write(_), fact)
 
@@ -147,8 +159,6 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     writer.flush()
   }
 
-  @transient private var memory = ""
-
   def readResidentialMemory(): Unit = {
     val pid = MonpolyProcessJavaHelper.getPidOfProcess(process)
     if (pid != -1) {
@@ -176,6 +186,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     else
       Fact.meta("save_state", tempStateFile.toString)
     printFact(command)
+    writer.flush()
   }
 
   private def updateProcessTime(x: Long): Unit = {
@@ -216,6 +227,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       throw new Exception("Monitor process failed to save state. Reply: " + line)
 
     if (pendingSlicer) {
+      logger.info("pending slicer is set")
       assert(formatter.inInitialState())
       val states = tempStateFiles.map(path => {
         val payload = Files.readAllBytes(path)
@@ -232,7 +244,9 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
       tempStateFiles = null
       states
     } else {
+      logger.info("pending slicer is not set, saving formatter state too")
       val payload = Files.readAllBytes(tempStateFile)
+      logger.info("payload length = {}", payload.length)
       val byteArray = new ByteArrayOutputStream()
       val outputStream = new ObjectOutputStream(byteArray)
       outputStream.writeBoolean(true)
@@ -256,13 +270,6 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     if (tempDirectory != null) {
       Files.deleteIfExists(tempDirectory)
     }
-  }
-
-  private def createTempFile(): Unit = {
-    tempDirectory = Files.createTempDirectory("monpoly-state")
-    tempDirectory.toFile.deleteOnExit()
-    tempStateFile = tempDirectory.resolve("state.bin")
-    tempStateFile.toFile.deleteOnExit()
   }
 
   private def createTempFiles(parallelism: Int): Unit = {
