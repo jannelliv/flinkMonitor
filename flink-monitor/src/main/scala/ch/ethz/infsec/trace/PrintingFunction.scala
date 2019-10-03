@@ -21,7 +21,7 @@ class PrintingFunction(var formatter: TraceFormatter)
     util.Collections.singletonList(formatter)
 
   override def restoreState(state: util.List[TraceFormatter]): Unit = {
-    assert(state.size() == 0)
+    assert(state.size() == 1)
     formatter = state.get(0)
   }
 }
