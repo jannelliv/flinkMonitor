@@ -4,6 +4,7 @@ import java.util.Properties
 
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
+import ch.ethz.infsec.tools.FaultInjector
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -76,7 +77,8 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
 //               decider: Option[DeciderFlatMapSimple],
                slicer: HypercubeSlicer,
                monitorProcess: ExternalProcess[Fact, Fact],
-               queueSize: Int): DataStream[String] = {
+               queueSize: Int,
+               injectFault: Int = -1): DataStream[String] = {
 
 //    val parser = new TraceMonitor(traceFormat.createParser(), new RescaleInitiator().rescale)
     val parsedTrace = inputStream.flatMap(new ParsingFunction(traceFormat))
@@ -114,13 +116,20 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .name("Remove slice ID")
       .uid("remove-id")
 
+    val slicedTraceWithoutIds1 =
+      if (injectFault >= 0) slicedTraceWithoutIds.map(new FaultInjector(injectFault))
+        .name("Fault injector")
+        .uid("fault-injector")
+        .setMaxParallelism(1)
+      else parsedTrace
+
     // XXX(JS): Implement this comment here:
     // We do not send any commands to unused submonitors. In particular, we cannot use their state fragments
     // because the state is not synchronized with the global progress. Ideally, we would not even create
     // such submonitors.
     // TODO(JS): Check the splitting/merging logic in the case of unused submonitors.
 
-    val rawVerdicts = ExternalProcessOperator.transform(slicedTraceWithoutIds, monitorProcess, queueSize)
+    val rawVerdicts = ExternalProcessOperator.transform(slicedTraceWithoutIds1, monitorProcess, queueSize)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Monitor")

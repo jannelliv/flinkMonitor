@@ -9,6 +9,7 @@ import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
+import org.apache.flink.api.common.time.Time
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
 import org.apache.flink.streaming.api.scala._
@@ -31,13 +32,15 @@ object StreamMonitoring {
   var jobName: String = ""
 
   var checkpointUri: String = ""
+  var checkpointInterval: Int = 10000
+  var restarts: Int = 0
 
   var in: Option[Either[(String, Int), String]] = _
   var out: Option[Either[(String, Int), String]] = _
   var inputFormat: TraceParser = _
   var watchInput: Boolean = false
   var kafkaTopic: Option[String] = None
-  var kafkaGroup: String = ""
+  var kafkaGroup: String = "monitor"
 
   var processors: Int = 0
 
@@ -47,7 +50,9 @@ object StreamMonitoring {
   var signatureFile: String = ""
   var initialStateFile: Option[String] = None
   var negate: Boolean = false
+
   var queueSize = 10000
+  var injectFault = -1
 
   var formula: Formula = policy.False()
 
@@ -78,7 +83,9 @@ object StreamMonitoring {
   def init(params: ParameterTool) {
     jobName = params.get("job", "Parallel Online Monitor")
 
-    checkpointUri = params.get("checkpoints", "")
+    checkpointUri = params.get("checkpoints", checkpointUri)
+    checkpointInterval = params.getInt("checkpoint-interval", checkpointInterval)
+    restarts = params.getInt("restarts", restarts)
 
     in = parseArgs(params.get("in", "127.0.0.1:9000"))
     out = parseArgs(params.get("out", ""))
@@ -92,7 +99,7 @@ object StreamMonitoring {
 
     watchInput = params.getBoolean("watch", false)
     kafkaTopic = Option(params.get("kafka-topic"))
-    kafkaGroup = params.get("kafka-group", "monitor")
+    kafkaGroup = params.get("kafka-group", kafkaGroup)
 
     processors = params.getInt("processors", 1)
     logger.info(s"Using $processors parallel monitors")
@@ -114,6 +121,7 @@ object StreamMonitoring {
     initialStateFile = Option(params.get("load"))
 
     queueSize = params.getInt("queueSize", queueSize)
+    injectFault = params.getInt("inject-fault", injectFault)
   }
 
   /*
@@ -273,9 +281,14 @@ object StreamMonitoring {
 
       if (!checkpointUri.isEmpty) {
         env.setStateBackend(new RocksDBStateBackend(checkpointUri))
-        env.enableCheckpointing(10000)
+        env.enableCheckpointing(checkpointInterval)
       }
-      env.setRestartStrategy(RestartStrategies.noRestart())
+      val restartStrategy = if (restarts <= 0) {
+        RestartStrategies.noRestart()
+      } else {
+        RestartStrategies.fixedDelayRestart(restarts, Time.of(1, TimeUnit.SECONDS))
+      }
+      env.setRestartStrategy(restartStrategy)
 
       // Disable automatic latency tracking, since we inject latency markers ourselves.
       env.getConfig.setLatencyTrackingInterval(-1)
@@ -305,7 +318,7 @@ object StreamMonitoring {
       else
         None
        */
-      val verdicts = monitor.assemble(textStream, inputFormat, slicer, monitorProcess, queueSize)
+      val verdicts = monitor.assemble(textStream, inputFormat, slicer, monitorProcess, queueSize, injectFault)
 
       out match {
         case Some(Left((h, p))) => monitor.socketSink(verdicts, h, p)
