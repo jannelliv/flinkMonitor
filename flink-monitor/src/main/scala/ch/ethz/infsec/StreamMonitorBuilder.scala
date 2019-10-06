@@ -1,7 +1,9 @@
 package ch.ethz.infsec
 
+
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
+import ch.ethz.infsec.tools.{KafkaTestProducer, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -13,6 +15,7 @@ import org.apache.flink.streaming.api.functions.sink.{PrintSinkFunction, SocketC
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
+import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 
 /**
  * Helper class that assembles the parallel monitor's data flow.
@@ -28,6 +31,21 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
     environment.readFile(new TextInputFormat(new Path(path)), path, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
       .name("File watch source")
       .uid("file-watch-source")
+  }
+
+  def kafkaSource() : DataStream[String] = {
+    val rawSource = new FlinkKafkaConsumer011[String](KafkaTestProducer.getTopic,
+      new TestSimpleStringSchema,
+      KafkaTestProducer.getKafkaProps)
+    rawSource.setStartFromEarliest()
+    LatencyTrackingExtensions.addSourceWithProvidedMarkers(environment, rawSource, "Kafka source")
+        .uid("kafka-source")
+        .flatMap(s => {
+          if (s.startsWith("EOF"))
+            List()
+          else
+            List(s)
+        })
   }
 
   def simpleFileSource(path: String): DataStream[String] = {

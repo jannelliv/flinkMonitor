@@ -7,6 +7,7 @@ import java.util.concurrent.{Callable, Executors, TimeUnit}
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
+import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, SocketEndpoint}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
@@ -17,7 +18,6 @@ import org.slf4j.helpers.MessageFormatter
 
 import scala.collection.JavaConverters
 import scala.io.Source
-
 
 object StreamMonitoring {
 
@@ -32,10 +32,11 @@ object StreamMonitoring {
 
   var checkpointUri: String = ""
 
-  var in: Option[Either[(String, Int), String]] = _
-  var out: Option[Either[(String, Int), String]] = _
+  var in: Option[EndPoint] = _
+  var out: Option[EndPoint] = _
   var inputFormat: TraceParser = _
   var watchInput: Boolean = false
+  var kafkatestfile: String = ""
 
   var processors: Int = 0
 
@@ -45,6 +46,7 @@ object StreamMonitoring {
   var signatureFile: String = ""
   var initialStateFile: Option[String] = None
   var negate: Boolean = false
+  var simulateKafkaProducer: Boolean = false
   var queueSize = 10000
 
   var formula: Formula = policy.False()
@@ -55,16 +57,24 @@ object StreamMonitoring {
     sys.exit(1)
   }
 
-  def parseArgs(ss: String): Option[Either[(String, Int), String]] = {
+  def parseEndpointArg(ss: String): Option[EndPoint] = {
+    /**
+     * IP:Port        OR
+     * kafka  OR
+     * filename
+     */
+    if (ss.equalsIgnoreCase("kafka")) {
+      return Some(KafkaEndpoint())
+    }
     try {
       if (ss.isEmpty) None
       else {
         val s = ss.split(":")
         if (s.length > 1) {
           val p = s(1).toInt
-          Some(Left(s(0), p))
+          Some(SocketEndpoint(s(0), p))
         } else {
-          Some(Right(ss))
+          Some(FileEndPoint(ss))
         }
       }
     }
@@ -75,11 +85,12 @@ object StreamMonitoring {
 
   def init(params: ParameterTool) {
     jobName = params.get("job", "Parallel Online Monitor")
+    kafkatestfile = params.get("kafkatestfile")
 
     checkpointUri = params.get("checkpoints", "")
 
-    in = parseArgs(params.get("in", "127.0.0.1:9000"))
-    out = parseArgs(params.get("out", ""))
+    in = parseEndpointArg(params.get("in", "127.0.0.1:9000"))
+    out = parseEndpointArg(params.get("out", ""))
 
     inputFormat = params.get("format", "monpoly") match {
       case "monpoly" => new MonpolyTraceParser
@@ -208,7 +219,6 @@ object StreamMonitoring {
       }
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
-
       val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {
           val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand :: List("-negate") else List(monitorCommand))
@@ -283,13 +293,17 @@ object StreamMonitoring {
       //env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
       env.setMaxParallelism(1)
       env.setParallelism(1)
-
       val monitor = new StreamMonitorBuilder(env)
-
+      var numLinesReceived = 0
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
-      val textStream = in match {
-        case Some(Left((h, p))) => monitor.socketSource(h, p)
-        case Some(Right(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
+      var textStream = in match {
+        case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
+        case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
+        case Some(KafkaEndpoint()) =>
+          if (!kafkatestfile.isEmpty) {
+            KafkaTestProducer.runProducer(kafkatestfile)
+          }
+          monitor.kafkaSource()
         case _ => fail("Cannot parse the input argument")
       }
 
@@ -302,8 +316,8 @@ object StreamMonitoring {
       val verdicts = monitor.assemble(textStream, inputFormat, slicer, monitorProcess, queueSize)
 
       out match {
-        case Some(Left((h, p))) => monitor.socketSink(verdicts, h, p)
-        case Some(Right(f)) => monitor.fileSink(verdicts, f)
+        case Some(SocketEndpoint(h, p)) => monitor.socketSink(verdicts, h, p)
+        case Some(FileEndPoint(f)) => monitor.fileSink(verdicts, f)
         case _ => monitor.printSink(verdicts)
       }
 
@@ -314,5 +328,4 @@ object StreamMonitoring {
       env.execute(jobName)
     }
   }
-
 }
