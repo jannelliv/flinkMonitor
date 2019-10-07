@@ -3,7 +3,7 @@ package ch.ethz.infsec
 
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{KafkaTestProducer, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{MonitorKafkaConfig, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -34,9 +34,9 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
   }
 
   def kafkaSource() : DataStream[String] = {
-    val rawSource = new FlinkKafkaConsumer011[String](KafkaTestProducer.getTopic,
+    val rawSource = new FlinkKafkaConsumer011[String](MonitorKafkaConfig.getTopic,
       new TestSimpleStringSchema,
-      KafkaTestProducer.getKafkaProps)
+      MonitorKafkaConfig.getKafkaProps)
     rawSource.setStartFromEarliest()
     LatencyTrackingExtensions.addSourceWithProvidedMarkers(environment, rawSource, "Kafka source")
         .uid("kafka-source")

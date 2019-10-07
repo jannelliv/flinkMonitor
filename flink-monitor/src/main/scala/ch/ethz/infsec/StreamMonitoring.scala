@@ -7,7 +7,7 @@ import java.util.concurrent.{Callable, Executors, TimeUnit}
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, SocketEndpoint}
+import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, MonitorKafkaConfig, SocketEndpoint}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
@@ -31,7 +31,6 @@ object StreamMonitoring {
   var jobName: String = ""
 
   var checkpointUri: String = ""
-
   var in: Option[EndPoint] = _
   var out: Option[EndPoint] = _
   var inputFormat: TraceParser = _
@@ -39,6 +38,7 @@ object StreamMonitoring {
   var kafkatestfile: String = ""
 
   var processors: Int = 0
+  var numKafkaPartitions : Int = -1
 
   var monitorCommand: String = ""
   var command: Seq[String] = Seq.empty
@@ -102,6 +102,7 @@ object StreamMonitoring {
     watchInput = params.getBoolean("watch", false)
 
     processors = params.getInt("processors", 1)
+    numKafkaPartitions = params.getInt("numKafka", -1)
     logger.info(s"Using $processors parallel monitors")
 
     negate = params.getBoolean("negate", false)
@@ -300,6 +301,9 @@ object StreamMonitoring {
         case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
         case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case Some(KafkaEndpoint()) =>
+          if (numKafkaPartitions > 0) {
+            MonitorKafkaConfig.init(numPartitions = numKafkaPartitions)
+          }
           if (!kafkatestfile.isEmpty) {
             KafkaTestProducer.runProducer(kafkatestfile)
           }

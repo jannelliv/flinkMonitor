@@ -4,7 +4,6 @@ import java.util
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
-import ch.ethz.infsec.tools.KafkaTestProducer.getTopic
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.producer.{KafkaProducer, Partitioner, ProducerRecord}
@@ -20,7 +19,7 @@ case class FileEndPoint(file_path: String) extends EndPoint
 case class KafkaEndpoint() extends EndPoint
 
 class TestSimpleStringSchema extends SimpleStringSchema {
-  private val numPartitions = KafkaTestProducer.getNumPartitions(KafkaTestProducer.getTopic)
+  private val numPartitions = MonitorKafkaConfig.getNumPartitions
   private val gotEof: Array[Boolean] = new Array[Boolean](numPartitions)
 
   override def isEndOfStream(nextElement: String): Boolean = {
@@ -48,7 +47,7 @@ class RandomPartitioner extends Partitioner {
     if (line_parts.length == 2 && line_parts(0).equalsIgnoreCase("EOF")) {
       return line_parts(1).toInt
     }
-    val numPartitions = cluster.partitionCountForTopic(getTopic)
+    val numPartitions = cluster.partitionCountForTopic(MonitorKafkaConfig.getTopic)
     if (numPartitions < 2 && !warnedOnce) {
       warnedOnce = true
       println("WARNING: KafkaTestProducer, only 1 possible partition")
@@ -59,40 +58,70 @@ class RandomPartitioner extends Partitioner {
   override def close(): Unit = {}
 }
 
-object KafkaTestProducer {
+object MonitorKafkaConfig {
+  private var topicName : String = "monitor_topic"
+  private var groupName : String = "monitor"
+  private var numPartitions : Int = 8
+  private var addr : String = "127.0.0.1:9092"
+  private var partitioner : Partitioner = new RandomPartitioner
+
+  def getNumPartitions : Int = getNumPartitionsChecked
+  def getTopic: String = topicName
+
+  def init(
+      topicName : String = topicName,
+      groupName : String = groupName,
+      numPartitions : Int = numPartitions,
+      addr : String = addr,
+      partitioner : Partitioner = partitioner
+          ) : Unit = {
+    if (numPartitions != MonitorKafkaConfig.numPartitions) {
+      MonitorKafkaConfig.numPartitions = numPartitions
+      updateNumPartitions()
+    }
+    MonitorKafkaConfig.topicName = topicName
+    MonitorKafkaConfig.groupName = groupName
+    MonitorKafkaConfig.addr = addr
+    MonitorKafkaConfig.partitioner = partitioner
+  }
+
   def getKafkaProps : Properties = {
     val props = new Properties()
-    props.setProperty("bootstrap.servers", "127.0.0.1:9092")
-    props.setProperty("group.id", "lelex")
+    props.setProperty("bootstrap.servers", addr)
+    props.setProperty("group.id", groupName)
     props.setProperty("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.setProperty("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    props.setProperty("partitioner.class", new RandomPartitioner().getClass.getCanonicalName)
+    props.setProperty("partitioner.class", partitioner.getClass.getCanonicalName)
     props
   }
 
-  def getTopic: String = "monitor_topic"
+  private def updateNumPartitions() : Unit = {
 
-  def getNumPartitions(topic: String) : Int = {
-    val tmp_producer = new KafkaProducer[Int, String](getKafkaProps)
-    val n = tmp_producer.partitionsFor(topic).size()
+  }
+
+  private def getNumPartitionsChecked : Int = {
+    val tmp_producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
+    val n = tmp_producer.partitionsFor(topicName).size()
     if (n < 2) {
       println("WARNING: # partitions is less than 2")
     }
     n
   }
+}
 
+object KafkaTestProducer {
   def sendEOFs(producer: KafkaProducer[Int, String], topic: String) : Unit = {
     producer.flush()
-    val numberPartions = getNumPartitions(topic)
-    for (i <- 0 until numberPartions) {
+    val numPartitions = MonitorKafkaConfig.getNumPartitions
+    for (i <- 0 until numPartitions) {
       producer.send(new ProducerRecord[Int, String](topic, "EOF#" + i))
     }
     producer.flush()
   }
 
   def runProducer(csvPath: String, startDelay: Long = 0) : Unit = {
-    val admin = AdminClient.create(getKafkaProps)
-    val res = admin.deleteTopics(List(getTopic).asJava)
+    val admin = AdminClient.create(MonitorKafkaConfig.getKafkaProps)
+    val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopic).asJava)
     try {
       res.all().get(10, TimeUnit.SECONDS)
     } catch {
@@ -108,12 +137,12 @@ object KafkaTestProducer {
         val source_as_str = source_file.mkString
         source_file.close()
         val event_lines = source_as_str.split('\n')
-        val producer = new KafkaProducer[Int, String](getKafkaProps)
+        val producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
         for (line <- event_lines) {
-          val record = new ProducerRecord[Int, String](getTopic, line + "\n")
+          val record = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, line + "\n")
           producer.send(record)
         }
-        sendEOFs(producer, getTopic)
+        sendEOFs(producer, MonitorKafkaConfig.getTopic)
         producer.close(10, TimeUnit.SECONDS)
       }
     }
