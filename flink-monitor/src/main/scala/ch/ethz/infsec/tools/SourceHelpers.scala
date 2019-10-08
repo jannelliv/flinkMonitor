@@ -35,18 +35,10 @@ class ReorderFactsFunction extends AllWindowFunction[(Int, Fact), (Int, Fact), T
 }
 
 class TestSimpleStringSchema extends SimpleStringSchema {
-  private val numPartitions = MonitorKafkaConfig.getNumPartitions
-  private val gotEof: Array[Boolean] = new Array[Boolean](numPartitions)
-
   override def isEndOfStream(nextElement: String): Boolean = {
     val elem_parts = nextElement.split('#')
     if (elem_parts.length == 2 && elem_parts(0).equalsIgnoreCase("EOF")) {
-      gotEof(elem_parts(1).toInt) = true
-      println("Got EOF for partition # " + elem_parts(1).toInt)
-      if (gotEof.forall{_ == true}) {
-        println("Terminating now, got all EOFs")
-        return true
-      }
+      return true
     }
     false
   }
@@ -108,6 +100,8 @@ object MonitorKafkaConfig {
     props.setProperty("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.setProperty("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.setProperty("partitioner.class", partitioner.getClass.getCanonicalName)
+    props.setProperty("flink.disable-metrics", "false")
+    props.setProperty("flink.partition-discovery.interval-millis", "20")
     props
   }
 

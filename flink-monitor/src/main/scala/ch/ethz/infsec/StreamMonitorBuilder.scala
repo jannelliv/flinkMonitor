@@ -40,14 +40,19 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       new TestSimpleStringSchema,
       MonitorKafkaConfig.getKafkaProps)
     rawSource.setStartFromEarliest()
-    LatencyTrackingExtensions.addSourceWithProvidedMarkers(environment, rawSource, "Kafka source")
-        .uid("kafka-source")
-        .flatMap(s => {
-          if (s.startsWith("EOF"))
-            List()
-          else
-            List(s)
-        })
+    environment.addSource(rawSource)
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .name("Kafka source")
+      .uid("kafka-source")
+      .flatMap(s => {
+        if (s.startsWith("EOF"))
+          List()
+        else
+          List(s)
+      })
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
   }
 
   def simpleFileSource(path: String): DataStream[String] = {
@@ -89,8 +94,8 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
     val parsedTrace = inputStream.flatMap(new ParsingFunction(traceFormat))
       .name("Trace parser")
       .uid("trace-parser")
-      .setMaxParallelism(8)
-      .setParallelism(8)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
 
     /*
     val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record](new OutsideInfluence(true).asInstanceOf[Processor[Record,Record] with Serializable]))
@@ -111,17 +116,17 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .flatMap(slicer)
       .name("Slicer")
       .uid("slicer")
-      .setMaxParallelism(8)
-      .setParallelism(8)
-      .partitionCustom(new IdPartitioner, 0)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
 
     val reorderedStream = slicedTrace.assignTimestampsAndWatermarks(new AscendingTimestampExtractor[(Int, Fact)] {
       override def extractAscendingTimestamp(element: (Int, Fact)): Long = element._2.getTimestamp.toLong
     })
-      .windowAll(TumblingEventTimeWindows.of(Time.milliseconds(10)))
+      .windowAll(TumblingEventTimeWindows.of(Time.milliseconds(20)))
       .apply(new ReorderFactsFunction)
-      .name("Assign timestamps and reorder")
+      .name("Reorder and partition")
       .uid("reorder-timestamps")
+      .partitionCustom(new IdPartitioner, 0)
 
     val slicedTraceWithoutIds = reorderedStream.map(_._2)
       .setParallelism(slicer.degree)

@@ -49,6 +49,7 @@ object StreamMonitoring {
   var negate: Boolean = false
   var simulateKafkaProducer: Boolean = false
   var queueSize = 10000
+  var inputParallelism = 1
 
   var formula: Formula = policy.False()
 
@@ -220,7 +221,7 @@ object StreamMonitoring {
         fail("Closed formula cannot be sliced")
       }
       //TODO: replace
-      val slicer = SlicingSpecification.mkSlicer(params, formula, 8)
+      val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
       val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {
@@ -294,10 +295,8 @@ object StreamMonitoring {
       env.getConfig.registerTypeWithKryoSerializer(classOf[Fact], new FactSerializer)
 
       env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
-      env.setMaxParallelism(8)
-      env.setParallelism(8)
+
       val monitor = new StreamMonitorBuilder(env)
-      var numLinesReceived = 0
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
       val textStream = in match {
         case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
@@ -310,9 +309,12 @@ object StreamMonitoring {
           if (!kafkatestfile.isEmpty) {
             KafkaTestProducer.runProducer(kafkatestfile)
           }
+          inputParallelism = MonitorKafkaConfig.getNumPartitions
           monitor.kafkaSource()
         case _ => fail("Cannot parse the input argument")
       }
+      env.setMaxParallelism(inputParallelism)
+      env.setParallelism(inputParallelism)
 
       /*
       val dfms = if(params.has("decider"))
