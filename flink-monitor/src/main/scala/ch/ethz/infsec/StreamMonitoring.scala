@@ -12,6 +12,7 @@ import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceP
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
+import org.apache.flink.streaming.api.TimeCharacteristic
 import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
 import org.slf4j.helpers.MessageFormatter
@@ -218,7 +219,8 @@ object StreamMonitoring {
       if (formula.freeVariables.isEmpty) {
         fail("Closed formula cannot be sliced")
       }
-      val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
+      //TODO: replace
+      val slicer = SlicingSpecification.mkSlicer(params, formula, 8)
 
       val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {
@@ -291,16 +293,17 @@ object StreamMonitoring {
       env.getConfig.enableObjectReuse()
       env.getConfig.registerTypeWithKryoSerializer(classOf[Fact], new FactSerializer)
 
-      //env.setStreamTimeCharacteristic(TimeCharacteristic.IngestionTime)
-      env.setMaxParallelism(1)
-      env.setParallelism(1)
+      env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+      env.setMaxParallelism(8)
+      env.setParallelism(8)
       val monitor = new StreamMonitorBuilder(env)
       var numLinesReceived = 0
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
-      var textStream = in match {
+      val textStream = in match {
         case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
         case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case Some(KafkaEndpoint()) =>
+
           if (numKafkaPartitions > 0) {
             MonitorKafkaConfig.init(numPartitions = numKafkaPartitions)
           }

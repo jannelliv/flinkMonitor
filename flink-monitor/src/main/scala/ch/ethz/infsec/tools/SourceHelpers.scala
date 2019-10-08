@@ -4,7 +4,11 @@ import java.util
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
+import ch.ethz.infsec.monitor.Fact
 import org.apache.flink.api.common.serialization.SimpleStringSchema
+import org.apache.flink.streaming.api.scala.function.AllWindowFunction
+import org.apache.flink.streaming.api.windowing.windows.TimeWindow
+import org.apache.flink.util.Collector
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.producer.{KafkaProducer, Partitioner, ProducerRecord}
 import org.apache.kafka.common.Cluster
@@ -17,6 +21,18 @@ sealed class EndPoint
 case class SocketEndpoint(socket_addr: String, port: Int) extends EndPoint
 case class FileEndPoint(file_path: String) extends EndPoint
 case class KafkaEndpoint() extends EndPoint
+
+class ReorderFactsFunction extends AllWindowFunction[(Int, Fact), (Int, Fact), TimeWindow] {
+  override def apply(window: TimeWindow, input: Iterable[(Int, Fact)], out: Collector[(Int, Fact)]): Unit = {
+    println("REORDER: Asked to reorder " + input.size + "elements")
+    val inSorted = input
+      .toArray
+      .sortWith{ case ((_, fst), (_, snd)) => fst.getTimestamp.toLong < snd.getTimestamp.toLong }
+    for (k <- inSorted) {
+      out.collect(k)
+    }
+  }
+}
 
 class TestSimpleStringSchema extends SimpleStringSchema {
   private val numPartitions = MonitorKafkaConfig.getNumPartitions

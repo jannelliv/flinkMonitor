@@ -1,9 +1,8 @@
 package ch.ethz.infsec
 
-
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{MonitorKafkaConfig, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{MonitorKafkaConfig, ReorderFactsFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -13,7 +12,10 @@ import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.core.fs.Path
 import org.apache.flink.streaming.api.functions.sink.{PrintSinkFunction, SocketClientSink}
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
+import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor
 import org.apache.flink.streaming.api.scala._
+import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows
+import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 
@@ -87,8 +89,8 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
     val parsedTrace = inputStream.flatMap(new ParsingFunction(traceFormat))
       .name("Trace parser")
       .uid("trace-parser")
-      .setMaxParallelism(1)
-      .setParallelism(1)
+      .setMaxParallelism(8)
+      .setParallelism(8)
 
     /*
     val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record](new OutsideInfluence(true).asInstanceOf[Processor[Record,Record] with Serializable]))
@@ -109,15 +111,24 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .flatMap(slicer)
       .name("Slicer")
       .uid("slicer")
-      .setMaxParallelism(1)
-      .setParallelism(1)
+      .setMaxParallelism(8)
+      .setParallelism(8)
       .partitionCustom(new IdPartitioner, 0)
 
-    val slicedTraceWithoutIds = slicedTrace.map(_._2)
+    val reorderedStream = slicedTrace.assignTimestampsAndWatermarks(new AscendingTimestampExtractor[(Int, Fact)] {
+      override def extractAscendingTimestamp(element: (Int, Fact)): Long = element._2.getTimestamp.toLong
+    })
+      .windowAll(TumblingEventTimeWindows.of(Time.milliseconds(10)))
+      .apply(new ReorderFactsFunction)
+      .name("Assign timestamps and reorder")
+      .uid("reorder-timestamps")
+
+    val slicedTraceWithoutIds = reorderedStream.map(_._2)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Remove slice ID")
       .uid("remove-id")
+
 
     // XXX(JS): Implement this comment here:
     // We do not send any commands to unused submonitors. In particular, we cannot use their state fragments
