@@ -22,7 +22,6 @@ import scala.collection.mutable.ArrayBuffer
 
 class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capacity: Int)
   extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
-
   require(capacity > 0)
   private val maxBatchSize: Int = capacity / 10
 

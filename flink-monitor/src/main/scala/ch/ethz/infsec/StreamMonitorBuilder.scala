@@ -2,7 +2,7 @@ package ch.ethz.infsec
 
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{MonitorKafkaConfig, ReorderFactsFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddTimeStampToTupleFunction, MonitorKafkaConfig, ReorderFactsFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -51,7 +51,17 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
         else
           List(s)
       })
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .map(s => {
+        val splitted = s.split('~')
+        (splitted(0).toLong, splitted(1))
+      })
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .assignTimestampsAndWatermarks(new AscendingTimestampExtractor[(Long, String)] {
+        override def extractAscendingTimestamp(element: (Long, String)): Long = element._1
+      })
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .map {_._2}
       .setParallelism(StreamMonitoring.inputParallelism)
   }
 
@@ -111,7 +121,6 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
           .uid("decider")
     }
     */
-
     val slicedTrace = parsedTrace
       .flatMap(slicer)
       .name("Slicer")
@@ -119,20 +128,34 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)
 
-    val reorderedStream = slicedTrace.assignTimestampsAndWatermarks(new AscendingTimestampExtractor[(Int, Fact)] {
-      override def extractAscendingTimestamp(element: (Int, Fact)): Long = element._2.getTimestamp.toLong
-    })
-      .windowAll(TumblingEventTimeWindows.of(Time.milliseconds(20)))
-      .apply(new ReorderFactsFunction)
-      .name("Reorder and partition")
-      .uid("reorder-timestamps")
-      .partitionCustom(new IdPartitioner, 0)
+    val lateTag = OutputTag[(Long, Int, Fact)]("stream_late_tag")
 
-    val slicedTraceWithoutIds = reorderedStream.map(_._2)
+    val windowedStream = slicedTrace
+      .process(new AddTimeStampToTupleFunction)
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .windowAll(TumblingEventTimeWindows.of(Time.milliseconds(100)))
+      .sideOutputLateData(lateTag)
+
+    val reorderedStream = windowedStream.apply(new ReorderFactsFunction)
+      .name("Reorder in window")
+      .uid("reorder-timestamps")
+
+    val lateFacts = reorderedStream
+      .getSideOutput(lateTag)
+      .map{ k => "WARN LATE: Fact #" + k._1 + " is late" }
+      .name("Late facts stream")
+      .uid("late_facts")
+
+    lateFacts.print("late facts sink")
+
+    val slicedTraceWithoutIds = reorderedStream
+      .partitionCustom(new IdPartitioner, 1)
+      .map(_._3)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Remove slice ID")
       .uid("remove-id")
+
 
 
     // XXX(JS): Implement this comment here:

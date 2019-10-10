@@ -221,7 +221,8 @@ object StreamMonitoring {
         fail("Closed formula cannot be sliced")
       }
       //TODO: replace
-      val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
+      //val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
+      val slicer = SlicingSpecification.mkSlicer(params, formula, 8)
 
       val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {
@@ -279,7 +280,6 @@ object StreamMonitoring {
       }
 
       val env: StreamExecutionEnvironment = StreamExecutionEnvironment.getExecutionEnvironment
-
 
       if (!checkpointUri.isEmpty) {
         env.setStateBackend(new RocksDBStateBackend(checkpointUri))

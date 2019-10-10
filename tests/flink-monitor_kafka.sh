@@ -18,7 +18,7 @@ if [[ -z $FLINKDIR || ! -x $FLINKDIR/bin/flink ]]; then
 fi
 
 TEMPDIR="$(mktemp -d)"
-trap 'rm -rf "$TEMPDIR"' EXIT
+#trap 'rm -rf "$TEMPDIR"' EXIT
 echo "$TEMPDIR"
 
 fail() {

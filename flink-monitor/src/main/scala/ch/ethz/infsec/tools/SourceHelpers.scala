@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 
 import ch.ethz.infsec.monitor.Fact
 import org.apache.flink.api.common.serialization.SimpleStringSchema
+import org.apache.flink.streaming.api.functions.ProcessFunction
 import org.apache.flink.streaming.api.scala.function.AllWindowFunction
 import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.util.Collector
@@ -22,15 +23,19 @@ case class SocketEndpoint(socket_addr: String, port: Int) extends EndPoint
 case class FileEndPoint(file_path: String) extends EndPoint
 case class KafkaEndpoint() extends EndPoint
 
-class ReorderFactsFunction extends AllWindowFunction[(Int, Fact), (Int, Fact), TimeWindow] {
-  override def apply(window: TimeWindow, input: Iterable[(Int, Fact)], out: Collector[(Int, Fact)]): Unit = {
+class ReorderFactsFunction extends AllWindowFunction[(Long, Int, Fact), (Long, Int, Fact), TimeWindow] {
+  override def apply(window: TimeWindow, input: Iterable[(Long, Int, Fact)], out: Collector[(Long, Int, Fact)]): Unit = {
     println("REORDER: Asked to reorder " + input.size + "elements")
     val inSorted = input
       .toArray
-      .sortWith{ case ((_, fst), (_, snd)) => fst.getTimestamp.toLong < snd.getTimestamp.toLong }
-    for (k <- inSorted) {
+      .sortWith { case (fst, snd) => fst._1 < snd._1 }
+    for (k <- inSorted)
       out.collect(k)
-    }
+  }
+}
+class AddTimeStampToTupleFunction extends ProcessFunction[(Int, Fact), (Long, Int, Fact)] {
+  override def processElement(value: (Int, Fact), ctx: ProcessFunction[(Int, Fact), (Long, Int, Fact)]#Context, out: Collector[(Long, Int, Fact)]): Unit = {
+    out.collect(ctx.timestamp(), value._1, value._2)
   }
 }
 
@@ -130,6 +135,7 @@ object KafkaTestProducer {
   }
 
   def runProducer(csvPath: String, startDelay: Long = 0) : Unit = {
+    var seqNum: Long = 0
     val admin = AdminClient.create(MonitorKafkaConfig.getKafkaProps)
     val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopic).asJava)
     try {
@@ -149,7 +155,8 @@ object KafkaTestProducer {
         val event_lines = source_as_str.split('\n')
         val producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
         for (line <- event_lines) {
-          val record = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, line + "\n")
+          seqNum += 1
+          val record = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, seqNum + "~" + line + "\n")
           producer.send(record)
         }
         sendEOFs(producer, MonitorKafkaConfig.getTopic)
