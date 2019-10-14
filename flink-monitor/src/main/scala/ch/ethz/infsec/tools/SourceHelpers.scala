@@ -5,10 +5,8 @@ import java.util.Properties
 import java.util.concurrent.TimeUnit
 
 import ch.ethz.infsec.monitor.Fact
+import org.apache.flink.api.common.functions.RichFlatMapFunction
 import org.apache.flink.api.common.serialization.SimpleStringSchema
-import org.apache.flink.streaming.api.functions.ProcessFunction
-import org.apache.flink.streaming.api.scala.function.AllWindowFunction
-import org.apache.flink.streaming.api.windowing.windows.TimeWindow
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.admin.AdminClient
 import org.apache.kafka.clients.producer.{KafkaProducer, Partitioner, ProducerRecord}
@@ -16,37 +14,101 @@ import org.apache.kafka.common.Cluster
 
 import scala.io.Source
 import scala.util.Random
+import scala.util.control.Breaks._
 import scala.collection.JavaConverters._
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 sealed class EndPoint
 case class SocketEndpoint(socket_addr: String, port: Int) extends EndPoint
 case class FileEndPoint(file_path: String) extends EndPoint
 case class KafkaEndpoint() extends EndPoint
 
-class ReorderFactsFunction extends AllWindowFunction[(Long, Int, Fact), (Long, Int, Fact), TimeWindow] {
-  override def apply(window: TimeWindow, input: Iterable[(Long, Int, Fact)], out: Collector[(Long, Int, Fact)]): Unit = {
-    println("REORDER: Asked to reorder " + input.size + "elements")
-    val inSorted = input
-      .toArray
-      .sortWith { case (fst, snd) => fst._1 < snd._1 }
-    for (k <- inSorted)
-      out.collect(k)
+
+class ReorderFactsFunction(numSlices: Int) extends RichFlatMapFunction[Fact, Fact] {
+  private class TerminatorMapValue(terminator: Fact) {
+    require(terminator.isTerminator)
+    private var num: Int = 1
+
+    def incrementNum() : Unit = {
+      num += 1
+    }
+
+    def getNum: Int = num
+
+    def getTerm: Fact = terminator
+
   }
-}
-class AddTimeStampToTupleFunction extends ProcessFunction[(Int, Fact), (Long, Int, Fact)] {
-  override def processElement(value: (Int, Fact), ctx: ProcessFunction[(Int, Fact), (Long, Int, Fact)]#Context, out: Collector[(Long, Int, Fact)]): Unit = {
-    out.collect(ctx.timestamp(), value._1, value._2)
+
+  //How often did a terminator appear in the stream
+  private val terminatorMap = new mutable.HashMap[Long, TerminatorMapValue]()
+  //Map of timestamps to the facts encountered in the stream
+  private val factsMap = new mutable.HashMap[Long, ArrayBuffer[Fact]]()
+  //The biggest timestamps for which the elements have not already been flushed
+  private var currTs: Long = 0
+
+  private def insertElement(value: Fact, timeStamp: Long) : Unit = {
+    if (value.isTerminator) {
+      //If the fact is a terminator, increment the number for this terminator
+      terminatorMap.get(timeStamp) match {
+        case Some(term) =>
+          if (term.getNum + 1 > numSlices)
+            throw new Exception("FATAL ERROR: got more terminators than there are slices")
+          term.incrementNum()
+        case None => terminatorMap += (timeStamp -> new TerminatorMapValue(value))
+      }
+    } else {
+      //Else append the value to the existing buffer or create a new buffer for this timestamp
+      factsMap.get(timeStamp) match {
+        case Some(buf) => buf += value
+        case None => factsMap += (timeStamp -> new ArrayBuffer[Fact]())
+      }
+    }
+  }
+
+  private def makeBuffer() : Option[mutable.Buffer[Fact]] = {
+    val (num, term) = terminatorMap.get(currTs) match {
+      case Some(e) => (e.getNum, e.getTerm)
+      case None => return None
+    }
+    if (num == numSlices) {
+      var buf = factsMap.getOrElse(currTs, new ArrayBuffer[Fact]())
+      buf += term
+      terminatorMap -= currTs
+      factsMap -= currTs
+      currTs += 1
+      return Some(buf)
+    }
+    None
+  }
+
+  private def flushReady(out: Collector[Fact]): Unit = {
+    breakable {
+      while (true) {
+        makeBuffer() match {
+          case Some(buf) =>
+            for (k <- buf)
+              out.collect(k)
+          case None => break()
+        }
+      }
+    }
+  }
+
+  override def flatMap(value: Fact, out: Collector[Fact]): Unit = {
+    val timeStamp = value.getTimestamp.toLong
+    if (timeStamp < currTs) {
+      throw new Exception("FATAL ERROR: Got a timestamp that should already be flushed")
+    }
+    insertElement(value, timeStamp)
+
+    if (value.isTerminator)
+      flushReady(out)
   }
 }
 
 class TestSimpleStringSchema extends SimpleStringSchema {
-  override def isEndOfStream(nextElement: String): Boolean = {
-    val elem_parts = nextElement.split('#')
-    if (elem_parts.length == 2 && elem_parts(0).equalsIgnoreCase("EOF")) {
-      return true
-    }
-    false
-  }
+  override def isEndOfStream(nextElement: String): Boolean = nextElement.startsWith("EOF")
 }
 
 class RandomPartitioner extends Partitioner {
@@ -135,7 +197,6 @@ object KafkaTestProducer {
   }
 
   def runProducer(csvPath: String, startDelay: Long = 0) : Unit = {
-    var seqNum: Long = 0
     val admin = AdminClient.create(MonitorKafkaConfig.getKafkaProps)
     val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopic).asJava)
     try {
@@ -155,8 +216,7 @@ object KafkaTestProducer {
         val event_lines = source_as_str.split('\n')
         val producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
         for (line <- event_lines) {
-          seqNum += 1
-          val record = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, seqNum + "~" + line + "\n")
+          val record = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, line + "\n")
           producer.send(record)
         }
         sendEOFs(producer, MonitorKafkaConfig.getTopic)

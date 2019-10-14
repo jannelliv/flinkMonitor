@@ -2,7 +2,7 @@ package ch.ethz.infsec
 
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddTimeStampToTupleFunction, MonitorKafkaConfig, ReorderFactsFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{MonitorKafkaConfig, ReorderFactsFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -12,10 +12,7 @@ import org.apache.flink.api.java.io.TextInputFormat
 import org.apache.flink.core.fs.Path
 import org.apache.flink.streaming.api.functions.sink.{PrintSinkFunction, SocketClientSink}
 import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, SocketTextStreamFunction}
-import org.apache.flink.streaming.api.functions.timestamps.AscendingTimestampExtractor
 import org.apache.flink.streaming.api.scala._
-import org.apache.flink.streaming.api.windowing.assigners.TumblingEventTimeWindows
-import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 
@@ -52,17 +49,7 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
           List(s)
       })
       .setParallelism(StreamMonitoring.inputParallelism)
-      .map(s => {
-        val splitted = s.split('~')
-        (splitted(0).toLong, splitted(1))
-      })
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .assignTimestampsAndWatermarks(new AscendingTimestampExtractor[(Long, String)] {
-        override def extractAscendingTimestamp(element: (Long, String)): Long = element._1
-      })
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .map {_._2}
-      .setParallelism(StreamMonitoring.inputParallelism)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
   }
 
   def simpleFileSource(path: String): DataStream[String] = {
@@ -123,40 +110,23 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
     */
     val slicedTrace = parsedTrace
       .flatMap(slicer)
-      .name("Slicer")
-      .uid("slicer")
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)
+      .name("Slicer")
+      .uid("slicer")
 
-    val lateTag = OutputTag[(Long, Int, Fact)]("stream_late_tag")
-
-    val windowedStream = slicedTrace
-      .process(new AddTimeStampToTupleFunction)
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .windowAll(TumblingEventTimeWindows.of(Time.milliseconds(100)))
-      .sideOutputLateData(lateTag)
-
-    val reorderedStream = windowedStream.apply(new ReorderFactsFunction)
-      .name("Reorder in window")
-      .uid("reorder-timestamps")
-
-    val lateFacts = reorderedStream
-      .getSideOutput(lateTag)
-      .map{ k => "WARN LATE: Fact #" + k._1 + " is late" }
-      .name("Late facts stream")
-      .uid("late_facts")
-
-    lateFacts.print("late facts sink")
-
-    val slicedTraceWithoutIds = reorderedStream
-      .partitionCustom(new IdPartitioner, 1)
-      .map(_._3)
+    val partitionedTraceWithoutId = slicedTrace
+      .partitionCustom(new IdPartitioner, 0)
+      .map(_._2)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
-      .name("Remove slice ID")
+      .name("Remove slice ID and partition")
       .uid("remove-id")
 
-
+    val reorderedTrace = partitionedTraceWithoutId
+      .flatMap(new ReorderFactsFunction(slicer.degree))
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
 
     // XXX(JS): Implement this comment here:
     // We do not send any commands to unused submonitors. In particular, we cannot use their state fragments
@@ -164,7 +134,7 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
     // such submonitors.
     // TODO(JS): Check the splitting/merging logic in the case of unused submonitors.
 
-    val rawVerdicts = ExternalProcessOperator.transform(slicedTraceWithoutIds, monitorProcess, queueSize)
+    val rawVerdicts = ExternalProcessOperator.transform(reorderedTrace, monitorProcess, queueSize)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Monitor")
