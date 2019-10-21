@@ -24,56 +24,50 @@ case class SocketEndpoint(socket_addr: String, port: Int) extends EndPoint
 case class FileEndPoint(file_path: String) extends EndPoint
 case class KafkaEndpoint() extends EndPoint
 
-
 class ReorderFactsFunction(numSlices: Int) extends RichFlatMapFunction[Fact, Fact] {
-  private class TerminatorMapValue(terminator: Fact) {
-    require(terminator.isTerminator)
-    private var num: Int = 1
-
-    def incrementNum() : Unit = {
-      num += 1
-    }
-
-    def getNum: Int = num
-
-    def getTerm: Fact = terminator
-
-  }
-
   //How often did a terminator appear in the stream
-  private val terminatorMap = new mutable.HashMap[Long, TerminatorMapValue]()
+  private val terminatorMap = new mutable.HashMap[Long, Int]()
   //Map of timestamps to the facts encountered in the stream
   private val factsMap = new mutable.HashMap[Long, ArrayBuffer[Fact]]()
   //The biggest timestamps for which the elements have not already been flushed
   private var currTs: Long = 0
+  //The biggest Ts that was ever encountered
+  private var highesTs: Long = -1
+  //Number of EOFs that have been received
+  private var numEOF: Int = 0
 
   private def insertElement(value: Fact, timeStamp: Long) : Unit = {
     if (value.isTerminator) {
       //If the fact is a terminator, increment the number for this terminator
       terminatorMap.get(timeStamp) match {
-        case Some(term) =>
-          if (term.getNum + 1 > numSlices)
+        case Some(num) =>
+          if (num + 1 > numSlices)
             throw new Exception("FATAL ERROR: got more terminators than there are slices")
-          term.incrementNum()
-        case None => terminatorMap += (timeStamp -> new TerminatorMapValue(value))
+          terminatorMap += (timeStamp -> (num + 1))
+        case None => terminatorMap += (timeStamp -> 1)
       }
     } else {
-      //Else append the value to the existing buffer or create a new buffer for this timestamp
+      //Else, append the value to the existing buffer or create a new buffer for this timestamp
       factsMap.get(timeStamp) match {
         case Some(buf) => buf += value
-        case None => factsMap += (timeStamp -> new ArrayBuffer[Fact]())
+        case None =>
+          val buf = new ArrayBuffer[Fact]()
+          buf += value
+          factsMap += (timeStamp -> buf)
       }
     }
   }
 
   private def makeBuffer() : Option[mutable.Buffer[Fact]] = {
-    val (num, term) = terminatorMap.get(currTs) match {
-      case Some(e) => (e.getNum, e.getTerm)
+    val num = terminatorMap.get(currTs) match {
+      case Some(num) => num
       case None => return None
     }
+    //If all terminators have been received for the current index, flush the buffer
     if (num == numSlices) {
       var buf = factsMap.getOrElse(currTs, new ArrayBuffer[Fact]())
-      buf += term
+      buf += Fact.terminator(currTs.toString)
+      println("FLUSHING TS: " + this.hashCode() + " " + currTs)
       terminatorMap -= currTs
       factsMap -= currTs
       currTs += 1
@@ -83,6 +77,7 @@ class ReorderFactsFunction(numSlices: Int) extends RichFlatMapFunction[Fact, Fac
   }
 
   private def flushReady(out: Collector[Fact]): Unit = {
+    //Call makebuffer() until currIdx reaches a value for which not all terminators have been received
     breakable {
       while (true) {
         makeBuffer() match {
@@ -95,8 +90,49 @@ class ReorderFactsFunction(numSlices: Int) extends RichFlatMapFunction[Fact, Fac
     }
   }
 
+  private def mapDump() : String = {
+    val string = new mutable.StringBuilder()
+    terminatorMap.foreach{
+      k =>
+        string ++= " (" ++= k._1.toString ++= " -> " ++= k._2.toString ++= ")"
+    }
+    string.result()
+  }
+
+  private def forceFlush(out: Collector[Fact]): Unit = {
+    //println("FORCE FLUSH TERM MAP DUMP FOR " + this.hashCode() + " " + mapDump())
+    if (highesTs != -1) {
+      for (ts <- currTs to highesTs) {
+        factsMap.remove(ts) match {
+          case Some(facts) =>
+            for (k <- facts)
+              out.collect(k)
+          case None => ()
+        }
+        println("FORCE FLUSH FOR TS: " + this.hashCode() + " " + ts)
+        out.collect(Fact.terminator(ts.toString))
+      }
+    }
+  }
+
   override def flatMap(value: Fact, out: Collector[Fact]): Unit = {
+    println("FLUSH GOT VAL: " + this.hashCode() + " " + value)
+    if (value.isMeta && value.getName == "EOF") {
+      numEOF += 1
+      if (numEOF == numSlices) {
+        forceFlush(out)
+      }
+      return
+    }
     val timeStamp = value.getTimestamp.toLong
+    if(timeStamp > highesTs)
+      highesTs = timeStamp
+    /*println("FLATMAP: left in termmap " + terminatorMap.size + " of fmap instance " + this.hashCode())
+    if (value.isTerminator) {
+      println("FLATMAP: got term " + value.getTimestamp + " of fmap instance " + this.hashCode())
+    } else {
+      println("FLATMAP: got data val " + value.getTimestamp + " of fmap instance " + this.hashCode())
+    }*/
     if (timeStamp < currTs) {
       throw new Exception("FATAL ERROR: Got a timestamp that should already be flushed")
     }
@@ -108,7 +144,7 @@ class ReorderFactsFunction(numSlices: Int) extends RichFlatMapFunction[Fact, Fac
 }
 
 class TestSimpleStringSchema extends SimpleStringSchema {
-  override def isEndOfStream(nextElement: String): Boolean = nextElement.startsWith("EOF")
+  override def isEndOfStream(nextElement: String): Boolean = nextElement.startsWith("TERMSTREAM")
 }
 
 class RandomPartitioner extends Partitioner {
@@ -119,7 +155,7 @@ class RandomPartitioner extends Partitioner {
   override def partition(s: String, o: Any, bytes: Array[Byte], o1: Any, bytes1: Array[Byte], cluster: Cluster): Int = {
     val line = o1.asInstanceOf[String]
     val line_parts = line.split('#')
-    if (line_parts.length == 2 && line_parts(0).equalsIgnoreCase("EOF")) {
+    if (line_parts.length == 2 && (line_parts(0).equalsIgnoreCase("EOF") || line_parts(0).equalsIgnoreCase("TERMSTREAM"))) {
       return line_parts(1).toInt
     }
     val numPartitions = cluster.partitionCountForTopic(MonitorKafkaConfig.getTopic)
@@ -177,12 +213,13 @@ object MonitorKafkaConfig {
   }
 
   private def getNumPartitionsChecked : Int = {
-    val tmp_producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
+    /*val tmp_producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
     val n = tmp_producer.partitionsFor(topicName).size()
     if (n < 2) {
       println("WARNING: # partitions is less than 2")
     }
-    n
+    n*/
+    numPartitions
   }
 }
 
@@ -192,8 +229,10 @@ object KafkaTestProducer {
     val numPartitions = MonitorKafkaConfig.getNumPartitions
     for (i <- 0 until numPartitions) {
       producer.send(new ProducerRecord[Int, String](topic, "EOF#" + i))
+      producer.flush()
+      producer.send(new ProducerRecord[Int, String](topic, "TERMSTREAM#" + i))
+      producer.flush()
     }
-    producer.flush()
   }
 
   def runProducer(csvPath: String, startDelay: Long = 0) : Unit = {

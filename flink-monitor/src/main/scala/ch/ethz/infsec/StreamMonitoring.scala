@@ -49,7 +49,7 @@ object StreamMonitoring {
   var negate: Boolean = false
   var simulateKafkaProducer: Boolean = false
   var queueSize = 10000
-  var inputParallelism = 1
+  var inputParallelism = 8
 
   var formula: Formula = policy.False()
 
@@ -222,7 +222,7 @@ object StreamMonitoring {
       }
       //TODO: replace
       //val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
-      val slicer = SlicingSpecification.mkSlicer(params, formula, 8)
+      val slicer = SlicingSpecification.mkSlicer(params, formula, 4)
 
       val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {
@@ -294,7 +294,7 @@ object StreamMonitoring {
       env.getConfig.enableObjectReuse()
       env.getConfig.registerTypeWithKryoSerializer(classOf[Fact], new FactSerializer)
 
-      env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+      //env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
       val monitor = new StreamMonitorBuilder(env)
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))

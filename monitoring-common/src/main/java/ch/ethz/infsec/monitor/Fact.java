@@ -27,12 +27,14 @@ public class Fact implements Serializable {
     private String name;
     private String timestamp;
     private List<Object> arguments;
+    private boolean isEOF = false;
 
     public Fact(String name, String timestamp, List<Object> arguments) {
         this.name = name;
         this.timestamp = timestamp;
         this.arguments = Objects.requireNonNull(arguments, "arguments");
     }
+
 
     public static Fact make(String name, String timestamp, Object... arguments) {
         return new Fact(name, timestamp, Arrays.asList(arguments));

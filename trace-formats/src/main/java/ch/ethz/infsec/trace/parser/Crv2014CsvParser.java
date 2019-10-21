@@ -17,7 +17,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
 
     public Crv2014CsvParser() {
         this.lastTimePoint = null;
-        this.lastTimestamp = null;
+        this.lastTimestamp = "-1";
         this.alreadyTerminated = false;
     }
 
@@ -43,10 +43,17 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
 
     @Override
     public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
+        assert !(lastTimestamp == null);
         final String trimmed = line.trim();
         if (trimmed.isEmpty()) {
             return;
         }
+
+        if (trimmed.startsWith("EOF")) {
+            sink.accept(Fact.meta("EOF"));
+            return;
+        }
+
         if (trimmed.equals(";;")) {
             terminateEvent(sink);
             alreadyTerminated = true;
@@ -123,9 +130,13 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         }
 
         if (!(timePoint.equals(lastTimePoint) && timestamp.equals(lastTimestamp))) {
-            beginNewEvent(sink, timePoint, timestamp);
+            long lastTimeStampLong = Long.parseLong(lastTimestamp);
+            long timeStampLong = Long.parseLong(timestamp);
+            assert timeStampLong >= lastTimeStampLong;
+            for (long ts = lastTimeStampLong + 1; ts <= timeStampLong; ++ts) {
+                beginNewEvent(sink, timePoint, Long.toString(ts));
+            }
         }
-
         sink.accept(new Fact(factName, timestamp, arguments));
     }
 

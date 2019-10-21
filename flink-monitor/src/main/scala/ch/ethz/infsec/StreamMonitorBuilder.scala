@@ -42,14 +42,6 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .name("Kafka source")
       .uid("kafka-source")
-      .flatMap(s => {
-        if (s.startsWith("EOF"))
-          List()
-        else
-          List(s)
-      })
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
   }
 
   def simpleFileSource(path: String): DataStream[String] = {
@@ -120,13 +112,15 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .map(_._2)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
-      .name("Remove slice ID and partition")
+      .name("Partition and remove slice ID")
       .uid("remove-id")
 
     val reorderedTrace = partitionedTraceWithoutId
-      .flatMap(new ReorderFactsFunction(slicer.degree))
+      .flatMap(new ReorderFactsFunction(StreamMonitoring.inputParallelism))
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
+      .name("Reorder facts")
+      .uid("reorder-facts")
 
     // XXX(JS): Implement this comment here:
     // We do not send any commands to unused submonitors. In particular, we cannot use their state fragments
