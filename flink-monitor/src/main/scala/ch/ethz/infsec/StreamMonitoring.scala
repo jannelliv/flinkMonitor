@@ -222,7 +222,7 @@ object StreamMonitoring {
       }
       //TODO: replace
       //val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
-      val slicer = SlicingSpecification.mkSlicer(params, formula, 4)
+      val slicer = SlicingSpecification.mkSlicer(params, formula, 8)
 
       val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {

@@ -18,6 +18,7 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
     public void write(Kryo kryo, Output output, Fact fact) {
         output.writeString(fact.getName());
         output.writeString(fact.getTimestamp());
+        output.writeString(fact.getTimepoint());
         output.writeInt(fact.getArity(), true);
         for (Object argument : fact.getArguments()) {
             if (argument instanceof Long) {
@@ -40,6 +41,7 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
     public Fact read(Kryo kryo, Input input, Class<Fact> aClass) {
         final String name = input.readString();
         final String timestamp = input.readString();
+        final String timepoint = input.readString();
         final int arity = input.readInt(true);
         final ArrayList<Object> arguments = new ArrayList<>(arity);
         for (int i = 0; i < arity; ++i) {
@@ -58,6 +60,9 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
                     throw new IllegalArgumentException("Unknown type ID");
             }
         }
-        return new Fact(name, timestamp, arguments);
+        Fact fact = new Fact(name, timestamp, arguments);
+        fact.setTimepoint(timepoint);
+        return fact;
+        //return new Fact(name, timestamp, arguments);
     }
 }

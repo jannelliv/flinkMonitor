@@ -14,7 +14,6 @@ import org.apache.kafka.common.Cluster
 
 import scala.io.Source
 import scala.util.Random
-import scala.util.control.Breaks._
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
@@ -24,121 +23,133 @@ case class SocketEndpoint(socket_addr: String, port: Int) extends EndPoint
 case class FileEndPoint(file_path: String) extends EndPoint
 case class KafkaEndpoint() extends EndPoint
 
-class ReorderFactsFunction(numSlices: Int) extends RichFlatMapFunction[Fact, Fact] {
-  //How often did a terminator appear in the stream
-  private val terminatorMap = new mutable.HashMap[Long, Int]()
-  //Map of timestamps to the facts encountered in the stream
-  private val factsMap = new mutable.HashMap[Long, ArrayBuffer[Fact]]()
-  //The biggest timestamps for which the elements have not already been flushed
-  private var currTs: Long = 0
-  //The biggest Ts that was ever encountered
-  private var highesTs: Long = -1
+class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int, Fact)] {
+  override def flatMap(value: (Int, Fact), out: Collector[(Int, Int, Fact)]): Unit = {
+    val (part, fact) = value
+    val idx = getRuntimeContext.getIndexOfThisSubtask
+    out.collect((part, idx, fact))
+  }
+}
+
+class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fact), Fact] {
+  //Map of timepoints to the facts encountered in the stream
+  private val tp2Facts = new mutable.HashMap[Long, ArrayBuffer[Fact]]()
+  //Maps timepoints to timestamps
+  private val tp2ts = new mutable.HashMap[Long, Long]()
+  //The terminator with the highest timepoint per input source
+  private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
+  //The biggest (TP + 1) for which the elements have already been flushed
+  private var currentTp: Long = 0
+  //The biggest Tp that was ever flushed
+  private var maxTp: Long = -1
   //Number of EOFs that have been received
   private var numEOF: Int = 0
 
-  private def insertElement(value: Fact, timeStamp: Long) : Unit = {
-    if (value.isTerminator) {
-      //If the fact is a terminator, increment the number for this terminator
-      terminatorMap.get(timeStamp) match {
-        case Some(num) =>
-          if (num + 1 > numSlices)
-            throw new Exception("FATAL ERROR: got more terminators than there are slices")
-          terminatorMap += (timeStamp -> (num + 1))
-        case None => terminatorMap += (timeStamp -> 1)
-      }
+  private def insertElement(fact: Fact, idx: Int, timePoint: Long) : Unit = {
+    if (fact.isTerminator) {
+      //If the terminator has a higher tp than the current tp for this partition, update the tp
+      if (timePoint > maxTerminator(idx))
+        maxTerminator(idx) = timePoint
     } else {
-      //Else, append the value to the existing buffer or create a new buffer for this timestamp
-      factsMap.get(timeStamp) match {
-        case Some(buf) => buf += value
+      //Else, append the value to the existing buffer (or create a new buffer for this timepoint)
+      tp2Facts.get(timePoint) match {
+        case Some(buf) => buf += fact
         case None =>
           val buf = new ArrayBuffer[Fact]()
-          buf += value
-          factsMap += (timeStamp -> buf)
+          buf += fact
+          tp2Facts += (timePoint -> buf)
       }
     }
   }
 
-  private def makeBuffer() : Option[mutable.Buffer[Fact]] = {
-    val num = terminatorMap.get(currTs) match {
-      case Some(num) => num
-      case None => return None
+  private def checkTimepointOrder(buf: mutable.Buffer[Fact]) : Boolean = {
+    if (buf.length > 1) {
+      var last = buf.head
+      for (k <- buf.slice(1, buf.length)) {
+        if (k.getTimepoint.toLong < last.getTimepoint.toLong) {
+          return false
+        }
+        last = k
+      }
     }
-    //If all terminators have been received for the current index, flush the buffer
-    if (num == numSlices) {
-      var buf = factsMap.getOrElse(currTs, new ArrayBuffer[Fact]())
-      buf += Fact.terminator(currTs.toString)
-      println("FLUSHING TS: " + this.hashCode() + " " + currTs)
-      terminatorMap -= currTs
-      factsMap -= currTs
-      currTs += 1
-      return Some(buf)
-    }
-    None
+    true
   }
 
   private def flushReady(out: Collector[Fact]): Unit = {
-    //Call makebuffer() until currIdx reaches a value for which not all terminators have been received
-    breakable {
-      while (true) {
-        makeBuffer() match {
-          case Some(buf) =>
-            for (k <- buf)
-              out.collect(k)
-          case None => break()
-        }
-      }
-    }
-  }
+    val maxAgreedTerminator = maxTerminator.min
+    if (maxAgreedTerminator < currentTp)
+      return
 
-  private def mapDump() : String = {
-    val string = new mutable.StringBuilder()
-    terminatorMap.foreach{
-      k =>
-        string ++= " (" ++= k._1.toString ++= " -> " ++= k._2.toString ++= ")"
+    for (tp <- currentTp to maxAgreedTerminator) {
+      val buf = tp2Facts.get(tp)
+
+      buf match {
+        case Some(buf) =>
+          if (!checkTimepointOrder(buf))
+            throw new Exception("TIMEPOINT ORDER IS WRONG")
+          for (k <- buf)
+            out.collect(k)
+        case None => ()
+      }
+
+      out.collect(Fact.terminator(tp2ts(tp).toString))
+      //println("Flushing TP: " + this.hashCode() + " " + tp)
+      tp2Facts -= tp
+      tp2ts -= tp
     }
-    string.result()
+    currentTp = maxAgreedTerminator + 1
   }
 
   private def forceFlush(out: Collector[Fact]): Unit = {
     //println("FORCE FLUSH TERM MAP DUMP FOR " + this.hashCode() + " " + mapDump())
-    if (highesTs != -1) {
-      for (ts <- currTs to highesTs) {
-        factsMap.remove(ts) match {
+    if (maxTp != -1) {
+      for (tp <- currentTp to maxTp) {
+        tp2Facts.remove(tp) match {
           case Some(facts) =>
             for (k <- facts)
               out.collect(k)
           case None => ()
         }
-        println("FORCE FLUSH FOR TS: " + this.hashCode() + " " + ts)
-        out.collect(Fact.terminator(ts.toString))
+        //println("FORCE FLUSH FOR TP: " + this.hashCode() + " " + tp)
+        tp2ts.get(tp) match {
+          case Some(ts) => out.collect(Fact.terminator(ts.toString))
+          case None => ()
+        }
       }
     }
   }
 
-  override def flatMap(value: Fact, out: Collector[Fact]): Unit = {
-    println("FLUSH GOT VAL: " + this.hashCode() + " " + value)
-    if (value.isMeta && value.getName == "EOF") {
+  override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
+    val (idx, fact) = value
+    if (fact.isMeta && fact.getName == "EOF") {
       numEOF += 1
-      if (numEOF == numSlices) {
+      if (numEOF == numSources) {
         forceFlush(out)
       }
       return
     }
-    val timeStamp = value.getTimestamp.toLong
-    if(timeStamp > highesTs)
-      highesTs = timeStamp
+    //println("FLUSH GOT TIMEPOINT: " + this.hashCode() + " " + value.getTimepoint)
+    val timePoint = fact.getTimepoint.toLong
+    tp2ts.get(timePoint) match {
+      case Some(timeStamp) => if (timeStamp != fact.getTimestamp.toLong)
+        throw new Exception("Same tp => same ts violated")
+      case None => tp2ts += (timePoint -> fact.getTimestamp.toLong)
+    }
+    if(timePoint > maxTp)
+      maxTp = timePoint
+
     /*println("FLATMAP: left in termmap " + terminatorMap.size + " of fmap instance " + this.hashCode())
     if (value.isTerminator) {
-      println("FLATMAP: got term " + value.getTimestamp + " of fmap instance " + this.hashCode())
+      println("FLATMAP: got term " + value.getTimepoint + " of fmap instance " + this.hashCode())
     } else {
-      println("FLATMAP: got data val " + value.getTimestamp + " of fmap instance " + this.hashCode())
+      println("FLATMAP: got data val " + value.getTimepoint + " of fmap instance " + this.hashCode())
     }*/
-    if (timeStamp < currTs) {
-      throw new Exception("FATAL ERROR: Got a timestamp that should already be flushed")
+    if (timePoint < currentTp) {
+      throw new Exception("FATAL ERROR: Got a timepoint that should already be flushed")
     }
-    insertElement(value, timeStamp)
+    insertElement(fact, idx, timePoint)
 
-    if (value.isTerminator)
+    if (fact.isTerminator)
       flushReady(out)
   }
 }
@@ -257,6 +268,7 @@ object KafkaTestProducer {
         for (line <- event_lines) {
           val record = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, line + "\n")
           producer.send(record)
+          producer.flush()
         }
         sendEOFs(producer, MonitorKafkaConfig.getTopic)
         producer.close(10, TimeUnit.SECONDS)

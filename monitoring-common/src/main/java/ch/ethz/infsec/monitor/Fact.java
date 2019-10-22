@@ -23,11 +23,11 @@ import java.util.stream.Collectors;
 public class Fact implements Serializable {
     private static final long serialVersionUID = -7663140134871742122L;
 
-    // Invariant: At most one of name and timestamp is null.
+    // Invariant: At most one of name and (timestamp and timepoint) is null.
     private String name;
     private String timestamp;
+    private String timepoint;
     private List<Object> arguments;
-    private boolean isEOF = false;
 
     public Fact(String name, String timestamp, List<Object> arguments) {
         this.name = name;
@@ -47,6 +47,12 @@ public class Fact implements Serializable {
     public void setName(String name) {
         this.name = name;
     }
+
+    public void setTimepoint(String timepoint) {
+        this.timepoint = timepoint;
+    }
+
+    public String getTimepoint() { return timepoint; }
 
     public String getTimestamp() {
         return timestamp;

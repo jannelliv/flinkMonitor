@@ -16,14 +16,16 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
     private boolean alreadyTerminated;
 
     public Crv2014CsvParser() {
-        this.lastTimePoint = null;
-        this.lastTimestamp = "-1";
+        this.lastTimePoint = "0";
+        this.lastTimestamp = "0";
         this.alreadyTerminated = false;
     }
 
     private void terminateEvent(Consumer<Fact> sink) {
         if (lastTimePoint != null && !alreadyTerminated) {
-            sink.accept(Fact.terminator(lastTimestamp));
+            Fact fact = Fact.terminator(lastTimestamp);
+            fact.setTimepoint(lastTimePoint);
+            sink.accept(fact);
         }
     }
 
@@ -130,14 +132,11 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         }
 
         if (!(timePoint.equals(lastTimePoint) && timestamp.equals(lastTimestamp))) {
-            long lastTimeStampLong = Long.parseLong(lastTimestamp);
-            long timeStampLong = Long.parseLong(timestamp);
-            assert timeStampLong >= lastTimeStampLong;
-            for (long ts = lastTimeStampLong + 1; ts <= timeStampLong; ++ts) {
-                beginNewEvent(sink, timePoint, Long.toString(ts));
-            }
+            beginNewEvent(sink, timePoint, timestamp);
         }
-        sink.accept(new Fact(factName, timestamp, arguments));
+        Fact fact = new Fact(factName, timestamp, arguments);
+        fact.setTimepoint(timePoint);
+        sink.accept(fact);
     }
 
     @Override

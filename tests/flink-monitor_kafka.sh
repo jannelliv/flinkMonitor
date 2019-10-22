@@ -27,20 +27,20 @@ fail() {
 }
 
 echo "Generating log ..."
-"$WORKDIR/generator.sh" -T -e 1000 -i 3 -x 1 60 > "$TEMPDIR/trace.csv" && \
+"$WORKDIR/generator.sh" -T -e 1000 -i 100 -x 1 60 > "$TEMPDIR/trace.csv" && \
         "$WORKDIR/replayer.sh" -i csv -f monpoly -a 0 "$TEMPDIR/trace.csv" > "$TEMPDIR/trace.log"
 if [[ $? != 0 ]]; then
     fail
 fi
 
 echo "Creating reference output ..."
-monpoly -sig "$DATADIR/synth.sig" -formula "$DATADIR/triangle-past-ltl-neg.mfotl" -log "$TEMPDIR/trace.log" > "$TEMPDIR/reference.txt"
+monpoly -sig "$DATADIR/synth.sig" -formula "$DATADIR/triangle-neg.mfotl" -log "$TEMPDIR/trace.log" > "$TEMPDIR/reference.txt"
 if [[ $? != 0 ]]; then
     fail
 fi
 
 echo "Running Flink monitor ..."
-"$FLINKDIR/bin/flink" run "$JARPATH" --in "kafka" --kafkatestfile "$TEMPDIR/trace.csv" --format csv --sig "$DATADIR/synth.sig" --formula "$DATADIR/triangle-past-ltl-neg.mfotl" \
+"$FLINKDIR/bin/flink" run "$JARPATH" --in "kafka" --kafkatestfile "$TEMPDIR/trace.csv" --format csv --sig "$DATADIR/synth.sig" --formula "$DATADIR/triangle-neg.mfotl" \
         --negate false --monitor monpoly --command "/home/rofl/git/scalable-online-monitor/evaluation/run-monpoly.sh {ID}" --processors $PROCESSORS --out "$TEMPDIR/flink-out"
 if [[ $? != 0 ]]; then
     fail
