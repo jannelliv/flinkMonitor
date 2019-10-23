@@ -27,7 +27,7 @@ fail() {
 }
 
 echo "Generating log ..."
-"$WORKDIR/generator.sh" -T -e 1000 -i 100 -x 1 60 > "$TEMPDIR/trace.csv" && \
+"$WORKDIR/generator.sh" -T -e 2000 -i 100 -x 1 60 > "$TEMPDIR/trace.csv" && \
         "$WORKDIR/replayer.sh" -i csv -f monpoly -a 0 "$TEMPDIR/trace.csv" > "$TEMPDIR/trace.log"
 if [[ $? != 0 ]]; then
     fail

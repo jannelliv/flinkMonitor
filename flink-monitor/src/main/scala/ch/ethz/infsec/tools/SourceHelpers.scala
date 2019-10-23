@@ -24,9 +24,12 @@ case class FileEndPoint(file_path: String) extends EndPoint
 case class KafkaEndpoint() extends EndPoint
 
 class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int, Fact)] {
+  var cached_idx : Option[Int] = None
   override def flatMap(value: (Int, Fact), out: Collector[(Int, Int, Fact)]): Unit = {
     val (part, fact) = value
-    val idx = getRuntimeContext.getIndexOfThisSubtask
+    val idx = cached_idx.getOrElse(getRuntimeContext.getIndexOfThisSubtask)
+    if (cached_idx.isEmpty)
+      cached_idx = Some(idx)
     out.collect((part, idx, fact))
   }
 }
@@ -40,8 +43,10 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
   private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
   //The biggest (TP + 1) for which the elements have already been flushed
   private var currentTp: Long = 0
-  //The biggest Tp that was ever flushed
+  //The biggest Tp that was ever received
   private var maxTp: Long = -1
+  //The biggest Ts that was ever flushed
+  private var maxTs: Long = -1
   //Number of EOFs that have been received
   private var numEOF: Int = 0
 
@@ -62,31 +67,18 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
     }
   }
 
-  private def checkTimepointOrder(buf: mutable.Buffer[Fact]) : Boolean = {
-    if (buf.length > 1) {
-      var last = buf.head
-      for (k <- buf.slice(1, buf.length)) {
-        if (k.getTimepoint.toLong < last.getTimepoint.toLong) {
-          return false
-        }
-        last = k
-      }
-    }
-    true
-  }
-
   private def flushReady(out: Collector[Fact]): Unit = {
     val maxAgreedTerminator = maxTerminator.min
     if (maxAgreedTerminator < currentTp)
       return
+
+    println("UPDATING IS: " + maxTerminator.mkString(", "))
 
     for (tp <- currentTp to maxAgreedTerminator) {
       val buf = tp2Facts.get(tp)
 
       buf match {
         case Some(buf) =>
-          if (!checkTimepointOrder(buf))
-            throw new Exception("TIMEPOINT ORDER IS WRONG")
           for (k <- buf)
             out.collect(k)
         case None => ()
@@ -108,11 +100,12 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
           case Some(facts) =>
             for (k <- facts)
               out.collect(k)
-          case None => ()
-        }
-        //println("FORCE FLUSH FOR TP: " + this.hashCode() + " " + tp)
-        tp2ts.get(tp) match {
-          case Some(ts) => out.collect(Fact.terminator(ts.toString))
+            val timeStamp = tp2ts(tp)
+            if (timeStamp > maxTs) {
+              maxTs = timeStamp
+              out.collect(Fact.terminator(timeStamp.toString))
+            }
+            //println("FORCE FLUSH FOR TP: " + this.hashCode() + " " + tp)
           case None => ()
         }
       }
@@ -130,20 +123,15 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
     }
     //println("FLUSH GOT TIMEPOINT: " + this.hashCode() + " " + value.getTimepoint)
     val timePoint = fact.getTimepoint.toLong
+    val timeStamp = fact.getTimestamp.toLong
     tp2ts.get(timePoint) match {
-      case Some(timeStamp) => if (timeStamp != fact.getTimestamp.toLong)
+      case Some(timeStamp) => if (timeStamp != timeStamp)
         throw new Exception("Same tp => same ts violated")
-      case None => tp2ts += (timePoint -> fact.getTimestamp.toLong)
+      case None => tp2ts += (timePoint -> timeStamp)
     }
     if(timePoint > maxTp)
       maxTp = timePoint
 
-    /*println("FLATMAP: left in termmap " + terminatorMap.size + " of fmap instance " + this.hashCode())
-    if (value.isTerminator) {
-      println("FLATMAP: got term " + value.getTimepoint + " of fmap instance " + this.hashCode())
-    } else {
-      println("FLATMAP: got data val " + value.getTimepoint + " of fmap instance " + this.hashCode())
-    }*/
     if (timePoint < currentTp) {
       throw new Exception("FATAL ERROR: Got a timepoint that should already be flushed")
     }
@@ -268,7 +256,6 @@ object KafkaTestProducer {
         for (line <- event_lines) {
           val record = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, line + "\n")
           producer.send(record)
-          producer.flush()
         }
         sendEOFs(producer, MonitorKafkaConfig.getTopic)
         producer.close(10, TimeUnit.SECONDS)
