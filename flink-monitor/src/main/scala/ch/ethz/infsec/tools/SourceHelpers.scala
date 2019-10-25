@@ -36,9 +36,9 @@ class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int
 
 class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fact), Fact] {
   //Map of timepoints to the facts encountered in the stream
-  private val tp2Facts = new mutable.HashMap[Long, ArrayBuffer[Fact]]()
+  private val tp2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
   //Maps timepoints to timestamps
-  private val tp2ts = new mutable.HashMap[Long, Long]()
+  private val tp2ts = new mutable.LongMap[Long]()
   //The terminator with the highest timepoint per input source
   private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
   //The biggest (TP + 1) for which the elements have already been flushed
@@ -124,11 +124,7 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
     //println("FLUSH GOT TIMEPOINT: " + this.hashCode() + " " + value.getTimepoint)
     val timePoint = fact.getTimepoint.toLong
     val timeStamp = fact.getTimestamp.toLong
-    tp2ts.get(timePoint) match {
-      case Some(timeStamp) => if (timeStamp != timeStamp)
-        throw new Exception("Same tp => same ts violated")
-      case None => tp2ts += (timePoint -> timeStamp)
-    }
+    tp2ts += (timePoint -> timeStamp)
     if(timePoint > maxTp)
       maxTp = timePoint
 
@@ -169,33 +165,40 @@ class RandomPartitioner extends Partitioner {
 }
 
 object MonitorKafkaConfig {
+  private var initDone: Boolean = false
   private var topicName : String = "monitor_topic"
   private var groupName : String = "monitor"
-  private var numPartitions : Int = 8
   private var addr : String = "127.0.0.1:9092"
   private var partitioner : Partitioner = new RandomPartitioner
-
-  def getNumPartitions : Int = getNumPartitionsChecked
-  def getTopic: String = topicName
 
   def init(
       topicName : String = topicName,
       groupName : String = groupName,
-      numPartitions : Int = numPartitions,
       addr : String = addr,
       partitioner : Partitioner = partitioner
           ) : Unit = {
-    if (numPartitions != MonitorKafkaConfig.numPartitions) {
-      MonitorKafkaConfig.numPartitions = numPartitions
-      updateNumPartitions()
-    }
     MonitorKafkaConfig.topicName = topicName
     MonitorKafkaConfig.groupName = groupName
     MonitorKafkaConfig.addr = addr
     MonitorKafkaConfig.partitioner = partitioner
+
+    val admin = AdminClient.create(MonitorKafkaConfig.getKafkaPropsInternal)
+    val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopicInternal).asJava)
+    try {
+      res.all().get(10, TimeUnit.SECONDS)
+    } catch {
+      case _: Throwable => println("Kafka topic does not exist, creating it")
+    }
+    admin.close(10, TimeUnit.SECONDS)
+    initDone = true
   }
 
-  def getKafkaProps : Properties = {
+  private def checkInit(): Unit = {
+    if (!initDone)
+      throw new Exception("KafkaConfig Object is not initialized")
+  }
+
+  private def getKafkaPropsInternal: Properties = {
     val props = new Properties()
     props.setProperty("bootstrap.servers", addr)
     props.setProperty("group.id", groupName)
@@ -207,18 +210,30 @@ object MonitorKafkaConfig {
     props
   }
 
-  private def updateNumPartitions() : Unit = {
-
-  }
-
-  private def getNumPartitionsChecked : Int = {
-    /*val tmp_producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
+  private def getNumPartitionsInternal : Int = {
+    val tmp_producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
     val n = tmp_producer.partitionsFor(topicName).size()
     if (n < 2) {
       println("WARNING: # partitions is less than 2")
     }
-    n*/
-    numPartitions
+    n
+  }
+
+  private def getTopicInternal: String = topicName
+
+  def getKafkaProps : Properties = {
+    checkInit()
+    getKafkaPropsInternal
+  }
+
+  def getNumPartitions : Int = {
+    checkInit()
+    getNumPartitionsInternal
+  }
+
+  def getTopic: String = {
+    checkInit()
+    getTopicInternal
   }
 }
 
@@ -235,14 +250,6 @@ object KafkaTestProducer {
   }
 
   def runProducer(csvPath: String, startDelay: Long = 0) : Unit = {
-    val admin = AdminClient.create(MonitorKafkaConfig.getKafkaProps)
-    val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopic).asJava)
-    try {
-      res.all().get(10, TimeUnit.SECONDS)
-    } catch {
-      case _: Throwable => println("Kafka topic does not exist, creating it")
-    }
-    admin.close(10, TimeUnit.SECONDS)
     val thread = new Thread {
       override def run(): Unit = {
         if (startDelay != 0) {
