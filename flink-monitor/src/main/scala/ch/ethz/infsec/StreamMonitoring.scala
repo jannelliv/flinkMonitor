@@ -7,7 +7,7 @@ import java.util.concurrent.{Callable, Executors, TimeUnit}
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, MonitorKafkaConfig, SocketEndpoint}
+import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, MonitorKafkaConfig, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
@@ -49,6 +49,7 @@ object StreamMonitoring {
   var simulateKafkaProducer: Boolean = false
   var queueSize = 10000
   var inputParallelism = 8
+  var multiSourceVariant: MultiSourceVariant = TotalOrder()
 
   var formula: Formula = policy.False()
 
@@ -107,7 +108,12 @@ object StreamMonitoring {
 
     negate = params.getBoolean("negate", false)
     monitorCommand = params.get("monitor", MONPOLY_CMD)
-
+    multiSourceVariant = params.getInt("multi", 3) match {
+      case 1 => TotalOrder()
+      case 2 => PerPartitionOrder()
+      case 3 => WaterMarkOrder()
+      case _ => fail("multisourcevariant parameter must be [1; 3]")
+    }
 
     val commandString = params.get("command")
     command = if (commandString == null) Seq.empty else commandString.split(' ')
@@ -294,7 +300,7 @@ object StreamMonitoring {
 
       //env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
-      val monitor = new StreamMonitorBuilder(env)
+      var monitor = new StreamMonitorBuilder(env)
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
       val textStream = in match {
         case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
@@ -302,8 +308,9 @@ object StreamMonitoring {
         case Some(KafkaEndpoint()) =>
           MonitorKafkaConfig.init()
           if (!kafkatestfile.isEmpty) {
-            KafkaTestProducer.runProducer(kafkatestfile)
+            multiSourceVariant.getTestProducer.runProducer(kafkatestfile)
           }
+          //monitor = multiSourceVariant.getMonitorBuilder(env)
           inputParallelism = MonitorKafkaConfig.getNumPartitions
           monitor.kafkaSource()
         case _ => fail("Cannot parse the input argument")
@@ -329,7 +336,7 @@ object StreamMonitoring {
       Rescaler.create(jobName, "127.0.0.1", processors)
       Thread.sleep(2000)
        */
-      env.execute(jobName)
+      //env.execute(jobName)
     }
   }
 }

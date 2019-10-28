@@ -51,11 +51,6 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
             return;
         }
 
-        if (trimmed.startsWith("EOF")) {
-            sink.accept(Fact.meta("EOF"));
-            return;
-        }
-
         if (trimmed.equals(";;")) {
             terminateEvent(sink);
             alreadyTerminated = true;

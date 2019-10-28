@@ -16,18 +16,23 @@ import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 
+
+class StreamMonitorBuilderWaterMarks(env: StreamExecutionEnvironment) extends StreamMonitorBuilder(env) {
+
+}
+
 /**
  * Helper class that assembles the parallel monitor's data flow.
  */
-class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
+class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
   def socketSource(host: String, port: Int): DataStream[String] = {
     val rawSource = new SocketTextStreamFunction(host, port, "\n", 0)
-    LatencyTrackingExtensions.addSourceWithProvidedMarkers(environment, rawSource, "Socket source")
+    LatencyTrackingExtensions.addSourceWithProvidedMarkers(env, rawSource, "Socket source")
       .uid("socket-source")
   }
 
   def fileWatchSource(path: String): DataStream[String] = {
-    environment.readFile(new TextInputFormat(new Path(path)), path, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
+    env.readFile(new TextInputFormat(new Path(path)), path, FileProcessingMode.PROCESS_CONTINUOUSLY, 1000)
       .name("File watch source")
       .uid("file-watch-source")
   }
@@ -37,7 +42,7 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       new TestSimpleStringSchema,
       MonitorKafkaConfig.getKafkaProps)
     rawSource.setStartFromEarliest()
-    environment.addSource(rawSource)
+    env.addSource(rawSource)
       .setParallelism(StreamMonitoring.inputParallelism)
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .name("Kafka source")
@@ -45,7 +50,7 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
   }
 
   def simpleFileSource(path: String): DataStream[String] = {
-    environment.readTextFile(path)
+    env.readTextFile(path)
       .name("Simple file source")
       .uid("simple-file-source")
   }
@@ -72,6 +77,38 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
       .uid("print-sink")
   }
 
+  def parseTrace(traceFormat: TraceParser, dataStream: DataStream[String]) : DataStream[Fact] = {
+    dataStream.flatMap(new ParsingFunction(traceFormat))
+      .name("Trace parser")
+      .uid("trace-parser")
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
+  }
+
+  def postProcessStream(slicer: HypercubeSlicer, queueSize: Int, monitorProcess: ExternalProcess[Fact, Fact], dataStream: DataStream[Fact]) : DataStream[String] = {
+    val rawVerdicts = ExternalProcessOperator.transform(dataStream, monitorProcess, queueSize)
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Monitor")
+      .uid("monitor")
+
+    //verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract(slicer.degree)))
+
+    val filteredVerdicts = rawVerdicts.filter(new VerdictFilter(slicer))
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Verdict filter")
+      .uid("verdict-filter")
+
+    val printedVerdicts = filteredVerdicts.flatMap(new PrintingFunction(new MonpolyVerdictFormatter))
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Verdict printer")
+      .uid("verdict-printer")
+
+    printedVerdicts
+  }
+
   def assemble(inputStream: DataStream[String],
                traceFormat: TraceParser,
 //               decider: Option[DeciderFlatMapSimple],
@@ -80,11 +117,7 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
                queueSize: Int): DataStream[String] = {
 
 //    val parser = new TraceMonitor(traceFormat.createParser(), new RescaleInitiator().rescale)
-    val parsedTrace = inputStream.flatMap(new ParsingFunction(traceFormat))
-      .name("Trace parser")
-      .uid("trace-parser")
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
-      .setParallelism(StreamMonitoring.inputParallelism)
+    val parsedTrace = parseTrace(traceFormat, inputStream)
 
     /*
     val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record](new OutsideInfluence(true).asInstanceOf[Processor[Record,Record] with Serializable]))
@@ -132,27 +165,7 @@ class StreamMonitorBuilder(environment: StreamExecutionEnvironment) {
     // because the state is not synchronized with the global progress. Ideally, we would not even create
     // such submonitors.
     // TODO(JS): Check the splitting/merging logic in the case of unused submonitors.
+    postProcessStream(slicer, queueSize, monitorProcess, reorderedTrace)
 
-    val rawVerdicts = ExternalProcessOperator.transform(reorderedTrace, monitorProcess, queueSize)
-      .setParallelism(slicer.degree)
-      .setMaxParallelism(slicer.degree)
-      .name("Monitor")
-      .uid("monitor")
-
-    //verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract(slicer.degree)))
-
-    val filteredVerdicts = rawVerdicts.filter(new VerdictFilter(slicer))
-        .setParallelism(slicer.degree)
-        .setMaxParallelism(slicer.degree)
-        .name("Verdict filter")
-        .uid("verdict-filter")
-
-    val printedVerdicts = filteredVerdicts.flatMap(new PrintingFunction(new MonpolyVerdictFormatter))
-        .setParallelism(slicer.degree)
-        .setMaxParallelism(slicer.degree)
-        .name("Verdict printer")
-        .uid("verdict-printer")
-
-    printedVerdicts
   }
 }
