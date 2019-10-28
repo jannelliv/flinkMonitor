@@ -16,15 +16,47 @@ import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 
-
 class StreamMonitorBuilderWaterMarks(env: StreamExecutionEnvironment) extends StreamMonitorBuilder(env) {
+  override protected def sliceAndReorder(dataStream: DataStream[Fact], slicer: HypercubeSlicer): DataStream[Fact] = {
+    dataStream
+  }
+}
 
+class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends StreamMonitorBuilder(env) {
+  override protected def sliceAndReorder(dataStream: DataStream[Fact], slicer: HypercubeSlicer): DataStream[Fact] = {
+    val slicedTrace = dataStream
+      .flatMap(slicer)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .name("Slicer")
+      .uid("slicer")
+      .flatMap(new AddSubtaskIndexFunction)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .name("Add subtask index")
+      .uid("subtask_index")
+
+    val partitionedTraceWithoutId = slicedTrace
+      .partitionCustom(new IdPartitioner, 0)
+      .map(k => (k._2, k._3))
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Partition and remove slice ID")
+      .uid("remove-id")
+
+    partitionedTraceWithoutId
+      .flatMap(new ReorderFactsFunction(StreamMonitoring.inputParallelism))
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Reorder facts")
+      .uid("reorder-facts")
+  }
 }
 
 /**
  * Helper class that assembles the parallel monitor's data flow.
  */
-class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
+abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
   def socketSource(host: String, port: Int): DataStream[String] = {
     val rawSource = new SocketTextStreamFunction(host, port, "\n", 0)
     LatencyTrackingExtensions.addSourceWithProvidedMarkers(env, rawSource, "Socket source")
@@ -109,6 +141,8 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
     printedVerdicts
   }
 
+  protected def sliceAndReorder(dataStream: DataStream[Fact], slicer: HypercubeSlicer) : DataStream[Fact]
+
   def assemble(inputStream: DataStream[String],
                traceFormat: TraceParser,
 //               decider: Option[DeciderFlatMapSimple],
@@ -133,32 +167,9 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
           .uid("decider")
     }
     */
-    val slicedTrace = parsedTrace
-      .flatMap(slicer)
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .name("Slicer")
-      .uid("slicer")
-      .flatMap(new AddSubtaskIndexFunction)
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .name("Add subtask index")
-      .uid("subtask_index")
 
-    val partitionedTraceWithoutId = slicedTrace
-      .partitionCustom(new IdPartitioner, 0)
-      .map(k => (k._2, k._3))
-      .setParallelism(slicer.degree)
-      .setMaxParallelism(slicer.degree)
-      .name("Partition and remove slice ID")
-      .uid("remove-id")
+    val reorderedTrace = sliceAndReorder(parsedTrace, slicer)
 
-    val reorderedTrace = partitionedTraceWithoutId
-      .flatMap(new ReorderFactsFunction(StreamMonitoring.inputParallelism))
-      .setParallelism(slicer.degree)
-      .setMaxParallelism(slicer.degree)
-      .name("Reorder facts")
-      .uid("reorder-facts")
 
     // XXX(JS): Implement this comment here:
     // We do not send any commands to unused submonitors. In particular, we cannot use their state fragments

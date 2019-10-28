@@ -4,7 +4,7 @@ import java.util
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
-import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderWaterMarks}
+import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderSimple, StreamMonitorBuilderWaterMarks}
 import ch.ethz.infsec.monitor.Fact
 import org.apache.commons.math3.distribution.GeometricDistribution
 import org.apache.flink.api.common.functions.RichFlatMapFunction
@@ -20,7 +20,6 @@ import scala.util.Random
 import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.util.control.Breaks._
 
 sealed class MultiSourceVariant {
   def getTestProducer : KafkaTestProducer = {
@@ -34,7 +33,7 @@ sealed class MultiSourceVariant {
 
   def getMonitorBuilder(env: StreamExecutionEnvironment) : StreamMonitorBuilder = {
     this match {
-      case TotalOrder() => new StreamMonitorBuilder(env)
+      case TotalOrder() => new StreamMonitorBuilderSimple(env)
       case PerPartitionOrder() => throw new Exception("not implemented")
       case WaterMarkOrder() => new StreamMonitorBuilderWaterMarks(env)
       case _ => throw new Exception("case failed")
