@@ -212,6 +212,11 @@ public class MonpolyVerdictParser implements TraceParser, Serializable {
     }
 
     @Override
+    public void dontSendTerminators(boolean set) {
+        throw new RuntimeException("not implemented");
+    }
+
+    @Override
     public boolean inInitialState() {
         return lexer.inInitialState() && parserState == ParserState.INITIAL;
     }

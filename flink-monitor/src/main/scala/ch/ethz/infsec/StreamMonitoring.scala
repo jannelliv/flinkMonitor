@@ -3,11 +3,12 @@ package ch.ethz.infsec
 import java.io._
 import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.{Callable, Executors, TimeUnit}
+import java.util.logging.{Level, Logger}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, MonitorKafkaConfig, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
+import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, MonitorKafkaConfig, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
@@ -48,7 +49,7 @@ object StreamMonitoring {
   var negate: Boolean = false
   var simulateKafkaProducer: Boolean = false
   var queueSize = 10000
-  var inputParallelism = 8
+  var inputParallelism = 1
   var multiSourceVariant: MultiSourceVariant = TotalOrder()
 
   var formula: Formula = policy.False()
@@ -62,7 +63,7 @@ object StreamMonitoring {
   def parseEndpointArg(ss: String): Option[EndPoint] = {
     /**
      * IP:Port        OR
-     * kafka  OR
+     * kafka          OR
      * filename
      */
     if (ss.equalsIgnoreCase("kafka")) {
@@ -298,7 +299,7 @@ object StreamMonitoring {
       env.getConfig.enableObjectReuse()
       env.getConfig.registerTypeWithKryoSerializer(classOf[Fact], new FactSerializer)
 
-      //env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
+      env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
       var monitor: StreamMonitorBuilder = new StreamMonitorBuilderSimple(env)
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
@@ -307,11 +308,13 @@ object StreamMonitoring {
         case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case Some(KafkaEndpoint()) =>
           MonitorKafkaConfig.init()
+          inputParallelism = MonitorKafkaConfig.getNumPartitions
+          Logger.getGlobal.log(Level.INFO, "\n" + multiSourceVariant.toString + "\n")
           if (!kafkatestfile.isEmpty) {
             multiSourceVariant.getTestProducer.runProducer(kafkatestfile)
           }
-          monitor = multiSourceVariant.getMonitorBuilder(env)
-          inputParallelism = MonitorKafkaConfig.getNumPartitions
+          monitor = multiSourceVariant.getStreamMonitorBuilder(env)
+          inputFormat.dontSendTerminators(multiSourceVariant.dontSendTerminators())
           monitor.kafkaSource()
         case _ => fail("Cannot parse the input argument")
       }

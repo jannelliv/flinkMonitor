@@ -1,19 +1,17 @@
 package ch.ethz.infsec.tools
 
-import java.util
 import java.util.Properties
 import java.util.concurrent.TimeUnit
 
-import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderSimple, StreamMonitorBuilderWaterMarks}
+import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderParInput}
 import ch.ethz.infsec.monitor.Fact
 import org.apache.commons.math3.distribution.GeometricDistribution
-import org.apache.flink.api.common.functions.RichFlatMapFunction
+import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.admin.AdminClient
-import org.apache.kafka.clients.producer.{KafkaProducer, Partitioner, ProducerRecord}
-import org.apache.kafka.common.Cluster
+import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
 import scala.io.Source
 import scala.util.Random
@@ -21,7 +19,25 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
+object DebugReorderFunction {
+  val isDebug: Boolean = false
+}
+
+class DebugMap[U] extends MapFunction[U, U] {
+  override def map(value: U): U = {
+    println("DEBUGMAP: " + this.hashCode() + " " + value.toString)
+    value
+  }
+}
+
 sealed class MultiSourceVariant {
+  override def toString: String = {
+    "MULTISOURCE CONFIG\n" +
+      "Test producer: " + getTestProducer.toString + "\n" +
+      "Terminators: " + !dontSendTerminators() + "\n" +
+      "Reorder function: " + getReorderFunction.toString
+  }
+
   def getTestProducer : KafkaTestProducer = {
     this match {
       case TotalOrder() => new PerPartitionOrderProducer()
@@ -31,11 +47,24 @@ sealed class MultiSourceVariant {
     }
   }
 
-  def getMonitorBuilder(env: StreamExecutionEnvironment) : StreamMonitorBuilder = {
+  def getStreamMonitorBuilder(env: StreamExecutionEnvironment) : StreamMonitorBuilder = {
+    new StreamMonitorBuilderParInput(env, getReorderFunction)
+  }
+
+  def dontSendTerminators() : Boolean = {
     this match {
-      case TotalOrder() => new StreamMonitorBuilderSimple(env)
-      case PerPartitionOrder() => throw new Exception("not implemented")
-      case WaterMarkOrder() => new StreamMonitorBuilderWaterMarks(env)
+      case TotalOrder() => false
+      case PerPartitionOrder() => false
+      case WaterMarkOrder() => true
+      case _ => throw new Exception("case failed")
+    }
+  }
+
+  private def getReorderFunction : ReorderFunction = {
+    this match {
+      case TotalOrder() => ReorderTotalOrderFunction(MonitorKafkaConfig.getNumPartitions)
+      case PerPartitionOrder() => ReorderCollapsedPerPartitionFunction(MonitorKafkaConfig.getNumPartitions)
+      case WaterMarkOrder() => ReorderCollapsedWithWatermarksFunction(MonitorKafkaConfig.getNumPartitions)
       case _ => throw new Exception("case failed")
     }
   }
@@ -60,15 +89,183 @@ class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int
   }
 }
 
-class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fact), Fact] {
+sealed abstract class ReorderFunction extends RichFlatMapFunction[(Int, Fact), Fact]
+
+case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends ReorderFunction {
+  override def toString: String = "Collapse the facts and order them using terminators"
+
+  private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
+  private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
+  private var currentTs: Long = -1
+  private var maxTs: Long = -1
+  private var numEOF: Int = 0
+
+  private def insertElement(fact: Fact, idx: Int, timeStamp: Long, out: Collector[Fact]) : Unit = {
+    if (fact.isTerminator) {
+      if (timeStamp > maxTerminator(idx))
+        maxTerminator(idx) = timeStamp
+      flushReady(out)
+    } else {
+      ts2Facts.get(timeStamp) match {
+        case Some(buf) => buf += fact
+        case None => ts2Facts += (timeStamp -> ArrayBuffer[Fact](fact))
+      }
+    }
+  }
+
+  private def flushReady(out: Collector[Fact]): Unit = {
+    val maxAgreedTerminator = maxTerminator.min
+    if (maxAgreedTerminator < currentTs)
+      return
+
+    for (ts <- (currentTs + 1) to maxAgreedTerminator) {
+      ts2Facts
+        .get(ts)
+        .foreach(_.foreach(out.collect))
+      if (DebugReorderFunction.isDebug)
+        println(s"REORDER: FLUSHED ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
+      out.collect(Fact.terminator(ts.toString))
+      ts2Facts -= ts
+    }
+    currentTs = maxAgreedTerminator
+  }
+
+  private def forceFlush(out: Collector[Fact]): Unit = {
+    if (maxTs != -1) {
+      for (ts <- (currentTs + 1) to maxTs) {
+        if (DebugReorderFunction.isDebug)
+          println(s"REORDER: FORCE FLUSING ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
+        ts2Facts
+          .remove(ts)
+          .foreach { facts =>
+            facts.foreach(out.collect)
+            if (ts > maxTs) {
+              maxTs = ts
+              out.collect(Fact.terminator(ts.toString))
+            }
+          }
+      }
+    }
+  }
+
+  override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
+    val (idx, fact) = value
+    if (fact.isMeta && fact.getName == "EOF") {
+      numEOF += 1
+      if (numEOF == numSources) {
+        forceFlush(out)
+      }
+      return
+    }
+
+    val timeStamp = fact.getTimestamp.toLong
+    if(timeStamp > maxTs)
+      maxTs = timeStamp
+
+    if (timeStamp < currentTs) {
+      if (DebugReorderFunction.isDebug)
+        println(s"REORDER: got ts $timeStamp but currentts is $currentTs")
+      throw new Exception("FATAL ERROR: Got a timestamp that should already be flushed")
+    }
+    insertElement(fact, idx, timeStamp, out)
+  }
+}
+
+case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends ReorderFunction {
+  override def toString: String = "Collapse the facts and reorder them using watermarks"
+
+  private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
+  private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
+  private var currentTs: Long = 0
+  private var maxTs: Long = -1
+  private var numEOF: Int = 0
+
+  private def insertElement(fact: Fact, idx: Int, timeStamp: Long) : Unit = {
+    if (!fact.isTerminator) {
+      ts2Facts.get(timeStamp) match {
+        case Some(buf) => buf += fact
+        case None =>
+          ts2Facts += (timeStamp -> ArrayBuffer[Fact](fact))
+      }
+    }
+  }
+
+  private def flushReady(out: Collector[Fact]): Unit = {
+    val maxAgreedTerminator = maxTerminator.min
+    if (maxAgreedTerminator < currentTs)
+      return
+
+    for (ts <- (currentTs + 1) to maxAgreedTerminator) {
+      if (DebugReorderFunction.isDebug)
+        println(s"REORDER: FLUSING ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
+      ts2Facts
+        .get(ts)
+        .foreach(_.foreach(out.collect))
+
+      out.collect(Fact.terminator(ts.toString))
+      ts2Facts -= ts
+    }
+    currentTs = maxAgreedTerminator
+  }
+
+  private def forceFlush(out: Collector[Fact]): Unit = {
+    if (maxTs != -1) {
+      for (ts <- (currentTs + 1) to maxTs) {
+        if (DebugReorderFunction.isDebug)
+          println(s"REORDER: FORCE FLUSHING ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
+
+        ts2Facts
+          .remove(ts)
+          .foreach { facts =>
+            facts.foreach(out.collect)
+            if (ts > maxTs) {
+              maxTs = ts
+              out.collect(Fact.terminator(ts.toString))
+            }
+          }
+      }
+    }
+  }
+
+  override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
+    val (idx, fact) = value
+    if (fact.isMeta) {
+      if (fact.getName == "WATERMARK") {
+        val timestamp = fact.getArgument(0).asInstanceOf[String].toLong
+        if (timestamp > maxTerminator(idx))
+          maxTerminator(idx) = timestamp
+        flushReady(out)
+        return
+      } else if (fact.getName == "EOF") {
+        numEOF += 1
+        if (numEOF == numSources) {
+          forceFlush(out)
+        }
+        return
+      }
+    }
+
+    val timeStamp = fact.getTimestamp.toLong
+    if(timeStamp > maxTs)
+      maxTs = timeStamp
+
+    if (timeStamp < currentTs) {
+      throw new Exception("FATAL ERROR: Got a timestamp that should already be flushed")
+    }
+    insertElement(fact, idx, timeStamp)
+  }
+}
+
+case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
+  override def toString: String = "Reorder the facts using timepoints (global order)"
+
   //Map of timepoints to the facts encountered in the stream
   private val tp2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
   //Maps timepoints to timestamps
   private val tp2ts = new mutable.LongMap[Long]()
   //The terminator with the highest timepoint per input source
   private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  //The biggest (TP + 1) for which the elements have already been flushed
-  private var currentTp: Long = 0
+  private var currentTp: Long = -1
   //The biggest Tp that was ever received
   private var maxTp: Long = -1
   //The biggest Ts that was ever flushed
@@ -86,9 +283,7 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
       tp2Facts.get(timePoint) match {
         case Some(buf) => buf += fact
         case None =>
-          val buf = new ArrayBuffer[Fact]()
-          buf += fact
-          tp2Facts += (timePoint -> buf)
+          tp2Facts += (timePoint -> ArrayBuffer[Fact](fact))
       }
     }
   }
@@ -98,40 +293,34 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
     if (maxAgreedTerminator < currentTp)
       return
 
-    println("UPDATING IS: " + maxTerminator.mkString(", "))
+    for (tp <- (currentTp + 1) to maxAgreedTerminator) {
+      if (DebugReorderFunction.isDebug)
+        println(s"REORDER: FLUSING ${System.identityHashCode(this)}, tp: $tp, currentTP: $currentTp maxTerm: ${maxTerminator.mkString(",")}")
 
-    for (tp <- currentTp to maxAgreedTerminator) {
-      val buf = tp2Facts.get(tp)
-
-      buf match {
-        case Some(buf) =>
-          for (k <- buf)
-            out.collect(k)
-        case None => ()
-      }
+      tp2Facts
+        .get(tp)
+        .foreach(_.foreach(out.collect))
 
       out.collect(Fact.terminator(tp2ts(tp).toString))
-      //println("Flushing TP: " + this.hashCode() + " " + tp)
       tp2Facts -= tp
       tp2ts -= tp
     }
-    currentTp = maxAgreedTerminator + 1
+    currentTp = maxAgreedTerminator
   }
 
   private def forceFlush(out: Collector[Fact]): Unit = {
-    //println("FORCE FLUSH TERM MAP DUMP FOR " + this.hashCode() + " " + mapDump())
     if (maxTp != -1) {
-      for (tp <- currentTp to maxTp) {
+      for (tp <- (currentTp + 1) to maxTp) {
+        if (DebugReorderFunction.isDebug)
+          println(s"REORDER: FORCE FLUSING ${System.identityHashCode(this)}, tp: $tp, currentTP: $currentTp maxTerm: ${maxTerminator.mkString(",")}")
         tp2Facts.remove(tp) match {
           case Some(facts) =>
-            for (k <- facts)
-              out.collect(k)
+            facts.foreach(out.collect)
             val timeStamp = tp2ts(tp)
             if (timeStamp > maxTs) {
               maxTs = timeStamp
               out.collect(Fact.terminator(timeStamp.toString))
             }
-            //println("FORCE FLUSH FOR TP: " + this.hashCode() + " " + tp)
           case None => ()
         }
       }
@@ -147,11 +336,6 @@ class ReorderFactsFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fa
       }
       return
     }
-    if (fact.isMeta && fact.getName == "WATERMARK") {
-      println("GOT WATERMARK " + this.hashCode() + " " + fact.getArgument(0).asInstanceOf[String] + " " + fact.getArgument(1).asInstanceOf[String])
-      return
-    }
-    //println("FLUSH GOT TIMEPOINT: " + this.hashCode() + " " + value.getTimepoint)
     val timePoint = fact.getTimepoint.toLong
     val timeStamp = fact.getTimestamp.toLong
     tp2ts += (timePoint -> timeStamp)
@@ -172,51 +356,20 @@ class TestSimpleStringSchema extends SimpleStringSchema {
   override def isEndOfStream(nextElement: String): Boolean = nextElement.startsWith(">TERMSTREAM")
 }
 
-class RandomPartitioner extends Partitioner {
-  private var warnedOnce: Boolean = false
-
-  override def configure(map: util.Map[String, _]): Unit = {}
-
-  override def partition(s: String, o: Any, bytes: Array[Byte], o1: Any, bytes1: Array[Byte], cluster: Cluster): Int = {
-    val line = o1.asInstanceOf[String]
-    if (line.length > 3) {
-      val line_trimmed = line.substring(1, line.length - 1)
-      val line_parts = line_trimmed.split(' ')
-      if (line_parts.length == 2 && (
-          line_parts(0).equalsIgnoreCase("EOF")
-            || line_parts(0).equalsIgnoreCase("TERMSTREAM")
-            ||line_parts(0).equalsIgnoreCase("WATERMARK"))) {
-        return line_parts(1).toInt
-      }
-    }
-    val numPartitions = cluster.partitionCountForTopic(MonitorKafkaConfig.getTopic)
-    if (numPartitions < 2 && !warnedOnce) {
-      warnedOnce = true
-      println("WARNING: KafkaTestProducer, only 1 possible partition")
-    }
-    Random.nextInt(numPartitions)
-  }
-
-  override def close(): Unit = {}
-}
-
 object MonitorKafkaConfig {
   private var initDone: Boolean = false
   private var topicName : String = "monitor_topic"
   private var groupName : String = "monitor"
   private var addr : String = "127.0.0.1:9092"
-  private var partitioner : Partitioner = new RandomPartitioner
 
   def init(
       topicName : String = topicName,
       groupName : String = groupName,
-      addr : String = addr,
-      partitioner : Partitioner = partitioner
+      addr : String = addr
           ) : Unit = {
     MonitorKafkaConfig.topicName = topicName
     MonitorKafkaConfig.groupName = groupName
     MonitorKafkaConfig.addr = addr
-    MonitorKafkaConfig.partitioner = partitioner
 
     val admin = AdminClient.create(MonitorKafkaConfig.getKafkaPropsInternal)
     val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopicInternal).asJava)
@@ -240,17 +393,16 @@ object MonitorKafkaConfig {
     props.setProperty("group.id", groupName)
     props.setProperty("key.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.setProperty("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
-    props.setProperty("partitioner.class", partitioner.getClass.getCanonicalName)
     props.setProperty("flink.disable-metrics", "false")
     props.setProperty("flink.partition-discovery.interval-millis", "20")
     props
   }
 
   private def getNumPartitionsInternal : Int = {
-    val tmp_producer = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
+    val tmp_producer = new KafkaProducer[String, String](MonitorKafkaConfig.getKafkaProps)
     val n = tmp_producer.partitionsFor(topicName).size()
     if (n < 2) {
-      println("WARNING: # partitions is less than 2")
+      throw new Exception("ERROR: # partitions is less than 2")
     }
     n
   }
@@ -273,23 +425,40 @@ object MonitorKafkaConfig {
   }
 }
 
-trait KafkaTestProducer {
-  def sendEOFs(producer: KafkaProducer[Int, String], topic: String) : Unit = {
+abstract class KafkaTestProducer {
+  protected val topic: String = MonitorKafkaConfig.getTopic
+  protected val numPartitions: Int = MonitorKafkaConfig.getNumPartitions
+  protected val producer: KafkaProducer[String, String] = makeProducer()
+
+  private def makeProducer(): KafkaProducer[String, String] = new KafkaProducer[String, String](MonitorKafkaConfig.getKafkaProps)
+
+  def sendEOFs() : Unit = {
     producer.flush()
-    val numPartitions = MonitorKafkaConfig.getNumPartitions
-    for (i <- 0 until numPartitions) {
-      producer.send(new ProducerRecord[Int, String](topic, ">EOF " + i + "<"))
-      producer.flush()
-      producer.send(new ProducerRecord[Int, String](topic, ">TERMSTREAM " + i + "<"))
-      producer.flush()
+    sendRecord(">EOF<", None)
+    sendRecord(">TERMSTREAM<", None)
+    producer.flush()
+  }
+
+  def sendRecord(line: String, partition: Option[Int]) : Unit = {
+    partition match {
+      case Some(n) =>
+        require(n >= 0 && n < numPartitions)
+        val record = new ProducerRecord[String, String](MonitorKafkaConfig.getTopic, n, "", line + "\n")
+        producer.send(record)
+      case None =>
+        for (i <- 0 until numPartitions) {
+          val topic = MonitorKafkaConfig.getTopic
+          val record = new ProducerRecord[String, String](topic, i, "", line + "\n")
+          producer.send(record)
+        }
     }
   }
-  def makeRecord(line: String) : ProducerRecord[Int, String] = new ProducerRecord[Int, String](MonitorKafkaConfig.getTopic, line + "\n")
-  def makeProducer(): KafkaProducer[Int, String] = new KafkaProducer[Int, String](MonitorKafkaConfig.getKafkaProps)
   def runProducer(csvPath: String, startDelay: Long = 0) : Unit
 }
 
 class WaterMarkOrderProducer extends KafkaTestProducer {
+  override def toString: String = "Producing events out of order with watermarks"
+
   def moveCurrTs(currTs: Long, elementsLeft: Array[Int]) : Int = {
     //Return the index of the first non-zero value of the array
     for (i <- currTs.toInt until elementsLeft.length) {
@@ -301,50 +470,47 @@ class WaterMarkOrderProducer extends KafkaTestProducer {
     elementsLeft.length
   }
 
-  def sendWatermark(producer: KafkaProducer[Int, String], topic: String, tsVal: Int) : Unit = {
+  def sendWatermark(tsVal: Int) : Unit = {
     producer.flush()
-    val numPartitions = MonitorKafkaConfig.getNumPartitions
-    for (i <- 0 until numPartitions) {
-      producer.send(makeRecord(">WATERMARK " + i + " " +  tsVal + "<"))
-      producer.flush()
-    }
+    sendRecord(">WATERMARK " + tsVal + "<", None)
+    producer.flush()
   }
 
-  def writeToKafka[U <: mutable.Buffer[String]](producer: KafkaProducer[Int, String], map: mutable.Map[Int, U]) : Unit = {
+  def writeToKafka[U <: mutable.Buffer[String]](factMap: mutable.Map[Int, U]) : Unit = {
     val sampler = new GeometricDistribution(0.5)
-    val maxTs = map.keys.max
+    val maxTs = factMap.keys.max
 
     //Lowest TS for which not all facts have been written to kafka
-    var currTs = map.keys.min
+    var currTs = factMap.keys.min
 
     //TS are the idx of the arr, the values are the numbers of facts left for that TS
     val elementsLeft = new Array[Int](maxTs + 1)
 
-    for (k <- map.keys) {
-      elementsLeft(k.toInt) = map(k).length
-    }
+    //Init the number of elements for each key
+    factMap.keys.foreach(k => elementsLeft(k) = factMap(k).length)
 
     while (currTs != maxTs + 1) {
       val currTsRet = moveCurrTs(currTs, elementsLeft)
 
       //currTS update, send a watermark
       if (currTsRet > currTs) {
-        sendWatermark(producer, MonitorKafkaConfig.getTopic, currTsRet - 1)
+        sendWatermark(currTsRet - 1)
       }
 
       currTs = currTsRet
       //Select a timestamp with a random offset (~ Geo) from the currentTS
       val tsSample = math.min(maxTs, currTs + sampler.sample())
       if (elementsLeft(tsSample) > 0) {
-        val buf = map(tsSample)
+        val buf = factMap(tsSample)
         elementsLeft(tsSample) -= 1
-        //Select a random facts in the the set of facts with TS tsSample
+        //Select a random fact in the the set of facts with TS tsSample
         val idxSample = Random.nextInt(buf.length)
         val line = buf.remove(idxSample)
-        producer.send(makeRecord(line))
+        sendRecord(line, Some(Random.nextInt(numPartitions)))
       }
     }
-    sendEOFs(producer, MonitorKafkaConfig.getTopic)
+    sendWatermark(maxTs + 1)
+    sendEOFs()
   }
 
   override def runProducer(csvPath: String, startDelay: Long): Unit = {
@@ -366,10 +532,8 @@ class WaterMarkOrderProducer extends KafkaTestProducer {
           })
           .groupBy(_._1)
           .mapValues(k => mutable.ArrayBuffer(k.map(_._2) :_* ))
-        val tsToLinesMut = mutable.Map() ++= tsToLines
-        val producer = makeProducer()
         //Randomize the trace and write it to kafka
-        writeToKafka(producer, tsToLinesMut)
+        writeToKafka(mutable.Map() ++= tsToLines)
         producer.close(10, TimeUnit.SECONDS)
       }
     }
@@ -379,24 +543,25 @@ class WaterMarkOrderProducer extends KafkaTestProducer {
 }
 
 class PerPartitionOrderProducer extends KafkaTestProducer {
+  override def toString: String = "Producing events in order per partition"
+
   def runProducer(csvPath: String, startDelay: Long = 0) : Unit = {
     val thread = new Thread {
       override def run(): Unit = {
         if (startDelay != 0)
           Thread.sleep(startDelay)
-
         val source_file = Source.fromFile(csvPath)
         val source_as_str = source_file.mkString
         source_file.close()
         val event_lines = source_as_str.split('\n')
-        val producer = makeProducer()
         for (line <- event_lines) {
-          producer.send(makeRecord(line))
+          sendRecord(line, Some(Random.nextInt(numPartitions)))
         }
-        sendEOFs(producer, MonitorKafkaConfig.getTopic)
+        sendEOFs()
         producer.close(10, TimeUnit.SECONDS)
       }
     }
     thread.start()
+    thread.join()
   }
 }

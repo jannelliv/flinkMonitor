@@ -24,6 +24,8 @@ class NullParser extends TraceParser {
   override def endOfInput(sink: Consumer[Fact]): Unit = ()
 
   override def inInitialState(): Boolean = true
+
+  override def dontSendTerminators(set: Boolean): Unit = throw new Exception("not implemented")
 }
 
 object ParsingBenchmark {

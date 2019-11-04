@@ -2,7 +2,7 @@ package ch.ethz.infsec
 
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, MonitorKafkaConfig, ReorderFactsFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, DebugMap, MonitorKafkaConfig, ReorderFunction, ReorderTotalOrderFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -16,27 +16,16 @@ import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
 
-class StreamMonitorBuilderWaterMarks(env: StreamExecutionEnvironment) extends StreamMonitorBuilder(env) {
-  override protected def sliceAndReorder(dataStream: DataStream[Fact], slicer: HypercubeSlicer): DataStream[Fact] = {
-    dataStream
-  }
-}
-
-class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends StreamMonitorBuilder(env) {
-  override protected def sliceAndReorder(dataStream: DataStream[Fact], slicer: HypercubeSlicer): DataStream[Fact] = {
-    val slicedTrace = dataStream
-      .flatMap(slicer)
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .name("Slicer")
-      .uid("slicer")
+class StreamMonitorBuilderParInput(env: StreamExecutionEnvironment, reorder: ReorderFunction) extends StreamMonitorBuilder(env) {
+  override protected def partitionAndReorder(dataStream: DataStream[(Int, Fact)], slicer: HypercubeSlicer): DataStream[Fact] = {
+    val indexTrace = dataStream
       .flatMap(new AddSubtaskIndexFunction)
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)
       .name("Add subtask index")
       .uid("subtask_index")
 
-    val partitionedTraceWithoutId = slicedTrace
+    val partitionedTraceWithoutId = indexTrace
       .partitionCustom(new IdPartitioner, 0)
       .map(k => (k._2, k._3))
       .setParallelism(slicer.degree)
@@ -45,7 +34,33 @@ class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends Stream
       .uid("remove-id")
 
     partitionedTraceWithoutId
-      .flatMap(new ReorderFactsFunction(StreamMonitoring.inputParallelism))
+      .flatMap(reorder)
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Reorder facts")
+      .uid("reorder-facts")
+  }
+}
+
+class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends StreamMonitorBuilder(env) {
+  override protected def partitionAndReorder(dataStream: DataStream[(Int, Fact)], slicer: HypercubeSlicer): DataStream[Fact] = {
+    val indexTrace = dataStream
+      .flatMap(new AddSubtaskIndexFunction)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .name("Add subtask index")
+      .uid("subtask_index")
+
+    val partitionedTraceWithoutId = indexTrace
+      .partitionCustom(new IdPartitioner, 0)
+      .map(k => (k._2, k._3))
+      .setParallelism(slicer.degree)
+      .setMaxParallelism(slicer.degree)
+      .name("Partition and remove slice ID")
+      .uid("remove-id")
+
+    partitionedTraceWithoutId
+      .flatMap(new ReorderTotalOrderFunction(StreamMonitoring.inputParallelism))
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Reorder facts")
@@ -109,12 +124,17 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
       .uid("print-sink")
   }
 
-  def parseTrace(traceFormat: TraceParser, dataStream: DataStream[String]) : DataStream[Fact] = {
+  def parseAndSliceTrace(traceFormat: TraceParser, slicer: HypercubeSlicer, dataStream: DataStream[String]) : DataStream[(Int, Fact)] = {
     dataStream.flatMap(new ParsingFunction(traceFormat))
       .name("Trace parser")
       .uid("trace-parser")
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)
+      .flatMap(slicer)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .name("Slicer")
+      .uid("slicer")
   }
 
   def postProcessStream(slicer: HypercubeSlicer, queueSize: Int, monitorProcess: ExternalProcess[Fact, Fact], dataStream: DataStream[Fact]) : DataStream[String] = {
@@ -141,7 +161,7 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
     printedVerdicts
   }
 
-  protected def sliceAndReorder(dataStream: DataStream[Fact], slicer: HypercubeSlicer) : DataStream[Fact]
+  protected def partitionAndReorder(dataStream: DataStream[(Int, Fact)], slicer: HypercubeSlicer) : DataStream[Fact]
 
   def assemble(inputStream: DataStream[String],
                traceFormat: TraceParser,
@@ -151,7 +171,7 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
                queueSize: Int): DataStream[String] = {
 
 //    val parser = new TraceMonitor(traceFormat.createParser(), new RescaleInitiator().rescale)
-    val parsedTrace = parseTrace(traceFormat, inputStream)
+    val parsedAndSlicedTrace = parseAndSliceTrace(traceFormat, slicer, inputStream)
 
     /*
     val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record](new OutsideInfluence(true).asInstanceOf[Processor[Record,Record] with Serializable]))
@@ -168,7 +188,7 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
     }
     */
 
-    val reorderedTrace = sliceAndReorder(parsedTrace, slicer)
+    val reorderedTrace = partitionAndReorder(parsedAndSlicedTrace, slicer)
 
 
     // XXX(JS): Implement this comment here:

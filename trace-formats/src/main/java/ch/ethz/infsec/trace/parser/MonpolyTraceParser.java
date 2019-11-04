@@ -215,6 +215,11 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
         runParser(sink);
     }
 
+    @Override
+    public void dontSendTerminators(boolean set) {
+        throw new RuntimeException("not implemented");
+    }
+
     public void parse(Consumer<Fact> sink, String input) throws ParseException {
         lexer.setPartialInput(input);
         runParser(sink);
