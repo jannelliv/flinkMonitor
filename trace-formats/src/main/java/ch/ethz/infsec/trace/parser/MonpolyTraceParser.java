@@ -57,7 +57,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
 
     private void finishDatabase(Consumer<Fact> sink) {
         factBuffer.forEach(sink);
-        sink.accept(Fact.terminator(timestamp));
+        sink.accept(Fact.terminator(Long.valueOf(timestamp)));
         timestamp = null;
         relationName = null;
         factBuffer.clear();
@@ -68,7 +68,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
     }
 
     private void finishTuple() {
-        factBuffer.add(new Fact(relationName, timestamp, new ArrayList<>(fields)));
+        factBuffer.add(new Fact(relationName, Long.valueOf(timestamp), new ArrayList<>(fields)));
         fields.clear();
     }
 

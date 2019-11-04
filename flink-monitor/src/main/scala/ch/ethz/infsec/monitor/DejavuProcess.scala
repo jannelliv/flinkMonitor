@@ -35,7 +35,7 @@ class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[Fa
 
   override protected def parseResult(line: String, sink: Fact => Unit): Boolean = {
     if (line.startsWith(DejavuProcess.VIOLATION_PREFIX)) {
-      sink(Fact.make("", "", line.stripPrefix(DejavuProcess.VIOLATION_PREFIX).stripSuffix(":\n")))
+      sink(Fact.make("", 0L, line.stripPrefix(DejavuProcess.VIOLATION_PREFIX).stripSuffix(":\n")))
       true
     } else if (line.startsWith(DejavuProcess.SYNC_REPLY)) {
       false

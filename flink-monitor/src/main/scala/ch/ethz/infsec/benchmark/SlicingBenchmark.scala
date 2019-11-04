@@ -11,7 +11,7 @@ import scala.util.Random
 object SlicingBenchmark {
   val random = new Random(1234)
 
-  def mkRecord(): Fact = Fact.make("P", "10203",
+  def mkRecord(): Fact = Fact.make("P", 10203L,
     Long.box(random.nextInt().toLong),
     Long.box(random.nextInt().toLong),
     Long.box(random.nextInt().toLong),

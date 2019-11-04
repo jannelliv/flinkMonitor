@@ -115,7 +115,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     val slicer = new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
       IndexedSeq(IndexedSeq(2, 2, 2)), 11, 314159)
     val seenSlices = new mutable.HashSet[Int]()
-    seenSlices ++= TestHelpers.flatMapAll(slicer, List(Fact.terminator("1234"))).map(_._1)
+    seenSlices ++= TestHelpers.flatMapAll(slicer, List(Fact.terminator(1234L))).map(_._1)
     seenSlices should contain theSameElementsAs Range(0, 8)
   }
 
@@ -215,7 +215,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
 
     forAll (Arbitrary.arbInt.arbitrary, withHeavy) { (x: Int, y: Int) =>
       val valuation = Array(Long.box(x): Any, Long.box(y))
-      val verdict = Fact.make("", "", Long.box(0), Long.box(y), Long.box(x))
+      val verdict = Fact.make("", 0L, Long.box(0), Long.box(y), Long.box(x))
 
       val slices = slicer.slicesOfValuation(valuation)
       slices should have size 1

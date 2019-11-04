@@ -69,7 +69,7 @@ public class MonpolyTraceFormatter extends AbstractMonpolyFormatter implements T
         } else {
             if (fact.isTerminator()) {
                 builder.append('@');
-                printString(fact.getTimestamp());
+                printString(fact.getTimestamp().toString());
                 printAndClearDatabase();
                 if (markDatabaseEnd) {
                     builder.append(';');

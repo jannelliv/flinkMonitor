@@ -25,18 +25,18 @@ public class Fact implements Serializable {
 
     // Invariant: At most one of name and (timestamp and timepoint) is null.
     private String name;
-    private String timestamp;
-    private String timepoint;
+    private Long timestamp;
+    private Long timepoint;
     private List<Object> arguments;
 
-    public Fact(String name, String timestamp, List<Object> arguments) {
+    public Fact(String name, Long timestamp, List<Object> arguments) {
         this.name = name;
         this.timestamp = timestamp;
         this.arguments = Objects.requireNonNull(arguments, "arguments");
     }
 
 
-    public static Fact make(String name, String timestamp, Object... arguments) {
+    public static Fact make(String name, Long timestamp, Object... arguments) {
         return new Fact(name, timestamp, Arrays.asList(arguments));
     }
 
@@ -48,17 +48,17 @@ public class Fact implements Serializable {
         this.name = name;
     }
 
-    public void setTimepoint(String timepoint) {
+    public void setTimepoint(Long timepoint) {
         this.timepoint = timepoint;
     }
 
-    public String getTimepoint() { return timepoint; }
+    public Long getTimepoint() { return timepoint; }
 
-    public String getTimestamp() {
+    public Long getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(String timestamp) {
+    public void setTimestamp(Long timestamp) {
         this.timestamp = timestamp;
     }
 
@@ -82,7 +82,7 @@ public class Fact implements Serializable {
         return name == null;
     }
 
-    public static Fact terminator(String timestamp) {
+    public static Fact terminator(Long timestamp) {
         return new Fact(null, timestamp, Collections.emptyList());
     }
 

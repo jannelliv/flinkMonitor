@@ -124,7 +124,7 @@ case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends Reorder
         .foreach(_.foreach(out.collect))
       if (DebugReorderFunction.isDebug)
         println(s"REORDER: FLUSHED ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
-      out.collect(Fact.terminator(ts.toString))
+      out.collect(Fact.terminator(ts))
       ts2Facts -= ts
     }
     currentTs = maxAgreedTerminator
@@ -141,7 +141,7 @@ case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends Reorder
             facts.foreach(out.collect)
             if (ts > maxTs) {
               maxTs = ts
-              out.collect(Fact.terminator(ts.toString))
+              out.collect(Fact.terminator(ts))
             }
           }
       }
@@ -158,7 +158,7 @@ case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends Reorder
       return
     }
 
-    val timeStamp = fact.getTimestamp.toLong
+    val timeStamp = fact.getTimestamp
     if(timeStamp > maxTs)
       maxTs = timeStamp
 
@@ -202,7 +202,7 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
         .get(ts)
         .foreach(_.foreach(out.collect))
 
-      out.collect(Fact.terminator(ts.toString))
+      out.collect(Fact.terminator(ts))
       ts2Facts -= ts
     }
     currentTs = maxAgreedTerminator
@@ -220,7 +220,7 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
             facts.foreach(out.collect)
             if (ts > maxTs) {
               maxTs = ts
-              out.collect(Fact.terminator(ts.toString))
+              out.collect(Fact.terminator(ts))
             }
           }
       }
@@ -245,7 +245,7 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
       }
     }
 
-    val timeStamp = fact.getTimestamp.toLong
+    val timeStamp = fact.getTimestamp
     if(timeStamp > maxTs)
       maxTs = timeStamp
 
@@ -301,7 +301,7 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
         .get(tp)
         .foreach(_.foreach(out.collect))
 
-      out.collect(Fact.terminator(tp2ts(tp).toString))
+      out.collect(Fact.terminator(tp2ts(tp)))
       tp2Facts -= tp
       tp2ts -= tp
     }
@@ -319,7 +319,7 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
             val timeStamp = tp2ts(tp)
             if (timeStamp > maxTs) {
               maxTs = timeStamp
-              out.collect(Fact.terminator(timeStamp.toString))
+              out.collect(Fact.terminator(timeStamp))
             }
           case None => ()
         }
@@ -336,8 +336,8 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
       }
       return
     }
-    val timePoint = fact.getTimepoint.toLong
-    val timeStamp = fact.getTimestamp.toLong
+    val timePoint = fact.getTimepoint.longValue()
+    val timeStamp = fact.getTimestamp.longValue()
     tp2ts += (timePoint -> timeStamp)
     if(timePoint > maxTp)
       maxTp = timePoint

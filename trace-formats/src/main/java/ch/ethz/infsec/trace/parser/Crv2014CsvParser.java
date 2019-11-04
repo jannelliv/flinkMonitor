@@ -11,14 +11,14 @@ import java.util.regex.Pattern;
 public class Crv2014CsvParser implements TraceParser, Serializable {
     private static final long serialVersionUID = -919182766017476946L;
 
-    private String lastTimePoint;
-    private String lastTimestamp;
+    private Long lastTimePoint;
+    private Long lastTimestamp;
     private boolean alreadyTerminated;
     private boolean sendTerminators;
 
     public Crv2014CsvParser() {
-        this.lastTimePoint = "0";
-        this.lastTimestamp = "0";
+        this.lastTimePoint = null;
+        this.lastTimestamp = null;
         this.alreadyTerminated = false;
         this.sendTerminators = true;
     }
@@ -31,7 +31,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         }
     }
 
-    private void beginNewEvent(Consumer<Fact> sink, String newTimePoint, String newTimestamp) {
+    private void beginNewEvent(Consumer<Fact> sink, Long newTimePoint, Long newTimestamp) {
         terminateEvent(sink);
         lastTimePoint = newTimePoint;
         lastTimestamp = newTimestamp;
@@ -52,7 +52,6 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
 
     @Override
     public void parseLine(Consumer<Fact> sink, String line) throws ParseException {
-        assert !(lastTimestamp == null);
         final String trimmed = line.trim();
         if (trimmed.isEmpty()) {
             return;
@@ -108,7 +107,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (end < 0) {
             throw new ParseException(line);
         }
-        final String timePoint = line.substring(start, end).trim();
+        final Long timePoint = Long.valueOf(line.substring(start, end).trim());
 
         start = line.indexOf('=', end + 1) + 1;
         if (start <= 0) {
@@ -118,7 +117,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (end < 0) {
             end = line.length();
         }
-        final String timestamp = line.substring(start, end).trim();
+        final Long timestamp = Long.valueOf(line.substring(start, end).trim());
 
         final ArrayList<Object> arguments = new ArrayList<>();
         while (end < line.length()) {

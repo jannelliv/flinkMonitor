@@ -20,7 +20,7 @@ public class FactSerializerTest {
 
     @Test
     public void testRoundTrip() {
-        final Fact writtenFact = Fact.make("hello world", "12345678", "String", 42L, 1.234);
+        final Fact writtenFact = Fact.make("hello world", 12345678L, "String", 42L, 1.234);
 
         final Output output = new Output(1024);
         kryo.writeObject(output, writtenFact);

@@ -36,37 +36,37 @@ public class Crv2014CsvParserTest {
         assertTrue(sink.isEmpty());
 
         parser.parseLine(sink::add, "a,tp=1,ts=11");
-        assertEquals(Collections.singletonList(Fact.make("a", "11")), sink);
+        assertEquals(Collections.singletonList(Fact.make("a", 11L)), sink);
 
         sink.clear();
         parser.parseLine(sink::add, "ab, tp = 1, ts = 11, x = y");
         parser.parseLine(sink::add, ";;\n");
         assertEquals(Arrays.asList(
-                Fact.make("ab", "11", "y"),
-                Fact.terminator("11")
+                Fact.make("ab", 11L, "y"),
+                Fact.terminator(11L)
         ), sink);
 
         sink.clear();
         parser.parseLine(sink::add, " cde , tp = 2 , ts = 11 , x =  y\r\n");
-        assertEquals(Collections.singletonList(Fact.make("cde", "11", "y")), sink);
+        assertEquals(Collections.singletonList(Fact.make("cde", 11L, "y")), sink);
 
         sink.clear();
         parser.parseLine(sink::add, "a, tp=2, ts=12, x=y, 123 = 4Foo56   ");
         assertEquals(Arrays.asList(
-                Fact.terminator("11"),
-                Fact.make("a", "12", "y", "4Foo56")
+                Fact.terminator(11L),
+                Fact.make("a", 12L, "y", "4Foo56")
         ), sink);
 
         sink.clear();
         parser.endOfInput(sink::add);
-        assertEquals(Collections.singletonList(Fact.terminator("12")), sink);
+        assertEquals(Collections.singletonList(Fact.terminator(12L)), sink);
 
         sink.clear();
         parser.endOfInput(sink::add);
         assertTrue(sink.isEmpty());
 
         parser.parseLine(sink::add, "xyz, tp = 1, ts = 2");
-        assertEquals(Collections.singletonList(Fact.make("xyz", "2")), sink);
+        assertEquals(Collections.singletonList(Fact.make("xyz", 2L)), sink);
     }
 
     @Test
@@ -76,16 +76,16 @@ public class Crv2014CsvParserTest {
         parser.endOfInput(sink::add);
         assertEquals(Arrays.asList(
                 Fact.meta("foo"),
-                Fact.make("a", "1", "y"),
-                Fact.terminator("1")
+                Fact.make("a", 1L, "y"),
+                Fact.terminator(1L)
         ), sink);
 
         sink.clear();
         parser.parseLine(sink::add, "a,tp=1,ts=1,x=y");
         parser.parseLine(sink::add, ">foo \"hello <\" 123<");
         assertEquals(Arrays.asList(
-                Fact.make("a", "1", "y"),
-                Fact.terminator("1"),
+                Fact.make("a", 1L, "y"),
+                Fact.terminator(1L),
                 Fact.meta("foo", "hello <", "123")
         ), sink);
     }
@@ -105,7 +105,7 @@ public class Crv2014CsvParserTest {
         assertParseFailure("abc, tp=1, ts=1, foo, bar");
 
         parser.parseLine(sink::add, "abc, tp=1, ts=1, x=y");
-        assertEquals(Collections.singletonList(Fact.make("abc", "1", "y")), sink);
+        assertEquals(Collections.singletonList(Fact.make("abc", 1L, "y")), sink);
     }
 
     @Test
@@ -123,8 +123,8 @@ public class Crv2014CsvParserTest {
 
         parser.parseLine(sink::add, "def, tp=2, ts=2, foo=bar");
         assertEquals(Arrays.asList(
-                Fact.terminator("1"),
-                Fact.make("def", "2", "bar")
+                Fact.terminator(1L),
+                Fact.make("def", 2L, "bar")
         ), sink);
     }
 }

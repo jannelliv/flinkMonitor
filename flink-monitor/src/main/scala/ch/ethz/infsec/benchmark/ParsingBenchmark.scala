@@ -19,7 +19,7 @@ class ParsingBenchmark(input: Iterator[String], parser: TraceParser) {
 }
 
 class NullParser extends TraceParser {
-  override def parseLine(sink: Consumer[Fact], line: String): Unit = sink.accept(Fact.terminator(line))
+  override def parseLine(sink: Consumer[Fact], line: String): Unit = sink.accept(Fact.terminator(line.toLong))
 
   override def endOfInput(sink: Consumer[Fact]): Unit = ()
 

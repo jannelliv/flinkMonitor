@@ -17,8 +17,8 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
     @Override
     public void write(Kryo kryo, Output output, Fact fact) {
         output.writeString(fact.getName());
-        output.writeString(fact.getTimestamp());
-        output.writeString(fact.getTimepoint());
+        output.writeLong(fact.getTimestamp() == null ? -1 : fact.getTimestamp());
+        output.writeLong(fact.getTimepoint() == null ? -1 : fact.getTimepoint());
         output.writeInt(fact.getArity(), true);
         for (Object argument : fact.getArguments()) {
             if (argument instanceof Long) {
@@ -40,8 +40,8 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
     @Override
     public Fact read(Kryo kryo, Input input, Class<Fact> aClass) {
         final String name = input.readString();
-        final String timestamp = input.readString();
-        final String timepoint = input.readString();
+        final Long timestamp = input.readLong();
+        final Long timepoint = input.readLong();
         final int arity = input.readInt(true);
         final ArrayList<Object> arguments = new ArrayList<>(arity);
         for (int i = 0; i < arity; ++i) {

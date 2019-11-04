@@ -14,7 +14,7 @@ class EchoMonpolyProcess(override val command: Seq[String]) extends MonpolyProce
         case Right(_) => true
       }
     } else {
-      sink(Fact.make("", "", line))
+      sink(Fact.make("", 0L, line))
       true
     }
   }

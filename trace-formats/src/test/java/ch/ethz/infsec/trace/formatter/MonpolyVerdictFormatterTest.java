@@ -23,29 +23,29 @@ public class MonpolyVerdictFormatterTest {
 
     @Test
     public void testPrintFact() throws Exception {
-        formatter.printFact(sink::append, Fact.make("", "123", "1001"));
-        formatter.printFact(sink::append, Fact.terminator("123"));
+        formatter.printFact(sink::append, Fact.make("", 123L, "1001"));
+        formatter.printFact(sink::append, Fact.terminator(123L));
         assertEquals("@123. (time point 1001): true\n", sink.toString());
 
         sink.setLength(0);
-        formatter.printFact(sink::append, Fact.terminator("123"));
+        formatter.printFact(sink::append, Fact.terminator(123L));
         assertEquals("", sink.toString());
 
         sink.setLength(0);
-        formatter.printFact(sink::append, Fact.make("", "456", "1002", "abc"));
-        formatter.printFact(sink::append, Fact.make("", "456", "1002", "def"));
-        formatter.printFact(sink::append, Fact.terminator("456"));
-        formatter.printFact(sink::append, Fact.make("", "456", "1003", "foo bar", "42"));
-        formatter.printFact(sink::append, Fact.terminator("456"));
+        formatter.printFact(sink::append, Fact.make("", 456L, "1002", "abc"));
+        formatter.printFact(sink::append, Fact.make("", 456L, "1002", "def"));
+        formatter.printFact(sink::append, Fact.terminator(456L));
+        formatter.printFact(sink::append, Fact.make("", 456L, "1003", "foo bar", "42"));
+        formatter.printFact(sink::append, Fact.terminator(456L));
         assertEquals("@456. (time point 1002): (abc)(def)\n@456. (time point 1003): (\"foo bar\",42)\n", sink.toString());
     }
 
     @Test
     public void testSerialization() throws Exception {
-        formatter.printFact(sink::append, Fact.make("", "456", "1002", "abc"));
-        formatter.printFact(sink::append, Fact.make("", "456", "1002", "def"));
-        formatter.printFact(sink::append, Fact.terminator("456"));
-        formatter.printFact(sink::append, Fact.make("", "456", "1003", "foo bar", "42"));
+        formatter.printFact(sink::append, Fact.make("", 456L, "1002", "abc"));
+        formatter.printFact(sink::append, Fact.make("", 456L, "1002", "def"));
+        formatter.printFact(sink::append, Fact.terminator(456L));
+        formatter.printFact(sink::append, Fact.make("", 456L, "1003", "foo bar", "42"));
         sink.setLength(0);
 
         final ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -56,8 +56,8 @@ public class MonpolyVerdictFormatterTest {
         final ObjectInputStream objectIn = new ObjectInputStream(in);
         formatter = (MonpolyVerdictFormatter) objectIn.readObject();
 
-        formatter.printFact(sink::append, Fact.make("", "456", "1003", "uvw", "xyz"));
-        formatter.printFact(sink::append, Fact.terminator("456"));
+        formatter.printFact(sink::append, Fact.make("", 456L, "1003", "uvw", "xyz"));
+        formatter.printFact(sink::append, Fact.terminator(456L));
         assertEquals("@456. (time point 1003): (\"foo bar\",42)(uvw,xyz)\n", sink.toString());
     }
 }
