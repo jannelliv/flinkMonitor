@@ -19,7 +19,7 @@ def fail(s: str):
     sys.exit(1)
 
 
-def exe_cmd(cmd, print_stdout: bool) -> CompletedProcess:
+def exe_cmd(cmd: List[str], print_stdout: bool) -> CompletedProcess:
     p = subprocess.run(cmd, capture_output=True)
     if p.returncode != 0:
         fail('Error: failed to execute cmd ' + (" ".join(p.args)) + "\n\n" + p.stderr.decode(sys.getdefaultencoding()))
