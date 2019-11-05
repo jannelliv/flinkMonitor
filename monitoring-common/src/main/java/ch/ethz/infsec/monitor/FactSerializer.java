@@ -40,8 +40,14 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
     @Override
     public Fact read(Kryo kryo, Input input, Class<Fact> aClass) {
         final String name = input.readString();
-        final Long timestamp = input.readLong();
-        final Long timepoint = input.readLong();
+        Long timestamp = input.readLong();
+        if (timestamp.equals(-1L)) {
+            timestamp = null;
+        }
+        Long timepoint = input.readLong();
+        if (timepoint.equals(-1L)) {
+            timepoint = null;
+        }
         final int arity = input.readInt(true);
         final ArrayList<Object> arguments = new ArrayList<>(arity);
         for (int i = 0; i < arity; ++i) {

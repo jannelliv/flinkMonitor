@@ -343,6 +343,8 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
       maxTp = timePoint
 
     if (timePoint < currentTp) {
+      if (DebugReorderFunction.isDebug)
+        println(s"REORDER: got tp $timePoint but currenttp is $currentTp")
       throw new Exception("FATAL ERROR: Got a timepoint that should already be flushed")
     }
     insertElement(fact, idx, timePoint)
