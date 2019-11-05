@@ -25,7 +25,7 @@ class NullParser extends TraceParser {
 
   override def inInitialState(): Boolean = true
 
-  override def dontSendTerminators(set: Boolean): Unit = throw new Exception("not implemented")
+  override def setTerminatorMode(mode: TraceParser.TerminatorMode): Unit = throw new Exception("not implemented")
 }
 
 object ParsingBenchmark {

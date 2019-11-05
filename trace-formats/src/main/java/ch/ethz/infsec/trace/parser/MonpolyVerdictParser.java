@@ -212,7 +212,7 @@ public class MonpolyVerdictParser implements TraceParser, Serializable {
     }
 
     @Override
-    public void dontSendTerminators(boolean set) {
+    public void setTerminatorMode(TerminatorMode mode) {
         throw new RuntimeException("not implemented");
     }
 

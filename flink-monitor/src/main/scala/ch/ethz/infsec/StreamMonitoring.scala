@@ -314,7 +314,7 @@ object StreamMonitoring {
             multiSourceVariant.getTestProducer.runProducer(kafkatestfile)
           }
           monitor = multiSourceVariant.getStreamMonitorBuilder(env)
-          inputFormat.dontSendTerminators(multiSourceVariant.dontSendTerminators())
+          inputFormat.setTerminatorMode(multiSourceVariant.getTerminatorMode)
           monitor.kafkaSource()
         case _ => fail("Cannot parse the input argument")
       }

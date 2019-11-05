@@ -5,6 +5,7 @@ import java.util.concurrent.TimeUnit
 
 import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderParInput}
 import ch.ethz.infsec.monitor.Fact
+import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
 import org.apache.commons.math3.distribution.GeometricDistribution
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
@@ -34,7 +35,7 @@ sealed class MultiSourceVariant {
   override def toString: String = {
     "MULTISOURCE CONFIG\n" +
       "Test producer: " + getTestProducer.toString + "\n" +
-      "Terminators: " + !dontSendTerminators() + "\n" +
+      "Terminators: " + getTerminatorMode.toString + "\n" +
       "Reorder function: " + getReorderFunction.toString
   }
 
@@ -51,11 +52,11 @@ sealed class MultiSourceVariant {
     new StreamMonitorBuilderParInput(env, getReorderFunction)
   }
 
-  def dontSendTerminators() : Boolean = {
+  def getTerminatorMode : TerminatorMode = {
     this match {
-      case TotalOrder() => false
-      case PerPartitionOrder() => false
-      case WaterMarkOrder() => true
+      case TotalOrder() => TerminatorMode.ALL_TERMINATORS
+      case PerPartitionOrder() => TerminatorMode.ONLY_TIMESTAMPS
+      case WaterMarkOrder() => TerminatorMode.NO_TERMINATORS
       case _ => throw new Exception("case failed")
     }
   }
@@ -176,7 +177,7 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
 
   private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
   private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  private var currentTs: Long = 0
+  private var currentTs: Long = -1
   private var maxTs: Long = -1
   private var numEOF: Int = 0
 

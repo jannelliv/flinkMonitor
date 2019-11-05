@@ -2,14 +2,19 @@
 
 import re
 import sys
+import argparse
 
-if len(sys.argv) != 3:
-    print("Usage: verdicts_diff.py <reference> <verdicts>")
-    sys.exit(2)
+parser = argparse.ArgumentParser(description="Compare verdicts to Monpoly output")
+parser.add_argument('-c', '--collapse', action="store_true", help='Collapse the timepoints')
+parser.add_argument('reference_path')
+parser.add_argument('verdict_path')
+args = parser.parse_args()
 
 verdict_re = re.compile(r'@(\d+). \(time point (\d+)\): (.+)$')
 tuple_re = re.compile(r'\(((?:[^",)]*|"[^"]*")(?:,[^",)]*|"[^"]*")*)\)')
-def read_verdicts(path, fail_unknown):
+
+
+def read_verdicts(path, fail_unknown, is_ref):
     unknown = 0
     verdicts = []
     with open(path, 'r') as f:
@@ -27,7 +32,10 @@ def read_verdicts(path, fail_unknown):
                     unknown += 1
             else:
                 ts = match.group(1)
-                tp = match.group(2)
+                if args.collapse and is_ref:
+                    tp = ts
+                else:
+                    tp = match.group(2)
                 data = match.group(3)
                 tuples = []
                 if data == 'true':
@@ -43,14 +51,17 @@ def read_verdicts(path, fail_unknown):
     verdicts.sort()
     return verdicts, unknown
 
-reference, _ = read_verdicts(sys.argv[1], True)
-verdicts, unknown = read_verdicts(sys.argv[2], False)
+
+reference, _ = read_verdicts(args.reference_path, True, True)
+verdicts, unknown = read_verdicts(args.verdict_path, False, False)
+
 
 def verdict_str(v):
     tp = v[0]
     ts = v[1]
     params = v[2:]
     return '@' + ts + ' (' + tp +'): ' + ', '.join(params)
+
 
 diff = 0
 r = 0

@@ -14,13 +14,15 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
     private Long lastTimePoint;
     private Long lastTimestamp;
     private boolean alreadyTerminated;
-    private boolean sendTerminators;
+    private boolean genTermsforTp;
+    private boolean genTermsforTs;
 
     public Crv2014CsvParser() {
         this.lastTimePoint = null;
         this.lastTimestamp = null;
         this.alreadyTerminated = false;
-        this.sendTerminators = true;
+        this.genTermsforTp = true;
+        this.genTermsforTs = true;
     }
 
     private void terminateEvent(Consumer<Fact> sink) {
@@ -39,8 +41,12 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
     }
 
     @Override
-    public void dontSendTerminators(boolean set) {
-        sendTerminators = !set;
+    public void setTerminatorMode(TerminatorMode mode) {
+        switch (mode) {
+            case ALL_TERMINATORS: genTermsforTs = true; genTermsforTp = true; break;
+            case ONLY_TIMESTAMPS: genTermsforTs = true; genTermsforTp = false; break;
+            case NO_TERMINATORS: genTermsforTs = false; genTermsforTp = false; break;
+        }
     }
 
     @Override
@@ -132,8 +138,15 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
             arguments.add(line.substring(start, end).trim());
         }
 
-        if (!(timePoint.equals(lastTimePoint) && timestamp.equals(lastTimestamp)) && sendTerminators) {
-            beginNewEvent(sink, timePoint, timestamp);
+        if (genTermsforTs) {
+            boolean check = false;
+            if (!timestamp.equals(lastTimestamp)) {
+                beginNewEvent(sink, timePoint, timestamp);
+                check = true;
+            }
+            if (!timePoint.equals(lastTimePoint) && genTermsforTp && !check) {
+                beginNewEvent(sink, timePoint, timestamp);
+            }
         }
         Fact fact = new Fact(factName, timestamp, arguments);
         fact.setTimepoint(timePoint);

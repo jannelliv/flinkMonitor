@@ -40,7 +40,7 @@ if [[ $? != 0 ]]; then
 fi
 
 echo "Running Flink monitor ..."
-"$FLINKDIR/bin/flink" run "$JARPATH" --multi 1 --in "kafka" --kafkatestfile "$TEMPDIR/trace.csv" --format csv --sig "$DATADIR/synth.sig" --formula "$DATADIR/triangle-neg.mfotl" \
+"$FLINKDIR/bin/flink" run "$JARPATH" --multi 3 --in "kafka" --kafkatestfile "$TEMPDIR/trace.csv" --format csv --sig "$DATADIR/synth.sig" --formula "$DATADIR/triangle-neg.mfotl" \
         --negate false --monitor monpoly --command "/home/rofl/git/scalable-online-monitor/evaluation/run-monpoly.sh {ID}" --processors $PROCESSORS --out "$TEMPDIR/flink-out"
 if [[ $? != 0 ]]; then
     fail
