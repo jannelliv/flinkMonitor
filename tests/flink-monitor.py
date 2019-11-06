@@ -7,15 +7,19 @@ import subprocess
 import tempfile
 import shutil
 import glob
+import atexit
 from subprocess import CompletedProcess
 from verdicts_diff import verify_verdicts
 from typing import List
 
 
+def del_tmp():
+    shutil.rmtree(tmp_dir)
+
+
 def fail(s: str):
     print(s)
     print("=== TEST FAILED ===")
-    shutil.rmtree(tmp_dir)
     sys.exit(1)
 
 
@@ -46,6 +50,7 @@ parser.add_argument('flink_dir')
 args = parser.parse_args()
 
 tmp_dir = tempfile.mkdtemp()
+atexit.register(del_tmp)
 print("Temp dir is: " + tmp_dir)
 work_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 jar_path = work_dir + '/flink-monitor/target/flink-monitor-1.0-SNAPSHOT.jar'
