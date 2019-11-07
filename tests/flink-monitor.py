@@ -27,6 +27,9 @@ def exe_cmd(cmd: List[str], print_stdout: bool) -> CompletedProcess:
     p = subprocess.run(cmd, capture_output=True)
     if p.returncode != 0:
         fail('Error: failed to execute cmd ' + (" ".join(p.args)) + "\n\n" + p.stderr.decode(sys.getdefaultencoding()))
+    stderr = p.stderr.decode(sys.getdefaultencoding())
+    if stderr.strip():
+        print(p.stderr)
     if print_stdout:
         print(p.stdout.decode(sys.getdefaultencoding()))
     return p
