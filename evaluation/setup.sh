@@ -115,9 +115,42 @@ else
     rm "$flink_archive"
 fi
 
+kafka_dir="$target_dir/kafka"
+kafka_url="https://archive.apache.org/dist/kafka/0.11.0.3/kafka_2.12-0.11.0.3.tgz"
+if [[ -d "$kafka_dir" ]]; then
+    info "Kafka directory exists, skipping"
+    info "delete $kafka_dir to reinstall"
+else
+    info "downloading Kafka"
+    kafka_archive="$target_dir/kafka.tar.gz"
+    [[ ! -a "kafka_archive" ]] || fatal_error "would overwrite kafka.tar.gz"
+    curl -fLR# -o "kafka_archive" "$kafka_url" || fatal_error "could not download Kafka"
+    (cd "$target_dir" && tar -xzf "$kafka_archive" && mv kafka_2.12-0.11.0.3 kafka) || fatal_error "could not extract Kafka archive"
+    rm "$kafka_archive"
+fi
+
+zookeeper_dir="$target_dir/flink"
+zookeeper_url="http://mirror.easyname.ch/apache/zookeeper/zookeeper-3.5.5/apache-zookeeper-3.5.5-bin.tar.gz"
+if [[ -d "zookeeper_dir" ]]; then
+    info "Zookeeper directory exists, skipping"
+    info "delete $zookeeper_dir to reinstall"
+else
+    info "downloading Zookeeper"
+    zookeeper_archive="$target_dir/zookeeper.tar.gz"
+    [[ ! -a "zookeeper_archive" ]] || fatal_error "would overwrite zookeeper.tar.gz"
+    curl -fLR# -o "kafka_archive" "$zookeeper_url" || fatal_error "could not download Zookeeper"
+    (cd "$target_dir" && tar -xzf "$zookeeper_archive" && mv apache-zookeeper-3.5.5-bin zookeeper) || fatal_error "could not extract Zookeeper archive"
+    rm "$zookeeper_archive"
+fi
+
 # Configuration
 info "replacing the Flink configuration"
 cp "$monitor_dir/evaluation/flink-conf.yaml" "$flink_dir/conf" || fatal_error "could not copy the Flink configuration"
+
+info "replacing the Kafka configuration"
+cp "$monitor_dir/evaluation/server.properties" "$kafka_dir/config" || fatal_error "could not copy the Kafka configuration"
+
+info "repl
 
 ### Nokia log #################################################################
 

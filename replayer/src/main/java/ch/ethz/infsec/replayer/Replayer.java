@@ -113,6 +113,19 @@ public class Replayer {
         abstract void flush() throws IOException;
     }
 
+    private class KafkaOutput extends Output {
+
+        @Override
+        void writeString(String string) throws IOException {
+
+        }
+
+        @Override
+        void flush() throws IOException {
+
+        }
+    }
+
     private class StandardOutput extends Output {
         private final BufferedWriter writer = new BufferedWriter(new OutputStreamWriter(System.out));
 
