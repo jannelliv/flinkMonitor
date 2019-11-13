@@ -1,21 +1,24 @@
 package ch.ethz.infsec.replayer;
 
+import ch.ethz.infsec.kafka.MonitorKafkaConfig;
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.trace.formatter.*;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import ch.ethz.infsec.trace.parser.TraceParser;
 import org.apache.commons.io.IOUtils;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.common.record.Record;
 
 import java.io.*;
 import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.Objects;
+import java.util.*;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RecursiveAction;
 
 public class Replayer {
     private static final int FACT_CHUNK_SIZE = 128;
@@ -114,15 +117,35 @@ public class Replayer {
     }
 
     private class KafkaOutput extends Output {
+        private KafkaProducer<String, String> producer;
+        private int numPartitions;
+        private String topic;
+        private final Random rand = new Random();
 
-        @Override
-        void writeString(String string) throws IOException {
-
+        KafkaOutput() {
+            MonitorKafkaConfig.init(new Properties());
+            numPartitions = MonitorKafkaConfig.getNumPartitions();
+            producer = new KafkaProducer<>(MonitorKafkaConfig.getKafkaProps());
+            topic = MonitorKafkaConfig.getTopic();
         }
 
         @Override
-        void flush() throws IOException {
+        void writeString(String string) {
+            if (string.startsWith(">EOF") || string.startsWith(">TERMSTREAM")) {
+                for (int i = 0; i < numPartitions; ++i) {
+                    ProducerRecord<String, String> record = new ProducerRecord<>(topic, i, "", string);
+                    producer.send(record);
+                }
+                return;
+            }
+            int partition = rand.nextInt(numPartitions);
+            ProducerRecord<String, String> record = new ProducerRecord<>(topic, partition, "", string);
+            producer.send(record);
+        }
 
+        @Override
+        void flush() {
+            producer.flush();
         }
     }
 
@@ -373,7 +396,7 @@ public class Replayer {
         }
 
         private void processFact(Fact fact) {
-            final long timestamp = Long.valueOf(fact.getTimestamp());
+            final long timestamp = fact.getTimestamp();
             if (firstTimestamp < 0) {
                 firstTimestamp = timestamp;
             }

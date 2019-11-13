@@ -1,8 +1,9 @@
 package ch.ethz.infsec
 
+import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, DebugMap, MonitorKafkaConfig, ReorderFunction, ReorderTotalOrderFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ReorderFunction, ReorderTotalOrderFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}

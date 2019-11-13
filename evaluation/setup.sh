@@ -28,6 +28,7 @@ else
     opam init --compiler="$ocaml_compiler" --no-setup || fatal_error "opam init failed"
 fi
 eval $(opam config env)
+opam install -y ocamlfind || fatal_error "installing ocamlfind failed"
 
 ### MonPoly ###################################################################
 

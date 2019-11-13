@@ -6,9 +6,10 @@ import java.util.concurrent.{Callable, Executors, TimeUnit}
 import java.util.logging.{Level, Logger}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
+import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, MonitorKafkaConfig, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
+import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool

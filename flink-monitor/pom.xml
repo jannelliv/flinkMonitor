@@ -17,8 +17,6 @@
     <name>Flink Monitor Job</name>
 
     <properties>
-        <scala.binary.version>2.12</scala.binary.version>
-        <scala.version>2.12.7</scala.version>
         <flink.version>1.7.2</flink.version>
     </properties>
 
