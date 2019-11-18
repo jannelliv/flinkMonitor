@@ -362,7 +362,7 @@ class KafkaTestProducer(inputDir: String, inputFilePrefix: String) {
   require(inputFiles.length == numPartitions, "Kafka must be configured to use the same number of partitions " +
     "as there are input files")
   require(inputFiles.length == inputFiles.map(_._1).distinct.length, "Error with parsing of partition numbers" +
-    " ,there are duplicates")
+    ", there are duplicates")
   require(inputFiles.forall(k => k._1 >= 0 && k._1 < numPartitions), "Some inputfile numbers are too small/too big")
 
   //Producer is thread safe according to the kafka documentation

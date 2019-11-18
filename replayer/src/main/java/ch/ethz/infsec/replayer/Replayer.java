@@ -118,27 +118,17 @@ public class Replayer {
 
     private class KafkaOutput extends Output {
         private KafkaProducer<String, String> producer;
-        private int numPartitions;
+        private int partition;
         private String topic;
-        private final Random rand = new Random();
 
-        KafkaOutput() {
-            MonitorKafkaConfig.init(new Properties());
-            numPartitions = MonitorKafkaConfig.getNumPartitions();
+        KafkaOutput(int partition) {
             producer = new KafkaProducer<>(MonitorKafkaConfig.getKafkaProps());
             topic = MonitorKafkaConfig.getTopic();
+            this.partition = partition;
         }
 
         @Override
         void writeString(String string) {
-            if (string.startsWith(">EOF") || string.startsWith(">TERMSTREAM")) {
-                for (int i = 0; i < numPartitions; ++i) {
-                    ProducerRecord<String, String> record = new ProducerRecord<>(topic, i, "", string);
-                    producer.send(record);
-                }
-                return;
-            }
-            int partition = rand.nextInt(numPartitions);
             ProducerRecord<String, String> record = new ProducerRecord<>(topic, partition, "", string);
             producer.send(record);
         }
@@ -599,8 +589,10 @@ public class Replayer {
         String inputFilename = null;
         String outputHost = null;
         int outputPort = 0;
+        int numInputFiles = 1;
         boolean reconnect = false;
         boolean markDatabaseEnd = true;
+        boolean outputToKafka = false;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -626,6 +618,12 @@ public class Replayer {
                             invalidArgument();
                         }
                         replayer.queueCapacity = Integer.parseInt(args[i]);
+                        break;
+                    case "-n":
+                        if (++i == args.length) {
+                            invalidArgument();
+                        }
+                        numInputFiles = Integer.parseInt(args[i]);
                         break;
                     case "-i":
                         if (++i == args.length) {
@@ -671,6 +669,10 @@ public class Replayer {
                         }
                         String[] parts = args[i].split(":", 2);
                         if (parts.length != 2) {
+                            if (args[i].equals("kafka")) {
+                                outputToKafka = true;
+                                break;
+                            }
                             invalidArgument();
                         }
                         outputHost = parts[0];

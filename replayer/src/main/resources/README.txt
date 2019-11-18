@@ -30,9 +30,13 @@ Options:
             between the reader and writer thread (default: 1024). Increase this
             value if -vv repeatedly reports underruns.
 
-    -o <host>:<port>
+    -n <number of sources>
+	    Number of different input sources
+
+    -o <host>:<port> | kafka
             Opens a TCP server listening on the given host name and port.
             Only a single client is accepted, to which the output is written.
+            If this parameter is set to kafka, the output is written to Kafka.
             If this option is not given, writes to stdout.
 
     -k      Allow TCP client to reconnect.

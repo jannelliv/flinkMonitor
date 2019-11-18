@@ -15,19 +15,31 @@ object MonitorKafkaConfig {
   private var addr : String = "127.0.0.1:9092"
 
   def init(props: Properties) : Unit = {
+    if (initDone)
+      throw new Exception("KafkaConfig was already initialized")
     val tnGet = props.getProperty("topicName")
-    val tn = if (tnGet == null) MonitorKafkaConfig.topicName else tnGet
+    val tn = if (tnGet == null) topicName else tnGet
     val gnGet = props.getProperty("groupName")
-    val gn = if (gnGet == null) MonitorKafkaConfig.groupName else gnGet
+    val gn = if (gnGet == null) groupName else gnGet
     val laddrGet = props.getProperty("addr")
-    val laddr = if (laddrGet == null) MonitorKafkaConfig.addr else laddrGet
-    init(tn, gn, laddr)
+    val laddr = if (laddrGet == null) addr else laddrGet
+    initInternal(tn, gn, laddr)
   }
 
   def init(
             topicName : String = topicName,
             groupName : String = groupName,
             addr : String = addr
+          ) : Unit = {
+    if (initDone)
+      throw new Exception("KafkaConfig was already initialized")
+    initInternal(topicName, groupName, addr)
+  }
+
+  private def initInternal(
+            topicName : String,
+            groupName : String,
+            addr : String
           ) : Unit = {
     MonitorKafkaConfig.topicName = topicName
     MonitorKafkaConfig.groupName = groupName
