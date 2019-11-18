@@ -1,22 +1,19 @@
 package ch.ethz.infsec.tools
 
-import java.util.concurrent.TimeUnit
-
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderParInput}
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
-import org.apache.commons.math3.distribution.GeometricDistribution
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
+import scala.reflect.io.Path._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
-import scala.util.Random
 
 object DebugReorderFunction {
   val isDebug: Boolean = false
@@ -32,18 +29,8 @@ class DebugMap[U] extends MapFunction[U, U] {
 sealed class MultiSourceVariant {
   override def toString: String = {
     "MULTISOURCE CONFIG\n" +
-      "Test producer: " + getTestProducer.toString + "\n" +
       "Terminators: " + getTerminatorMode.toString + "\n" +
       "Reorder function: " + getReorderFunction.toString
-  }
-
-  def getTestProducer : KafkaTestProducer = {
-    this match {
-      case TotalOrder() => new PerPartitionOrderProducer()
-      case PerPartitionOrder() => new PerPartitionOrderProducer()
-      case WaterMarkOrder() => new WaterMarkOrderProducer()
-      case _ => throw new Exception("case failed")
-    }
   }
 
   def getStreamMonitorBuilder(env: StreamExecutionEnvironment) : StreamMonitorBuilder = {
@@ -357,143 +344,52 @@ class TestSimpleStringSchema extends SimpleStringSchema {
   override def isEndOfStream(nextElement: String): Boolean = nextElement.startsWith(">TERMSTREAM")
 }
 
-abstract class KafkaTestProducer {
-  protected val topic: String = MonitorKafkaConfig.getTopic
-  protected val numPartitions: Int = MonitorKafkaConfig.getNumPartitions
-  protected val producer: KafkaProducer[String, String] = makeProducer()
+class KafkaTestProducer(inputDir: String, inputFilePrefix: String) {
+  private val topic: String = MonitorKafkaConfig.getTopic
+  private val producer: KafkaProducer[String, String] = makeProducer()
+  private val inputFiles: Array[(Int, Source)] = inputDir
+    .toDirectory
+    .files
+    .filter(k => k.name matches (inputFilePrefix + ".*\\.csv"))
+    .map{k =>
+      val PartNumRegex = (inputFilePrefix + """([0-9]+)\.csv""").r
+      val PartNumRegex(num) = k.name
+      (num.toInt, Source.fromFile(k.path))
+    }
+    .toArray
+  private val numPartitions: Int = MonitorKafkaConfig.getNumPartitions
+
+  require(inputFiles.length == numPartitions, "Kafka must be configured to use the same number of partitions " +
+    "as there are input files")
+  require(inputFiles.length == inputFiles.map(_._1).distinct.length, "Error with parsing of partition numbers" +
+    " ,there are duplicates")
+  require(inputFiles.forall(k => k._1 >= 0 && k._1 < numPartitions), "Some inputfile numbers are too small/too big")
+
+  //Producer is thread safe according to the kafka documentation
+  private class ProducerThread(partNum: Int, src: Source) extends Thread {
+    override def run(): Unit = {
+      src.getLines().foreach(l => sendRecord(l, partNum))
+    }
+  }
 
   private def makeProducer(): KafkaProducer[String, String] = new KafkaProducer[String, String](MonitorKafkaConfig.getKafkaProps)
 
-  def sendEOFs() : Unit = {
-    producer.flush()
-    sendRecord(">EOF<", None)
-    sendRecord(">TERMSTREAM<", None)
-    producer.flush()
+  private def sendRecord(line: String, partition: Int) : Unit = {
+      producer.send(new ProducerRecord[String, String](topic, partition, "", line + "\n"))
   }
 
-  def sendRecord(line: String, partition: Option[Int]) : Unit = {
-    partition match {
-      case Some(n) =>
-        require(n >= 0 && n < numPartitions)
-        val record = new ProducerRecord[String, String](MonitorKafkaConfig.getTopic, n, "", line + "\n")
-        producer.send(record)
-      case None =>
-        for (i <- 0 until numPartitions) {
-          val topic = MonitorKafkaConfig.getTopic
-          val record = new ProducerRecord[String, String](topic, i, "", line + "\n")
-          producer.send(record)
-        }
+  def runProducer(joinThreads: Boolean = false) : Unit = {
+    val buf = new ArrayBuffer[ProducerThread]()
+    for ((partNum, src) <- inputFiles) {
+      val t = new ProducerThread(partNum, src)
+      t.start()
+      buf += t
     }
-  }
-  def runProducer(csvPath: String, startDelay: Long = 0) : Unit
-}
 
-class WaterMarkOrderProducer extends KafkaTestProducer {
-  override def toString: String = "Producing events out of order with watermarks"
-
-  def moveCurrTs(currTs: Long, elementsLeft: Array[Int]) : Int = {
-    //Return the index of the first non-zero value of the array
-    for (i <- currTs.toInt until elementsLeft.length) {
-      if (elementsLeft(i) != 0) {
-        return i
-      }
+    if (joinThreads) {
+      buf.foreach(_.join())
     }
-    //DONE
-    elementsLeft.length
-  }
 
-  def sendWatermark(tsVal: Int) : Unit = {
-    producer.flush()
-    sendRecord(">WATERMARK " + tsVal + "<", None)
-    producer.flush()
-  }
-
-  def writeToKafka[U <: mutable.Buffer[String]](factMap: mutable.Map[Int, U]) : Unit = {
-    val sampler = new GeometricDistribution(0.5)
-    val maxTs = factMap.keys.max
-
-    //Lowest TS for which not all facts have been written to kafka
-    var currTs = factMap.keys.min
-
-    //TS are the idx of the arr, the values are the numbers of facts left for that TS
-    val elementsLeft = new Array[Int](maxTs + 1)
-
-    //Init the number of elements for each key
-    factMap.keys.foreach(k => elementsLeft(k) = factMap(k).length)
-
-    while (currTs != maxTs + 1) {
-      val currTsRet = moveCurrTs(currTs, elementsLeft)
-
-      //currTS update, send a watermark
-      if (currTsRet > currTs) {
-        sendWatermark(currTsRet - 1)
-      }
-
-      currTs = currTsRet
-      //Select a timestamp with a random offset (~ Geo) from the currentTS
-      val tsSample = math.min(maxTs, currTs + sampler.sample())
-      if (elementsLeft(tsSample) > 0) {
-        val buf = factMap(tsSample)
-        elementsLeft(tsSample) -= 1
-        //Select a random fact in the the set of facts with TS tsSample
-        val idxSample = Random.nextInt(buf.length)
-        val line = buf.remove(idxSample)
-        sendRecord(line, Some(Random.nextInt(numPartitions)))
-      }
-    }
-    sendWatermark(maxTs + 1)
-    sendEOFs()
-  }
-
-  override def runProducer(csvPath: String, startDelay: Long): Unit = {
-    val thread = new Thread {
-      override def run(): Unit = {
-        if (startDelay != 0)
-          Thread.sleep(startDelay)
-
-        val source_file = Source.fromFile(csvPath)
-        val source_as_str = source_file.mkString
-        source_file.close()
-        //Split input into lines
-        val event_lines = source_as_str.split('\n')
-        //Extract the timestamps and group by timestamps
-        val tsToLines = event_lines
-          .map(k => {
-            val ts = k.split(',')(2).split('=')(1).toInt
-            (ts, k)
-          })
-          .groupBy(_._1)
-          .mapValues(k => mutable.ArrayBuffer(k.map(_._2) :_* ))
-        //Randomize the trace and write it to kafka
-        writeToKafka(mutable.Map() ++= tsToLines)
-        producer.close(10, TimeUnit.SECONDS)
-      }
-    }
-    thread.start()
-    thread.join()
-  }
-}
-
-class PerPartitionOrderProducer extends KafkaTestProducer {
-  override def toString: String = "Producing events in order per partition"
-
-  def runProducer(csvPath: String, startDelay: Long = 0) : Unit = {
-    val thread = new Thread {
-      override def run(): Unit = {
-        if (startDelay != 0)
-          Thread.sleep(startDelay)
-        val source_file = Source.fromFile(csvPath)
-        val source_as_str = source_file.mkString
-        source_file.close()
-        val event_lines = source_as_str.split('\n')
-        for (line <- event_lines) {
-          sendRecord(line, Some(Random.nextInt(numPartitions)))
-        }
-        sendEOFs()
-        producer.close(10, TimeUnit.SECONDS)
-      }
-    }
-    thread.start()
-    thread.join()
+    inputFiles.foreach(_._2.close())
   }
 }

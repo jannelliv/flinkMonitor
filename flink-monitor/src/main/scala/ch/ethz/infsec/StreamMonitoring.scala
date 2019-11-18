@@ -9,7 +9,7 @@ import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
+import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
@@ -38,7 +38,7 @@ object StreamMonitoring {
   var out: Option[EndPoint] = _
   var inputFormat: TraceParser = _
   var watchInput: Boolean = false
-  var kafkatestfile: String = ""
+  var kafkaTestFile: String = ""
 
   var processors: Int = 0
 
@@ -89,7 +89,7 @@ object StreamMonitoring {
 
   def init(params: ParameterTool) {
     jobName = params.get("job", "Parallel Online Monitor")
-    kafkatestfile = params.get("kafkatestfile")
+    kafkaTestFile = params.get("kafkatestfile", "")
 
     checkpointUri = params.get("checkpoints", "")
 
@@ -311,8 +311,11 @@ object StreamMonitoring {
           MonitorKafkaConfig.init()
           inputParallelism = MonitorKafkaConfig.getNumPartitions
           Logger.getGlobal.log(Level.INFO, "\n" + multiSourceVariant.toString + "\n")
-          if (!kafkatestfile.isEmpty) {
-            multiSourceVariant.getTestProducer.runProducer(kafkatestfile)
+          if (!kafkaTestFile.isEmpty) {
+            val PrefixRegex = """(.*)/(.*)""".r
+            val PrefixRegex(kafkaDir, kafkaPrefix) = kafkaTestFile
+            val testProducer = new KafkaTestProducer(kafkaDir, kafkaPrefix)
+            testProducer.runProducer(true)
           }
           monitor = multiSourceVariant.getStreamMonitorBuilder(env)
           inputFormat.setTerminatorMode(multiSourceVariant.getTerminatorMode)

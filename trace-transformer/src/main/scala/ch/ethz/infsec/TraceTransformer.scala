@@ -1,25 +1,27 @@
 package ch.ethz.infsec
 
-import java.io.{BufferedWriter, FileWriter}
-import org.apache.commons.math3.distribution.GeometricDistribution
+import java.io.{BufferedWriter, FileWriter, Writer}
+
+import org.apache.commons.math3.distribution.{GeometricDistribution, NormalDistribution}
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 import scala.util.Random
 
-case class Config(numOutputs: Int = 4,
+sealed case class Config(numOutputs: Int = 4,
                   transformerId: Int = 1,
                   inputCsv: String = "input.csv",
-                  outoutCsvPrefix: String = "output")
+                  outoutCsvPrefix: String = "output",
+                  gamma: Double = 1.0)
 
-
-abstract class TransformerImpl(numPartitions: Int, output: Array[BufferedWriter]) {
-  protected def sendEOFs() : Unit = {
+abstract class TransformerImpl(numPartitions: Int, output: Array[Writer]) {
+  protected def sendEOFs(): Unit = {
     sendRecord(">EOF<", None)
     sendRecord(">TERMSTREAM<", None)
   }
 
-  protected def sendRecord(line: String, partition: Option[Int]) : Unit = {
+  protected def sendRecord(line: String, partition: Option[Int]): Unit = {
     partition match {
       case Some(i) =>
         require(i >= 0 && i < numPartitions)
@@ -28,11 +30,21 @@ abstract class TransformerImpl(numPartitions: Int, output: Array[BufferedWriter]
         (0 until numPartitions).foreach(i => output(i).write(line + "\n"))
     }
   }
-  def runTransformer() : Unit
+
+  def runTransformer(): Unit
 }
 
-class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array[BufferedWriter]) extends TransformerImpl(numPartitions, output) {
-  private def moveCurrTs(currTs: Long, elementsLeft: Array[Int]) : Int = {
+object WatermarkOrderHelpers {
+  def getTimeStamps(input: Source): Iterator[(Int, String)] = {
+    input.getLines().map(k => {
+      val ts = k.split(',')(2).split('=')(1).toInt
+      (ts, k)
+    })
+  }
+}
+
+class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array[Writer]) extends TransformerImpl(numPartitions, output) {
+  private def moveCurrTs(currTs: Long, elementsLeft: Array[Int]): Int = {
     //Return the index of the first non-zero value of the array
     for (i <- currTs.toInt until elementsLeft.length) {
       if (elementsLeft(i) != 0) {
@@ -43,11 +55,11 @@ class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array
     elementsLeft.length
   }
 
-  private def sendWatermark(tsVal: Int) : Unit = {
+  private def sendWatermark(tsVal: Int): Unit = {
     sendRecord(">WATERMARK " + tsVal + "<", None)
   }
 
-  private def writeToOutput[U <: mutable.Buffer[String]](factMap: mutable.Map[Int, U]) : Unit = {
+  private def writeToOutput[U <: mutable.Buffer[String]](factMap: mutable.Map[Int, U]): Unit = {
     val sampler = new GeometricDistribution(0.5)
     val maxTs = factMap.keys.max
 
@@ -85,23 +97,17 @@ class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array
   }
 
   override def runTransformer(): Unit = {
-    //Split input into lines
-    val event_lines = input.getLines().toArray
-    //Extract the timestamps and group by timestamps
-    val tsToLines = event_lines
-      .map(k => {
-        val ts = k.split(',')(2).split('=')(1).toInt
-        (ts, k)
-      })
+    val tsToLines = WatermarkOrderHelpers.getTimeStamps(input)
+      .toArray
       .groupBy(_._1)
-      .mapValues(k => mutable.ArrayBuffer(k.map(_._2) :_* ))
+      .mapValues(k => mutable.ArrayBuffer(k.map(_._2): _*))
     //Randomize the trace and write it to the output
     writeToOutput(mutable.Map() ++= tsToLines)
   }
 }
 
-class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Array[BufferedWriter]) extends TransformerImpl(numPartitions, output)  {
-  def runTransformer() : Unit = {
+class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Array[Writer]) extends TransformerImpl(numPartitions, output) {
+  def runTransformer(): Unit = {
     for (line <- input.getLines()) {
       sendRecord(line, Some(Random.nextInt(numPartitions)))
     }
@@ -109,26 +115,72 @@ class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Ar
   }
 }
 
-class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, output: Array[BufferedWriter]) extends TransformerImpl(numPartitions, output) {
+class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, output: Array[Writer], gamma: Double) extends TransformerImpl(numPartitions, output) {
+  val dist: NormalDistribution = new NormalDistribution(0, gamma)
+  val emissionSeparator: String = "'"
+
+  private def sample(): Int = {
+    dist.sample().toInt
+  }
+
+  private def makeRecord(emissionTime: Int, line: String): String = {
+    emissionTime + emissionSeparator + line
+  }
+
+  private def makeWatermark(emissionTime: Int, tsVal: Int): String = {
+    emissionTime + emissionSeparator + ">WATERMARK " + tsVal + "<"
+  }
+
   override def runTransformer(): Unit = {
-    sys.exit(1)
+    val tsAndLines = WatermarkOrderHelpers.getTimeStamps(input).toArray
+    val currTime = (0 until numPartitions map (_ => 0)).toArray
+    val outLines = (0 until numPartitions map (_ => ArrayBuffer[(Int, Int, String)]())).toArray
+    val tsLeft = mutable.Map() ++= tsAndLines.groupBy(_._1).mapValues(_.length)
+    for ((ts, line) <- tsAndLines) {
+      var left = tsLeft(ts)
+      left -= 1
+      require(left >= 0)
+      val emissiontime = Math.max(0, ts + sample())
+      val partition = Random.nextInt(numPartitions)
+      if (emissiontime > currTime(partition))
+        currTime(partition) = emissiontime
+      val record = makeRecord(emissiontime, line)
+      outLines(partition).append((emissiontime, ts, record))
+
+      if(left == 0) {
+        val maxemissiontime = currTime.max
+        val watermark = makeWatermark(maxemissiontime, ts)
+        for (i <- 0 until numPartitions) {
+          outLines(i).append((maxemissiontime, ts, watermark))
+        }
+        tsLeft -= ts
+      }
+      tsLeft(ts) = left
+    }
+    outLines
+      .map(k => k.sortWith((e1, e2) => e1._1 < e2._1))
+      .zipWithIndex
+      .foreach(e => e._1
+        .foreach(k => sendRecord(k._3, Some(e._2)))
+      )
+    sendEOFs()
   }
 }
 
 
 object TraceTransformer {
-  def parseArgs(args: Array[String]) : Config = {
+  def parseArgs(args: Array[String]): Config = {
     import scopt.OParser
     val builder = OParser.builder[Config]
     import builder._
     val parser = OParser.sequence(
       programName("Trace transformer"),
       opt[Int]('v', "version")
-          .required()
-          .valueName("<int>")
-          .validate(k => if (k >= 1 && k <= 4) Right(()) else Left("variant must be between 1 and 4"))
-          .action((n, c) => c.copy(transformerId = n))
-          .text("Id of the transformer that should be applied"),
+        .required()
+        .valueName("<int>")
+        .validate(k => if (k >= 1 && k <= 4) Right(()) else Left("variant must be between 1 and 4"))
+        .action((n, c) => c.copy(transformerId = n))
+        .text("Id of the transformer that should be applied"),
       opt[Int]('n', "numoutputs")
         .optional()
         .valueName("<int>")
@@ -150,25 +202,25 @@ object TraceTransformer {
     }
   }
 
-  def main(args: Array[String]) : Unit = {
+  def main(args: Array[String]): Unit = {
     val config = parseArgs(args)
     val input = Source.fromFile(config.inputCsv)
-    val output = (0 until config.numOutputs)
+    val output: Array[Writer] = (0 until config.numOutputs)
       .map(k =>
         new BufferedWriter(new FileWriter(config.outoutCsvPrefix + k.toString + ".csv"))
       ).toArray
 
     val transformer: TransformerImpl = config.transformerId match {
-      case 1 => new PerPartitionOrderTransformer(config.numOutputs, input, output)
+      case 1 | 2 => new PerPartitionOrderTransformer(config.numOutputs, input, output)
       case 3 => new WatermarkOrderTransformer(config.numOutputs, input, output)
-      case 4 => new WatermarkOrderEmissionTimeTransformer(config.numOutputs, input, output)
+      case 4 => new WatermarkOrderEmissionTimeTransformer(config.numOutputs, input, output, config.gamma)
       case _ => throw new Exception("should not happen")
     }
 
     transformer.runTransformer()
 
     input.close()
-    output.foreach{k =>
+    output.foreach { k =>
       k.flush()
       k.close()
     }

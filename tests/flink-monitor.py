@@ -14,6 +14,7 @@ from typing import List
 
 
 def del_tmp():
+    #pass
     shutil.rmtree(tmp_dir)
 
 
@@ -48,6 +49,7 @@ parser.add_argument('-i', '--index_rate', default=10, type=int)
 parser.add_argument('-f', '--formula', default='triangle-neg.mfotl')
 parser.add_argument('-s', '--signature', default='synth.sig')
 parser.add_argument('-p', '--processors', default=2, type=int)
+parser.add_argument('-n', '--kafkaparts', default=4, type=int)
 parser.add_argument('-m', '--multisource_variant', default=1, type=int)
 parser.add_argument('flink_dir')
 args = parser.parse_args()
@@ -79,6 +81,11 @@ print('Generating log ...')
 pipe([work_dir + '/generator.sh', '-T', '-e', str(args.event_rate), '-i',
       str(args.index_rate), '-x', '1', '60'], tmp_dir + '/trace.csv')
 
+print('Preprocessing log for multiple inputs ...')
+exe_cmd([work_dir + '/trace-transformer.sh', '-v', str(args.multisource_variant), '-n', str(args.kafkaparts),
+         '-o', tmp_dir + '/preprocess_out', tmp_dir + '/trace.csv'], False)
+
+print('Converting to monpoly format for validation ...')
 pipe([work_dir + '/replayer.sh', '-i', 'csv', '-f', 'monpoly', '-a', '0',
       tmp_dir + '/trace.csv'], tmp_dir + '/trace.log')
 
@@ -87,7 +94,7 @@ pipe(['monpoly', '-sig', sig_file, '-formula', formula_file, '-log',
       tmp_dir + '/trace.log'], tmp_dir + '/reference.txt')
 
 print("Running Flink monitor ...")
-exe_cmd([args.flink_dir + '/bin/flink', 'run', jar_path, '--in', 'kafka', '--kafkatestfile', tmp_dir + '/trace.csv',
+exe_cmd([args.flink_dir + '/bin/flink', 'run', jar_path, '--in', 'kafka', '--kafkatestfile', tmp_dir + '/preprocess_out',
          '--format','csv', '--sig', sig_file, '--formula', formula_file, '--negate', 'false', '--multi',
          str(args.multisource_variant), '--monitor', 'monpoly', '--processors', str(args.processors), '--out',
          tmp_dir + '/flink-out'], True)
