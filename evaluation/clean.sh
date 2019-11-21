@@ -10,3 +10,6 @@ rm -rf output
 rm -rf reports
 rm -rf logs
 rm -rf state
+rm -rf kafka
+rm -rf zookeeper
+rm ldcc.tar
