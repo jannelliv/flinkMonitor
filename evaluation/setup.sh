@@ -84,11 +84,11 @@ export PATH="$PATH:${scala_dir}/bin"
 
 monitor_dir="$target_dir/scalable-online-monitor"
 monitor_url="https://bitbucket.org/krle/scalable-online-monitor"
-monitor_branch="master"
+monitor_branch="multisource"
 if [[ -d "$monitor_dir" ]]; then
     info "project directory exists, skipping"
     info "delete $monitor_dir to reinstall"
-    [[ -a "$monitor_dir/flink-monitor/target/parallel-online-monitoring-1.0-SNAPSHOT.jar" ]] || info "WARNING: monitor jar not found, please build manually"
+    [[ -a "$monitor_dir/flink-monitor/target/flink-monitor-1.0-SNAPSHOT.jar" ]] || info "WARNING: monitor jar not found, please build manually"
     [[ -a "$monitor_dir/replayer/target/replayer-1.0-SNAPSHOT.jar" ]] || info "WARNING: replayer jar not found, please build manually"
     [[ -a "$monitor_dir/trace-generator/target/trace-generator-1.0-SNAPSHOT.jar" ]] || info "WARNING: trace generator jar not found, please build manually"
 else
@@ -131,7 +131,7 @@ else
 fi
 
 zookeeper_dir="$target_dir/zookeeper"
-zookeeper_url="http://mirror.easyname.ch/apache/zookeeper/zookeeper-3.5.5/apache-zookeeper-3.5.5-bin.tar.gz"
+zookeeper_url="https://www-us.apache.org/dist/zookeeper/zookeeper-3.5.6/apache-zookeeper-3.5.6-bin.tar.gz"
 if [[ -d "$zookeeper_dir" ]]; then
     info "Zookeeper directory exists, skipping"
     info "delete $zookeeper_dir to reinstall"
@@ -139,8 +139,8 @@ else
     info "downloading Zookeeper"
     zookeeper_archive="$target_dir/zookeeper.tar.gz"
     [[ ! -a "$zookeeper_archive" ]] || fatal_error "would overwrite zookeeper.tar.gz"
-    curl -fLR# -o "$kafka_archive" "$zookeeper_url" || fatal_error "could not download Zookeeper"
-    (cd "$target_dir" && tar -xzf "$zookeeper_archive" && mv apache-zookeeper-3.5.5-bin zookeeper) || fatal_error "could not extract Zookeeper archive"
+    curl -fLR# -o "$zookeeper_archive" "$zookeeper_url" || fatal_error "could not download Zookeeper"
+    (cd "$target_dir" && tar -xzf "$zookeeper_archive" && mv apache-zookeeper-3.5.6-bin zookeeper) || fatal_error "could not extract Zookeeper archive"
     rm "$zookeeper_archive"
 fi
 

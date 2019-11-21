@@ -3,3 +3,6 @@ monpoly/
 opam/
 scala-2.12.7/
 scalable-online-monitor/
+flink/
+kafka/
+zookeeper/
