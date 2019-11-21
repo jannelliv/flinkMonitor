@@ -23,36 +23,42 @@ object MonitorKafkaConfig {
     val gn = if (gnGet == null) groupName else gnGet
     val laddrGet = props.getProperty("addr")
     val laddr = if (laddrGet == null) addr else laddrGet
-    initInternal(tn, gn, laddr)
+    val clearGet = props.getProperty("clearTopic")
+    val clear = if (clearGet == null) true else clearGet.toBoolean
+    initInternal(tn, gn, laddr, clear)
   }
 
   def init(
             topicName : String = topicName,
             groupName : String = groupName,
-            addr : String = addr
+            addr : String = addr,
+            clearTopic: Boolean = true
           ) : Unit = {
     if (initDone)
       throw new Exception("KafkaConfig was already initialized")
-    initInternal(topicName, groupName, addr)
+    initInternal(topicName, groupName, addr, clearTopic)
   }
 
   private def initInternal(
             topicName : String,
             groupName : String,
-            addr : String
+            addr : String,
+            clearTopic: Boolean
           ) : Unit = {
     MonitorKafkaConfig.topicName = topicName
     MonitorKafkaConfig.groupName = groupName
     MonitorKafkaConfig.addr = addr
 
-    val admin = AdminClient.create(MonitorKafkaConfig.getKafkaPropsInternal)
-    val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopicInternal).asJava)
-    try {
-      res.all().get(10, TimeUnit.SECONDS)
-    } catch {
-      case _: Throwable => println("Kafka topic does not exist, creating it")
+    if (clearTopic) {
+      val admin = AdminClient.create(MonitorKafkaConfig.getKafkaPropsInternal)
+      val res = admin.deleteTopics(List(MonitorKafkaConfig.getTopicInternal).asJava)
+      try {
+        res.all().get(10, TimeUnit.SECONDS)
+      } catch {
+        case _: Throwable => println("Kafka topic does not exist, creating it")
+      }
+      admin.close(10, TimeUnit.SECONDS)
     }
-    admin.close(10, TimeUnit.SECONDS)
     initDone = true
   }
 

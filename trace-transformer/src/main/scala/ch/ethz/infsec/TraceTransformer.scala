@@ -163,7 +163,8 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, o
       .foreach(e => e._1
         .foreach(k => sendRecord(k._3, Some(e._2)))
       )
-    sendEOFs()
+    sendRecord(currTime.max + emissionSeparator + ">EOF<", None)
+    sendRecord(currTime.max + emissionSeparator + ">TERMSTREAM<", None)
   }
 }
 

@@ -51,6 +51,7 @@ object StreamMonitoring {
   var simulateKafkaProducer: Boolean = false
   var queueSize = 10000
   var inputParallelism = 1
+  var clearTopic = false
   var multiSourceVariant: MultiSourceVariant = TotalOrder()
 
   var formula: Formula = policy.False()
@@ -88,6 +89,7 @@ object StreamMonitoring {
   }
 
   def init(params: ParameterTool) {
+    clearTopic = params.getBoolean("clear", false)
     jobName = params.get("job", "Parallel Online Monitor")
     kafkaTestFile = params.get("kafkatestfile", "")
 
@@ -114,7 +116,8 @@ object StreamMonitoring {
       case 1 => TotalOrder()
       case 2 => PerPartitionOrder()
       case 3 => WaterMarkOrder()
-      case _ => fail("multisourcevariant parameter must be [1; 3]")
+      case 4 => WaterMarkOrder()
+      case _ => fail("multisourcevariant parameter must be between 1 and 4")
     }
 
     val commandString = params.get("command")
@@ -213,6 +216,7 @@ object StreamMonitoring {
 
 
   def main(args: Array[String]) {
+    Thread.sleep(1000)
     val params = ParameterTool.fromArgs(args)
 
     val analysis = params.getBoolean("analysis", false)
@@ -308,7 +312,7 @@ object StreamMonitoring {
         case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
         case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case Some(KafkaEndpoint()) =>
-          MonitorKafkaConfig.init()
+          MonitorKafkaConfig.init(clearTopic = clearTopic)
           inputParallelism = MonitorKafkaConfig.getNumPartitions
           Logger.getGlobal.log(Level.INFO, "\n" + multiSourceVariant.toString + "\n")
           if (!kafkaTestFile.isEmpty) {

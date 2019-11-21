@@ -21,7 +21,7 @@ object DebugReorderFunction {
 
 class DebugMap[U] extends MapFunction[U, U] {
   override def map(value: U): U = {
-    println("DEBUGMAP: " + this.hashCode() + " " + value.toString)
+    println("DEBUGMAP: " + System.identityHashCode(this) + " " + value.toString)
     value
   }
 }

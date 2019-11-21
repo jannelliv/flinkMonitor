@@ -122,7 +122,7 @@ object LatencyTrackingExtensions {
     env.getJavaEnv.clean(sourceFunction)
 
     val sourceOperator = new ProvidedLatencyStreamSource(sourceFunction)
-    val sourceStream = new DataStreamSource(env.getJavaEnv, typeInfo, sourceOperator, false, sourceName)
+    val sourceStream = new DataStreamSource(env.getJavaEnv, typeInfo, sourceOperator, true, sourceName)
     new DataStream[String](sourceStream.returns(typeInfo))
   }
 
