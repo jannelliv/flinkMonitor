@@ -25,7 +25,7 @@ class StreamMonitorBuilderParInput(env: StreamExecutionEnvironment, reorder: Reo
       .setParallelism(StreamMonitoring.inputParallelism)
       .name("Add subtask index")
       .uid("subtask_index")
-
+ŝ
     val partitionedTraceWithoutId = indexTrace
       .partitionCustom(new IdPartitioner, 0)
       .map(k => (k._2, k._3))
