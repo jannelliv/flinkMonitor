@@ -1,5 +1,4 @@
 #!/usr/bin/env bash
-set -e
 
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
@@ -8,7 +7,8 @@ FORMULAS="custom-neg ins-1-2-neg del-1-2-neg"
 NEGATE=""
 MULTISOURCE_VARIANTS="2 4"
 ACCELERATIONS="1000 2000 3000 4000 5000"
-PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
+#PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
+PROCESSORS="2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 
