@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
@@ -108,7 +109,7 @@ for procs in $PROCESSORS; do
     rewrite_config $numcpus
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
     for variant in $MULTISOURCE_VARIANTS; do
-        "$WORK_DIR"/trace_transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
+        "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
         for formula in $FORMULAS; do
             echo "    Evaluating $formula:"
             STATE_FILE="$STATE_DIR/ldcc_sample_past_${formula}.state"
