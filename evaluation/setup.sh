@@ -151,6 +151,9 @@ cp "$monitor_dir/evaluation/flink-conf.yaml" "$flink_dir/conf" || fatal_error "c
 info "replacing the Kafka configuration"
 cp "$monitor_dir/evaluation/server.properties" "$kafka_dir/config" || fatal_error "could not copy the Kafka configuration"
 
+info "replacing the Zookeeper configuration"
+mv "$zookeeper_dir/conf/zoo_sample.cfg" "$zookeeper_dir/conf/zoo.cfg"
+
 ### Nokia log #################################################################
 
 ldcc_file="$target_dir/ldcc.csv"

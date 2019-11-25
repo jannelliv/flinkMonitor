@@ -17,7 +17,7 @@ fatal_error() {
 }
 
 start_kafka() {
-    "$KAFKA_BIN/kafka-server-start.sh -daemon $KAFKA_CONFIG_FILE" > /dev/null || fatal_error "failed to start kafka"
+    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" > /dev/null || fatal_error "failed to start kafka"
 }
 
 stop_kafka() {
@@ -108,6 +108,7 @@ for procs in $PROCESSORS; do
     rewrite_config $numcpus
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
     for variant in $MULTISOURCE_VARIANTS; do
+        "$WORK_DIR"/trace_transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
         for formula in $FORMULAS; do
             echo "    Evaluating $formula:"
             STATE_FILE="$STATE_DIR/ldcc_sample_past_${formula}.state"
@@ -137,9 +138,8 @@ for procs in $PROCESSORS; do
                         BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
                         
-                
+                        
                         rm -r "$VERDICT_FILE" 2> /dev/null
-                        "$WORK_DIR"/trace_transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
                         if [[ "$variant" = "2" ]]; then
                             taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v --term TIMESTAMPS -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
                         elif [[ "$variant" = "4" ]]; then

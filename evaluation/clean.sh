@@ -12,4 +12,6 @@ rm -rf logs
 rm -rf state
 rm -rf kafka
 rm -rf zookeeper
+rm -rf reports
+rm ldcc_sample.log
 rm ldcc.tar
