@@ -216,7 +216,6 @@ object StreamMonitoring {
 
 
   def main(args: Array[String]) {
-    Thread.sleep(1000)
     val params = ParameterTool.fromArgs(args)
 
     val analysis = params.getBoolean("analysis", false)

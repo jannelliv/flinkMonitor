@@ -14,3 +14,5 @@ ldcc.csv
 reports/**
 state/
 output/
+*.kate-swp
+logs

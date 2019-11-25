@@ -638,6 +638,7 @@ public class Replayer {
         int numInputFiles = 1;
         boolean reconnect = false;
         boolean markDatabaseEnd = true;
+        boolean clearTopic = true;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -744,6 +745,10 @@ public class Replayer {
                             case "TIMEPOINTS": mode = TraceParser.TerminatorMode.ALL_TERMINATORS; break;
                             default: invalidArgument();
                         }
+                        break;
+                    case "--noclear":
+                        clearTopic = false;
+                        break;
                     case "-no-end-marker":
                         markDatabaseEnd = false;
                         break;
@@ -801,7 +806,9 @@ public class Replayer {
         } else {
             ArrayList<ReplayerWorker> replayerWorkers = new ArrayList<>();
             ArrayList<Thread> workerThreads = new ArrayList<>();
-            MonitorKafkaConfig.init(new Properties());
+            Properties props = new Properties();
+            props.setProperty("clearTopic", Boolean.toString(clearTopic));
+            MonitorKafkaConfig.init(props);
             if (inputFilename == null) {
                 System.err.println("Multisource only works with file input");
                 System.exit(1);

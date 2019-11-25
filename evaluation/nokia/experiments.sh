@@ -25,6 +25,10 @@ stop_kafka() {
     "$KAFKA_BIN/kafka-server-stop.sh" > /dev/null
 }
 
+clear_topic() {
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic
+}
+
 
 rewrite_config () {
     sed -i "s/^num\.partitions=.*$/num.partitions=$1/" "$KAFKA_CONFIG_FILE"
@@ -109,16 +113,15 @@ for procs in $PROCESSORS; do
     rewrite_config $numcpus
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
     for variant in $MULTISOURCE_VARIANTS; do
+        echo "  Variant $variant:"
         "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
         for formula in $FORMULAS; do
-            echo "    Evaluating $formula:"
+            echo "      Evaluating $formula:"
             STATE_FILE="$STATE_DIR/ldcc_sample_past_${formula}.state"
             for acc in $ACCELERATIONS; do
                 echo "      Acceleration $acc:"
                 for i in $(seq 1 $REPETITIONS); do
                     echo "        Repetition $i ..."
-
-
                     if [[ "$acc" = "0" ]]; then
 
                         JOB_NAME="nokia_flink_monpoly_${numcpus}_${formula}_${acc}_0_${i}"
@@ -132,19 +135,17 @@ for procs in $PROCESSORS; do
 
 
                     else
-
+                        clear_topic
                         JOB_NAME="nokia_flink_monpoly_${numcpus}_${formula}_${acc}_1_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                         BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
-                        
-                        
                         rm -r "$VERDICT_FILE" 2> /dev/null
                         if [[ "$variant" = "2" ]]; then
-                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v --term TIMESTAMPS -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" --noclear -v --term TIMESTAMPS -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
                         elif [[ "$variant" = "4" ]]; then
-                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v --term NO_TERM -e -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &                            
+                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" --noclear -v --term NO_TERM -e -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &                            
                         else
                             fatal_error "unknown multisource variant"
                         fi
@@ -152,14 +153,11 @@ for procs in $PROCESSORS; do
                         wait
 
                     fi
-
-
                 done
             done
         done
+        rm -rf "$EXEC_LOG_DIR/preprocess_out"*
     done
-
-
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
     stop_kafka
     "$ZOOKEEPER_EXE" stop > /dev/null
