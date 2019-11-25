@@ -26,7 +26,7 @@ stop_kafka() {
 }
 
 clear_topic() {
-    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic
+    "$ZOOKEEPER_BIN/zkCli.sh" rmr /brokers/topics/monitor_topic
 }
 
 

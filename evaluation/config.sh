@@ -10,6 +10,7 @@ export PATH="$PATH:$WORK_DIR/visual/sqlite"
 
 FLINK_BIN="$ROOT_DIR/flink/bin"
 KAFKA_BIN="$ROOT_DIR/kafka/bin"
+ZOOKEEPER_BIN="$ROOT_DIR/zookeeper/bin"
 ZOOKEEPER_EXE="$ROOT_DIR/zookeeper/bin/zkServer.sh"
 KAFKA_CONFIG_FILE="$ROOT_DIR/kafka/config/server.properties"
 
