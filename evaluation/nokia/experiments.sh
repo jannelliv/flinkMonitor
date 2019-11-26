@@ -17,12 +17,15 @@ fatal_error() {
     exit 1
 }
 
-start_kafka() {
-    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" > /dev/null &
-}
 
-stop_kafka() {
-    "$KAFKA_BIN/kafka-server-stop.sh" > /dev/null
+terms_of_variant() {
+    if [[ "$1" == "2" ]]; then
+        echo "TIMESTAMPS"
+    elif [[ "$1" == "4" ]]; then
+        echo "NO_TERM"
+    else
+        fail "unknown multisource variant"
+    fi
 }
 
 clear_topic() {
@@ -105,9 +108,9 @@ for procs in $PROCESSORS; do
     cpulist=${procs#*/}
     echo "  $numcpus processors:"
     
-    "$ZOOKEEPER_EXE" start > /dev/null
-    start_kafka
-    "$FLINK_BIN/start-cluster.sh" > /dev/null
+    "$ZOOKEEPER_EXE" start > /dev/null  2>&1 || fail "failed to start zookeeper"
+    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" > /dev/null > 2>&1 & || fail "failed to start kafka"
+    "$FLINK_BIN/start-cluster.sh" > /dev/null > 2>&1 || fail "failed to start flink"
     for variant in $MULTISOURCE_VARIANTS; do
         echo "  Variant $variant:"
         "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
@@ -118,45 +121,24 @@ for procs in $PROCESSORS; do
                 echo "      Acceleration $acc:"
                 for i in $(seq 1 $REPETITIONS); do
                     echo "        Repetition $i ..."
-                    if [[ "$acc" = "0" ]]; then
-
-                        JOB_NAME="nokia_flink_monpoly_${numcpus}_${formula}_${acc}_0_${i}"
-                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                        BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
-
-                        rm -r "$VERDICT_FILE" 2> /dev/null
-                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$ROOT_DIR/ldcc_sample.csv" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --load "$STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
-                        wait
-
-
-                    else
-                        clear_topic $numcpus
-                        JOB_NAME="nokia_flink_monpoly_${numcpus}_${formula}_${acc}_1_${i}"
-                        DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                        BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
-                        rm -r "$VERDICT_FILE" 2> /dev/null
-                        if [[ "$variant" = "2" ]]; then
-                            "$WORK_DIR/replayer.sh" --noclear -v --term TIMESTAMPS -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
-                        elif [[ "$variant" = "4" ]]; then
-                            "$WORK_DIR/replayer.sh" --noclear -v --term NO_TERM -e -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &                            
-                        else
-                            fatal_error "unknown multisource variant"
-                        fi
-                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --load "$STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false > "$JOB_REPORT"
-                        wait
-
-                    fi
+                    clear_topic $numcpus
+                    JOB_NAME="nokia_flink_monpoly_${numcpus}_${formula}_${acc}_1_${i}"
+                    DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                    TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                    BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                    JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                    rm -r "$VERDICT_FILE" 2> /dev/null
+                    "$WORK_DIR/replayer.sh" --noclear -o kafka -v --term $(terms_of_variant $variant) -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --load "$STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false > "$JOB_REPORT"
+                    wait
                 done
             done
         done
         rm -rf "$EXEC_LOG_DIR/preprocess_out"*
     done
-    "$FLINK_BIN/stop-cluster.sh" > /dev/null
-    stop_kafka
-    "$ZOOKEEPER_EXE" stop > /dev/null
+    "$FLINK_BIN/stop-cluster.sh" > /dev/null > 2>&1 || fail "failed to stop flink"
+    "$KAFKA_BIN/kafka-server-stop.sh" > /dev/null > 2>&1 || fail "failed to stop kafka"
+    "$ZOOKEEPER_EXE" stop > /dev/null > 2>&1 || fail "failed to stop zookeeper"
 done
 
 : '

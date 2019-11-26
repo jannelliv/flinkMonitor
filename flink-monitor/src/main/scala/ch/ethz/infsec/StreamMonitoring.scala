@@ -313,7 +313,6 @@ object StreamMonitoring {
         case Some(KafkaEndpoint()) =>
           MonitorKafkaConfig.init(clearTopic = clearTopic)
           inputParallelism = MonitorKafkaConfig.getNumPartitions
-          Logger.getGlobal.log(Level.INFO, "\n" + multiSourceVariant.toString + "\n")
           if (!kafkaTestFile.isEmpty) {
             val PrefixRegex = """(.*)/(.*)""".r
             val PrefixRegex(kafkaDir, kafkaPrefix) = kafkaTestFile

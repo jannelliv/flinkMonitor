@@ -6,12 +6,9 @@ import ch.ethz.infsec.trace.formatter.*;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import ch.ethz.infsec.trace.parser.TraceParser;
-import com.esotericsoftware.kryo.NotNull;
-import com.sun.corba.se.spi.orbutil.threadpool.Work;
 import org.apache.commons.io.IOUtils;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
-import org.apache.kafka.common.record.Record;
 
 import java.io.*;
 import java.net.InetAddress;
@@ -641,6 +638,7 @@ public class Replayer {
         boolean reconnect = false;
         boolean markDatabaseEnd = true;
         boolean clearTopic = true;
+        boolean kafkaOutput = false;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -721,6 +719,7 @@ public class Replayer {
                         String[] parts = args[i].split(":", 2);
                         if (parts.length != 2) {
                             if (args[i].equals("kafka")) {
+                                kafkaOutput = true;
                                 break;
                             }
                             invalidArgument();
@@ -766,7 +765,7 @@ public class Replayer {
             invalidArgument();
         }
 
-        if (numInputFiles == 1) {
+        if (numInputFiles == 1 && !kafkaOutput) {
             BufferedReader input;
             Output output;
             TraceParser parser;

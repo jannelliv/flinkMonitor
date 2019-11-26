@@ -136,11 +136,12 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, o
     val currTime = (0 until numPartitions map (_ => 0)).toArray
     val outLines = (0 until numPartitions map (_ => ArrayBuffer[(Int, Int, String)]())).toArray
     val tsLeft = mutable.Map() ++= tsAndLines.groupBy(_._1).mapValues(_.length)
+    val minTs = tsAndLines.minBy(_._1)._1
     for ((ts, line) <- tsAndLines) {
       var left = tsLeft(ts)
       left -= 1
       require(left >= 0)
-      val emissiontime = Math.max(0, ts + sample())
+      val emissiontime = Math.max(0, ts + sample() - minTs)
       val partition = Random.nextInt(numPartitions)
       if (emissiontime > currTime(partition))
         currTime(partition) = emissiontime
