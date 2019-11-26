@@ -18,8 +18,7 @@ fatal_error() {
 }
 
 start_kafka() {
-    #"$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" > /dev/null || fatal_error "failed to start kafka"
-    "$KAFKA_BIN/kafka-server-start.sh" "$KAFKA_CONFIG_FILE" || fatal_error "failed to start kafka"
+    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" || fatal_error "failed to start kafka"
 }
 
 stop_kafka() {
@@ -27,7 +26,7 @@ stop_kafka() {
 }
 
 clear_topic() {
-    "$ZOOKEEPER_BIN/zkCli.sh" rmr /brokers/topics/monitor_topic > /dev/null
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic
 }
 
 
