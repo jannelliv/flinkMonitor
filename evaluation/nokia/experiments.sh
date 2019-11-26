@@ -63,7 +63,7 @@ for formula in $FORMULAS; do
     fi
 done
 
-'
+: '
 echo "Monpoly standalone:"
 for formula in $FORMULAS; do
     echo "  Evaluating $formula:"
@@ -94,7 +94,8 @@ for formula in $FORMULAS; do
 
         done
     done
-done'
+done
+'
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
