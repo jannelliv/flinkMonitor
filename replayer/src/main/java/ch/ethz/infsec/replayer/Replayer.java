@@ -637,7 +637,7 @@ public class Replayer {
         int numInputFiles = 1;
         boolean reconnect = false;
         boolean markDatabaseEnd = true;
-        boolean clearTopic = true;
+        boolean clearTopic = false;
         boolean kafkaOutput = false;
 
         try {
@@ -747,8 +747,8 @@ public class Replayer {
                             default: invalidArgument();
                         }
                         break;
-                    case "--noclear":
-                        clearTopic = false;
+                    case "--clear":
+                        clearTopic = true;
                         break;
                     case "-no-end-marker":
                         markDatabaseEnd = false;
@@ -808,8 +808,14 @@ public class Replayer {
             ArrayList<ReplayerWorker> replayerWorkers = new ArrayList<>();
             ArrayList<Thread> workerThreads = new ArrayList<>();
             Properties props = new Properties();
-            props.setProperty("clearTopic", Boolean.toString(clearTopic));
+            if (clearTopic) {
+                props.setProperty("clearTopic", Boolean.toString(clearTopic));
+                props.setProperty("numPartitions", Integer.toString(numInputFiles));
+            }
             MonitorKafkaConfig.init(props);
+            if (!clearTopic && MonitorKafkaConfig.getNumPartitions() != numInputFiles)
+                throw new IllegalArgumentException("If the topic is not cleared the number of input files must match");
+            
             if (inputFilename == null) {
                 System.err.println("Multisource only works with file input");
                 System.exit(1);

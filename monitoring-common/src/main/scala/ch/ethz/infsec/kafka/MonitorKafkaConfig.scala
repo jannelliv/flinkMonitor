@@ -1,9 +1,9 @@
 package ch.ethz.infsec.kafka
 
-import java.util.Properties
+import java.util.{Collections, Properties}
 import java.util.concurrent.TimeUnit
 
-import org.apache.kafka.clients.admin.AdminClient
+import org.apache.kafka.clients.admin.{AdminClient, NewTopic}
 import org.apache.kafka.clients.producer.KafkaProducer
 
 import scala.collection.JavaConverters._
@@ -13,6 +13,7 @@ object MonitorKafkaConfig {
   private var topicName : String = "monitor_topic"
   private var groupName : String = "monitor"
   private var addr : String = "127.0.0.1:9092"
+  private var numPartitions: Option[Int] = None
 
   def init(props: Properties) : Unit = {
     if (initDone)
@@ -24,30 +25,35 @@ object MonitorKafkaConfig {
     val laddrGet = props.getProperty("addr")
     val laddr = if (laddrGet == null) addr else laddrGet
     val clearGet = props.getProperty("clearTopic")
-    val clear = if (clearGet == null) true else clearGet.toBoolean
-    initInternal(tn, gn, laddr, clear)
+    val clear = if (clearGet == null) false else clearGet.toBoolean
+    val numPartGet = props.getProperty("numPartitions")
+    val numPart = if (numPartGet == null) None else Some(numPartGet.toInt)
+    initInternal(tn, gn, laddr, clear, numPart)
   }
 
   def init(
             topicName : String = topicName,
             groupName : String = groupName,
             addr : String = addr,
-            clearTopic: Boolean = true
+            clearTopic: Boolean = false,
+            numPartitions: Option[Int] = None
           ) : Unit = {
     if (initDone)
       throw new Exception("KafkaConfig was already initialized")
-    initInternal(topicName, groupName, addr, clearTopic)
+    initInternal(topicName, groupName, addr, clearTopic, numPartitions)
   }
 
   private def initInternal(
             topicName : String,
             groupName : String,
             addr : String,
-            clearTopic: Boolean
+            clearTopic: Boolean,
+            numPartitions: Option[Int]
           ) : Unit = {
     MonitorKafkaConfig.topicName = topicName
     MonitorKafkaConfig.groupName = groupName
     MonitorKafkaConfig.addr = addr
+
 
     if (clearTopic) {
       val admin = AdminClient.create(MonitorKafkaConfig.getKafkaPropsInternal)
@@ -57,7 +63,15 @@ object MonitorKafkaConfig {
       } catch {
         case _: Throwable => println("Kafka topic does not exist, creating it")
       }
-      admin.close(10, TimeUnit.SECONDS)
+      numPartitions match {
+        case Some(n) =>
+          val res_create = admin.createTopics(Collections.singletonList(new NewTopic(topicName, n, 1)))
+          res_create.all().get(10, TimeUnit.SECONDS)
+          admin.close(10, TimeUnit.SECONDS)
+          MonitorKafkaConfig.numPartitions = numPartitions
+        case None =>
+          throw new Exception("if clearTopic is set, numPartitions must be set")
+      }
     }
     initDone = true
   }
@@ -79,12 +93,16 @@ object MonitorKafkaConfig {
   }
 
   private def getNumPartitionsInternal : Int = {
-    val tmp_producer = new KafkaProducer[String, String](MonitorKafkaConfig.getKafkaProps)
-    val n = tmp_producer.partitionsFor(topicName).size()
-    if (n < 2) {
-      throw new Exception("ERROR: # partitions is less than 2")
+    numPartitions match {
+      case None =>
+        val tmp_producer = new KafkaProducer[String, String](MonitorKafkaConfig.getKafkaProps)
+        val n = tmp_producer.partitionsFor(topicName).size()
+        if (n < 2) {
+          throw new Exception("ERROR: # partitions is less than 2")
+        }
+        n
+      case Some(n) => n
     }
-    n
   }
 
   private def getTopicInternal: String = topicName

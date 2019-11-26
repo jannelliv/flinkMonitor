@@ -128,12 +128,12 @@ pipe(['monpoly', '-sig', sig_file, '-formula', formula_file, '-log',
 flink_args = [args.flink_dir + '/bin/flink', 'run', jar_path, '--in', 'kafka',
          '--format','csv', '--sig', sig_file, '--formula', formula_file, '--negate', 'false', '--multi',
          str(args.multisource_variant), '--monitor', 'monpoly', '--processors', str(args.processors), '--out',
-         tmp_dir + '/flink-out', '--clear', str(not use_replayer)]
+         tmp_dir + '/flink-out', '--clear', str(not use_replayer), '--nparts', str(args.kafkaparts)]
 
 if use_replayer:
     print('Launching replayer and running monitor ...')
     replayer_args = [work_dir + '/replayer.sh', '-i', 'csv', '-f', 'csv',
-                     '-n', str(args.kafkaparts), '-a', str(args.replayer_accel)]
+                     '-n', str(args.kafkaparts), '-a', str(args.replayer_accel), '--clear']
     if args.multisource_variant == 1:
         replayer_args += ['--term', 'TIMEPOINTS']
     elif args.multisource_variant == 2:

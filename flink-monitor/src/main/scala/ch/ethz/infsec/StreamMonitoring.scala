@@ -90,6 +90,7 @@ object StreamMonitoring {
 
   def init(params: ParameterTool) {
     clearTopic = params.getBoolean("clear", false)
+    inputParallelism = params.getInt("nparts", -1)
     jobName = params.get("job", "Parallel Online Monitor")
     kafkaTestFile = params.get("kafkatestfile", "")
 
@@ -311,7 +312,10 @@ object StreamMonitoring {
         case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
         case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case Some(KafkaEndpoint()) =>
-          MonitorKafkaConfig.init(clearTopic = clearTopic)
+          if (inputParallelism != 1 && !clearTopic) {
+            fail("cannot change the inputparallelism without deleting the topic")
+          }
+          MonitorKafkaConfig.init(clearTopic = clearTopic, numPartitions = Some(inputParallelism))
           inputParallelism = MonitorKafkaConfig.getNumPartitions
           if (!kafkaTestFile.isEmpty) {
             val PrefixRegex = """(.*)/(.*)""".r
