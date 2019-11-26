@@ -18,7 +18,7 @@ fatal_error() {
 }
 
 start_kafka() {
-    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" || fatal_error "failed to start kafka"
+    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" > /dev/null &
 }
 
 stop_kafka() {
@@ -63,6 +63,7 @@ for formula in $FORMULAS; do
     fi
 done
 
+:'
 echo "Monpoly standalone:"
 for formula in $FORMULAS; do
     echo "  Evaluating $formula:"
@@ -93,7 +94,7 @@ for formula in $FORMULAS; do
 
         done
     done
-done
+done'
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
@@ -105,7 +106,7 @@ for procs in $PROCESSORS; do
     
     "$ZOOKEEPER_EXE" start > /dev/null
     start_kafka
-    taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
+    "$FLINK_BIN/start-cluster.sh" > /dev/null
     for variant in $MULTISOURCE_VARIANTS; do
         echo "  Variant $variant:"
         "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
@@ -137,9 +138,9 @@ for procs in $PROCESSORS; do
                         JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
                         rm -r "$VERDICT_FILE" 2> /dev/null
                         if [[ "$variant" = "2" ]]; then
-                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" --noclear -v --term TIMESTAMPS -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                            "$WORK_DIR/replayer.sh" --noclear -v --term TIMESTAMPS -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
                         elif [[ "$variant" = "4" ]]; then
-                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" --noclear -v --term NO_TERM -e -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &                            
+                            "$WORK_DIR/replayer.sh" --noclear -v --term NO_TERM -e -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &                            
                         else
                             fatal_error "unknown multisource variant"
                         fi
