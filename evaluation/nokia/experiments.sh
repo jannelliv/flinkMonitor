@@ -27,13 +27,7 @@ stop_kafka() {
 
 clear_topic() {
     "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic
-}
-
-
-rewrite_config () {
-    sed -i "s/^num\.partitions=.*$/num.partitions=$1/" "$KAFKA_CONFIG_FILE"
-    stop_kafka
-    start_kafka
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions $1 --replication-factor 1
 }
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
@@ -110,7 +104,6 @@ for procs in $PROCESSORS; do
     echo "  $numcpus processors:"
 
     "$ZOOKEEPER_EXE" start > /dev/null
-    rewrite_config $numcpus
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
     for variant in $MULTISOURCE_VARIANTS; do
         echo "  Variant $variant:"
@@ -135,7 +128,7 @@ for procs in $PROCESSORS; do
 
 
                     else
-                        clear_topic
+                        clear_topic $num_cpus
                         JOB_NAME="nokia_flink_monpoly_${numcpus}_${formula}_${acc}_1_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
