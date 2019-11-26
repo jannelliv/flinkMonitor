@@ -30,6 +30,7 @@ terms_of_variant() {
 
 clear_topic() {
     "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic > /dev/null
+    sleep 0.5
     "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions "$1" --replication-factor 1 > /dev/null
 }
 

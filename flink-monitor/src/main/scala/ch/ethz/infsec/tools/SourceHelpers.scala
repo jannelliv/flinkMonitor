@@ -16,7 +16,7 @@ import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
 object DebugReorderFunction {
-  val isDebug: Boolean = false
+  val isDebug: Boolean = true
 }
 
 class DebugMap[U] extends MapFunction[U, U] {
