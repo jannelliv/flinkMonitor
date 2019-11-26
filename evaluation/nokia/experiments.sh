@@ -128,7 +128,7 @@ for procs in $PROCESSORS; do
 
 
                     else
-                        clear_topic $num_cpus
+                        clear_topic $numcpus
                         JOB_NAME="nokia_flink_monpoly_${numcpus}_${formula}_${acc}_1_${i}"
                         DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                         TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
