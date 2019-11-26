@@ -39,17 +39,17 @@ jobmanager.rpc.port: 6123
 
 # The heap size for the JobManager JVM
 
-jobmanager.heap.size: "1024m"
+jobmanager.heap.size: "2048m"
 
 
 # The heap size for the TaskManager JVM
 
-taskmanager.heap.size: "32786m"
+taskmanager.heap.size: "64000m"
 
 
 # The number of task slots that each TaskManager offers. Each slot runs one parallel pipeline.
 
-taskmanager.numberOfTaskSlots: 16
+taskmanager.numberOfTaskSlots: 50
 
 # The parallelism used for programs that did not specify and other parallelism.
 
@@ -113,7 +113,7 @@ parallelism.default: 1
 
 # Default target directory for savepoints, optional.
 
-state.savepoints.dir: file:///local/home/skrstic/savepoints
+state.savepoints.dir: file:///local/home/grasm/savepoints
 
 # Flag to enable/disable incremental checkpoints for backends that
 # support incremental checkpoints (like the RocksDB state backend). 
