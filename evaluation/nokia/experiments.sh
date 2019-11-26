@@ -108,9 +108,9 @@ for procs in $PROCESSORS; do
     cpulist=${procs#*/}
     echo "  $numcpus processors:"
     
-    "$ZOOKEEPER_EXE" start > /dev/null  2>&1 || fail "failed to start zookeeper"
-    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" > /dev/null > 2>&1 & || fail "failed to start kafka"
-    "$FLINK_BIN/start-cluster.sh" > /dev/null > 2>&1 || fail "failed to start flink"
+    "$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
+    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
+    "$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
     for variant in $MULTISOURCE_VARIANTS; do
         echo "  Variant $variant:"
         "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
@@ -136,9 +136,9 @@ for procs in $PROCESSORS; do
         done
         rm -rf "$EXEC_LOG_DIR/preprocess_out"*
     done
-    "$FLINK_BIN/stop-cluster.sh" > /dev/null > 2>&1 || fail "failed to stop flink"
-    "$KAFKA_BIN/kafka-server-stop.sh" > /dev/null > 2>&1 || fail "failed to stop kafka"
-    "$ZOOKEEPER_EXE" stop > /dev/null > 2>&1 || fail "failed to stop zookeeper"
+    "$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
+    "$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
+    "$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
 done
 
 : '
