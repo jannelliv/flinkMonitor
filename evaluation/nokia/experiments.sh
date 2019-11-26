@@ -63,7 +63,7 @@ for formula in $FORMULAS; do
     fi
 done
 
-:'
+'
 echo "Monpoly standalone:"
 for formula in $FORMULAS; do
     echo "  Evaluating $formula:"

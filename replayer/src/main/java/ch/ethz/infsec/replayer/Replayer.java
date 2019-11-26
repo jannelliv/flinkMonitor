@@ -84,8 +84,8 @@ public class Replayer {
         private class InputWorker implements Runnable {
             private boolean successful = false;
             private long currEmissionTime = -1;
-            //private long firstTimestamp = -1;
-            private long firstTimestamp = 0;
+            private long firstTimestamp = -1;
+
             private final ArrayList<OutputItem> parsedItems = new ArrayList<>();
             private ArrayList<OutputItem> currentChunk = new ArrayList<>(FACT_CHUNK_SIZE);
 
@@ -130,6 +130,8 @@ public class Replayer {
             }
 
             public void run() {
+                if (explicitEmissiontime)
+                     firstTimestamp = 0;
                 try {
                     String line;
                     while ((line = input.readLine()) != null) {
