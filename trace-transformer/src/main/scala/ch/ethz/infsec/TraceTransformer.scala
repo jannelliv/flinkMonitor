@@ -37,7 +37,7 @@ abstract class TransformerImpl(numPartitions: Int, output: Array[Writer]) {
 object WatermarkOrderHelpers {
   def getTimeStamps(input: Source): Iterator[(Int, String)] = {
     input.getLines().map(k => {
-      val ts = k.split(',')(2).split('=')(1).toInt
+      val ts = k.split(',')(2).split('=')(1).trim.toInt
       (ts, k)
     })
   }
