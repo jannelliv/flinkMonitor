@@ -18,7 +18,7 @@ fatal_error() {
 }
 
 start_kafka() {
-    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" > /dev/null || fatal_error "failed to start kafka"
+    "$KAFKA_BIN/kafka-server-start.sh" "$KAFKA_CONFIG_FILE" > /dev/null || fatal_error "failed to start kafka"
 }
 
 stop_kafka() {
