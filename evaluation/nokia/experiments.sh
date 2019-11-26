@@ -26,8 +26,8 @@ stop_kafka() {
 }
 
 clear_topic() {
-    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic
-    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions $1 --replication-factor 1
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic > /dev/null
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions $1 --replication-factor 1 > /dev/null
 }
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
@@ -102,8 +102,9 @@ for procs in $PROCESSORS; do
     numcpus=${procs%/*}
     cpulist=${procs#*/}
     echo "  $numcpus processors:"
-
+    
     "$ZOOKEEPER_EXE" start > /dev/null
+    start_kafka
     taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
     for variant in $MULTISOURCE_VARIANTS; do
         echo "  Variant $variant:"
