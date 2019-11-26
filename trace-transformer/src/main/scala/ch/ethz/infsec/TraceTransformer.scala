@@ -108,6 +108,8 @@ class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array
 
 class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Array[Writer]) extends TransformerImpl(numPartitions, output) {
   def runTransformer(): Unit = {
+    val first_elem = WatermarkOrderHelpers.getTimeStamps(input).take(1).toArray.head._1
+    sendRecord(">START " + first_elem + "<", None)
     for (line <- input.getLines()) {
       sendRecord(line, Some(Random.nextInt(numPartitions)))
     }
@@ -137,6 +139,7 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, o
     val outLines = (0 until numPartitions map (_ => ArrayBuffer[(Int, Int, String)]())).toArray
     val tsLeft = mutable.Map() ++= tsAndLines.groupBy(_._1).mapValues(_.length)
     val minTs = tsAndLines.minBy(_._1)._1
+    sendRecord(0 + emissionSeparator + ">START " + minTs + "<", None)
     for ((ts, line) <- tsAndLines) {
       var left = tsLeft(ts)
       left -= 1

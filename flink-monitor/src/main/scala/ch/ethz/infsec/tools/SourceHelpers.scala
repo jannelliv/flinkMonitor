@@ -82,7 +82,7 @@ case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends Reorder
 
   private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
   private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  private var currentTs: Long = -1
+  private var currentTs: Long = -2
   private var maxTs: Long = -1
   private var numEOF: Int = 0
 
@@ -136,12 +136,22 @@ case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends Reorder
 
   override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
     val (idx, fact) = value
-    if (fact.isMeta && fact.getName == "EOF") {
-      numEOF += 1
-      if (numEOF == numSources) {
-        forceFlush(out)
-      }
+    if(currentTs == -2) {
+      require(fact.isMeta && fact.getName == "START")
+      val firstTs = fact.getArgument(0).asInstanceOf[String].toLong
+      require(firstTs >= 0)
+      currentTs = firstTs - 1
       return
+    }
+    if (fact.isMeta) {
+      if (fact.getName == "EOF") {
+        numEOF += 1
+        if (numEOF == numSources) {
+          forceFlush(out)
+        }
+        return
+      } else if(fact.getName == "START")
+        return
     }
 
     val timeStamp = fact.getTimestamp
@@ -162,7 +172,7 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
 
   private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
   private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  private var currentTs: Long = -1
+  private var currentTs: Long = -2
   private var maxTs: Long = -1
   private var numEOF: Int = 0
 
@@ -215,6 +225,13 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
 
   override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
     val (idx, fact) = value
+    if(currentTs == -2) {
+      require(fact.isMeta && fact.getName == "START")
+      val firstTs = fact.getArgument(0).asInstanceOf[String].toLong
+      require(firstTs >= 0)
+      currentTs = firstTs - 1
+      return
+    }
     if (fact.isMeta) {
       if (fact.getName == "WATERMARK") {
         val timestamp = fact.getArgument(0).asInstanceOf[String].toLong
@@ -228,7 +245,8 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
           forceFlush(out)
         }
         return
-      }
+      } else if (fact.getName == "START")
+        return
     }
 
     val timeStamp = fact.getTimestamp
@@ -251,7 +269,7 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
   private val tp2ts = new mutable.LongMap[Long]()
   //The terminator with the highest timepoint per input source
   private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  private var currentTp: Long = -1
+  private var currentTp: Long = -2
   //The biggest Tp that was ever received
   private var maxTp: Long = -1
   //The biggest Ts that was ever flushed
@@ -315,12 +333,23 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
 
   override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
     val (idx, fact) = value
-    if (fact.isMeta && fact.getName == "EOF") {
-      numEOF += 1
-      if (numEOF == numSources) {
-        forceFlush(out)
-      }
+    if(currentTp == -2) {
+      require(fact.isMeta && fact.getName == "START")
+      val firstTp = fact.getArgument(0).asInstanceOf[String].toLong
+      require(firstTp >= 0)
+      currentTp = firstTp - 1
       return
+    }
+    if (fact.isMeta) {
+      if (fact.getName == "EOF") {
+        numEOF += 1
+        if (numEOF == numSources) {
+          forceFlush(out)
+        }
+        return
+      } else if (fact.getName == "START") {
+        return
+      }
     }
     val timePoint = fact.getTimepoint.longValue()
     val timeStamp = fact.getTimestamp.longValue()
