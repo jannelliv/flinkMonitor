@@ -26,7 +26,7 @@ stop_kafka() {
 }
 
 clear_topic() {
-    "$ZOOKEEPER_BIN/zkCli.sh" rmr /brokers/topics/monitor_topic
+    "$ZOOKEEPER_BIN/zkCli.sh" rmr /brokers/topics/monitor_topic > /dev/null
 }
 
 
