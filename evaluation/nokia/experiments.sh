@@ -9,11 +9,11 @@ MULTISOURCE_VARIANTS="2 4"
 ACCELERATIONS="5000"
 #ACCELERATIONS="1000 2000 3000 4000 5000"
 #PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
-PROCESSORS="4/0-5,24-29 8/0-9,24-33"
+PROCESSORS="2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 
-fatal_error() {
+fail() {
     echo "ERROR: $1"
     exit 1
 }
@@ -30,9 +30,8 @@ terms_of_variant() {
 }
 
 clear_topic() {
-    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic > /dev/null
-    sleep 0.5
-    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions "$1" --replication-factor 1 > /dev/null
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic &> /dev/null
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions "$1" --replication-factor 1 &> /dev/null
 }
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"

@@ -10,10 +10,11 @@ import scala.io.Source
 import scala.util.Random
 
 sealed case class Config(numOutputs: Int = 4,
-                  transformerId: Int = 1,
-                  inputCsv: String = "input.csv",
-                  outoutCsvPrefix: String = "output",
-                  gamma: Double = 1.0)
+                         transformerId: Int = 1,
+                         inputCsv: String = "input.csv",
+                         outoutCsvPrefix: String = "output",
+                         gamma: Double = 1.0,
+                         maxDeviation: Int = 5)
 
 abstract class TransformerImpl(numPartitions: Int, output: Array[Writer]) {
   protected def sendEOFs(): Unit = {
@@ -117,12 +118,13 @@ class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Ar
   }
 }
 
-class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, output: Array[Writer], gamma: Double) extends TransformerImpl(numPartitions, output) {
+class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, output: Array[Writer], gamma: Double, maxDeviation: Int) extends TransformerImpl(numPartitions, output) {
+  require(maxDeviation > 0 && gamma > 0)
   val dist: NormalDistribution = new NormalDistribution(0, gamma)
   val emissionSeparator: String = "'"
 
   private def sample(): Int = {
-    dist.sample().toInt
+    math.min(math.max(dist.sample().toInt, -maxDeviation), maxDeviation)
   }
 
   private def makeRecord(emissionTime: Int, line: String): String = {
@@ -151,11 +153,10 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, o
       val record = makeRecord(emissiontime, line)
       outLines(partition).append((emissiontime, ts, record))
 
-      if(left == 0) {
-        val maxemissiontime = currTime.max
-        val watermark = makeWatermark(maxemissiontime, ts)
+      if (left == 0) {
         for (i <- 0 until numPartitions) {
-          outLines(i).append((maxemissiontime, ts, watermark))
+          val currTimePar = currTime(i)
+          outLines(i).append((currTimePar, ts, makeWatermark(currTimePar, ts)))
         }
         tsLeft -= ts
       }
@@ -218,7 +219,7 @@ object TraceTransformer {
     val transformer: TransformerImpl = config.transformerId match {
       case 1 | 2 => new PerPartitionOrderTransformer(config.numOutputs, input, output)
       case 3 => new WatermarkOrderTransformer(config.numOutputs, input, output)
-      case 4 => new WatermarkOrderEmissionTimeTransformer(config.numOutputs, input, output, config.gamma)
+      case 4 => new WatermarkOrderEmissionTimeTransformer(config.numOutputs, input, output, config.gamma, config.maxDeviation)
       case _ => throw new Exception("should not happen")
     }
 
