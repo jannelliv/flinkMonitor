@@ -106,13 +106,11 @@ print(str(len(job_map_max)) + " max jobs extracted")
 print(str(len(job_map_avg)) + " avg jobs extracted")
 print(str(len(job_map_peak)) + " peak jobs extracted")
 
-common_jobs = set(job_map_record.keys()).intersection(set(job_map_max.keys()))
-common_jobs = common_jobs.intersection(job_map_avg.keys())
+common_jobs = set(job_map_avg.keys()).intersection(set(job_map_max.keys()))
 common_jobs = common_jobs.intersection(job_map_peak.keys())
 
 #additional jobs
-non_common_jobs = set(job_map_record.keys())-common_jobs
-non_common_jobs = non_common_jobs.union(set(job_map_max.keys())-common_jobs)
+non_common_jobs = set(job_map_max.keys())-common_jobs
 non_common_jobs = non_common_jobs.union(set(job_map_avg.keys())-common_jobs)
 non_common_jobs = non_common_jobs.union(set(job_map_peak.keys())-common_jobs)
 print("Skipping the "+ str(len(non_common_jobs)) +" jobs not in common: " + str(non_common_jobs))
