@@ -20,11 +20,11 @@ fail() {
 }
 
 
-terms_of_variant() {
+variant_replayer_params() {
     if [[ "$1" == "2" ]]; then
-        echo "TIMESTAMPS"
+        echo "--term TIMESTAMPS"
     elif [[ "$1" == "4" ]]; then
-        echo "NO_TERM"
+        echo "--term NO_TERM -e"
     else
         fail "unknown multisource variant"
     fi
@@ -130,7 +130,7 @@ for procs in $PROCESSORS; do
                     BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
                     rm -r "$VERDICT_FILE" 2> /dev/null
-                    "$WORK_DIR/replayer.sh" -o kafka -v --term $(terms_of_variant $variant) -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                    "$WORK_DIR/replayer.sh" -o kafka -v $(variant_replayer_params $variant) -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
                     "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --load "$STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numcpus  > "$JOB_REPORT"
                     wait
                 done
