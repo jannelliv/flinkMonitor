@@ -13,8 +13,7 @@ sealed case class Config(numOutputs: Int = 4,
                          transformerId: Int = 1,
                          inputCsv: String = "input.csv",
                          outoutCsvPrefix: String = "output",
-                         gamma: Double = 1.0,
-                         maxDeviation: Int = 5)
+                         gamma: Double = 1.0)
 
 abstract class TransformerImpl(numPartitions: Int, output: Array[Writer]) {
   protected def sendEOFs(): Unit = {
@@ -118,13 +117,13 @@ class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Ar
   }
 }
 
-class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, output: Array[Writer], gamma: Double, maxDeviation: Int) extends TransformerImpl(numPartitions, output) {
-  require(maxDeviation > 0 && gamma > 0)
+class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, output: Array[Writer], gamma: Double) extends TransformerImpl(numPartitions, output) {
+  require(gamma > 0)
   val dist: NormalDistribution = new NormalDistribution(0, gamma)
   val emissionSeparator: String = "'"
 
   private def sample(): Int = {
-    math.min(math.max(dist.sample().toInt, -maxDeviation), maxDeviation)
+    dist.sample().toInt
   }
 
   private def makeRecord(emissionTime: Int, line: String): String = {
@@ -146,7 +145,7 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int, input: Source, o
       var left = tsLeft(ts)
       left -= 1
       require(left >= 0)
-      val emissiontime = Math.max(0, ts + sample() - minTs)
+      val emissiontime = math.max(0, ts + sample() - minTs)
       val partition = Random.nextInt(numPartitions)
       if (emissiontime > currTime(partition))
         currTime(partition) = emissiontime
@@ -219,7 +218,7 @@ object TraceTransformer {
     val transformer: TransformerImpl = config.transformerId match {
       case 1 | 2 => new PerPartitionOrderTransformer(config.numOutputs, input, output)
       case 3 => new WatermarkOrderTransformer(config.numOutputs, input, output)
-      case 4 => new WatermarkOrderEmissionTimeTransformer(config.numOutputs, input, output, config.gamma, config.maxDeviation)
+      case 4 => new WatermarkOrderEmissionTimeTransformer(config.numOutputs, input, output, config.gamma)
       case _ => throw new Exception("should not happen")
     }
 
