@@ -112,7 +112,7 @@ for procs in $PROCESSORS; do
     echo "  $numcpus processors:"
     
     "$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
-    sleep 1.0
+    sleep 3.0
     "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
     "$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
     for variant in $MULTISOURCE_VARIANTS; do
