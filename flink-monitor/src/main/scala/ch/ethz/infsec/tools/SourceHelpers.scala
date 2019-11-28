@@ -75,59 +75,53 @@ class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int
   }
 }
 
-sealed abstract class ReorderFunction extends RichFlatMapFunction[(Int, Fact), Fact]
-
-case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends ReorderFunction {
-  override def toString: String = "Collapse the facts and order them using terminators"
-
+sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fact), Fact] {
   private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
-  private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  private var currentTs: Long = -2
-  private var maxTs: Long = -1
+  private val maxOrderElem = (1 to numSources map (_ => -1L)).toArray
+  private var currentIdx: Long = -2
+  private var maxIdx: Long = -1
   private var numEOF: Int = 0
+
+  protected def isOrderElement(fact: Fact) : Boolean
+  protected def indexExtractor(fact: Fact) : Long
+  protected def makeTerminator(idx: Long) : Fact
 
   private def insertElement(fact: Fact, idx: Int, timeStamp: Long, out: Collector[Fact]) : Unit = {
-    if (fact.isTerminator) {
-      if (timeStamp > maxTerminator(idx))
-        maxTerminator(idx) = timeStamp
-      flushReady(out)
-    } else {
-      ts2Facts.get(timeStamp) match {
-        case Some(buf) => buf += fact
-        case None => ts2Facts += (timeStamp -> ArrayBuffer[Fact](fact))
-      }
+    ts2Facts.get(timeStamp) match {
+      case Some(buf) => buf += fact
+      case None => ts2Facts += (timeStamp -> ArrayBuffer[Fact](fact))
     }
   }
 
   private def flushReady(out: Collector[Fact]): Unit = {
-    val maxAgreedTerminator = maxTerminator.min
-    if (maxAgreedTerminator < currentTs)
+    val maxAgreedIdx = maxOrderElem.min
+    if (maxAgreedIdx < currentIdx)
       return
 
-    for (ts <- (currentTs + 1) to maxAgreedTerminator) {
+    for (idx <- (currentIdx + 1) to maxAgreedIdx) {
       ts2Facts
-        .get(ts)
+        .get(idx)
         .foreach(_.foreach(out.collect))
       if (DebugReorderFunction.isDebug)
-        println(s"REORDER: FLUSHED ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
-      out.collect(Fact.terminator(ts))
-      ts2Facts -= ts
+        println(s"REORDER: FLUSHED ${System.identityHashCode(this)}, idx: $idx, currentTS: $currentIdx maxTerm: ${maxOrderElem.mkString(",")}")
+      out.collect(makeTerminator(idx))
+      ts2Facts -= idx
     }
-    currentTs = maxAgreedTerminator
+    currentIdx = maxAgreedIdx
   }
 
   private def forceFlush(out: Collector[Fact]): Unit = {
-    if (maxTs != -1) {
-      for (ts <- (currentTs + 1) to maxTs) {
+    if (maxIdx != -1) {
+      for (idx <- (currentIdx + 1) to maxIdx) {
         if (DebugReorderFunction.isDebug)
-          println(s"REORDER: FORCE FLUSING ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
+          println(s"REORDER: FORCE FLUSING ${System.identityHashCode(this)}, idx: $idx, currentTS: $currentIdx maxTerm: ${maxOrderElem.mkString(",")}")
         ts2Facts
-          .remove(ts)
+          .remove(idx)
           .foreach { facts =>
             facts.foreach(out.collect)
-            if (ts > maxTs) {
-              maxTs = ts
-              out.collect(Fact.terminator(ts))
+            if (idx > maxIdx) {
+              maxIdx = idx
+              out.collect(makeTerminator(idx))
             }
           }
       }
@@ -135,111 +129,25 @@ case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends Reorder
   }
 
   override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
-    val (idx, fact) = value
-    if(currentTs == -2) {
+    val (subtaskidx, fact) = value
+    if(currentIdx == -2) {
       require(fact.isMeta && fact.getName == "START")
-      val firstTs = fact.getArgument(0).asInstanceOf[String].toLong
-      require(firstTs >= 0)
-      currentTs = firstTs - 1
+      val firstIdx = fact.getArgument(0).asInstanceOf[String].toLong
+      require(firstIdx >= 0)
+      currentIdx = firstIdx - 1
       return
     }
+
+    if (isOrderElement(fact)) {
+      val idx = indexExtractor(fact)
+      if (idx > maxOrderElem(subtaskidx))
+        maxOrderElem(subtaskidx) = idx
+      flushReady(out)
+      return
+    }
+
     if (fact.isMeta) {
       if (fact.getName == "EOF") {
-        numEOF += 1
-        if (numEOF == numSources) {
-          forceFlush(out)
-        }
-        return
-      } else if(fact.getName == "START")
-        return
-    }
-
-    val timeStamp = fact.getTimestamp
-    if(timeStamp > maxTs)
-      maxTs = timeStamp
-
-    if (timeStamp < currentTs) {
-      if (DebugReorderFunction.isDebug)
-        println(s"REORDER: got ts $timeStamp but currentts is $currentTs")
-      throw new Exception("FATAL ERROR: Got a timestamp that should already be flushed")
-    }
-    insertElement(fact, idx, timeStamp, out)
-  }
-}
-
-case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends ReorderFunction {
-  override def toString: String = "Collapse the facts and reorder them using watermarks"
-
-  private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
-  private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  private var currentTs: Long = -2
-  private var maxTs: Long = -1
-  private var numEOF: Int = 0
-
-  private def insertElement(fact: Fact, idx: Int, timeStamp: Long) : Unit = {
-    if (!fact.isTerminator) {
-      ts2Facts.get(timeStamp) match {
-        case Some(buf) => buf += fact
-        case None =>
-          ts2Facts += (timeStamp -> ArrayBuffer[Fact](fact))
-      }
-    }
-  }
-
-  private def flushReady(out: Collector[Fact]): Unit = {
-    val maxAgreedTerminator = maxTerminator.min
-    if (maxAgreedTerminator < currentTs)
-      return
-
-    for (ts <- (currentTs + 1) to maxAgreedTerminator) {
-      if (DebugReorderFunction.isDebug)
-        println(s"REORDER: FLUSING ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
-      ts2Facts
-        .get(ts)
-        .foreach(_.foreach(out.collect))
-
-      out.collect(Fact.terminator(ts))
-      ts2Facts -= ts
-    }
-    currentTs = maxAgreedTerminator
-  }
-
-  private def forceFlush(out: Collector[Fact]): Unit = {
-    if (maxTs != -1) {
-      for (ts <- (currentTs + 1) to maxTs) {
-        if (DebugReorderFunction.isDebug)
-          println(s"REORDER: FORCE FLUSHING ${System.identityHashCode(this)}, ts: $ts, currentTS: $currentTs maxTerm: ${maxTerminator.mkString(",")}")
-
-        ts2Facts
-          .remove(ts)
-          .foreach { facts =>
-            facts.foreach(out.collect)
-            if (ts > maxTs) {
-              maxTs = ts
-              out.collect(Fact.terminator(ts))
-            }
-          }
-      }
-    }
-  }
-
-  override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
-    val (idx, fact) = value
-    if(currentTs == -2) {
-      require(fact.isMeta && fact.getName == "START")
-      val firstTs = fact.getArgument(0).asInstanceOf[String].toLong
-      require(firstTs >= 0)
-      currentTs = firstTs - 1
-      return
-    }
-    if (fact.isMeta) {
-      if (fact.getName == "WATERMARK") {
-        val timestamp = fact.getArgument(0).asInstanceOf[String].toLong
-        if (timestamp > maxTerminator(idx))
-          maxTerminator(idx) = timestamp
-        flushReady(out)
-        return
-      } else if (fact.getName == "EOF") {
         numEOF += 1
         if (numEOF == numSources) {
           forceFlush(out)
@@ -248,125 +156,46 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
       } else if (fact.getName == "START")
         return
     }
+    val idx = indexExtractor(fact)
+    if(idx > maxIdx)
+      maxIdx = idx
 
-    val timeStamp = fact.getTimestamp
-    if(timeStamp > maxTs)
-      maxTs = timeStamp
-
-    if (timeStamp < currentTs) {
+    if (idx < currentIdx) {
       throw new Exception("FATAL ERROR: Got a timestamp that should already be flushed")
     }
-    insertElement(fact, idx, timeStamp)
+    insertElement(fact, subtaskidx, idx, out)
   }
 }
 
-case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction {
-  override def toString: String = "Reorder the facts using timepoints (global order)"
+case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction(numSources) {
+  private val tpTotsMap: mutable.LongMap[Long] = new mutable.LongMap[Long]()
 
-  //Map of timepoints to the facts encountered in the stream
-  private val tp2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
-  //Maps timepoints to timestamps
-  private val tp2ts = new mutable.LongMap[Long]()
-  //The terminator with the highest timepoint per input source
-  private val maxTerminator = (1 to numSources map (_ => -1L)).toArray
-  private var currentTp: Long = -2
-  //The biggest Tp that was ever received
-  private var maxTp: Long = -1
-  //The biggest Ts that was ever flushed
-  private var maxTs: Long = -1
-  //Number of EOFs that have been received
-  private var numEOF: Int = 0
+  override protected def isOrderElement(fact: Fact): Boolean = fact.isTerminator
+  override protected def indexExtractor(fact: Fact): Long = {
+    val tp = fact.getTimepoint
+    val ts = fact.getTimestamp
+    tpTotsMap += (tp,  ts)
+    tp
+  }
+  override protected def makeTerminator(idx: Long): Fact = Fact.terminator(tpTotsMap(idx))
+}
 
-  private def insertElement(fact: Fact, idx: Int, timePoint: Long) : Unit = {
-    if (fact.isTerminator) {
-      //If the terminator has a higher tp than the current tp for this partition, update the tp
-      if (timePoint > maxTerminator(idx))
-        maxTerminator(idx) = timePoint
+case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends ReorderFunction(numSources) {
+  override protected def isOrderElement(fact: Fact): Boolean = fact.isTerminator
+  override protected def indexExtractor(fact: Fact): Long = fact.getTimestamp
+  override protected def makeTerminator(idx: Long): Fact = Fact.terminator(idx)
+}
+
+case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends ReorderFunction(numSources) {
+  override protected def isOrderElement(fact: Fact): Boolean = fact.isMeta && fact.getName == "WATERMARK"
+  override protected def indexExtractor(fact: Fact): Long = {
+    if (isOrderElement(fact)) {
+      fact.getArgument(0).asInstanceOf[String].toLong
     } else {
-      //Else, append the value to the existing buffer (or create a new buffer for this timepoint)
-      tp2Facts.get(timePoint) match {
-        case Some(buf) => buf += fact
-        case None =>
-          tp2Facts += (timePoint -> ArrayBuffer[Fact](fact))
-      }
+      fact.getTimestamp
     }
   }
-
-  private def flushReady(out: Collector[Fact]): Unit = {
-    val maxAgreedTerminator = maxTerminator.min
-    if (maxAgreedTerminator < currentTp)
-      return
-
-    for (tp <- (currentTp + 1) to maxAgreedTerminator) {
-      if (DebugReorderFunction.isDebug)
-        println(s"REORDER: FLUSING ${System.identityHashCode(this)}, tp: $tp, currentTP: $currentTp maxTerm: ${maxTerminator.mkString(",")}")
-
-      tp2Facts
-        .get(tp)
-        .foreach(_.foreach(out.collect))
-
-      out.collect(Fact.terminator(tp2ts(tp)))
-      tp2Facts -= tp
-      tp2ts -= tp
-    }
-    currentTp = maxAgreedTerminator
-  }
-
-  private def forceFlush(out: Collector[Fact]): Unit = {
-    if (maxTp != -1) {
-      for (tp <- (currentTp + 1) to maxTp) {
-        if (DebugReorderFunction.isDebug)
-          println(s"REORDER: FORCE FLUSING ${System.identityHashCode(this)}, tp: $tp, currentTP: $currentTp maxTerm: ${maxTerminator.mkString(",")}")
-        tp2Facts.remove(tp) match {
-          case Some(facts) =>
-            facts.foreach(out.collect)
-            val timeStamp = tp2ts(tp)
-            if (timeStamp > maxTs) {
-              maxTs = timeStamp
-              out.collect(Fact.terminator(timeStamp))
-            }
-          case None => ()
-        }
-      }
-    }
-  }
-
-  override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
-    val (idx, fact) = value
-    if(currentTp == -2) {
-      require(fact.isMeta && fact.getName == "START")
-      val firstTp = fact.getArgument(0).asInstanceOf[String].toLong
-      require(firstTp >= 0)
-      currentTp = firstTp - 1
-      return
-    }
-    if (fact.isMeta) {
-      if (fact.getName == "EOF") {
-        numEOF += 1
-        if (numEOF == numSources) {
-          forceFlush(out)
-        }
-        return
-      } else if (fact.getName == "START") {
-        return
-      }
-    }
-    val timePoint = fact.getTimepoint.longValue()
-    val timeStamp = fact.getTimestamp.longValue()
-    tp2ts += (timePoint -> timeStamp)
-    if(timePoint > maxTp)
-      maxTp = timePoint
-
-    if (timePoint < currentTp) {
-      if (DebugReorderFunction.isDebug)
-        println(s"REORDER: got tp $timePoint but currenttp is $currentTp")
-      throw new Exception("FATAL ERROR: Got a timepoint that should already be flushed")
-    }
-    insertElement(fact, idx, timePoint)
-
-    if (fact.isTerminator)
-      flushReady(out)
-  }
+  override protected def makeTerminator(idx: Long): Fact = Fact.terminator(idx)
 }
 
 class TestSimpleStringSchema extends SimpleStringSchema {
