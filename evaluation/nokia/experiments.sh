@@ -3,15 +3,15 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-FORMULAS="custom-neg"
-#FORMULAS="custom-neg ins-1-2-neg del-1-2-neg"
+#FORMULAS="custom-neg"
+FORMULAS="custom-neg ins-1-2-neg del-1-2-neg"
 NEGATE=""
-#MULTISOURCE_VARIANTS="2 4"
-#ACCELERATIONS="1000 2000 3000 4000 5000"
-#PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MULTISOURCE_VARIANTS="2 4"
-ACCELERATIONS="5000"
-PROCESSORS="8/0-9,24-33"
+ACCELERATIONS="1000 2000 3000 4000 5000"
+PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
+#MULTISOURCE_VARIANTS="2 4"
+#ACCELERATIONS="5000"
+#PROCESSORS="8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 
@@ -105,16 +105,16 @@ done
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
+"$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
+sleep 3.0
+"$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
+"$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
 echo "Flink without checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
     cpulist=${procs#*/}
     echo "  $numcpus processors:"
     
-    "$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
-    sleep 3.0
-    "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
-    "$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
     for variant in $MULTISOURCE_VARIANTS; do
         echo "  Variant $variant:"
         "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
@@ -140,11 +140,11 @@ for procs in $PROCESSORS; do
         done
         rm -rf "$EXEC_LOG_DIR/preprocess_out"*
     done
-    "$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
-    "$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
-    sleep 1.0
-    "$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
 done
+"$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
+"$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
+sleep 1.0
+"$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
 
 : '
 echo "Flink with checkpointing:"
