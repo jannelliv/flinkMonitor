@@ -6,9 +6,14 @@ import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
+import org.apache.flink.api.common.state.{ListState, ListStateDescriptor, ValueState, ValueStateDescriptor}
+import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
+import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext}
+import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
+import scala.collection.JavaConverters._
 
 import scala.reflect.io.Path._
 import scala.collection.mutable
@@ -33,11 +38,11 @@ sealed class MultiSourceVariant {
       "Reorder function: " + getReorderFunction.toString
   }
 
-  def getStreamMonitorBuilder(env: StreamExecutionEnvironment) : StreamMonitorBuilder = {
+  def getStreamMonitorBuilder(env: StreamExecutionEnvironment): StreamMonitorBuilder = {
     new StreamMonitorBuilderParInput(env, getReorderFunction)
   }
 
-  def getTerminatorMode : TerminatorMode = {
+  def getTerminatorMode: TerminatorMode = {
     this match {
       case TotalOrder() => TerminatorMode.ALL_TERMINATORS
       case PerPartitionOrder() => TerminatorMode.ONLY_TIMESTAMPS
@@ -46,7 +51,7 @@ sealed class MultiSourceVariant {
     }
   }
 
-  private def getReorderFunction : ReorderFunction = {
+  private def getReorderFunction: ReorderFunction = {
     this match {
       case TotalOrder() => ReorderTotalOrderFunction(MonitorKafkaConfig.getNumPartitions)
       case PerPartitionOrder() => ReorderCollapsedPerPartitionFunction(MonitorKafkaConfig.getNumPartitions)
@@ -55,17 +60,26 @@ sealed class MultiSourceVariant {
     }
   }
 }
+
 case class TotalOrder() extends MultiSourceVariant
+
 case class PerPartitionOrder() extends MultiSourceVariant
+
 case class WaterMarkOrder() extends MultiSourceVariant
 
 sealed class EndPoint
+
 case class SocketEndpoint(socket_addr: String, port: Int) extends EndPoint
+
 case class FileEndPoint(file_path: String) extends EndPoint
+
 case class KafkaEndpoint() extends EndPoint
 
-class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int, Fact)] {
-  var cached_idx : Option[Int] = None
+class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int, Fact)]
+  with CheckpointedFunction {
+  private var cached_idx: Option[Int] = None
+  @transient private var cached_idx_state: ListState[Option[Int]] = _
+
   override def flatMap(value: (Int, Fact), out: Collector[(Int, Int, Fact)]): Unit = {
     val (part, fact) = value
     val idx = cached_idx.getOrElse(getRuntimeContext.getIndexOfThisSubtask)
@@ -73,23 +87,87 @@ class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int
       cached_idx = Some(idx)
     out.collect((part, idx, fact))
   }
+
+  override def snapshotState(context: FunctionSnapshotContext): Unit = {
+    cached_idx_state.clear()
+    cached_idx_state.add(cached_idx)
+  }
+
+  override def initializeState(context: FunctionInitializationContext): Unit = {
+    val descriptor = new ListStateDescriptor[Option[Int]](
+      "buffered subtask index",
+      TypeInformation.of(new TypeHint[Option[Int]] {})
+    )
+    cached_idx_state = context.getOperatorStateStore.getListState(descriptor)
+    if (context.isRestored) {
+      val buf = new ArrayBuffer[Option[Int]]()
+      cached_idx_state.get().forEach(k => buf += k)
+      require(buf.length == 1)
+      cached_idx = buf(0)
+    }
+  }
 }
 
-sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fact), Fact] {
-  private val ts2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
-  private val maxOrderElem = (1 to numSources map (_ => -1L)).toArray
+sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fact), Fact] with CheckpointedFunction {
+  private val idx2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
+  private var maxOrderElem = (1 to numSources map (_ => -1L)).toArray
   private var currentIdx: Long = -2
   private var maxIdx: Long = -1
   private var numEOF: Int = 0
 
-  protected def isOrderElement(fact: Fact) : Boolean
-  protected def indexExtractor(fact: Fact) : Long
-  protected def makeTerminator(idx: Long) : Fact
+  @transient private var idx2facts_state : ListState[(Long, ArrayBuffer[Fact])] = _
+  @transient private var maxorderelem_state : ListState[Long] = _
+  @transient private var indices_state : ListState[Long] = _
 
-  private def insertElement(fact: Fact, idx: Int, timeStamp: Long, out: Collector[Fact]) : Unit = {
-    ts2Facts.get(timeStamp) match {
+  protected def isOrderElement(fact: Fact): Boolean
+
+  protected def indexExtractor(fact: Fact): Long
+
+  protected def makeTerminator(idx: Long): Fact
+
+  override def snapshotState(context: FunctionSnapshotContext): Unit = {
+    idx2facts_state.clear()
+    maxorderelem_state.clear()
+    indices_state.clear()
+    idx2Facts.foreach(k => idx2facts_state.add(k))
+    maxOrderElem.foreach(k => maxorderelem_state.add(k))
+    indices_state.add(currentIdx)
+    indices_state.add(maxIdx)
+    indices_state.add(numEOF)
+  }
+
+  override def initializeState(context: FunctionInitializationContext): Unit = {
+    val desc_idx2facts = new ListStateDescriptor[(Long, ArrayBuffer[Fact])](
+      "idx2facts map",
+      TypeInformation.of(new TypeHint[(Long, ArrayBuffer[Fact])] {})
+    )
+    val desc_maxorderelem = new ListStateDescriptor[Long](
+      "maxorderelem",
+      TypeInformation.of(new TypeHint[Long] {})
+    )
+    val desc_indices = new ListStateDescriptor[Long](
+      "desc_indices",
+      TypeInformation.of(new TypeHint[Long] {})
+    )
+    idx2facts_state = context.getOperatorStateStore.getListState(desc_idx2facts)
+    maxorderelem_state = context.getOperatorStateStore.getListState(desc_maxorderelem)
+    indices_state = context.getOperatorStateStore.getListState(desc_indices)
+
+    if (context.isRestored) {
+      idx2facts_state.get().forEach(k => idx2Facts += (k._1, k._2))
+      maxOrderElem = maxorderelem_state.get().asScala.toArray
+      val indices = indices_state.get().asScala.toArray
+      require(indices.length == 3)
+      currentIdx = indices(0)
+      maxIdx = indices(1)
+      numEOF = indices(2).toInt
+    }
+  }
+
+  private def insertElement(fact: Fact, idx: Int, timeStamp: Long, out: Collector[Fact]): Unit = {
+    idx2Facts.get(timeStamp) match {
       case Some(buf) => buf += fact
-      case None => ts2Facts += (timeStamp -> ArrayBuffer[Fact](fact))
+      case None => idx2Facts += (timeStamp -> ArrayBuffer[Fact](fact))
     }
   }
 
@@ -99,13 +177,12 @@ sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFuncti
       return
 
     for (idx <- (currentIdx + 1) to maxAgreedIdx) {
-      ts2Facts
-        .get(idx)
+      idx2Facts
+        .remove(idx)
         .foreach(_.foreach(out.collect))
       if (DebugReorderFunction.isDebug)
         println(s"REORDER: FLUSHED ${System.identityHashCode(this)}, idx: $idx, currentTS: $currentIdx maxTerm: ${maxOrderElem.mkString(",")}")
       out.collect(makeTerminator(idx))
-      ts2Facts -= idx
     }
     currentIdx = maxAgreedIdx
   }
@@ -115,7 +192,7 @@ sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFuncti
       for (idx <- (currentIdx + 1) to maxIdx) {
         if (DebugReorderFunction.isDebug)
           println(s"REORDER: FORCE FLUSING ${System.identityHashCode(this)}, idx: $idx, currentTS: $currentIdx maxTerm: ${maxOrderElem.mkString(",")}")
-        ts2Facts
+        idx2Facts
           .remove(idx)
           .foreach { facts =>
             facts.foreach(out.collect)
@@ -130,7 +207,7 @@ sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFuncti
 
   override def flatMap(value: (Int, Fact), out: Collector[Fact]): Unit = {
     val (subtaskidx, fact) = value
-    if(currentIdx == -2) {
+    if (currentIdx == -2) {
       require(fact.isMeta && fact.getName == "START")
       val firstIdx = fact.getArgument(0).asInstanceOf[String].toLong
       require(firstIdx >= 0)
@@ -157,7 +234,7 @@ sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFuncti
         return
     }
     val idx = indexExtractor(fact)
-    if(idx > maxIdx)
+    if (idx > maxIdx)
       maxIdx = idx
 
     if (idx < currentIdx) {
@@ -169,25 +246,51 @@ sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFuncti
 
 case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction(numSources) {
   private val tpTotsMap: mutable.LongMap[Long] = new mutable.LongMap[Long]()
+  @transient private var tptots_state: ListState[(Long, Long)] = _
 
-  override protected def isOrderElement(fact: Fact): Boolean = fact.isTerminator
-  override protected def indexExtractor(fact: Fact): Long = {
-    val tp = fact.getTimepoint
-    val ts = fact.getTimestamp
-    tpTotsMap += (tp,  ts)
-    tp
+  override protected def isOrderElement(fact: Fact): Boolean = {
+    val ret = fact.isTerminator
+    if (ret) {
+      val tp = fact.getTimepoint
+      val ts = fact.getTimestamp
+      tpTotsMap += (tp, ts)
+    }
+    ret
   }
-  override protected def makeTerminator(idx: Long): Fact = Fact.terminator(tpTotsMap(idx))
+
+  override protected def indexExtractor(fact: Fact): Long = fact.getTimepoint
+
+  override protected def makeTerminator(idx: Long): Fact = Fact.terminator(tpTotsMap.remove(idx).get)
+
+  override def snapshotState(context: FunctionSnapshotContext): Unit = {
+    super.snapshotState(context)
+    tpTotsMap.foreach(k => tptots_state.add(k))
+  }
+
+  override def initializeState(context: FunctionInitializationContext): Unit = {
+    super.initializeState(context)
+    val desc_tptots = new ListStateDescriptor[(Long, Long)](
+      "tptots map",
+      TypeInformation.of(new TypeHint[(Long, Long)] {})
+    )
+    tptots_state = context.getOperatorStateStore.getListState(desc_tptots)
+    if (context.isRestored) {
+      tptots_state.get().forEach(k => tpTotsMap += (k._1, k._2))
+    }
+  }
 }
 
 case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends ReorderFunction(numSources) {
   override protected def isOrderElement(fact: Fact): Boolean = fact.isTerminator
+
   override protected def indexExtractor(fact: Fact): Long = fact.getTimestamp
+
   override protected def makeTerminator(idx: Long): Fact = Fact.terminator(idx)
 }
 
 case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends ReorderFunction(numSources) {
   override protected def isOrderElement(fact: Fact): Boolean = fact.isMeta && fact.getName == "WATERMARK"
+
   override protected def indexExtractor(fact: Fact): Long = {
     if (isOrderElement(fact)) {
       fact.getArgument(0).asInstanceOf[String].toLong
@@ -195,6 +298,7 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
       fact.getTimestamp
     }
   }
+
   override protected def makeTerminator(idx: Long): Fact = Fact.terminator(idx)
 }
 
@@ -209,7 +313,7 @@ class KafkaTestProducer(inputDir: String, inputFilePrefix: String) {
     .toDirectory
     .files
     .filter(k => k.name matches (inputFilePrefix + ".*\\.csv"))
-    .map{k =>
+    .map { k =>
       val PartNumRegex = (inputFilePrefix + """([0-9]+)\.csv""").r
       val PartNumRegex(num) = k.name
       (num.toInt, Source.fromFile(k.path))
@@ -232,11 +336,11 @@ class KafkaTestProducer(inputDir: String, inputFilePrefix: String) {
 
   private def makeProducer(): KafkaProducer[String, String] = new KafkaProducer[String, String](MonitorKafkaConfig.getKafkaProps)
 
-  private def sendRecord(line: String, partition: Int) : Unit = {
-      producer.send(new ProducerRecord[String, String](topic, partition, "", line + "\n"))
+  private def sendRecord(line: String, partition: Int): Unit = {
+    producer.send(new ProducerRecord[String, String](topic, partition, "", line + "\n"))
   }
 
-  def runProducer(joinThreads: Boolean = false) : Unit = {
+  def runProducer(joinThreads: Boolean = false): Unit = {
     val buf = new ArrayBuffer[ProducerThread]()
     for ((partNum, src) <- inputFiles) {
       val t = new ProducerThread(partNum, src)
