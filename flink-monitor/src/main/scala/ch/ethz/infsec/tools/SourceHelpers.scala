@@ -75,36 +75,11 @@ case class FileEndPoint(file_path: String) extends EndPoint
 
 case class KafkaEndpoint() extends EndPoint
 
-class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int, Fact)]
-  with CheckpointedFunction {
-  private var cached_idx: Option[Int] = None
-  @transient private var cached_idx_state: ListState[Option[Int]] = _
-
+class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int, Fact)] {
   override def flatMap(value: (Int, Fact), out: Collector[(Int, Int, Fact)]): Unit = {
     val (part, fact) = value
-    val idx = cached_idx.getOrElse(getRuntimeContext.getIndexOfThisSubtask)
-    if (cached_idx.isEmpty)
-      cached_idx = Some(idx)
+    val idx = getRuntimeContext.getIndexOfThisSubtask
     out.collect((part, idx, fact))
-  }
-
-  override def snapshotState(context: FunctionSnapshotContext): Unit = {
-    cached_idx_state.clear()
-    cached_idx_state.add(cached_idx)
-  }
-
-  override def initializeState(context: FunctionInitializationContext): Unit = {
-    val descriptor = new ListStateDescriptor[Option[Int]](
-      "buffered subtask index",
-      TypeInformation.of(new TypeHint[Option[Int]] {})
-    )
-    cached_idx_state = context.getOperatorStateStore.getListState(descriptor)
-    if (context.isRestored) {
-      val buf = new ArrayBuffer[Option[Int]]()
-      cached_idx_state.get().forEach(k => buf += k)
-      require(buf.length == 1)
-      cached_idx = buf(0)
-    }
   }
 }
 
@@ -176,13 +151,22 @@ sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFuncti
     if (maxAgreedIdx < currentIdx)
       return
 
-    for (idx <- (currentIdx + 1) to maxAgreedIdx) {
+    var idx = currentIdx + 1
+    while (idx <= maxAgreedIdx) {
       idx2Facts
         .remove(idx)
-        .foreach(_.foreach(out.collect))
+        .foreach{ k =>
+          var i = 0
+          val len = k.length
+          while (i < len) {
+            out.collect(k(i))
+            i += 1
+          }
+        }
       if (DebugReorderFunction.isDebug)
         println(s"REORDER: FLUSHED ${System.identityHashCode(this)}, idx: $idx, currentTS: $currentIdx maxTerm: ${maxOrderElem.mkString(",")}")
       out.collect(makeTerminator(idx))
+      idx += 1
     }
     currentIdx = maxAgreedIdx
   }

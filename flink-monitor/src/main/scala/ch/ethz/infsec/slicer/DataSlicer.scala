@@ -108,7 +108,6 @@ abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCh
       }
       i += 1
     }
-
     slices.foreach(s => f.collect(s, fact))
   }
 
