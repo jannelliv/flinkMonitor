@@ -45,7 +45,7 @@ class StreamMonitorBuilderParInput(env: StreamExecutionEnvironment, reorder: Reo
 
 class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends StreamMonitorBuilder(env) {
   override protected def partitionAndReorder(dataStream: DataStream[(Int, Fact)], slicer: HypercubeSlicer): DataStream[Fact] = {
-    val indexTrace = dataStream
+    /*val indexTrace = dataStream
       .flatMap(new AddSubtaskIndexFunction)
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)
@@ -61,11 +61,12 @@ class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends Stream
       .uid("remove-id")
 
     partitionedTraceWithoutId
-      .flatMap(new ReorderTotalOrderFunction(StreamMonitoring.inputParallelism))
+      .flatMap(new ReorderTotalOrderFunction())
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Reorder facts")
-      .uid("reorder-facts")
+      .uid("reorder-facts")*/
+    throw new Exception("not implemented")
   }
 }
 

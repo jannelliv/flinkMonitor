@@ -55,9 +55,9 @@ sealed class MultiSourceVariant {
 
   private def getReorderFunction: ReorderFunction = {
     this match {
-      case TotalOrder() => ReorderTotalOrderFunction(MonitorKafkaConfig.getNumPartitions)
-      case PerPartitionOrder() => ReorderCollapsedPerPartitionFunction(MonitorKafkaConfig.getNumPartitions)
-      case WaterMarkOrder() => ReorderCollapsedWithWatermarksFunction(MonitorKafkaConfig.getNumPartitions)
+      case TotalOrder() => new ReorderTotalOrderFunction()
+      case PerPartitionOrder() => new ReorderCollapsedPerPartitionFunction()
+      case WaterMarkOrder() => new ReorderCollapsedWithWatermarksFunction()
       case _ => throw new Exception("case failed")
     }
   }
@@ -85,7 +85,9 @@ class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int
   }
 }
 
-sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFunction[(Int, Fact), Fact] with CheckpointedFunction {
+/*
+abstract class ReorderFunction extends RichFlatMapFunction[(Int, Fact), Fact] with CheckpointedFunction {
+  protected val numSources: Int = MonitorKafkaConfig.getNumPartitions
   private val idx2Facts = new mutable.LongMap[ArrayBuffer[Fact]]()
   private var maxOrderElem = (1 to numSources map (_ => -1L)).toArray
   private var currentIdx: Long = -2
@@ -228,9 +230,9 @@ sealed abstract class ReorderFunction(numSources: Int) extends RichFlatMapFuncti
     }
     insertElement(fact, subtaskidx, idx, out)
   }
-}
+}*/
 
-case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction(numSources) {
+/*class ReorderTotalOrderFunction extends ReorderFunction {
   private val tpTotsMap: mutable.LongMap[Long] = new mutable.LongMap[Long]()
   @transient private var tptots_state: ListState[(Long, Long)] = _
 
@@ -248,7 +250,7 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction(nu
 
   override protected def makeTerminator(idx: Long): Fact = Fact.terminator(tpTotsMap.remove(idx).get)
 
-  override def snapshotState(context: FunctionSnapshotContext): Unit = {
+  /*override def snapshotState(context: FunctionSnapshotContext): Unit = {
     super.snapshotState(context)
     tpTotsMap.foreach(k => tptots_state.add(k))
   }
@@ -263,18 +265,18 @@ case class ReorderTotalOrderFunction(numSources: Int) extends ReorderFunction(nu
     if (context.isRestored) {
       tptots_state.get().forEach(k => tpTotsMap += (k._1, k._2))
     }
-  }
-}
+  }*/
+}*/
 
-case class ReorderCollapsedPerPartitionFunction(numSources: Int) extends ReorderFunction(numSources) {
+/*class ReorderCollapsedPerPartitionFunction extends ReorderFunction {
   override protected def isOrderElement(fact: Fact): Boolean = fact.isTerminator
 
   override protected def indexExtractor(fact: Fact): Long = fact.getTimestamp
 
   override protected def makeTerminator(idx: Long): Fact = Fact.terminator(idx)
-}
+}*/
 
-case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends ReorderFunction(numSources) {
+/*class ReorderCollapsedWithWatermarksFunction extends ReorderFunction {
   override protected def isOrderElement(fact: Fact): Boolean = fact.isMeta && fact.getName == "WATERMARK"
 
   override protected def indexExtractor(fact: Fact): Long = {
@@ -286,7 +288,7 @@ case class ReorderCollapsedWithWatermarksFunction(numSources: Int) extends Reord
   }
 
   override protected def makeTerminator(idx: Long): Fact = Fact.terminator(idx)
-}
+}*/
 
 class TestSimpleStringSchema extends SimpleStringSchema {
   override def isEndOfStream(nextElement: String): Boolean = nextElement.startsWith(">TERMSTREAM")

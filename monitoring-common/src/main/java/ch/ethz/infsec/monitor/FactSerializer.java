@@ -17,8 +17,8 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
     @Override
     public void write(Kryo kryo, Output output, Fact fact) {
         output.writeString(fact.getName());
-        output.writeLong(fact.getTimestamp() == null ? -1 : fact.getTimestamp());
-        output.writeLong(fact.getTimepoint() == null ? -1 : fact.getTimepoint());
+        kryo.writeObjectOrNull(output, fact.getTimestamp(), Long.class);
+        kryo.writeObjectOrNull(output, fact.getTimepoint(), Long.class);
         output.writeInt(fact.getArity(), true);
         for (Object argument : fact.getArguments()) {
             if (argument instanceof Long) {
@@ -40,14 +40,8 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
     @Override
     public Fact read(Kryo kryo, Input input, Class<Fact> aClass) {
         final String name = input.readString();
-        Long timestamp = input.readLong();
-        if (timestamp.equals(-1L)) {
-            timestamp = null;
-        }
-        Long timepoint = input.readLong();
-        if (timepoint.equals(-1L)) {
-            timepoint = null;
-        }
+        Long timestamp = kryo.readObjectOrNull(input, Long.class);
+        Long timepoint = kryo.readObjectOrNull(input, Long.class);
         final int arity = input.readInt(true);
         final ArrayList<Object> arguments = new ArrayList<>(arity);
         for (int i = 0; i < arity; ++i) {
@@ -69,6 +63,5 @@ public class FactSerializer extends Serializer<Fact> implements Serializable {
         Fact fact = new Fact(name, timestamp, arguments);
         fact.setTimepoint(timepoint);
         return fact;
-        //return new Fact(name, timestamp, arguments);
     }
 }
