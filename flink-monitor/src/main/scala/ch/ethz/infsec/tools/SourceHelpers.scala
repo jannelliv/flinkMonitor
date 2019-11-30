@@ -4,17 +4,19 @@ import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderParInput}
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
+import fastparse.parsers.Terminals.Literal
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.common.state.{ListState, ListStateDescriptor, ValueState, ValueStateDescriptor}
 import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
+import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields
 import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext}
 import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
-import scala.collection.JavaConverters._
 
+import scala.collection.JavaConverters._
 import scala.reflect.io.Path._
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
