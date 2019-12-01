@@ -174,7 +174,7 @@ class ReorderCollapsedWithWatermarksFunction extends ReorderFunction {
 
     @Override
     protected Fact makeTerminator(long idx) {
-        return null;
+        return Fact.terminator(idx);
     }
 }
 
