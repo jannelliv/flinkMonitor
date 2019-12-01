@@ -75,6 +75,7 @@ parser.add_argument('-n', '--kafkaparts', default=4, type=int)
 parser.add_argument('-m', '--multisource_variant', default=1, type=int)
 parser.add_argument('-r', '--use_replayer', default=False, type=bool)
 parser.add_argument('-a', '--replayer_accel', default=1.0, type=float)
+parser.add_argument('--novalidate', action='store_true')
 parser.add_argument('flink_dir')
 args = parser.parse_args()
 
@@ -110,20 +111,20 @@ if (not os.path.isdir(args.flink_dir)) or (not os.path.isfile(args.flink_dir + '
 
 print('Generating log ...')
 pipe([work_dir + '/generator.sh', '-T', '-e', str(args.event_rate), '-i',
-      str(args.index_rate), '-x', '1', '30'], tmp_dir + '/trace.csv')
+      str(args.index_rate), '-x', '1', '5000'], tmp_dir + '/trace.csv')
 
 print('Preprocessing log for multiple inputs ...')
 
 exe_cmd([work_dir + '/trace-transformer.sh', '-v', str(args.multisource_variant), '-n', str(args.kafkaparts),
          '-o', tmp_dir + '/preprocess_out', tmp_dir + '/trace.csv'], False)
 
-print('Converting to monpoly format for validation ...')
-pipe([work_dir + '/replayer.sh', '-i', 'csv', '-f', 'monpoly', '-a', '0',
-      tmp_dir + '/trace.csv'], tmp_dir + '/trace.log')
-
-print("Creating reference output ...")
-pipe(['monpoly', '-sig', sig_file, '-formula', formula_file, '-log',
-      tmp_dir + '/trace.log'], tmp_dir + '/reference.txt')
+if not args.novalidate:
+    print('Converting to monpoly format for validation ...')
+    pipe([work_dir + '/replayer.sh', '-i', 'csv', '-f', 'monpoly', '-a', '0',
+          tmp_dir + '/trace.csv'], tmp_dir + '/trace.log')
+    print("Creating reference output ...")
+    pipe(['monpoly', '-sig', sig_file, '-formula', formula_file, '-log',
+          tmp_dir + '/trace.log'], tmp_dir + '/reference.txt')
 
 flink_args = [args.flink_dir + '/bin/flink', 'run', jar_path, '--in', 'kafka',
          '--format','csv', '--sig', sig_file, '--formula', formula_file, '--negate', 'false', '--multi',
@@ -156,7 +157,9 @@ if len(flink_out_file) < 1:
 flink_out_file = flink_out_file[0]
 shutil.copyfile(flink_out_file, tmp_dir + '/out.txt')
 
-if verify_verdicts(collapse, tmp_dir + '/reference.txt', tmp_dir + '/out.txt'):
-    print("=== TEST PASSED ===")
-else:
-    fail("")
+
+if not args.novalidate:
+    if verify_verdicts(collapse, tmp_dir + '/reference.txt', tmp_dir + '/out.txt'):
+        print("=== TEST PASSED ===")
+    else:
+        fail("")

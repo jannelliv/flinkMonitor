@@ -44,7 +44,7 @@ jobmanager.heap.size: "2048m"
 
 # The heap size for the TaskManager JVM
 
-taskmanager.heap.size: "64000m"
+taskmanager.heap.size: "128000m"
 
 
 # The number of task slots that each TaskManager offers. Each slot runs one parallel pipeline.
@@ -113,7 +113,7 @@ parallelism.default: 1
 
 # Default target directory for savepoints, optional.
 
-state.savepoints.dir: file:///local/home/grasm/savepoints
+#state.savepoints.dir: file:///local/home/grasm/savepoints
 
 # Flag to enable/disable incremental checkpoints for backends that
 # support incremental checkpoints (like the RocksDB state backend). 
@@ -242,4 +242,10 @@ rest.port: 8081
 
 # Interval in milliseconds for refreshing the monitored directories.
 #historyserver.archive.fs.refresh-interval: 10000
+
+metrics.reporters: prom
+metrics.reporter.prom.class: org.apache.flink.metrics.prometheus.PrometheusReporter
+metrics.reporter.prom.port: 9250-9265
+
+env.java.opts.taskmanager: "-XX:+UnlockCommercialFeatures -XX:+UnlockDiagnosticVMOptions -XX:+FlightRecorder -XX:+DebugNonSafepoints -XX:FlightRecorderOptions=defaultrecording=true,dumponexit=true,dumponexitpath=/local/home/grasm/lelex.jfr,settings=profile"
 
