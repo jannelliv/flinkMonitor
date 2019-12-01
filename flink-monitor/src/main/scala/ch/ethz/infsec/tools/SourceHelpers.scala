@@ -4,21 +4,14 @@ import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderParInput}
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
-import fastparse.parsers.Terminals.Literal
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
-import org.apache.flink.api.common.state.{ListState, ListStateDescriptor, ValueState, ValueStateDescriptor}
-import org.apache.flink.api.common.typeinfo.{TypeHint, TypeInformation}
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields
-import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext}
-import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
 
-import scala.collection.JavaConverters._
 import scala.reflect.io.Path._
-import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import scala.io.Source
 
@@ -77,6 +70,14 @@ case class FileEndPoint(file_path: String) extends EndPoint
 
 case class KafkaEndpoint() extends EndPoint
 
+@ForwardedFields(Array("1->0; 2->1"))
+class SecondThirdMapFunction extends MapFunction[(Int, Int, Fact), (Int, Fact)] {
+  override def map(t: (Int, Int, Fact)): (Int, Fact) = {
+    (t._2, t._3)
+  }
+}
+
+@ForwardedFields(Array("0; 1->2"))
 class AddSubtaskIndexFunction extends RichFlatMapFunction[(Int, Fact), (Int, Int, Fact)] {
   override def flatMap(value: (Int, Fact), out: Collector[(Int, Int, Fact)]): Unit = {
     val (part, fact) = value

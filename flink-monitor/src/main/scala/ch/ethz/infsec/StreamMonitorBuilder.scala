@@ -3,7 +3,7 @@ package ch.ethz.infsec
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ReorderFunction, ReorderTotalOrderFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ReorderFunction, ReorderTotalOrderFunction, SecondThirdMapFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -16,6 +16,7 @@ import org.apache.flink.streaming.api.functions.source.{FileProcessingMode, Sock
 import org.apache.flink.streaming.api.scala._
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink
 import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
+import org.apache.flink.api.java.operators.SingleInputUdfOperator
 
 class StreamMonitorBuilderParInput(env: StreamExecutionEnvironment, reorder: ReorderFunction) extends StreamMonitorBuilder(env) {
   override protected def partitionAndReorder(dataStream: DataStream[(Int, Fact)], slicer: HypercubeSlicer): DataStream[Fact] = {
@@ -28,7 +29,7 @@ class StreamMonitorBuilderParInput(env: StreamExecutionEnvironment, reorder: Reo
 
     val partitionedTraceWithoutId = indexTrace
       .partitionCustom(new IdPartitioner, 0)
-      .map(k => (k._2, k._3))
+      .map(new SecondThirdMapFunction)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Partition and remove slice ID")

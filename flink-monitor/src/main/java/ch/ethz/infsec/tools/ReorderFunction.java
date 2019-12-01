@@ -13,7 +13,9 @@ import org.apache.flink.util.Collector;
 import scala.Int;
 import scala.Tuple2;
 import java.util.Arrays;
+import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 
+@ForwardedFields({"1"})
 public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> {
     protected int numSources = MonitorKafkaConfig.getNumPartitions();
     private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts = new Long2ReferenceOpenHashMap<>();
@@ -61,8 +63,17 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         }
     }
 
+    private long minMaxOrderElem() {
+        long min = Long.MAX_VALUE;
+        for (long l: maxOrderElem) {
+            if (l < min)
+                min = l;
+        }
+        return min;
+    }
+
     private void flushReady(Collector<Fact> out) {
-        long maxAgreedIdx = Arrays.stream(maxOrderElem).min().getAsLong();
+        long maxAgreedIdx = minMaxOrderElem();
         if (maxAgreedIdx < currentIdx)
             return;
 
@@ -79,7 +90,6 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         currentIdx = maxAgreedIdx;
 
     }
-
 
     @Override public void flatMap(Tuple2<Int, Fact> value, Collector<Fact> out) {
         int subtaskidx = (Integer)((Object) value._1);
