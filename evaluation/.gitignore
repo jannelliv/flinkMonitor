@@ -16,3 +16,4 @@ state/
 output/
 *.kate-swp
 logs
+ldcc.csv.gz

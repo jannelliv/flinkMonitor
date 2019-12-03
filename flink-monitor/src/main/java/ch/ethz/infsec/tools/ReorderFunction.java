@@ -15,6 +15,11 @@ import scala.Tuple2;
 import java.util.Arrays;
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 
+
+class ReorderFunctionStateInstance {
+
+}
+
 @ForwardedFields({"1"})
 public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> {
     protected int numSources = MonitorKafkaConfig.getNumPartitions();
