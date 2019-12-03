@@ -31,7 +31,7 @@ class HypercubeSlicer private () extends DataSlicer with Serializable {
     this.shares = shares
     this.maxDegree = maxDegree
     this.seed = seed
-    initInternal()
+    initCommon()
     seeds = {
       val random = new Random(seed)
       // We enforce equal seeds for equal share combinations. This reduces the amount of duplication
@@ -45,7 +45,7 @@ class HypercubeSlicer private () extends DataSlicer with Serializable {
     }
   }
 
-  private def initInternal() : Unit = {
+  private def initCommon() : Unit = {
     // The number of variables with heavy hitters is limited to 30 because of the internal encoding
     // of variable sets as bit masks. A higher limit is probably unreasonable.
     require(heavy.count(x => x._1 >= 0) <= 30)
@@ -213,7 +213,7 @@ object HypercubeSlicer {
     val slicer = new HypercubeSlicer()
     slicer.formula = formula
     slicer.unstringify(slicerParams)
-    slicer.initInternal()
+    slicer.initCommon()
     slicer
   }
 
