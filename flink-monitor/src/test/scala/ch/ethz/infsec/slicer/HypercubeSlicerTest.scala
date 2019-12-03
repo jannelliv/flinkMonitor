@@ -20,7 +20,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
   )
 
   def mkSimpleSlicer(formula: Formula, shares: IndexedSeq[Int], seed: Long = 1234): HypercubeSlicer =
-    new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
+    HypercubeSlicer.makeHypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
       IndexedSeq(shares), shares.product, seed)
 
   test("The number of dimensions should equal the number of free variables") {
@@ -43,7 +43,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
         slicer1.slicesOfValuation(Array(Long.box(x), Long.box(y)))
     }
 
-    val slicer2 = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Any]), (-1, Set.empty: Set[Any])),
+    val slicer2 = HypercubeSlicer.makeHypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Any]), (-1, Set.empty: Set[Any])),
       Array(IndexedSeq(256, 1), IndexedSeq(128, 1)), 314159)
     forAll (withHeavy, Arbitrary.arbInt.arbitrary) { (x: Int, y: Int) =>
       slicer2.slicesOfValuation(Array(Long.box(x), null)) should contain theSameElementsAs
@@ -60,7 +60,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
       slices should contain (slicer1.slicesOfValuation(Array(Long.box(x), Long.box(y))).head)
     }
 
-    val slicer2 = new HypercubeSlicer(formula, Array((-1, Set.empty: Set[Any]), (0, Set(-1, 0, 2): Set[Any])),
+    val slicer2 = HypercubeSlicer.makeHypercubeSlicer(formula, Array((-1, Set.empty: Set[Any]), (0, Set(-1, 0, 2): Set[Any])),
       Array(IndexedSeq(8, 256), IndexedSeq(64, 1)), 314159)
     forAll (Arbitrary.arbInt.arbitrary, withHeavy) { (x: Int, y: Int) =>
       val slices = slicer2.slicesOfValuation(Array(null, Long.box(y)))
@@ -71,7 +71,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
 
   test("Records should be sent according to all relevant heavy-hitter configurations") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("y"))))
-    val slicer = new HypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Any]), (-1, Set.empty: Set[Any])),
+    val slicer = HypercubeSlicer.makeHypercubeSlicer(formula, Array((0, Set(-1, 0, 2): Set[Any]), (-1, Set.empty: Set[Any])),
       Array(IndexedSeq(32, 32), IndexedSeq(1, 2)), 314159)
     forAll (withHeavy, Arbitrary.arbInt.arbitrary) { (x: Int, y: Int) =>
       val pSlices = slicer.slicesOfValuation(Array(Long.box(x), null))
@@ -96,23 +96,23 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     val formula = GenFormula.resolve(Pred("p", Var("x"), Var("y"), Var("z")))
     val heavyZ = Set[Any](0, 1, 2, 3, 4, 5, 6, 7, 8, 9)
     check(mkSimpleSlicer(formula, Array(2, 1, 4), 314159))
-    check(new HypercubeSlicer(formula,
+    check(HypercubeSlicer.makeHypercubeSlicer(formula,
       Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159))
-    check(new HypercubeSlicer(formula,
+    check(HypercubeSlicer.makeHypercubeSlicer(formula,
       Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159), 1)
-    check(new HypercubeSlicer(formula,
+    check(HypercubeSlicer.makeHypercubeSlicer(formula,
       Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(4, 2, 1)), 314159), 10)
-    check(new HypercubeSlicer(formula,
+    check(HypercubeSlicer.makeHypercubeSlicer(formula,
       Array((-1, Set.empty: Set[Any]), (-1, Set.empty: Set[Any]), (0, heavyZ)),
       Array(IndexedSeq(2, 1, 4), IndexedSeq(3, 3, 1)), 314159), 10)
   }
 
   test("Unused slices should not receive end markers") {
     val formula = GenFormula.resolve(Pred("p", Var("x"), Var("y"), Var("z")))
-    val slicer = new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
+    val slicer = HypercubeSlicer.makeHypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
       IndexedSeq(IndexedSeq(2, 2, 2)), 11, 314159)
     val seenSlices = new mutable.HashSet[Int]()
     seenSlices ++= TestHelpers.flatMapAll(slicer, List(Fact.terminator(1234L))).map(_._1)

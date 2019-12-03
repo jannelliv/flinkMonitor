@@ -12,12 +12,12 @@ import scala.collection.mutable
 
 // NOTE(JS): Also performs basic filtering (constants).
 abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCheckpointed[String] {
-  val formula: Formula
+  var formula: Formula
 
   // TODO(JS): Required for commands. Can be eliminated once elastic rescaling is implemented.
-  val maxDegree: Int
+  var maxDegree: Int
 
-  def degree: Int
+  var degree: Int
 
   var pendingSlicer: String = _
 

@@ -37,7 +37,7 @@ package object slicer {
       if (simpleShares.isEmpty) 1 else simpleShares.product
     }
 
-    def parseSlicer(str: String): (IndexedSeq[(Int, Set[Any])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]]) ={
+    def parseSlicer(str: String): (IndexedSeq[(Int, Set[Any])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]], Int) ={
       val trim = str.substring(2, str.length - 2)
 
       val params = trim.split("\\},\\{")
@@ -45,8 +45,9 @@ package object slicer {
       val heavy = parseHeavy(params(0))
       val shares = parseNestedIt(params(1))
       val seeds = parseNestedIt(params(2))
+      val maxDegree = parseDomain(params(3))
 
-      (heavy, shares, seeds.map(_.toArray).toArray)
+      (heavy, shares, seeds.map(_.toArray).toArray, maxDegree.toString.toInt)
     }
 
     private def stringifyDomain(value: Any): String = value match {
@@ -86,14 +87,15 @@ package object slicer {
       "{%s}".format(sb.mkString)
     }
 
-    def stringify(heavy: Iterable[(Int, Set[Any])], shares: Iterable[Iterable[Int]], seeds: Array[Array[Int]]): String = {
+    def stringify(heavy: Iterable[(Int, Set[Any])], shares: Iterable[Iterable[Int]], seeds: Array[Array[Int]], maxDegree: Int): String = {
       val itSeeds = seeds.toIterable.map(_.toIterable)
 
       val sb = new StringBuilder
 
       sb ++= stringifyHeavy(heavy) + ","
       sb ++= stringifyNestedIt(shares) + ","
-      sb ++= stringifyNestedIt(itSeeds)
+      sb ++= stringifyNestedIt(itSeeds) + ","
+      sb ++= stringifyDomain(maxDegree)
 
       "{%s}".format(sb.mkString)
     }
