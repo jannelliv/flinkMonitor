@@ -3,7 +3,6 @@ package ch.ethz.infsec
 import java.io._
 import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.{Callable, Executors, TimeUnit}
-import java.util.logging.{Level, Logger}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
