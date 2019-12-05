@@ -98,9 +98,9 @@ object MonitorKafkaConfig {
       case None =>
         val tmp_producer = new KafkaProducer[String, String](MonitorKafkaConfig.getKafkaProps)
         val n = tmp_producer.partitionsFor(topicName).size()
-        if (n < 2) {
+        /*if (n < 2) {
           throw new Exception("ERROR: # partitions is less than 2")
-        }
+        }*/
         n
       case Some(n) => n
     }

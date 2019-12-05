@@ -187,7 +187,7 @@ flink_args = [jar_path, '--in', 'kafka',
 if use_replayer:
     print('Launching replayer and running monitor ...')
     replayer_args = [work_dir + '/replayer.sh', '-i', 'csv', '-f', 'csv',
-                     '-n', str(args.kafkaparts), '-a', str(args.replayer_accel), '--clear']
+                     '-n', str(args.kafkaparts), '-o', 'kafka', '-a', str(args.replayer_accel), '--clear']
     if args.multisource_variant == 1:
         replayer_args += ['--term', 'TIMEPOINTS']
     elif args.multisource_variant == 2:

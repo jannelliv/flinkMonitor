@@ -189,7 +189,7 @@ object TraceTransformer {
       opt[Int]('n', "numoutputs")
         .optional()
         .valueName("<int>")
-        .validate(k => if (k > 1) Right(()) else Left("n must be > 1"))
+        .validate(k => if (k > 0) Right(()) else Left("n must be > 0"))
         .action((n, c) => c.copy(numOutputs = n))
         .text("Number of output partitions"),
       opt[String]('o', "outputprefix")
