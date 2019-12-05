@@ -14,7 +14,7 @@ import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceP
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
 import org.apache.flink.contrib.streaming.state.RocksDBStateBackend
-import org.apache.flink.streaming.api.TimeCharacteristic
+import org.apache.flink.streaming.api.{CheckpointingMode, TimeCharacteristic}
 import org.apache.flink.streaming.api.scala._
 import org.slf4j.LoggerFactory
 import org.slf4j.helpers.MessageFormatter
@@ -293,7 +293,7 @@ object StreamMonitoring {
 
       if (!checkpointUri.isEmpty) {
         env.setStateBackend(new RocksDBStateBackend(checkpointUri))
-        env.enableCheckpointing(10000)
+        env.enableCheckpointing(10000, CheckpointingMode.EXACTLY_ONCE)
       }
       env.setRestartStrategy(RestartStrategies.noRestart())
 

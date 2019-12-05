@@ -36,6 +36,27 @@ REPLAYER_QUEUE=2000
 
 STREAM_PORT=10101
 
+fail() {
+    echo "ERROR: $1"
+    exit 1
+}
+
+
+variant_replayer_params() {
+    if [[ "$1" == "2" ]]; then
+        echo "--term TIMESTAMPS"
+    elif [[ "$1" == "4" ]]; then
+        echo "--term NO_TERM -e"
+    else
+        fail "unknown multisource variant"
+    fi
+}
+
+clear_topic() {
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic &> /dev/null
+    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions "$1" --replication-factor 1 &> /dev/null
+}
+
 
 
 

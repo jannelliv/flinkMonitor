@@ -15,27 +15,6 @@ PROCESSORS="8/0-9,24-33"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 
-fail() {
-    echo "ERROR: $1"
-    exit 1
-}
-
-
-variant_replayer_params() {
-    if [[ "$1" == "2" ]]; then
-        echo "--term TIMESTAMPS"
-    elif [[ "$1" == "4" ]]; then
-        echo "--term NO_TERM -e"
-    else
-        fail "unknown multisource variant"
-    fi
-}
-
-clear_topic() {
-    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --delete --topic monitor_topic &> /dev/null
-    "$KAFKA_BIN/kafka-topics.sh" --zookeeper localhost:2181 --create --topic monitor_topic --partitions "$1" --replication-factor 1 &> /dev/null
-}
-
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
@@ -145,6 +124,7 @@ done
 "$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
 sleep 1.0
 "$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
+
 
 : '
 echo "Flink with checkpointing:"

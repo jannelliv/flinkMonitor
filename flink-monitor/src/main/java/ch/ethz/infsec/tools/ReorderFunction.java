@@ -8,9 +8,9 @@ import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
-import it.unimi.dsi.fastutil.objects.ObjectSet;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
+import org.apache.flink.api.common.functions.util.ListCollector;
 import org.apache.flink.api.common.state.ListState;
 import org.apache.flink.api.common.state.ListStateDescriptor;
 import org.apache.flink.api.common.typeinfo.TypeHint;
@@ -36,10 +36,8 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     private long currentIdx = -2;
     private long maxIdx = -1;
     private int numEOF = 0;
-    private Integer ownSubtaskIdx = null;
-    private Integer numMonitors = null;
 
-    private transient ListState<Tuple2<Long, ReferenceArrayList<Fact>>> idx2facts_state = null;
+    private transient ListState<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state = null;
     private transient ListState<Long> maxorderelem_state = null;
     private transient ListState<Long> indices_state = null;
     private String newStategy = null;
@@ -59,8 +57,8 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         idx2facts_state.clear();
         maxorderelem_state.clear();
         indices_state.clear();
-        ownSubtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
-        numMonitors = getRuntimeContext().getNumberOfParallelSubtasks();
+        int ownSubtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
+        int numMonitors = getRuntimeContext().getNumberOfParallelSubtasks();
         if (ownSubtaskIdx == 0) {
             for (long l: maxOrderElem)
                 maxorderelem_state.add(l);
@@ -69,20 +67,48 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             indices_state.add((long) numEOF);
         }
         if (newStategy == null) {
-            for (Long2ReferenceMap.Entry<ReferenceArrayList<Fact>> k: idx2Facts.long2ReferenceEntrySet()) {
-                idx2facts_state.add(new Tuple2<>(k.getLongKey(), k.getValue()));
+            for (int i = 0; i < numMonitors; ++i) {
+                if (i == ownSubtaskIdx)
+                    idx2facts_state.add(idx2Facts);
+                else
+                    idx2facts_state.add(new Long2ReferenceOpenHashMap<>());
             }
         } else {
-            HypercubeSlicer slicer = null;
+            HypercubeSlicer slicer = HypercubeSlicer.makeHypercubeSlicer(StreamMonitoring.formula(), newStategy);
+            ArrayList<Long2ReferenceOpenHashMap<ReferenceArrayList<Fact>>> state = new ArrayList<>();
+            ReferenceArrayList<Tuple2<Object, Fact>> list = new ReferenceArrayList<>();
+            ListCollector<Tuple2<Object, Fact>> collector = new ListCollector<>(list);
+            int maxDegree = slicer.maxDegree();
+            for (int i = 0; i < maxDegree; ++i)
+                state.add(new Long2ReferenceOpenHashMap<>());
+            for (Long2ReferenceMap.Entry<ReferenceArrayList<Fact>> e: idx2Facts.long2ReferenceEntrySet()) {
+                for (Fact f: e.getValue()) {
+                    list.clear();
+                    slicer.processEvent(f, collector);
+                    for (Tuple2<Object, Fact> tup: list) {
+                        Long2ReferenceMap<ReferenceArrayList<Fact>> map = state.get((Integer) tup._1);
+                        ReferenceArrayList<Fact> sublist;
+                        if ((sublist = map.get(e.getLongKey())) == null) {
+                            sublist = new ReferenceArrayList<>();
+                            sublist.add(tup._2);
+                            map.put(e.getLongKey(), sublist);
+                        } else {
+                            sublist.add(tup._2);
+                        }
+                    }
+                }
+            }
+            for (Long2ReferenceOpenHashMap<ReferenceArrayList<Fact>> m: state)
+                idx2facts_state.add(m);
         }
     }
 
     @Override
     public void initializeState(FunctionInitializationContext ctxt) throws Exception {
-        ListStateDescriptor<Tuple2<Long, ReferenceArrayList<Fact>>> idx2facts_state_desc =
+        ListStateDescriptor<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state_desc =
                 new ListStateDescriptor<>(
                         "idx2facts_state",
-                        TypeInformation.of(new TypeHint<Tuple2<Long, ReferenceArrayList<Fact>>>() {
+                        TypeInformation.of(new TypeHint<Long2ReferenceMap<ReferenceArrayList<Fact>>>() {
                         })
                 );
 
@@ -102,8 +128,16 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         maxorderelem_state = ctxt.getOperatorStateStore().getUnionListState(maxorderelem_state_desc);
         indices_state = ctxt.getOperatorStateStore().getUnionListState(indices_state_desc);
         if (ctxt.isRestored()) {
-            for (Tuple2<Long, ReferenceArrayList<Fact>> k: idx2facts_state.get())
-                idx2Facts.put((long) k._1, k._2);
+            for (Long2ReferenceMap<ReferenceArrayList<Fact>> m: idx2facts_state.get()) {
+                for(Long2ReferenceMap.Entry<ReferenceArrayList<Fact>> k: m.long2ReferenceEntrySet()) {
+                    long key = k.getLongKey();
+                    ReferenceArrayList<Fact> l;
+                    if ((l = idx2Facts.get(key)) == null)
+                        idx2Facts.put(key, k.getValue());
+                    else
+                        l.addAll(k.getValue());
+                }
+            }
             ArrayList<Long> tmp = new ArrayList<>();
             for (Long l: maxorderelem_state.get())
                 tmp.add(l);

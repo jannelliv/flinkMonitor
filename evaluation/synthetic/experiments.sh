@@ -5,6 +5,7 @@ source "$WORK_DIR/config.sh"
 
 FORMULAS="star-neg linear-neg triangle-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
+MULTISOURCE_VARIANTS="2"
 EVENT_RATES="10000 15000 20000"
 ACCELERATIONS="0 1"
 INDEX_RATES="1 1000"
@@ -36,6 +37,7 @@ make_log -L linear-neg
 make_log -T triangle-neg
 
 
+: '
 echo "Monpoly standalone:"
 for formula in $FORMULAS; do
     echo "  Evaluating $formula:"
@@ -73,66 +75,59 @@ for formula in $FORMULAS; do
         done
     done
 done
+'
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
+"$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
+sleep 3.0
+"$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
+"$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
 echo "Flink without checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
     cpulist=${procs#*/}
     echo "  $numcpus processors:"
 
-    taskset -c $cpulist "$FLINK_BIN/start-cluster.sh" > /dev/null
-
-    for formula in $FORMULAS; do
-        echo "    Evaluating $formula:"
-        for er in $EVENT_RATES; do
-            for ir in $INDEX_RATES; do
-            echo "      Event rate $er, index rate $ir:"
-                for acc in $ACCELERATIONS; do
-                echo "    Acceleration $acc:"
-                    for i in $(seq 1 $REPETITIONS); do
-                        echo "        Repetition $i ..."
-
-
-                        if [[ "$acc" = "0" ]]; then
-
-                            INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                            JOB_NAME="gen_flink_monpoly_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
-                            TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                            BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                            JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
-
-                            rm -r "$VERDICT_FILE" 2> /dev/null
-                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "$INPUT_FILE" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
-                            wait
-
-                        else
-
-                            INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                            JOB_NAME="gen_flink_monpoly_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+    for variant in $MULTISOURCE_VARIANTS; do
+        for formula in $FORMULAS; do
+            echo "    Evaluating $formula:"
+            for er in $EVENT_RATES; do
+                for ir in $INDEX_RATES; do
+                INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
+                "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
+                echo "      Event rate $er, index rate $ir:"
+                    for acc in $ACCELERATIONS; do
+                    echo "    Acceleration $acc:"
+                        for i in $(seq 1 $REPETITIONS); do
+                            echo "        Repetition $i ..."
+                            clear_topic $numcpus
+    
+                            JOB_NAME="gen_flink_monpoly_${numcpus}_${variant}_${formula}_${er}_${ir}_${acc}_${i}"
                             DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                             TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                             BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                             JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
                             rm -r "$VERDICT_FILE" 2> /dev/null
-                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
-                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
+                            "$WORK_DIR/replayer.sh" -o kafka -v $(variant_replayer_params $variant) -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numcpus > "$JOB_REPORT"
                             wait
+                        done #reps
+                    done #acc
+                done #ir
+            done #er
+            rm -rf "$EXEC_LOG_DIR/preprocess_out"*
+        done #formula
+    done #variant
+done #procs
+"$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
+"$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
+sleep 1.0
+"$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
 
-                        fi
 
-
-                    done
-                done
-            done
-        done
-    done
-
-    "$FLINK_BIN/stop-cluster.sh" > /dev/null
-done
-
+: '
 echo "Flink with checkpointing:"
 for procs in $PROCESSORS; do
     numcpus=${procs%/*}
@@ -209,6 +204,7 @@ for procs in $PROCESSORS; do
 
     "$FLINK_BIN/stop-cluster.sh" > /dev/null
 done
+'
 
 end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 

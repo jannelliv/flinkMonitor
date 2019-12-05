@@ -9,10 +9,11 @@ import shutil
 import glob
 import atexit
 import time
+import re
+import threading
 from subprocess import CompletedProcess
 from verdicts_diff import verify_verdicts
 from typing import List
-
 
 def del_tmp():
     pass
@@ -25,23 +26,37 @@ def fail(s: str):
     sys.exit(1)
 
 
+def decode(s) -> str:
+    return s.decode(sys.getdefaultencoding()).strip()
+
+
+def decode_and_print(s):
+    decoded = decode(s)
+    if decoded:
+        print(decoded)
+
+
+def fail_if_subproc_failed(p: CompletedProcess):
+    if p.returncode != 0:
+        fail('Error: failed to execute cmd ' + (" ".join(p.args)) + "\n\n" + decode(p.stderr))
+
+
 def exe_cmd(cmd: List[str], print_stdout: bool) -> CompletedProcess:
     p = subprocess.run(cmd, capture_output=True)
-    if p.returncode != 0:
-        fail('Error: failed to execute cmd ' + (" ".join(p.args)) + "\n\n" + p.stderr.decode(sys.getdefaultencoding()))
-    stderr = p.stderr.decode(sys.getdefaultencoding())
-    if stderr.strip():
-        print(p.stderr)
+    fail_if_subproc_failed(p)
     if print_stdout:
-        print(p.stdout.decode(sys.getdefaultencoding()))
+        decode_and_print(p.stdout)
     return p
 
 
-def launch_parallel(cmds: List[List[str]]):
+def launch_parallel(cmds: List[List[str]], timeout):
+    start_time = time.time()
     procs = [subprocess.Popen(cmd, stderr=subprocess.PIPE) for cmd in cmds]
     if len(procs) == 0:
         return
     while True:
+        if (timeout is not None) and start_time + timeout < time.time():
+            return procs
         for proc in procs:
             retcode = proc.poll()
             if retcode is not None:
@@ -50,15 +65,48 @@ def launch_parallel(cmds: List[List[str]]):
                     for p in procs:
                         p.kill()
                     _, stderr = proc.communicate()
-                    fail('Error: failed to execute cmd ' + (" ".join(proc.args)) + "\n\n"
-                            + stderr.decode(sys.getdefaultencoding()))
+                    fail('Error: failed to execute cmd ' + (" ".join(proc.args)) + "\n\n" + decode(stderr))
                 if len(procs) == 0:
-                    return
+                    return procs
             else:
                 time.sleep(0.05)
 
 
-def pipe(cmd : List[str], o_path: str, print_stdout : bool = False):
+def get_job_id() -> str:
+    job_id_regex = re.compile(": ([0-9 a-z]+) : Parallel Online Monitor")
+    p = subprocess.run([args.flink_dir + '/bin/flink', 'list', '-r'], capture_output=True)
+    fail_if_subproc_failed(p)
+    stdout = decode(p.stdout)
+    result = job_id_regex.search(stdout)
+    return result.group(1)
+
+
+def poll_to_completion(p, fail_on_err: bool):
+    while True:
+        retcode = p.poll()
+        if retcode is not None:
+            if retcode != 0:
+                _, stderr = p.communicate()
+                if fail_on_err:
+                    fail('Error: failed to execute cmd ' + (" ".join(p.args)) + "\n\n"
+                         + decode(stderr))
+                else:
+                    decode_and_print(stderr)
+            return
+        time.sleep(0.05)
+
+
+def stop_and_resume_flink(cmd_replayer: List[str], flink_args: List[str], savepoint_path: str, cancel_time: float):
+    cmd_flink = [args.flink_dir + '/bin/flink', 'run'] + flink_args
+    cmd_flink_resume = [args.flink_dir + '/bin/flink', 'run', '-s', savepoint_path] + flink_args
+    cmd_flink_cancel = [args.flink_dir + '/bin/flink', 'cancel', '-s', savepoint_path]
+    procs = launch_parallel([cmd_replayer, cmd_flink], cancel_time)
+    exe_cmd(cmd_flink_cancel + get_job_id(), False)
+    poll_to_completion(procs[1], False)
+    exe_cmd(cmd_flink_resume, False)
+
+
+def pipe(cmd: List[str], o_path: str, print_stdout: bool = False):
     p = exe_cmd(cmd, print_stdout)
     f = open(o_path, 'wb')
     f.write(p.stdout)
@@ -76,6 +124,7 @@ parser.add_argument('-m', '--multisource_variant', default=1, type=int)
 parser.add_argument('-r', '--use_replayer', default=False, type=bool)
 parser.add_argument('-a', '--replayer_accel', default=1.0, type=float)
 parser.add_argument('--novalidate', action='store_true')
+parser.add_argument('--insertcheckpoint', action='store_true')
 parser.add_argument('flink_dir')
 args = parser.parse_args()
 
@@ -89,6 +138,7 @@ sig_file = data_dir + '/synthetic/' + args.signature
 formula_file = data_dir + '/synthetic/' + args.formula
 collapse = False
 use_replayer = args.use_replayer
+insert_checkpoint = args.insertcheckpoint
 
 if args.multisource_variant == 1:
     collapse = False
@@ -103,6 +153,9 @@ if use_replayer and args.multisource_variant == 3:
 if (not use_replayer) and args.multisource_variant == 4:
     fail("multisource variant 4 (watermark order with explicit emissiontime) is only compatible with the replayer")
 
+if (not use_replayer) and insert_checkpoint:
+    fail("resuming from a checkpoint can only be used in combination with the replayer")
+
 if not os.path.isfile(jar_path):
     fail("Error: Could not find monitor jar " + jar_path)
 
@@ -111,7 +164,7 @@ if (not os.path.isdir(args.flink_dir)) or (not os.path.isfile(args.flink_dir + '
 
 print('Generating log ...')
 pipe([work_dir + '/generator.sh', '-T', '-e', str(args.event_rate), '-i',
-      str(args.index_rate), '-x', '1', '45'], tmp_dir + '/trace.csv')
+      str(args.index_rate), '-x', '1', '60'], tmp_dir + '/trace.csv')
 
 print('Preprocessing log for multiple inputs ...')
 
@@ -126,10 +179,10 @@ if not args.novalidate:
     pipe(['monpoly', '-sig', sig_file, '-formula', formula_file, '-log',
           tmp_dir + '/trace.log'], tmp_dir + '/reference.txt')
 
-flink_args = [args.flink_dir + '/bin/flink', 'run', jar_path, '--in', 'kafka',
-         '--format','csv', '--sig', sig_file, '--formula', formula_file, '--negate', 'false', '--multi',
-         str(args.multisource_variant), '--monitor', 'monpoly', '--processors', str(args.processors), '--out',
-         tmp_dir + '/flink-out', '--clear', str(not use_replayer), '--nparts', str(args.kafkaparts)]
+flink_args = [jar_path, '--in', 'kafka',
+              '--format', 'csv', '--sig', sig_file, '--formula', formula_file, '--negate', 'false', '--multi',
+              str(args.multisource_variant), '--monitor', 'monpoly', '--processors', str(args.processors), '--out',
+              tmp_dir + '/flink-out', '--clear', str(not use_replayer), '--nparts', str(args.kafkaparts)]
 
 if use_replayer:
     print('Launching replayer and running monitor ...')
@@ -142,12 +195,16 @@ if use_replayer:
     elif args.multisource_variant == 4:
         replayer_args += ['--term', 'NO_TERM', '-e']
     replayer_args += [tmp_dir + '/preprocess_out']
-    launch_parallel([replayer_args, flink_args])
+    if insert_checkpoint:
+        pass
+    else:
+        flink_args = [args.flink_dir + '/bin/flink', 'run'] + flink_args
+        launch_parallel([replayer_args, flink_args], None)
 else:
     print("Running Flink monitor ...")
+    flink_args = [args.flink_dir + '/bin/flink', 'run'] + flink_args
     flink_args += ['--kafkatestfile', tmp_dir + '/preprocess_out']
     exe_cmd(flink_args, True)
-
 
 flink_out_file = [f for f in glob.glob(tmp_dir + '/flink-out/**', recursive=True) if os.path.isfile(f)]
 
@@ -156,7 +213,6 @@ if len(flink_out_file) < 1:
 
 flink_out_file = flink_out_file[0]
 shutil.copyfile(flink_out_file, tmp_dir + '/out.txt')
-
 
 if not args.novalidate:
     if verify_verdicts(collapse, tmp_dir + '/reference.txt', tmp_dir + '/out.txt'):
