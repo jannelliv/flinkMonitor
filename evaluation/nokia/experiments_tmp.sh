@@ -10,8 +10,8 @@ NEGATE=""
 #ACCELERATIONS="1000 2000 3000 4000 5000"
 #PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MULTISOURCE_VARIANTS="2"
-ACCELERATIONS="5000"
-PROCESSORS="1/2 1/4 2/4"
+ACCELERATIONS="3000"
+PROCESSORS="1/1 1/2 2/1"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 
@@ -112,7 +112,7 @@ for procs in $PROCESSORS; do
                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
                     rm -r "$VERDICT_FILE" 2> /dev/null
                     "$WORK_DIR/replayer.sh" -o kafka -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --load "$STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources  > "$JOB_REPORT"
+                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $BLANK_MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources  > "$JOB_REPORT"
                     wait
                 done
             done
