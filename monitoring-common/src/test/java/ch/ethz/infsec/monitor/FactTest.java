@@ -19,7 +19,7 @@ public class FactTest {
             assertEquals("foo", fact.getName());
         }
         {
-            final Fact fact = new Fact("foo", 123L, Collections.singletonList("abc"));
+            final Fact fact = Fact.make("foo", 123L, "abc");
             assertEquals("foo", fact.getName());
             fact.setName("bar");
             assertEquals("bar", fact.getName());
@@ -34,21 +34,21 @@ public class FactTest {
     public void testTimestamp() {
         {
             final Fact fact = Fact.terminator(123L);
-            assertEquals(Long.valueOf(123), fact.getTimestamp());
+            assertEquals(123L, fact.getTimestamp());
         }
         {
             final Fact fact = Fact.make("foo", 123L);
-            assertEquals(Long.valueOf(123), fact.getTimestamp());
+            assertEquals(123L, fact.getTimestamp());
         }
         {
-            final Fact fact = new Fact("foo", 123L, Collections.singletonList("abc"));
-            assertEquals(Long.valueOf(123), fact.getTimestamp());
+            final Fact fact = Fact.make("foo", 123L, "abc");
+            assertEquals(123L, fact.getTimestamp());
             fact.setTimestamp(456L);
-            assertEquals(Long.valueOf(456), fact.getTimestamp());
+            assertEquals(456L, fact.getTimestamp());
         }
         {
             final Fact fact = Fact.meta("bar", "xyz");
-            assertNull(fact.getTimestamp());
+            assertEquals(fact.getTimestamp(), -1);
         }
     }
 
@@ -77,7 +77,7 @@ public class FactTest {
             assertEquals(1, fact.getArity());
         }
         {
-            final Fact fact = new Fact("foo", 123L, Arrays.asList("abc", "d"));
+            final Fact fact = Fact.make("foo", 123L, Arrays.asList("abc", "d"));
             assertEquals(Arrays.asList("abc", "d"), fact.getArguments());
             assertEquals("abc", fact.getArgument(0));
             assertEquals("d", fact.getArgument(1));
@@ -120,7 +120,7 @@ public class FactTest {
         final Fact fact0 = Fact.make("f", 123L);
         final Fact fact1 = Fact.make("f1", 123L);
         final Fact fact2 = Fact.make("f", 456L);
-        final Fact fact3 = new Fact("f", 123L, Collections.singletonList("abc"));
+        final Fact fact3 = Fact.make("f", 123L, Collections.singletonList("abc"));
         final Fact fact4 = Fact.terminator(123L);
         final Fact fact5 = Fact.meta("f", "123");
 
@@ -139,7 +139,7 @@ public class FactTest {
     @Test
     public void testHashCode() {
         final Fact fact0 = Fact.make("f", 123L);
-        final Fact fact1 = new Fact("f", 123L, Collections.singletonList("abc"));
+        final Fact fact1 = Fact.make("f", 123L, Collections.singletonList("abc"));
 
         fact0.setArguments(Collections.singletonList("abc"));
         assertNotSame(fact0, fact1);

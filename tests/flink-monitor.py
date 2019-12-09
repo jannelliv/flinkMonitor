@@ -164,7 +164,7 @@ if (not os.path.isdir(args.flink_dir)) or (not os.path.isfile(args.flink_dir + '
 
 print('Generating log ...')
 pipe([work_dir + '/generator.sh', '-T', '-e', str(args.event_rate), '-i',
-      str(args.index_rate), '-x', '1', '10000'], tmp_dir + '/trace.csv')
+      str(args.index_rate), '-x', '1', '60'], tmp_dir + '/trace.csv')
 
 print('Preprocessing log for multiple inputs ...')
 

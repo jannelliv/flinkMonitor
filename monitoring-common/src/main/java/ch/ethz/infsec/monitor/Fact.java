@@ -25,19 +25,29 @@ public class Fact implements Serializable {
 
     // Invariant: At most one of name and (timestamp and timepoint) is null.
     private String name;
-    private Long timestamp;
-    private Long timepoint;
+    private long timestamp;
+    private long timepoint = -1;
     private List<Object> arguments;
 
-    public Fact(String name, Long timestamp, List<Object> arguments) {
+    private Fact(String name, long timestamp, List<Object> arguments) {
         this.name = name;
         this.timestamp = timestamp;
-        this.arguments = Objects.requireNonNull(arguments, "arguments");
+        this.arguments = arguments;
     }
 
 
-    public static Fact make(String name, Long timestamp, Object... arguments) {
-        return new Fact(name, timestamp, Arrays.asList(arguments));
+    private Fact(String name, long timestamp, Object... arguments) {
+        this.name = name;
+        this.timestamp = timestamp;
+        this.arguments = Arrays.asList(arguments);
+    }
+
+    public static Fact make(String name, long timestamp, List<Object> arguments) {
+        return new Fact(name, timestamp, arguments);
+    }
+
+    public static Fact make(String name, long timestamp, Object... arguments) {
+        return new Fact(name, timestamp, arguments);
     }
 
     public String getName() {
@@ -48,17 +58,15 @@ public class Fact implements Serializable {
         this.name = name;
     }
 
-    public void setTimepoint(Long timepoint) {
+    public void setTimepoint(long timepoint) {
         this.timepoint = timepoint;
     }
 
-    public Long getTimepoint() { return timepoint; }
+    public long getTimepoint() { return timepoint; }
 
-    public Long getTimestamp() {
-        return timestamp;
-    }
+    public long getTimestamp() { return timestamp; }
 
-    public void setTimestamp(Long timestamp) {
+    public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
     }
 
@@ -82,16 +90,21 @@ public class Fact implements Serializable {
         return name == null;
     }
 
-    public static Fact terminator(Long timestamp) {
+    public static Fact terminator(long timestamp) {
+        assert timestamp != -1;
         return new Fact(null, timestamp, Collections.emptyList());
     }
 
     public boolean isMeta() {
-        return timestamp == null;
+        return timestamp == -1;
+    }
+
+    public static Fact meta(String name, List<Object> arguments) {
+        return new Fact(name, -1, arguments);
     }
 
     public static Fact meta(String name, Object... arguments) {
-        return new Fact(name, null, Arrays.asList(arguments));
+        return new Fact(name, -1, arguments);
     }
 
     @Override
@@ -106,7 +119,7 @@ public class Fact implements Serializable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timestamp, arguments);
+        return Objects.hash(name, timepoint, timestamp, arguments);
     }
 
     @Override

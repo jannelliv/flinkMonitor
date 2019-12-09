@@ -55,7 +55,7 @@ public class MonpolyVerdictParser implements TraceParser, Serializable {
     }
 
     private void finishVerdict(Consumer<Fact> sink) {
-        sink.accept(Fact.terminator(Long.valueOf(timestamp)));
+        sink.accept(Fact.terminator(Long.parseLong(timestamp)));
         timestamp = null;
         timepoint = null;
         fields.clear();
@@ -67,7 +67,7 @@ public class MonpolyVerdictParser implements TraceParser, Serializable {
     }
 
     private void finishTuple(Consumer<Fact> sink) {
-        sink.accept(new Fact("", Long.valueOf(timestamp), new ArrayList<>(fields)));
+        sink.accept(Fact.make("", Long.parseLong(timestamp), new ArrayList<>(fields)));
         fields.clear();
     }
 

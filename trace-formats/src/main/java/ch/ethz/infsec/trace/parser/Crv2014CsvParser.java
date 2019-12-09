@@ -91,7 +91,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
                 matcher.region(matcher.end(), trimmed.length() - 1);
             }
 
-            sink.accept(new Fact(name, null, arguments));
+            sink.accept(Fact.meta(name, arguments));
             return;
         }
 
@@ -148,7 +148,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
                 beginNewEvent(sink, timePoint, timestamp);
             }
         }
-        Fact fact = new Fact(factName, timestamp, arguments);
+        Fact fact = Fact.make(factName, timestamp, arguments);
         fact.setTimepoint(timePoint);
         sink.accept(fact);
     }
