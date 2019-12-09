@@ -42,12 +42,23 @@ fail() {
 }
 
 monpoly_cmd_to_string() {
-    if [[ "$1" == "$MONPOLY_EXE" ]]
+    if [[ "$1" == "$MONPOLY_EXE" ]]; then
         echo "normalcmd"
-    elif [[ "$1" == "$BLANK_MONPOLY_EXE" ]]
+    elif [[ "$1" == "$BLANK_MONPOLY_EXE" ]]; then
         echo "blankcmd"
     else
         fail "unknown monpoly exe"
+    fi
+}
+
+monpoly_cmd_to_flink_args(){
+    if [[ "$1" == "$MONPOLY_EXE" ]]; then
+        echo "--load $2"
+    elif [[ "$1" == "$BLANK_MONPOLY_EXE" ]]; then
+        echo ""
+    else
+        fail "unknown monpoly exe"
+    fi
 }
 
 variant_replayer_params() {

@@ -105,7 +105,7 @@ for numsources in $KAFKA_PARTS; do
                 for acc in $ACCELERATIONS; do
                     echo "              Acceleration $acc:"
                     for cmd in $MONPOLY_CMDS; do
-                        cmd_string = $(monpoly_cmd_to_string $cmd)
+                        cmd_string=$(monpoly_cmd_to_string $cmd)
                         echo "                  Monpoly cmd: ${cmd_string}"
                         for i in $(seq 1 $REPETITIONS); do
                             echo "                      Repetition $i ..."
@@ -117,7 +117,7 @@ for numsources in $KAFKA_PARTS; do
                             JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
                             rm -r "$VERDICT_FILE" 2> /dev/null
                             "$WORK_DIR/replayer.sh" -o kafka -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
-                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $cmd -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources  > "$JOB_REPORT"
+                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $cmd -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources $(monpoly_cmd_to_flink_args "$cmd" "$STATE_FILE")  > "$JOB_REPORT"
                             wait
                         done # reps
                     done # cmd
