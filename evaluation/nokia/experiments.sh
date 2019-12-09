@@ -126,10 +126,10 @@ for numsources in $KAFKA_PARTS; do
         done # variant
     done #procs
 done #numsources
-"$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
-"$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
-sleep 1.0
-"$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
+#"$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
+#"$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
+#sleep 1.0
+#"$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
 
 
 : '
