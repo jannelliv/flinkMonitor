@@ -3,16 +3,18 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-FORMULAS="ins-1-2-neg"
+FORMULAS="ins-1-2-neg del-1-2-neg"
 #FORMULAS="custom-neg ins-1-2-neg del-1-2-neg"
 NEGATE=""
 #MULTISOURCE_VARIANTS="2 4"
 #ACCELERATIONS="1000 2000 3000 4000 5000"
 #PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MULTISOURCE_VARIANTS="2"
-ACCELERATIONS="5000"
-PROCESSORS="1/2 1/4 2/4"
+ACCELERATIONS="1000 3000 5000"
+PROCESSORS="1 2 4 8"
+KAFKA_PARTS="1 2 4"
 MONPOLY_CPU_LIST="0"
+MONPOLY_CMDS="$MONPOLY_EXE $BLANK_MONPOLY_EXE"
 AUX_CPU_LIST="10-11,34-35"
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
@@ -89,37 +91,41 @@ sleep 3.0
 "$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
 "$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
 echo "Flink without checkpointing:"
-for procs in $PROCESSORS; do
-    numsources=${procs%/*}
-    numcpus=${procs#*/}
-    echo "  $numcpus processors:"
-    
-    for variant in $MULTISOURCE_VARIANTS; do
-        echo "  Variant $variant:"
-        "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
-        for formula in $FORMULAS; do
-            echo "      Evaluating $formula:"
-            STATE_FILE="$STATE_DIR/ldcc_sample_past_${formula}.state"
-            for acc in $ACCELERATIONS; do
-                echo "      Acceleration $acc:"
-                for i in $(seq 1 $REPETITIONS); do
-                    echo "        Repetition $i ..."
-                    clear_topic $numsources
-                    JOB_NAME="nokia_flink_monpoly_${numsources}_${numcpus}_${variant}_${formula}_${acc}_1_${i}"
-                    DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                    TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                    BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                    JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
-                    rm -r "$VERDICT_FILE" 2> /dev/null
-                    "$WORK_DIR/replayer.sh" -o kafka -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
-                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --load "$STATE_FILE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources  > "$JOB_REPORT"
-                    wait
-                done
-            done
-        done
-        rm -rf "$EXEC_LOG_DIR/preprocess_out"*
-    done
-done
+for numsources in $KAFKA_PARTS; do
+    echo "$numsources kafka part:"
+    for procs in $PROCESSORS; do
+        echo "  $procs processors:"
+        for variant in $MULTISOURCE_VARIANTS; do
+            echo "      Variant $variant:"
+            rm -rf "$EXEC_LOG_DIR/preprocess_out"*
+            "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources -o "$EXEC_LOG_DIR/preprocess_out" "$ROOT_DIR/ldcc_sample.csv"
+            for formula in $FORMULAS; do
+                echo "          Evaluating $formula:"
+                STATE_FILE="$STATE_DIR/ldcc_sample_past_${formula}.state"
+                for acc in $ACCELERATIONS; do
+                    echo "              Acceleration $acc:"
+                    for cmd in $MONPOLY_CMDS; do
+                        cmd_string = $(monpoly_cmd_to_string $cmd)
+                        echo "                  Monpoly cmd: ${cmd_string}"
+                        for i in $(seq 1 $REPETITIONS); do
+                            echo "                      Repetition $i ..."
+                            clear_topic $numsources
+                            JOB_NAME="nokia_flink_monpoly_${numsources}_${procs}_${cmd_string}_${variant}_${formula}_${acc}_1_${i}"
+                            DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                            TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                            BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                            JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+                            rm -r "$VERDICT_FILE" 2> /dev/null
+                            "$WORK_DIR/replayer.sh" -o kafka -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $cmd -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources  > "$JOB_REPORT"
+                            wait
+                        done # reps
+                    done # cmd
+                done # acc
+            done # formula
+        done # variant
+    done #procs
+done #numsources
 "$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
 "$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
 sleep 1.0

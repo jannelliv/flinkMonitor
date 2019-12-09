@@ -41,6 +41,14 @@ fail() {
     exit 1
 }
 
+monpoly_cmd_to_string() {
+    if [[ "$1" == "$MONPOLY_EXE" ]]
+        echo "normalcmd"
+    elif [[ "$1" == "$BLANK_MONPOLY_EXE" ]]
+        echo "blankcmd"
+    else
+        fail "unknown monpoly exe"
+}
 
 variant_replayer_params() {
     if [[ "$1" == "2" ]]; then
