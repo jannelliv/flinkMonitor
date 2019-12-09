@@ -84,7 +84,7 @@ export PATH="$PATH:${scala_dir}/bin"
 
 monitor_dir="$target_dir/scalable-online-monitor"
 monitor_url="https://bitbucket.org/krle/scalable-online-monitor"
-monitor_branch="multisource_opti_annotations"
+monitor_branch="multisource"
 if [[ -d "$monitor_dir" ]]; then
     info "project directory exists, skipping"
     info "delete $monitor_dir to reinstall"
