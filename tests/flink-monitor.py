@@ -17,7 +17,7 @@ from typing import List
 
 def del_tmp():
     pass
-    shutil.rmtree(tmp_dir)
+    #shutil.rmtree(tmp_dir)
 
 
 def fail(s: str):
