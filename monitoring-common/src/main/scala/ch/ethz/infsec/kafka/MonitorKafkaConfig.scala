@@ -58,7 +58,7 @@ object MonitorKafkaConfig {
     if (clearTopic) {
       val admin = AdminClient.create(MonitorKafkaConfig.getKafkaPropsInternal)
       val res = admin.deleteTopics(Collections.singletonList(MonitorKafkaConfig.getTopicInternal))
-      Thread.sleep(500)
+      Thread.sleep(1000)
       try {
         res.all().get(10, TimeUnit.SECONDS)
       } catch {
