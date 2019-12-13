@@ -90,6 +90,10 @@ object MonitorKafkaConfig {
     props.setProperty("value.serializer", "org.apache.kafka.common.serialization.StringSerializer")
     props.setProperty("flink.disable-metrics", "false")
     props.setProperty("flink.partition-discovery.interval-millis", "20")
+    props.setProperty("buffer.memory", "335544320")
+    props.setProperty("batch.size", "30384")
+    props.setProperty("max.partition.fetch.bytes", "10485760")
+    props.setProperty("fetch.max.bytes", "1048576000")
     props
   }
 
