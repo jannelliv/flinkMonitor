@@ -830,8 +830,8 @@ public class Replayer {
                     System.exit(1);
                     return;
                 }
-
-                Output output = replayer.new KafkaOutput(i, new KafkaProducer<>(MonitorKafkaConfig.getKafkaProps()));
+                KafkaProducer<String, String> producer = new KafkaProducer<>(MonitorKafkaConfig.getKafkaProps());
+                Output output = replayer.new KafkaOutput(i, producer);
                 TraceParser parser = getTraceParser(parserType, mode);
                 TraceFormatter formatter = getTraceFormatter(formatterType);
                 formatter.setMarkDatabaseEnd(markDatabaseEnd);

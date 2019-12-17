@@ -91,9 +91,11 @@ object MonitorKafkaConfig {
     props.setProperty("flink.disable-metrics", "false")
     props.setProperty("flink.partition-discovery.interval-millis", "20")
     props.setProperty("buffer.memory", "335544320")
-    props.setProperty("batch.size", "30384")
-    props.setProperty("max.partition.fetch.bytes", "10485760")
-    props.setProperty("fetch.max.bytes", "1048576000")
+    props.setProperty("batch.size", "303840")
+    props.setProperty("max.partition.fetch.bytes", "104857600")
+    props.setProperty("fetch.max.bytes", "10485760000")
+    props.setProperty("compression.type", "uncompressed")
+    props.setProperty("linger.ms", "200")
     props
   }
 
