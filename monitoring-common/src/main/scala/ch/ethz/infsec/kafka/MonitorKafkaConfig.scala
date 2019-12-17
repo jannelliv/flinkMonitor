@@ -99,6 +99,7 @@ object MonitorKafkaConfig {
     props.setProperty("receive.buffer.bytes", "3276800")
     props.setProperty("send.buffer.bytes", "13107200")
     props.setProperty("max.in.flight.requests.per.connection", "200")
+    props.setProperty("acks", "0")
     props
   }
 
