@@ -94,7 +94,7 @@ object MonitorKafkaConfig {
     props.setProperty("batch.size", "303840")
     props.setProperty("max.partition.fetch.bytes", "104857600")
     props.setProperty("fetch.max.bytes", "10485760000")
-    props.setProperty("compression.type", "uncompressed")
+    //props.setProperty("compression.type", "none")
     props.setProperty("linger.ms", "200")
     props
   }
