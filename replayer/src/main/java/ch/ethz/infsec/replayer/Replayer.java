@@ -625,7 +625,7 @@ public class Replayer {
         }
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException, InterruptedException {
         Replayer replayer = new Replayer();
 
         String inputFilename = null;
@@ -639,6 +639,7 @@ public class Replayer {
         boolean markDatabaseEnd = true;
         boolean clearTopic = false;
         boolean kafkaOutput = false;
+        boolean otherBranch = false;
 
         try {
             for (int i = 0; i < args.length; ++i) {
@@ -747,6 +748,8 @@ public class Replayer {
                             default: invalidArgument();
                         }
                         break;
+                    case "--other_branch":
+                        otherBranch = true;
                     case "--clear":
                         clearTopic = true;
                         break;
@@ -764,8 +767,7 @@ public class Replayer {
         } catch (NumberFormatException e) {
             invalidArgument();
         }
-
-        if (numInputFiles == 1 && !kafkaOutput) {
+        if (numInputFiles == 1 && !kafkaOutput && !otherBranch) {
             BufferedReader input;
             Output output;
             TraceParser parser;
@@ -807,20 +809,30 @@ public class Replayer {
         } else {
             ArrayList<ReplayerWorker> replayerWorkers = new ArrayList<>();
             ArrayList<Thread> workerThreads = new ArrayList<>();
+            KafkaProducer<String, String> producer = null;
             Properties props = new Properties();
             if (clearTopic) {
                 props.setProperty("clearTopic", Boolean.toString(clearTopic));
                 props.setProperty("numPartitions", Integer.toString(numInputFiles));
             }
-            MonitorKafkaConfig.init(props);
-            if (!clearTopic && MonitorKafkaConfig.getNumPartitions() != numInputFiles)
-                throw new IllegalArgumentException("If the topic is not cleared the number of input files must match");
+            if(kafkaOutput) {
+                MonitorKafkaConfig.init(props);
+                if (!clearTopic && MonitorKafkaConfig.getNumPartitions() != numInputFiles)
+                    throw new IllegalArgumentException("If the topic is not cleared the number of input files must match");
+            }
             
             if (inputFilename == null) {
                 System.err.println("Multisource only works with file input");
                 System.exit(1);
             }
 
+            if(!kafkaOutput && outputHost == null) {
+                System.err.println("Socketouput with more than 1 partition requires outputhost");
+            }
+            if (kafkaOutput)
+                producer = new KafkaProducer<>(MonitorKafkaConfig.getKafkaProps());
+
+            ArrayList<SocketOutput> socketClients = new ArrayList<>();
             for (int i = 0; i < numInputFiles; ++i) {
                 BufferedReader input;
                 try {
@@ -830,12 +842,37 @@ public class Replayer {
                     System.exit(1);
                     return;
                 }
-                KafkaProducer<String, String> producer = new KafkaProducer<>(MonitorKafkaConfig.getKafkaProps());
-                Output output = replayer.new KafkaOutput(i, producer);
+                Output output;
+                if (kafkaOutput) {
+                    output = replayer.new KafkaOutput(i, producer);
+                } else {
+                    int backlog = reconnect ? -1 : 1;
+                    ServerSocket serverSocket = new ServerSocket(outputPort + i, backlog, InetAddress.getByName(outputHost));
+                    SocketOutput socketOutput = replayer.new SocketOutput(serverSocket, reconnect);
+                    socketClients.add(socketOutput);
+                    output = socketOutput;
+                }
                 TraceParser parser = getTraceParser(parserType, mode);
                 TraceFormatter formatter = getTraceFormatter(formatterType);
                 formatter.setMarkDatabaseEnd(markDatabaseEnd);
                 replayerWorkers.add(replayer.new ReplayerWorker(input, output, parser, formatter));
+            }
+
+            if(!kafkaOutput) {
+                ArrayList<Thread> ts = new ArrayList<>();
+                for (SocketOutput o: socketClients)
+                    ts.add(new Thread(() -> {
+                        try {
+                            o.acquireClient();
+                        } catch (IOException e) {
+                            throw new RuntimeException(e.getMessage());
+                        }
+                    }));
+                for (Thread t: ts)
+                    t.start();
+
+                for (Thread t: ts)
+                    t.join();
             }
 
             for (ReplayerWorker w: replayerWorkers) {
@@ -844,22 +881,13 @@ public class Replayer {
                 t.start();
             }
 
-            boolean interruptAll = false;
             for (Thread t: workerThreads) {
-                if (interruptAll) {
-                    t.interrupt();
-                    continue;
-                }
-                if (t.isInterrupted()) {
-                    interruptAll = true;
-                    continue;
-                }
+                t.join();
+            }
 
-                try {
-                    t.join();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                }
+            if (!kafkaOutput) {
+                for (SocketOutput o: socketClients)
+                    o.closeClient();
             }
         }
     }

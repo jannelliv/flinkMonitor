@@ -1,7 +1,6 @@
 package ch.ethz.infsec.tools;
 
 import ch.ethz.infsec.StreamMonitoring;
-import ch.ethz.infsec.kafka.MonitorKafkaConfig;
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.slicer.HypercubeSlicer;
 import it.unimi.dsi.fastutil.longs.Long2LongMap;
@@ -30,7 +29,7 @@ import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 
 @ForwardedFields({"1"})
 public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction {
-    protected int numSources = MonitorKafkaConfig.getNumPartitions();
+    protected int numSources = StreamMonitoring.inputParallelism();
     private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts = new Long2ReferenceOpenHashMap<>();
     private long[] maxOrderElem = new long[numSources];
     private long currentIdx = -2;
@@ -153,7 +152,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             maxIdx = indices.get(1);
             numEOF = Math.toIntExact(indices.get(2));
             newStategy = null;
-            numSources = MonitorKafkaConfig.getNumPartitions();
+            numSources = StreamMonitoring.inputParallelism();
         }
     }
 
@@ -237,10 +236,10 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                 if ((++numEOF) == numSources)
                     forceFlush(out);
                 return;
-            } else if (fact.getName().equals("START"))
+            } else if (fact.getName().equals("START") || fact.getName().equals("TERMSTREAM"))
                 return;
             else
-                throw new RuntimeException("should not happen");
+                throw new RuntimeException("should not happen got meta fact " + fact.getName());
         }
         long idx = indexExtractor(fact);
         if (idx > maxIdx) maxIdx = idx;

@@ -7,6 +7,7 @@ import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields
+import org.apache.flink.streaming.api.functions.source.{RichParallelSourceFunction, SocketTextStreamFunction, SourceFunction}
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.Collector
 import org.apache.kafka.clients.producer.{KafkaProducer, ProducerRecord}
@@ -24,6 +25,18 @@ class DebugMap[U] extends MapFunction[U, U] {
     println("DEBUGMAP: " + System.identityHashCode(this) + " " + value.toString)
     value
   }
+}
+
+class ParallelSocketTextStreamFunction(hostname: String, basePort: Int, maxNumRetries: Long, delayBetweenRetries: Long) extends RichParallelSourceFunction[String] {
+  var sockSrc: SocketTextStreamFunction = _
+
+  override def run(sourceContext: SourceFunction.SourceContext[String]): Unit = {
+    val port = basePort + getRuntimeContext.getIndexOfThisSubtask
+    sockSrc = new SocketTextStreamFunction(hostname, port, "\n", 0)
+    sockSrc.run(sourceContext)
+  }
+
+  override def cancel(): Unit = sockSrc.cancel()
 }
 
 sealed class MultiSourceVariant {

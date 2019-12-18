@@ -308,7 +308,11 @@ object StreamMonitoring {
       var monitor: StreamMonitorBuilder = new StreamMonitorBuilderSimple(env)
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
       val textStream = in match {
-        case Some(SocketEndpoint(h, p)) => monitor.socketSource(h, p)
+        case Some(SocketEndpoint(h, p)) =>
+          monitor = multiSourceVariant.getStreamMonitorBuilder(env)
+          inputFormat.setTerminatorMode(multiSourceVariant.getTerminatorMode)
+          Thread.sleep(4000)
+          monitor.socketSource(h, p)
         case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
         case Some(KafkaEndpoint()) =>
           MonitorKafkaConfig.init(clearTopic = clearTopic, numPartitions = Some(inputParallelism))

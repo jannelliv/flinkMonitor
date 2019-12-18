@@ -3,7 +3,7 @@ package ch.ethz.infsec
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ReorderFunction, ReorderTotalOrderFunction, SecondThirdMapFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ParallelSocketTextStreamFunction, ReorderFunction, ReorderTotalOrderFunction, SecondThirdMapFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -76,8 +76,10 @@ class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends Stream
  */
 abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
   def socketSource(host: String, port: Int): DataStream[String] = {
-    val rawSource = new SocketTextStreamFunction(host, port, "\n", 0)
+    val rawSource = new ParallelSocketTextStreamFunction(host, port, 2, 500)
     LatencyTrackingExtensions.addSourceWithProvidedMarkers(env, rawSource, "Socket source")
+      .setParallelism(StreamMonitoring.inputParallelism)
+      .setMaxParallelism(StreamMonitoring.inputParallelism)
       .uid("socket-source")
   }
 
