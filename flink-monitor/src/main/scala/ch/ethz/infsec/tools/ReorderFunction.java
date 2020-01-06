@@ -146,8 +146,8 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             ArrayList<Long> indices = new ArrayList<>();
             for (Long l: indices_state.get())
                 indices.add(l);
-            /*if (indices.size() != 3)
-                throw new Exception("invariant: 3 saved indices");*/
+            if (indices.size() != 3)
+                throw new Exception("invariant: 3 saved indices");
             currentIdx = indices.get(0);
             maxIdx = indices.get(1);
             numEOF = Math.toIntExact(indices.get(2));
@@ -243,8 +243,8 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         }
         long idx = indexExtractor(fact);
         if (idx > maxIdx) maxIdx = idx;
-        /*if (idx < currentIdx)
-            throw new RuntimeException("FATAL ERROR: Got a timestamp that should already be flushed");*/
+        if (idx < currentIdx)
+            throw new RuntimeException("FATAL ERROR: Got a timestamp that should already be flushed");
         insertElement(fact, idx);
     }
 }
