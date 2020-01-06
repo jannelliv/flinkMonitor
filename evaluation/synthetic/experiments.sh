@@ -3,13 +3,16 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-FORMULAS="star-neg linear-neg triangle-neg"
+FORMULAS="easy-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
-MULTISOURCE_VARIANTS="2"
-EVENT_RATES="10000 15000 20000"
-ACCELERATIONS="0 1"
-INDEX_RATES="1 1000"
-PROCESSORS="4/0-5,24-29 8/0-9,24-33 16/0-8,12-20,24-32,36-44"
+MULTISOURCE_VARIANTS="1 2 4"
+EVENT_RATES="10000 20000 30000 40000"
+MAX_OOO="1 2 4"
+WATERMARK_PERIOD="1 2 4"
+ACCELERATIONS="1"
+INDEX_RATES="1 2000"
+NUM_INPUTS="1 2 4"
+PROCESSORS="1 2 4 8 16"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
@@ -32,9 +35,8 @@ make_log() {
 }
 
 echo "Generating logs ..."
-make_log -S star-neg
-make_log -L linear-neg
-make_log -T triangle-neg
+for form 
+make_log -S easy-neg
 
 
 : '
@@ -79,52 +81,52 @@ done
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
-"$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
-sleep 3.0
-"$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
 "$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
 echo "Flink without checkpointing:"
 for procs in $PROCESSORS; do
-    numcpus=${procs%/*}
-    cpulist=${procs#*/}
     echo "  $numcpus processors:"
+    for numsources in $NUM_INPUTS; do
+        for variant in $MULTISOURCE_VARIANTS; do
+            echo "      variant ${variant}:"
+            for formula in $FORMULAS; do
+                echo "          formula ${formula}:"
+                for er in $EVENT_RATES; do
+                    for ir in $INDEX_RATES; do
+                        for maxooo in $MAX_OOO; do
+                            for wmperiod in $WATERMARK_PERIOD; do
+                                if [ "${variant}" != "4" ] && ( [ "${maxooo}" != "1" ] || [ "${wmperiod}" != "1" ] ); then
+                                    continue
+                                fi
+                                for 
+                                INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
+                                "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources -o --watermark_period $wmperiod --max_ooo $max_ooo "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
+                                echo "              Event rate ${er}, index rate ${ir}, max ooo ${maxooo}, wm period: ${wmperiod}:"
+                                for acc in $ACCELERATIONS; do
+                                    echo "    Acceleration $acc:"
+                                    for i in $(seq 1 $REPETITIONS); do
+                                        echo "                  Repetition $i ..."
+                                        JOB_NAME="gen_flink_monpoly_${procs}_${numsources}_${variant}_${formula}_${er}_${ir}_${maxooo}_${wmperiod}_${acc}_${i}"
+                                        DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                                        BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-    for variant in $MULTISOURCE_VARIANTS; do
-        for formula in $FORMULAS; do
-            echo "    Evaluating $formula:"
-            for er in $EVENT_RATES; do
-                for ir in $INDEX_RATES; do
-                INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                "$WORK_DIR"/trace-transformer.sh -v $variant -n $numcpus -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
-                echo "      Event rate $er, index rate $ir:"
-                    for acc in $ACCELERATIONS; do
-                    echo "    Acceleration $acc:"
-                        for i in $(seq 1 $REPETITIONS); do
-                            echo "        Repetition $i ..."
-                            clear_topic $numcpus
-    
-                            JOB_NAME="gen_flink_monpoly_${numcpus}_${variant}_${formula}_${er}_${ir}_${acc}_${i}"
-                            DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                            TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                            BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                            JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
-
-                            rm -r "$VERDICT_FILE" 2> /dev/null
-                            "$WORK_DIR/replayer.sh" -o kafka -v $(variant_replayer_params $variant) -n $numcpus -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
-                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in kafka --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numcpus > "$JOB_REPORT"
-                            wait
-                        done #reps
-                    done #acc
-                done #ir
-            done #er
-            rm -rf "$EXEC_LOG_DIR/preprocess_out"*
-        done #formula
-    done #variant
+                                        rm -r "$VERDICT_FILE" 2> /dev/null
+                                        "$WORK_DIR/replayer.sh" --other_branch -o "127.0.0.1:6060" -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "127.0.0.1:6060" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources > "$JOB_REPORT"
+                                        wait
+                                    done #reps
+                                done #acc
+                                rm -rf "$EXEC_LOG_DIR/preprocess_out"*
+                            done #wmperiod
+                        done #maxooo
+                    done #ir
+                done #er
+            done #formula
+        done #variant
+    done #ninps
 done #procs
-"$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
-"$KAFKA_BIN/kafka-server-stop.sh" &> /dev/null || fail "failed to stop kafka"
-sleep 1.0
-"$ZOOKEEPER_EXE" stop &> /dev/null || fail "failed to stop zookeeper"
+#"$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"
 
 
 : '
