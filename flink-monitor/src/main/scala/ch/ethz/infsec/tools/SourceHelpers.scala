@@ -27,11 +27,10 @@ class DebugMap[U] extends MapFunction[U, U] {
   }
 }
 
-class ParallelSocketTextStreamFunction(hostname: String, basePort: Int, maxNumRetries: Long, delayBetweenRetries: Long) extends RichParallelSourceFunction[String] {
+class ParallelSocketTextStreamFunction(hostname: String, port: Int) extends RichParallelSourceFunction[String] {
   var sockSrc: SocketTextStreamFunction = _
 
   override def run(sourceContext: SourceFunction.SourceContext[String]): Unit = {
-    val port = basePort + getRuntimeContext.getIndexOfThisSubtask
     sockSrc = new SocketTextStreamFunction(hostname, port, "\n", 0)
     sockSrc.run(sourceContext)
   }

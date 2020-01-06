@@ -76,7 +76,7 @@ class StreamMonitorBuilderSimple(env: StreamExecutionEnvironment) extends Stream
  */
 abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
   def socketSource(host: String, port: Int): DataStream[String] = {
-    val rawSource = new ParallelSocketTextStreamFunction(host, port, 2, 500)
+    val rawSource = new ParallelSocketTextStreamFunction(host, port)
     LatencyTrackingExtensions.addSourceWithProvidedMarkers(env, rawSource, "Socket source")
       .setParallelism(StreamMonitoring.inputParallelism)
       .setMaxParallelism(StreamMonitoring.inputParallelism)

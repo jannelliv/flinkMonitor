@@ -365,22 +365,11 @@ public class Replayer {
     }
 
     private class SocketOutput extends Output {
-        private final ServerSocket serverSocket;
-        private final boolean reconnect;
+        private Socket clientSocket;
+        private BufferedWriter writer;
 
-        private Socket clientSocket = null;
-        private BufferedWriter writer = null;
-
-        SocketOutput(ServerSocket serverSocket, boolean reconnect) {
-            this.serverSocket = serverSocket;
-            this.reconnect = reconnect;
-        }
-
-        void acquireClient() throws IOException {
-            if (clientSocket != null) {
-                throw new IllegalStateException("Client has already been acquired.");
-            }
-            clientSocket = serverSocket.accept();
+        SocketOutput(Socket clientSocket) throws IOException {
+            this.clientSocket = clientSocket;
             writer = new BufferedWriter(new OutputStreamWriter(clientSocket.getOutputStream()));
             System.err.printf("Client connected: %s:%d\n",
                     clientSocket.getInetAddress().getHostAddress(),
@@ -403,12 +392,7 @@ public class Replayer {
         private void handleError(IOException e) throws IOException {
             System.err.println("Could not write to client");
             closeClient();
-            if (reconnect) {
-                System.err.println("Waiting for new client ...");
-                acquireClient();
-            } else {
-                throw e;
-            }
+            throw e;
         }
 
         @Override
@@ -635,7 +619,6 @@ public class Replayer {
         TraceParser.TerminatorMode mode = null;
         int outputPort = 0;
         int numInputFiles = 1;
-        boolean reconnect = false;
         boolean markDatabaseEnd = true;
         boolean clearTopic = false;
         boolean kafkaOutput = false;
@@ -789,11 +772,9 @@ public class Replayer {
                 output = replayer.new StandardOutput();
             } else {
                 try {
-                    int backlog = reconnect ? -1 : 1;
-                    ServerSocket serverSocket = new ServerSocket(outputPort, backlog, InetAddress.getByName(outputHost));
-                    SocketOutput socketOutput = replayer.new SocketOutput(serverSocket, reconnect);
-                    socketOutput.acquireClient();
-                    output = socketOutput;
+                    ServerSocket serverSocket = new ServerSocket(outputPort, -1, InetAddress.getByName(outputHost));
+                    Socket sock = serverSocket.accept();
+                    output = replayer.new SocketOutput(sock);
                 } catch (IOException e) {
                     System.err.print("Error: " + e.getMessage() + "\n");
                     System.exit(1);
@@ -833,6 +814,7 @@ public class Replayer {
                 producer = new KafkaProducer<>(MonitorKafkaConfig.getKafkaProps());
 
             ArrayList<SocketOutput> socketClients = new ArrayList<>();
+            ServerSocket serverSocket = new ServerSocket(outputPort, -1, InetAddress.getByName(outputHost));
             for (int i = 0; i < numInputFiles; ++i) {
                 BufferedReader input;
                 try {
@@ -846,9 +828,8 @@ public class Replayer {
                 if (kafkaOutput) {
                     output = replayer.new KafkaOutput(i, producer);
                 } else {
-                    int backlog = reconnect ? -1 : 1;
-                    ServerSocket serverSocket = new ServerSocket(outputPort + i, backlog, InetAddress.getByName(outputHost));
-                    SocketOutput socketOutput = replayer.new SocketOutput(serverSocket, reconnect);
+                    Socket sock = serverSocket.accept();
+                    SocketOutput socketOutput = replayer.new SocketOutput(sock);
                     socketClients.add(socketOutput);
                     output = socketOutput;
                 }
@@ -856,23 +837,6 @@ public class Replayer {
                 TraceFormatter formatter = getTraceFormatter(formatterType);
                 formatter.setMarkDatabaseEnd(markDatabaseEnd);
                 replayerWorkers.add(replayer.new ReplayerWorker(input, output, parser, formatter));
-            }
-
-            if(!kafkaOutput) {
-                ArrayList<Thread> ts = new ArrayList<>();
-                for (SocketOutput o: socketClients)
-                    ts.add(new Thread(() -> {
-                        try {
-                            o.acquireClient();
-                        } catch (IOException e) {
-                            throw new RuntimeException(e.getMessage());
-                        }
-                    }));
-                for (Thread t: ts)
-                    t.start();
-
-                for (Thread t: ts)
-                    t.join();
             }
 
             for (ReplayerWorker w: replayerWorkers) {
