@@ -62,7 +62,9 @@ monpoly_cmd_to_flink_args(){
 }
 
 variant_replayer_params() {
-    if [[ "$1" == "2" ]]; then
+    if [[ "$1" == "1" ]]; then
+        echo "--term TIMEPOINTS"
+    elif [[ "$1" == "2" ]]; then
         echo "--term TIMESTAMPS"
     elif [[ "$1" == "4" ]]; then
         echo "--term NO_TERM -e"
