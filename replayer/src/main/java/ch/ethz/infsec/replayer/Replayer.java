@@ -711,9 +711,6 @@ public class Replayer {
                         outputHost = parts[0];
                         outputPort = Integer.parseInt(parts[1]);
                         break;
-                    case "-k":
-                        reconnect = true;
-                        break;
                     case "-C":
                         if (++i == args.length) {
                             invalidArgument();
