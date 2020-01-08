@@ -56,13 +56,14 @@ launchReplayer c preProcessDir = do
         replayerArgs = ["-i", "csv", "-n", it $ args^.kafkaparts, "-a", ft $ args^.replayeraccel,
             "--clear", "--other_branch"] ++ (multiVariant2Args $ args^.multisourcevariant) ++ extraArgs ++ [tt $ preProcessDir]
 
-launchFlink :: Ctxt -> FilePath -> FilePath -> Sh (Async ())
-launchFlink c preProcessDir flinkOutDir = do
-        echo "Starting Flink ..."
+launchFlinkImpl :: Ctxt -> FilePath -> FilePath -> Maybe FilePath -> Sh (Async ())
+launchFlinkImpl c preProcessDir flinkOutDir savePointDir = do
+        maybe (echo "Starting Flink ...") (\_ -> echo "Restarting Flink") savePointDir
         asyncSh . print_stdout False $
-            run_ (c^.flinkExe) ("run" : flinkArgs ++ extraArgs)
+            run_ (c^.flinkExe) ("run" : restoreArgs ++ flinkArgs ++ extraArgs)
     where
         args = c^.inputArgs
+        restoreArgs = maybe [] (\p -> ["-s", tt $ p]) savePointDir
         flinkArgs = [tt $ c^.jarPath, "--format", "csv", "--sig", tt $ c^.sigFile, "--formula",
                 tt $ c^.formulaFile, "--negate", "false", "--multi", it $ args^.multisourcevariant, "--monitor", "monpoly",
                 "--processors", it $ args^.processors, "--out", tt flinkOutDir, "--nparts", it $ args^.kafkaparts]
@@ -70,6 +71,18 @@ launchFlink c preProcessDir flinkOutDir = do
             (True, True) -> ["--in", "kafka", "--clear", "false"]
             (False, True) -> ["--in", "kafka", "--kafkatestfile", tt $ preProcessDir, "--clear", "true"]
             _ -> ["--in", sformat (stext % ":" % int) (args^.sockhost) (args^.sockport)]
+
+launchFlink :: Ctxt -> FilePath -> FilePath -> Sh (Async ())
+launchFlink c preProcessDir flinkOutDir = launchFlinkImpl c preProcessDir flinkOutDir Nothing
+
+launchFlinkRestore :: Ctxt -> FilePath -> FilePath -> FilePath -> Sh (Async ())
+launchFlinkRestore c preProcessDir flinkOutDir savePointDir = launchFlinkImpl c preProcessDir flinkOutDir (Just savePointDir)
+
+restoreFlink :: Ctxt -> FilePath -> Sh (Async ())
+restoreFlink c savePointDir = do
+    echo "Restoring Flink ..."
+    asyncSh . print_stdout False $
+        run_ (c^.flinkExe) ["run", "-s", tt $ savePointDir]
 
 cancelFlink :: Ctxt -> FilePath -> Sh (Async ())
 cancelFlink c savePointDir = do
@@ -98,15 +111,27 @@ launchCheckpointingRun c sleepSecs savePointDir preProcessDir flinkOutDir = asyn
         flinkJob <- errExit False $ launchFlink c preProcessDir flinkOutDir
         sleep sleepSecs
         cancelFlink c savePointDir >>= wait
+        echo "Job was canceled"
         wait flinkJob
-        newFlinkJob <- launchFlink c preProcessDir flinkOutDir
-        void $! waitBoth replayerJob newFlinkJob
-        
-findFlinkOutFile :: Ctxt -> FilePath -> Sh FilePath
-findFlinkOutFile c flinkOutDir =
+        metaDataFile <- findFile c savePointDir (Just "_metadata")
+        case metaDataFile of
+            Just f -> do
+                newFlinkJob <- launchFlinkRestore c preProcessDir flinkOutDir f
+                void $! waitBoth replayerJob newFlinkJob
+            Nothing -> fail "couldn't find metadata file of the canceled flink job"
+
+
+findFile :: Ctxt -> FilePath -> Maybe T.Text -> Sh (Maybe FilePath)
+findFile c dir name =
+    let nameArg = maybe [] (\s -> ["-name", s]) name in
         print_stdout False $ do
-            files <- cmd "find" flinkOutDir "-type" "f"
-            return . fromText . T.strip $! (T.lines files)!!0
+            files <- run "find" ([tt $ dir, "-type", "f"] ++ nameArg)
+            let fLines = T.lines files
+            if (L.length fLines < 1) then return Nothing
+            else return . Just . fromText . T.strip $ (fLines!!0)
+
+findFlinkOutFile :: Ctxt -> FilePath -> Sh (Maybe FilePath)
+findFlinkOutFile c flinkOutDir = findFile c flinkOutDir Nothing
 
 withFileSh :: FilePath -> IO.IOMode -> (IO.Handle -> Sh a) -> Sh a
 withFileSh fp mode =
@@ -144,6 +169,7 @@ main = do
             preProcessDir = tmpDir </> "preprocess_out"
             finalOutFile = tmpDir </> "out.txt"
             savePointDir = tmpDir </> "savepoints"
+            genshapeArg = sformat ("-" % stext) (args^.generatorshape)
         in
         do
             when (args^.noclear) $
@@ -151,7 +177,7 @@ main = do
 
             echo "Generating log ..."
             fastPipe (ctxt^.traceGenerator)
-                ["-T", "-e", it $ args^.eventrate, "-i", it $ args^.indexrate, "-x", "1", it $ args^.loglength]
+                [genshapeArg, "-e", it $ args^.eventrate, "-i", it $ args^.indexrate, "-x", "1", it $ args^.loglength]
                 logFileCsv
 
             echo "Preprocessing for multiple inputs ..."
@@ -170,22 +196,29 @@ main = do
                     referenceFile
 
             if args^.usereplayer then
-                if args^.insertcheckpoint then
-                    wait =<< launchCheckpointingRun ctxt 2 savePointDir preProcessDir flinkOutDir
-                else do
-                    r <- launchReplayer ctxt preProcessDir
-                    f <- launchFlink ctxt preProcessDir flinkOutDir
-                    void $! waitBoth r f
+                case args^.insertcheckpoint of
+                    Just timeout ->     
+                        wait =<< launchCheckpointingRun ctxt timeout savePointDir preProcessDir flinkOutDir
+                    Nothing -> do
+                        r <- launchReplayer ctxt preProcessDir
+                        f <- launchFlink ctxt preProcessDir flinkOutDir
+                        void $! waitBoth r f
             else
                 wait =<< launchFlink ctxt preProcessDir flinkOutDir
 
             unless (args^.novalidate) $ do
                 flinkOutFile <- findFlinkOutFile ctxt flinkOutDir
-                verdicts <- readfile flinkOutFile
                 reference <- readfile referenceFile
-                echo "Comparing outputs ..."
-                let (correct, diffs) = verifyVerdicts (ctxt^.shouldCollapse) reference verdicts
-                if correct then echo "=== TEST PASSED ==="
-                else do
-                    echo diffs
-                    echo "=== TEST FAILED ==="
+                if (T.null . T.strip $ reference) then do
+                    echo "no violations in reference, bad test case"
+                    echo "=== TEST PASSED ==="
+                else case flinkOutFile of
+                    Just f -> do
+                        verdicts <- readfile f
+                        echo "Comparing outputs ..."
+                        let (correct, diffs) = verifyVerdicts (ctxt^.shouldCollapse) reference verdicts
+                        if correct then echo "=== TEST PASSED ==="
+                        else do
+                            echo diffs
+                            echo "=== TEST FAILED ==="
+                    Nothing -> fail "non empty reference but no flink output found"

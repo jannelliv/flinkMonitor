@@ -9,9 +9,10 @@
 {-# OPTIONS_GHC -fno-cse #-}
 module TestArgs where
 import Prelude hiding (FilePath)
+import qualified Data.Maybe as M
 import System.Console.CmdArgs
 import Shelly
-import Data.Text as T
+import qualified Data.Text as T
 import Control.Lens
 import Control.Lens.TH
 default (T.Text)
@@ -19,10 +20,10 @@ default (T.Text)
 data Config = Config { _eventrate :: Int
                      , _indexrate :: Int
                      , _loglength :: Int
-                     , _sockhost :: Text
+                     , _sockhost :: T.Text
                      , _sockport :: Int
-                     , _formula :: Text
-                     , _sig :: Text
+                     , _formula :: T.Text
+                     , _sig :: T.Text
                      , _processors :: Int
                      , _kafkaparts :: Int
                      , _multisourcevariant :: Int
@@ -31,10 +32,11 @@ data Config = Config { _eventrate :: Int
                      , _replayeraccel :: Float
                      , _sigma :: Float
                      , _maxooo :: Int
+                     , _generatorshape :: T.Text
                      , _watermarkperiod :: Int
                      , _novalidate :: Bool
-                     , _insertcheckpoint :: Bool
-                     , _flinkdir :: Text
+                     , _insertcheckpoint :: Maybe Int
+                     , _flinkdir :: T.Text
                      , _noclear :: Bool
                      }
                 deriving (Show, Data, Typeable)
@@ -66,12 +68,13 @@ baseconfig = cmdArgsMode $ Config{ _eventrate = 1000 &= explicit &= name "eventr
                    , _sig = "synth.sig" &= explicit &= name "signature" &= name "s" &= typ "SIGNATURE_NAME" &= help "signature name of the formula"
                    , _processors = 2 &= explicit &= name "procs" &= name "p" &= typ "INT" &= help "number of monitors"
                    , _kafkaparts = 4 &= explicit &= name "nparts" &= name "n" &= typ "INT" &= help "number of input partitions"
+                   , _generatorshape = "T" &= explicit &= name "shape" &= typ "STRING" &= help "T = Triangle, S = Star, L = Linear"
                    , _multisourcevariant = 1 &= explicit &= name "variant" &= name "m" &= typ "INT" &= help "multisource variant to use"
                    , _usereplayer = False &= explicit &= name "replayer" &= name "r" &= typ "BOOL" &= help "should use replayer"
                    , _usekafka = False &= explicit &= name "kafka" &= name "k" &= typ "BOOL" &= help "should use kafka"
                    , _replayeraccel = 1.0 &= explicit &= name "accel" &= name "a" &= typ "FLOAT" &= help "replayer acceleration"
                    , _novalidate = False &= explicit &= name "novalidate" &= help "don't generate and validate reference output"
-                   , _insertcheckpoint = False &= explicit &= name "insertcheckpoint" &= help "test the snapshotting mode"
+                   , _insertcheckpoint = Nothing &= explicit &= name "insertcheckpoint" &= typ "INT" &= help "save and restore from snapshot after INT secs"
                    , _watermarkperiod = 2 &= explicit &= name "watermarkperiod" &= help "time interval for the watermarks (used if variant = 4)"
                    , _sigma = 2.0 &= explicit &= name "sigma" &= help "sigma for the truncated normal distribution (used if variant = 4)"
                    , _maxooo = 5 &= explicit &= name "maxooo" &= help "max out of orderness (used if variant = 4)"
@@ -83,20 +86,22 @@ baseconfig = cmdArgsMode $ Config{ _eventrate = 1000 &= explicit &= name "eventr
 parseArgs :: IO Config
 parseArgs = cmdArgsRun baseconfig
 
+validateArgs :: Config -> Either () String
+validateArgs args =
+    let conditions = [((args^.generatorshape) `notElem` ["T", "L", "S"], "invalid generatorform")
+                     ,(args^.multisourcevariant < 1 || args^.multisourcevariant > 4, "multisource variant must be in 1 to 4")
+                     ,(args^.usereplayer && args^.multisourcevariant == 3, "variant 3 not compat. with replayer")
+                     ,((not $ args^.usereplayer) && args^.multisourcevariant == 4, "variant 4 needs replayer")
+                     ,((not (args^.usereplayer && args^.usekafka)) && (M.isJust $ args^.insertcheckpoint), "checkpoint needs kafka + replayer")]
+        rest = dropWhile (not . fst) conditions
+    in
+    maybe (Left ()) (Right . snd . fst) (uncons rest)
+
 makeContext :: IO Ctxt
 makeContext = do
     args <- parseArgs
     currDir <- shelly pwd
-    when (args^.multisourcevariant < 1 || args^.multisourcevariant > 4) $
-        fail "multisource variant must be in 1 to 4"
-    when (args^.usereplayer && args^.multisourcevariant == 3) $
-        fail "multisouce variant 3 (watermark order without explicit emissiontime) \
-                \is not compatible with the replayer"
-    when ((not $ args^.usereplayer) && args^.multisourcevariant == 4) $
-        fail "multisource variant 4 (watermark order with explicit emissiontime) \
-                \is only compatible with the replayer"
-    when ((not $ args^.usereplayer) && (args^.insertcheckpoint)) $
-        fail "resuming from a checkpoint can only be used in combination with the replayer" 
+    either return fail (validateArgs args)
     let workDir = currDir </> ".."
     let data_dir = workDir </> "evaluation"
     return Ctxt { _workDir = workDir

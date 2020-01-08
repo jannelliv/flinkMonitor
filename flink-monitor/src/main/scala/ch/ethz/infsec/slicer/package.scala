@@ -52,6 +52,7 @@ package object slicer {
 
     private def stringifyDomain(value: Any): String = value match {
       case x: java.lang.Long => x.toString
+      case x: java.lang.Integer => x.toString
       case x: String => "\"" + x + "\""
     }
 

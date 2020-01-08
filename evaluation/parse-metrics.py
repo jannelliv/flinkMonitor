@@ -163,7 +163,7 @@ def l2d(l):
     return dict
 
 def get_subprocesses(j):
-    job_regex = re.compile(r"(nokia|nokiaCMP|gen|genCMP|genh)(_flink)?_(monpoly|dejavu)(_ft)?(_stats)?(?:_(\d+))?_([a-zA-Z0-9-_]+neg)(?:_h(\d+))?_(\d+)(?:_(\d+))?_([01])_(\d+)")
+    job_regex = re.compile(r"(nokia|nokiaCMP|gen|genCMP|genh)(_flink)?_(monpoly|dejavu)(_ft)?(_stats)?(?:_(\d+))?_([a-zA-Z0-9-_]+neg).*")
     job_match = job_regex.fullmatch(j)
     return int(job_match.group(6) or 1)
 

@@ -123,8 +123,9 @@ abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCh
     }
   }
 
-  override def snapshotState(checkpointId: Long, timestamp: Long): util.List[String] =
+  override def snapshotState(checkpointId: Long, timestamp: Long): util.List[String] = {
     util.Collections.singletonList(if (pendingSlicer == null) stringify else pendingSlicer)
+  }
 
   override def restoreState(state: util.List[String]): Unit = {
     assert(state.size() == 1)

@@ -358,7 +358,6 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
       processState.addAll(processSnapshot.zipWithIndex.map(_.swap).asJava)
     }
     processState = null
-
     logger.info("done snapshot")
   }
 
