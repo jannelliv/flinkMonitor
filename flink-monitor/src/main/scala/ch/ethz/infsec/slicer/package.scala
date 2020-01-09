@@ -6,7 +6,7 @@ package object slicer {
       val value: Any = if (str.startsWith("\""))
         str.stripPrefix("\"").stripSuffix("\"")
       else
-        Long.box(str.toLong)
+        Int.box(str.toInt)
       value
     }
 
@@ -24,7 +24,6 @@ package object slicer {
 
     private def parseNestedIt(str: String): IndexedSeq[IndexedSeq[Int]] = {
       val it = str.substring(1, str.length - 1).split("\\),\\(")
-
       it.toIndexedSeq.map(_.split(",")).map(a => a.map(Integer.parseInt).toIndexedSeq)
     }
 
@@ -38,6 +37,7 @@ package object slicer {
     }
 
     def parseSlicer(str: String): (IndexedSeq[(Int, Set[Any])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]], Int) ={
+      println("LOL: parsing slicer: " + str)
       val trim = str.substring(2, str.length - 2)
 
       val params = trim.split("\\},\\{")
@@ -51,9 +51,8 @@ package object slicer {
     }
 
     private def stringifyDomain(value: Any): String = value match {
-      case x: java.lang.Long => x.toString
-      case x: java.lang.Integer => x.toString
-      case x: String => "\"" + x + "\""
+      case x: java.lang.Integer => "{%s}".format(x.toString)
+      case x: String => "{%s}".format("\"" + x + "\"")
     }
 
     private def stringifyDomainSet(domain: Set[Any]): String = {
@@ -90,7 +89,6 @@ package object slicer {
 
     def stringify(heavy: Iterable[(Int, Set[Any])], shares: Iterable[Iterable[Int]], seeds: Array[Array[Int]], maxDegree: Int): String = {
       val itSeeds = seeds.toIterable.map(_.toIterable)
-
       val sb = new StringBuilder
 
       sb ++= stringifyHeavy(heavy) + ","

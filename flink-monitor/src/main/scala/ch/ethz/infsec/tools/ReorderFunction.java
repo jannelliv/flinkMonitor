@@ -23,10 +23,7 @@ import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
-
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
-
 
 @ForwardedFields({"1"})
 public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction{
@@ -37,9 +34,9 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     private long maxIdx = -1;
     private int numEOF = 0;
 
-    //private transient ListState<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state = null;
-    //private transient ListState<Long> maxorderelem_state = null;
-    //private transient ListState<Long> indices_state = null;
+    private transient ListState<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state = null;
+    private transient ListState<Long> maxorderelem_state = null;
+    private transient ListState<Long> indices_state = null;
     private String newStategy = null;
 
     abstract protected boolean isOrderElement(Fact fact);
@@ -52,7 +49,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         Arrays.fill(maxOrderElem, -1);
     }
 
-    /*@Override
+    @Override
     public void snapshotState(FunctionSnapshotContext functionSnapshotContext) throws Exception {
         idx2facts_state.clear();
         maxorderelem_state.clear();
@@ -155,7 +152,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             newStategy = null;
             numSources = StreamMonitoring.inputParallelism();
         }
-    }*/
+    }
 
     private void insertElement(Fact fact, long idx) {
         ReferenceArrayList<Fact> buf = idx2Facts.get(idx);
@@ -226,7 +223,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
 
         if (isOrderElement(fact)) {
             long idx = indexExtractor(fact);
-            System.out.println("LOL: got order elem " + idx);
+            //System.out.println("LOL: got order elem " + idx);
             if (idx > maxOrderElem[subtaskidx])
                 maxOrderElem[subtaskidx] = idx;
             flushReady(out);
@@ -248,16 +245,6 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         if (idx < currentIdx)
             throw new RuntimeException("FATAL ERROR: Got a timestamp that should already be flushed");
         insertElement(fact, idx);
-    }
-
-    @Override
-    public void snapshotState(FunctionSnapshotContext functionSnapshotContext) throws Exception {
-        System.err.println("LOL: asked for snapshot, have: " + idx2Facts.size() + "indices in buffer");
-    }
-
-    @Override
-    public void initializeState(FunctionInitializationContext functionInitializationContext) throws Exception {
-
     }
 }
 
