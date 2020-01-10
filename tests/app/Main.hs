@@ -170,7 +170,7 @@ main = do
             finalOutFile = tmpDir </> "out.txt"
             savePointDir = tmpDir </> "savepoints"
             genshapeArg = sformat ("-" % stext) (args^.generatorshape)
-            genEasyArg = if args^.easy then [ft $ (0.001 :: Float), "-pB", ft $ (0.001 :: Float)]
+            genEasyArg = if args^.easy then ["-pA", ft $ (0.001 :: Float), "-pB", ft $ (0.001 :: Float)]
                          else []
         in
         do
