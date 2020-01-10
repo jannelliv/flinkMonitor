@@ -2,6 +2,7 @@ package ch.ethz.infsec
 
 import java.util.logging.{Level, Logger}
 
+import ch.ethz.infsec.autobalancer.{AllState, DeciderFlatMapSimple, KnowledgeExtract, OutsideInfluence}
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
@@ -129,40 +130,63 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
       .uid("print-sink")
   }
 
-  def parseAndSliceTrace(traceFormat: TraceParser, slicer: HypercubeSlicer, dataStream: DataStream[String]) : DataStream[(Int, Fact)] = {
-    dataStream
+  def parseInjectAndSliceTrace(traceFormat: TraceParser, decider: Boolean, slicer: HypercubeSlicer, dataStream: DataStream[String]) : DataStream[(Int, Fact)] = {
+    val parsedTrace = dataStream
       .flatMap(new ParsingFunction(traceFormat))
       .name("Trace parser")
       .uid("trace-parser")
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)
-      .flatMap(slicer)
+
+    val injectedTrace =
+      if (decider) {
+        parsedTrace.flatMap(new OutsideInfluence(true))
+                   .name("Outside influence")
+                   .uid("outside-influence")
+                   .setMaxParallelism(StreamMonitoring.inputParallelism)
+                   .setParallelism(StreamMonitoring.inputParallelism)
+    } else {
+        parsedTrace
+    }
+
+    injectedTrace.flatMap(slicer)
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)
       .name("Slicer")
       .uid("slicer")
   }
 
-  def postProcessStream(slicer: HypercubeSlicer, queueSize: Int, monitorProcess: ExternalProcess[Fact, Fact], dataStream: DataStream[Fact]) : DataStream[String] = {
+  def postProcessStream(slicer: HypercubeSlicer, queueSize: Int, decider: Boolean, monitorProcess: ExternalProcess[Fact, Fact], dataStream: DataStream[Fact]) : DataStream[String] = {
     val rawVerdicts = ExternalProcessOperator.transform(dataStream, monitorProcess, queueSize)
       .setParallelism(slicer.degree)
       .setMaxParallelism(slicer.degree)
       .name("Monitor")
       .uid("monitor")
 
-    //verdictsAndOtherThings.flatMap(new ProcessorFunction(new KnowledgeExtract(slicer.degree)))
+    val rawVerdictsWithSideEffects =
+      if(decider) {
+        rawVerdicts.flatMap(new KnowledgeExtract(slicer.degree))
+                   .setParallelism(slicer.degree)
+                   .setMaxParallelism(slicer.degree)
+                   .name("Knowledge Extractor")
+                   .uid("knowledge-extractor")
+      } else {
+        rawVerdicts
+      }
 
-    val filteredVerdicts = rawVerdicts.filter(new VerdictFilter(slicer))
-      .setParallelism(slicer.degree)
-      .setMaxParallelism(slicer.degree)
-      .name("Verdict filter")
-      .uid("verdict-filter")
+    val filteredVerdicts =
+      rawVerdictsWithSideEffects.filter(new VerdictFilter(slicer))
+                                .setParallelism(slicer.degree)
+                                .setMaxParallelism(slicer.degree)
+                                .name("Verdict filter")
+                                .uid("verdict-filter")
 
-    val printedVerdicts = filteredVerdicts.flatMap(new PrintingFunction(new MonpolyVerdictFormatter))
-      .setParallelism(slicer.degree)
-      .setMaxParallelism(slicer.degree)
-      .name("Verdict printer")
-      .uid("verdict-printer")
+    val printedVerdicts =
+      filteredVerdicts.flatMap(new PrintingFunction(new MonpolyVerdictFormatter))
+                      .setParallelism(slicer.degree)
+                      .setMaxParallelism(slicer.degree)
+                      .name("Verdict printer")
+                      .uid("verdict-printer")
 
     printedVerdicts
   }
@@ -171,28 +195,14 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
 
   def assemble(inputStream: DataStream[String],
                traceFormat: TraceParser,
-//               decider: Option[DeciderFlatMapSimple],
+               decider: Boolean,
                slicer: HypercubeSlicer,
                monitorProcess: ExternalProcess[Fact, Fact],
                queueSize: Int): DataStream[String] = {
 
 //    val parser = new TraceMonitor(traceFormat.createParser(), new RescaleInitiator().rescale)
-    val parsedAndSlicedTrace = parseAndSliceTrace(traceFormat, slicer, inputStream)
+    val parsedAndSlicedTrace = parseInjectAndSliceTrace(traceFormat, decider, slicer, inputStream)
 
-    /*
-    val injectedTrace = parsedTrace.flatMap(new ProcessorFunction[Record,Record](new OutsideInfluence(true).asInstanceOf[Processor[Record,Record] with Serializable]))
-
-    val observedTrace = decider match {
-      case None => injectedTrace
-      case Some(deciderFlatMap) =>
-        //todo: proper arguments
-        injectedTrace.flatMap(new ProcessorFunction[Record, Record](new AllState(deciderFlatMap)))
-          .setMaxParallelism(1)
-          .setParallelism(1)
-          .name("Decider")
-          .uid("decider")
-    }
-    */
 
     val reorderedTrace = partitionAndReorder(parsedAndSlicedTrace, slicer)
 
@@ -202,7 +212,7 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
     // because the state is not synchronized with the global progress. Ideally, we would not even create
     // such submonitors.
     // TODO(JS): Check the splitting/merging logic in the case of unused submonitors.
-    postProcessStream(slicer, queueSize, monitorProcess, reorderedTrace)
+    postProcessStream(slicer, queueSize, decider, monitorProcess, reorderedTrace)
 
   }
 }

@@ -5,10 +5,11 @@ import java.lang.ProcessBuilder.Redirect
 import java.util.concurrent.{Callable, Executors, TimeUnit}
 
 import ch.ethz.infsec.analysis.TraceAnalysis
+import ch.ethz.infsec.autobalancer.{AllState, DeciderFlatMapSimple, OutsideInfluence}
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor._
 import ch.ethz.infsec.policy.{Formula, Policy}
-import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, MultiSourceVariant, PerPartitionOrder, SocketEndpoint, TotalOrder, WaterMarkOrder}
+import ch.ethz.infsec.tools.{EndPoint, FileEndPoint, KafkaEndpoint, KafkaTestProducer, MultiSourceVariant, PerPartitionOrder, Rescaler, SocketEndpoint, TotalOrder, WaterMarkOrder}
 import ch.ethz.infsec.trace.parser.{Crv2014CsvParser, MonpolyTraceParser, TraceParser}
 import org.apache.flink.api.common.restartstrategy.RestartStrategies
 import org.apache.flink.api.java.utils.ParameterTool
@@ -135,94 +136,94 @@ object StreamMonitoring {
     queueSize = params.getInt("queueSize", queueSize)
   }
 
-  /*
-  def calculateSlicing(params: ParameterTool): Unit =
-  {
-    val degree = params.getInt("degree",4)
-    formulaFile = params.get("formula")
-    val formulaSource = Source.fromFile(formulaFile).mkString
-    formula = Policy.read(formulaSource) match {
-      case Left(err) =>
-        logger.error("Cannot parse the formula: " + err)
-        sys.exit(1)
-      case Right(phi) => phi
-    }
-    var dfms = new DeciderFlatMapSimple(degree,formula,Double.MaxValue)
-    val file = params.get("file")
-    var content = Source.fromFile(file).mkString.split("\n").map(_.trim)
-    val parser = MonpolyFormat.createParser()
-   // var arr = scala.collection.mutable.ArrayBuffer[Record]()
-    var arr = parser.processAll(content)
-    //explicit nulling to aid the JVM in GCing
-    content = null
 
-    val slicer = params.get("slicer",null)
-    var strategy : HypercubeSlicer = null
-    if(slicer == null) {
-      arr.foreach(x => {
-        if (!x.isEndMarker)
-          dfms.windowStatistics.addEvent(x)
-      })
-      dfms.windowStatistics.nextFrame()
-      strategy = dfms.getSlicingStrategy(dfms.windowStatistics)
-    }else{
-      val res = new SlicerParser().parseSlicer(slicer)
-      strategy = new HypercubeSlicer(formula,res._1,res._2,1234)
-      strategy.parseSlicer(slicer)
-    }
-    val strategyStr = strategy.stringify()
-    val writer = new java.io.PrintWriter("strategyOutput")
-    writer.println(strategyStr)
-    writer.close()
-    var outs = strategy.processAll(arr)
-    //explicit nulling to aid the JVM in GCing
-    arr = null
-    var sortedOuts = scala.collection.mutable.Map[Int,scala.collection.mutable.ArrayBuffer[Record]]()
-    outs.foreach(x => {
-        if(!sortedOuts.contains(x._1))
-          sortedOuts += ((x._1,scala.collection.mutable.ArrayBuffer[Record]()))
-        sortedOuts(x._1) += x._2
-    })
-    //explicit nulling to aid the JVM in GCing
-    outs = null
-    var printer = new KeyedMonpolyPrinter[Int, Nothing](false)
-    sortedOuts.foreach(x => {
-      val w2 = new java.io.PrintWriter("slicedOutput"+x._1)
-      x._2.foreach(rec => {
-        printer.process(Left((x._1,rec)), {case Left(y) => w2.println(y.in); case Right(_) => ()})
-      })
-      w2.close()
-    })
-    sortedOuts = null
-    val w3 = new PrintWriter("otherStuff")
-    w3.println("relationSet size: "+dfms.windowStatistics.relations.size)
-    w3.println("heavy hitter size: "+dfms.windowStatistics.heavyHitter.values.size)
-    w3.println("heavy hitters:")
-    dfms.windowStatistics.heavyHitter.foreach(x => {
-      w3.println(x)
-    })
-    w3.println("relation sizes:")
-    dfms.windowStatistics.relations.foreach(x => {
-      w3.println(x._1 + " - " + x._2 + "(relation) " + dfms.windowStatistics.relationSize(x._1) + "(relationSize)")
-    })
-    w3.close()
-  }
+//  def calculateSlicing(params: ParameterTool): Unit =
+//  {
+//    val degree = params.getInt("degree",4)
+//    formulaFile = params.get("formula")
+//    val formulaSource = Source.fromFile(formulaFile).mkString
+//    formula = Policy.read(formulaSource) match {
+//      case Left(err) =>
+//        logger.error("Cannot parse the formula: " + err)
+//        sys.exit(1)
+//      case Right(phi) => phi
+//    }
+//    var dfms = new DeciderFlatMapSimple(degree,formula,Double.MaxValue)
+//    val file = params.get("file")
+//    var content = Source.fromFile(file).mkString.split("\n").map(_.trim)
+//    val parser = MonpolyFormat.createParser()
+//   // var arr = scala.collection.mutable.ArrayBuffer[Record]()
+//    var arr = parser.processAll(content)
+//    //explicit nulling to aid the JVM in GCing
+//    content = null
+//
+//    val slicer = params.get("slicer",null)
+//    var strategy : HypercubeSlicer = null
+//    if(slicer == null) {
+//      arr.foreach(x => {
+//        if (!x.isEndMarker)
+//          dfms.windowStatistics.addEvent(x)
+//      })
+//      dfms.windowStatistics.nextFrame()
+//      strategy = dfms.getSlicingStrategy(dfms.windowStatistics)
+//    }else{
+//      val res = new SlicerParser().parseSlicer(slicer)
+//      strategy = new HypercubeSlicer(formula,res._1,res._2,1234)
+//      strategy.parseSlicer(slicer)
+//    }
+//    val strategyStr = strategy.stringify()
+//    val writer = new java.io.PrintWriter("strategyOutput")
+//    writer.println(strategyStr)
+//    writer.close()
+//    var outs = strategy.processAll(arr)
+//    //explicit nulling to aid the JVM in GCing
+//    arr = null
+//    var sortedOuts = scala.collection.mutable.Map[Int,scala.collection.mutable.ArrayBuffer[Record]]()
+//    outs.foreach(x => {
+//        if(!sortedOuts.contains(x._1))
+//          sortedOuts += ((x._1,scala.collection.mutable.ArrayBuffer[Record]()))
+//        sortedOuts(x._1) += x._2
+//    })
+//    //explicit nulling to aid the JVM in GCing
+//    outs = null
+//    var printer = new KeyedMonpolyPrinter[Int, Nothing](false)
+//    sortedOuts.foreach(x => {
+//      val w2 = new java.io.PrintWriter("slicedOutput"+x._1)
+//      x._2.foreach(rec => {
+//        printer.process(Left((x._1,rec)), {case Left(y) => w2.println(y.in); case Right(_) => ()})
+//      })
+//      w2.close()
+//    })
+//    sortedOuts = null
+//    val w3 = new PrintWriter("otherStuff")
+//    w3.println("relationSet size: "+dfms.windowStatistics.relations.size)
+//    w3.println("heavy hitter size: "+dfms.windowStatistics.heavyHitter.values.size)
+//    w3.println("heavy hitters:")
+//    dfms.windowStatistics.heavyHitter.foreach(x => {
+//      w3.println(x)
+//    })
+//    w3.println("relation sizes:")
+//    dfms.windowStatistics.relations.foreach(x => {
+//      w3.println(x._1 + " - " + x._2 + "(relation) " + dfms.windowStatistics.relationSize(x._1) + "(relationSize)")
+//    })
+//    w3.close()
+//  }
+//
+//  def exename(str: String):String = {
+//    val ss = str.split('/')
+//    ss(ss.length-1)
+//  }
 
-  def exename(str: String):String = {
-    val ss = str.split('/')
-    ss(ss.length-1)
-  }
-   */
 
 
   def main(args: Array[String]) {
     val params = ParameterTool.fromArgs(args)
 
     val analysis = params.getBoolean("analysis", false)
-    //val calcSlice = params.getBoolean("calcSlice",false)
+//    val calcSlice = params.getBoolean("calcSlice",false)
 
     if (analysis) TraceAnalysis.prepareSimulation(params)
-    //else if(calcSlice) calculateSlicing(params)
+//    else if(calcSlice) calculateSlicing(params)
     else {
       init(params)
 
@@ -231,7 +232,6 @@ object StreamMonitoring {
       }
       //TODO: replace
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
-      //val slicer = SlicingSpecification.mkSlicer(params, formula, 8)
 
       val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
         case MONPOLY_CMD => {
@@ -331,13 +331,7 @@ object StreamMonitoring {
       env.setMaxParallelism(inputParallelism)
       env.setParallelism(inputParallelism)
 
-      /*
-      val dfms = if(params.has("decider"))
-        Some(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
-      else
-        None
-       */
-      val verdicts = monitor.assemble(textStream, inputFormat, slicer, monitorProcess, queueSize)
+      val verdicts = monitor.assemble(textStream, inputFormat, params.has("decider"), slicer, monitorProcess, queueSize)
 
       out match {
         case Some(SocketEndpoint(h, p)) => monitor.socketSink(verdicts, h, p)
@@ -345,10 +339,25 @@ object StreamMonitoring {
         case _ => monitor.printSink(verdicts)
       }
 
-      /*
-      Rescaler.create(jobName, "127.0.0.1", processors)
-      Thread.sleep(2000)
-       */
+
+      if(params.has("decider")) {
+        Rescaler.create(jobName, "127.0.0.1", processors)
+        //TODO:
+        // 1) change the rescaler to run the decider on the jobmaster
+        //    - change the Decider to locally invoke the rescaler (as now they are both on the jobmaster)
+        //    - Decider decisions are now async and sent to the OutsideInfluence
+        //    - receive (async) statistics from the OutsideInfluence
+        //    - receive (async) metrics from the KnowledgeExtractor
+        // 2) adapt KnowledgeExtract to communicate with the Decider directly
+        //    - move some receiver logic from the OutsideInfluence to the Decider
+        // 3) change the OutsideInfluence to async communicate with the Decider
+        //    - statistics are now forwarded in an async manner to the Decider
+        //    - OutsideInfluence must forward Decider decisions in a sync manner
+
+        //new AllState(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
+        Thread.sleep(2000)
+      }
+
       env.execute(jobName)
     }
   }

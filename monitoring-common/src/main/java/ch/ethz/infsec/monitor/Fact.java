@@ -11,10 +11,15 @@ import java.util.stream.Collectors;
  * A fact represents a single tuple in a temporal structure. It stores the name of the relation that the tuple is part
  * of the arguments of the tuple, and the time-stamp. The position within the temporal structure is implicit: It is
  * encoded by the position of the fact in a stream. Moreover, each structure (i.e., the set of relations associated with
- * a single point in time) is closed by a special <em>terminator fact</em>, which does not have a relation name.
+ * a single point in time) is closed by a special <em>terminator fact</em>, which does not have a relation name (i.e., it
+ * is null).
  * <p>
  * The argument list can be heterogeneous. The only admissible types are {@link String}, {@link Long}, and {@link
  * Double}, though this is currently not enforced.
+ * <p>
+ * Verdict-facts are not part of the temporal structure, they are the outputs of a monitor.
+ * Verdict-facts have empty strings (i.e., "") as their names. Time-points, time-stamps and arguments have
+ * valid values.
  * <p>
  * Meta-facts carry metadata that is not part of the temporal structure. Meta-facts do not have a time-stamp.
  * <p>
