@@ -353,6 +353,8 @@ object StreamMonitoring {
         // 3) change the OutsideInfluence to async communicate with the Decider
         //    - statistics are now forwarded in an async manner to the Decider
         //    - OutsideInfluence must forward Decider decisions in a sync manner
+        //    - move statistics claculation from the Decider to OutsideInfluence
+        // 4) (Optional) find better names from OutsideInfluence and KnowledgeExtractor
 
         //new AllState(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
         Thread.sleep(2000)
