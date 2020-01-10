@@ -176,6 +176,8 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
     else
       Fact.meta("save_state", tempStateFile.toString)
     printFact(command)
+    //Don't forget
+    writer.flush()
   }
 
   private def updateProcessTime(x: Long): Unit = {

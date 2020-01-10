@@ -23,12 +23,10 @@ import scala.Tuple2;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 
-
 @ForwardedFields({"1"})
-public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction {
+public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction{
     protected int numSources = StreamMonitoring.inputParallelism();
     private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts = new Long2ReferenceOpenHashMap<>();
     private long[] maxOrderElem = new long[numSources];
@@ -225,6 +223,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
 
         if (isOrderElement(fact)) {
             long idx = indexExtractor(fact);
+            //System.out.println("LOL: got order elem " + idx);
             if (idx > maxOrderElem[subtaskidx])
                 maxOrderElem[subtaskidx] = idx;
             flushReady(out);
@@ -299,7 +298,6 @@ class ReorderCollapsedWithWatermarksFunction extends ReorderFunction {
 }
 
 class ReorderCollapsedPerPartitionFunction extends ReorderFunction {
-
     @Override
     protected boolean isOrderElement(Fact fact) {
         return fact.isTerminator();

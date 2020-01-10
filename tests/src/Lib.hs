@@ -47,8 +47,7 @@ parseReference collapse reference =
     let ls = filter (not . T.null) (map T.strip (T.lines reference))
         regex_re = "^@([0-9]+). \\(time point ([0-9]+)\\): (.+)$"
         regex_re_parse = map (\l -> getAllTextSubmatches (l =~ regex_re) :: [T.Text]) ls
-        args_parsed = T.trace ("regex_re_parse is " ++ (show regex_re_parse)) $
-          map(\k -> (forceIntConversion (k!!1), forceIntConversion(k!!2), parseReferenceLineArgs (k!!3))) regex_re_parse
+        args_parsed = map(\k -> (forceIntConversion (k!!1), forceIntConversion(k!!2), parseReferenceLineArgs (k!!3))) regex_re_parse
     in
       concatMap (\(ts, tp, a) -> map (\a ->
         let tp' = if collapse then ts else tp in
