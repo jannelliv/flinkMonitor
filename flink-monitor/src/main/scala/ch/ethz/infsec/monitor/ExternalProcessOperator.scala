@@ -23,6 +23,7 @@ import scala.collection.mutable.ArrayBuffer
 class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capacity: Int)
   extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
   chainingStrategy = ChainingStrategy.ALWAYS
+
   require(capacity > 0)
   private val maxBatchSize: Int = capacity / 10
   private val MARKER_STATE_NAME = "_external_process_operator_marker_state_"
@@ -113,6 +114,7 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
   override def open(): Unit = {
     super.open()
     assert(Thread.holdsLock(taskLock))
+    val logger = LoggerFactory.getLogger(getClass)
 
     acceptingMarkers = true
     pendingInput = null
@@ -122,6 +124,7 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
 
     markerState.get().asScala.headOption match {
       case Some(items) =>
+        logger.info("restoring {} marker items", items.length)
         for (item <- items)
           inputQueue.add(item)
       case None => ()
@@ -129,6 +132,7 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
 
     outputState.get().asScala.headOption match {
       case Some(items) =>
+        logger.info("restoring {} output items", items.length)
         for (item <- items)
           outputQueue.add(item)
       case None => ()
@@ -137,10 +141,15 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
     val processStates = processState.get().asScala.filter(_._1 == subtaskIndex).map(_._2)
     processStates.size match {
       case 0 => process.open()
-      case 1 => process.openWithState(processStates.head)
-      case _ => process.openAndMerge(processStates)
+      case 1 =>
+        logger.info("restoring single process state")
+        process.openWithState(processStates.head)
+      case _ =>
+        logger.info("merging process states")
+        process.openAndMerge(processStates)
     }
 
+    markerState.clear()
     outputState.clear()
     processState.clear()
 
@@ -340,7 +349,7 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
     markerState.clear()
     outputState.clear()
     processState.clear()
-    logger.info("doing snapshot")
+    logger.info("storing snapshot")
 
     markerState.add(markerQueue.toArray)
 
@@ -357,8 +366,9 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
     } else {
       processState.addAll(processSnapshot.zipWithIndex.map(_.swap).asJava)
     }
-    processState = null
-    logger.info("done snapshot")
+    processSnapshot = null
+
+    logger.info("snapshot completed")
   }
 
   override def initializeState(context: StateInitializationContext): Unit = {
