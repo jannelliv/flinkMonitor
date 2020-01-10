@@ -2,13 +2,14 @@ package ch.ethz.infsec.autobalancer
 
 import java.io.Serializable
 
-import ch.ethz.infsec.monitor.Domain
+import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.slicer.Statistics
-import ch.ethz.infsec.trace.Record
 
 
 object Helpers
 {
+  type Domain = Any
+
     def fuseGen[K,V](a : scala.collection.mutable.Map[K,V],b : scala.collection.mutable.Map[K,V], default : V, add : ((V,V) => V)): scala.collection.mutable.Map[K,V] = {
       a ++ b.map { case (k,v) => k -> add(v,a.getOrElse(k,default))}
     }
@@ -22,6 +23,9 @@ object Helpers
 }
 //todo: degree doesn't really belong here, it'd be better if heavyHitterFreq were given as a function in the constructor
 class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, degree : Int) extends Statistics with Serializable{
+  type Domain = Any
+
+
   var lastFrame = 0
 //  val timestampDeltaBetweenFrames = 0.033;
 //  val maxFrames = 150;
@@ -36,7 +40,7 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, de
     //            then we subtract and add like we did with relations
     //    ... this gets complicated, postpone until needed
     //recomputes relation sizes
-//    relations = relations.map(rel => (rel._1,frames.foldRight(0)((x,acc) => acc + x.relationSize(rel._1))));
+//  relations = relations.map(rel => (rel._1,frames.foldRight(0)((x,acc) => acc + x.relationSize(rel._1))));
     relations = frames.foldRight(scala.collection.mutable.Map[String,Int]())((f,acc) => Helpers.fuseGen[String,Int](f.relations,acc,0,(a,b) => (a+b)))
     val temp = relations
       .map(rel => (rel._1,frames
@@ -71,14 +75,14 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, de
   //todo: the timestamp is atm nonsense, needs fixing
   var frameTimestamp:Double = 0//new trace.Timestamp();
   var first = true;
-  def addEvent(event : Record) : Unit = {
+  def addEvent(event : Fact) : Unit = {
     if(first) {
-      frameTimestamp = event.timestamp
+      frameTimestamp = event.getTimestamp
       first = false
     }
     frames(lastFrame).addEvent(event)
     justHadRollover = false
-    while(event.timestamp >= frameTimestamp + timestampDeltaBetweenFrames) {
+    while(event.getTimestamp >= frameTimestamp + timestampDeltaBetweenFrames) {
       nextFrame()
       frameTimestamp = frameTimestamp + timestampDeltaBetweenFrames
       justHadRollover = true
@@ -91,6 +95,8 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, de
 }
 class FrameStatistic extends Serializable
 {
+  type Domain = Any
+
   var relations = scala.collection.mutable.Map[String,Int]();
   // (Name, Attribute, Value) -> Frequency
   var valueOccurances = scala.collection.mutable.Map[String,scala.collection.mutable.Map[(Int,Domain),Int]]();
@@ -105,20 +111,20 @@ class FrameStatistic extends Serializable
   def relationSize(relation: String): Int = {
     relations(relation)
   }
-  def addEvent(event : Record) : Unit = {
-    if (event.isEndMarker)
+  def addEvent(event : Fact) : Unit = {
+    if (event.isTerminator)
       return
-    if(relations.contains(event.label))
-      relations(event.label) += 1
+    if(relations.contains(event.getName))
+      relations(event.getName) += 1
     else
-      relations += (event.label -> 1)
-    for( i <- event.data.indices)
+      relations += (event.getName -> 1)
+    for( i <- Range(0,event.getArguments.size))
     {
-      if(!valueOccurances.contains(event.label))
-        valueOccurances += (event.label -> scala.collection.mutable.Map[(Int,Domain),Int]())
-      if(!valueOccurances(event.label).contains(i,event.data(i)))
-        valueOccurances(event.label) += ((i,event.data(i)) -> 0)
-      valueOccurances(event.label)(i,event.data(i)) += 1
+      if(!valueOccurances.contains(event.getName))
+        valueOccurances += (event.getName -> scala.collection.mutable.Map[(Int,Domain),Int]())
+      if(!valueOccurances(event.getName).contains(i,event.getArguments.get(i)))
+        valueOccurances(event.getName) += ((i,event.getArguments.get(i)) -> 0)
+      valueOccurances(event.getName)(i,event.getArguments.get(i)) += 1
     }
   }
   def getRelInfo(relation: String): scala.collection.mutable.Map[(Int,Domain),Int] = {
