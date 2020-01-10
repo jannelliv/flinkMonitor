@@ -6,7 +6,7 @@ import ch.ethz.infsec.autobalancer.{AllState, DeciderFlatMapSimple, KnowledgeExt
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ParallelSocketTextStreamFunction, ReorderFunction, SecondThirdMapFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ParallelSocketTextStreamFunction, ReorderFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}

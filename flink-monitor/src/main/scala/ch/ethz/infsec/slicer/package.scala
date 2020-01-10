@@ -51,6 +51,11 @@ package object slicer {
     }
 
     private def stringifyDomain(value: Any): String = value match {
+      case x: java.lang.Integer => x.toString
+      case x: String => "\"" + x + "\""
+    }
+
+    private def stringifyDegree(value: Any): String = value match {
       case x: java.lang.Integer => "{%s}".format(x.toString)
       case x: String => "{%s}".format("\"" + x + "\"")
     }
@@ -94,7 +99,7 @@ package object slicer {
       sb ++= stringifyHeavy(heavy) + ","
       sb ++= stringifyNestedIt(shares) + ","
       sb ++= stringifyNestedIt(itSeeds) + ","
-      sb ++= stringifyDomain(maxDegree)
+      sb ++= stringifyDegree(maxDegree)
 
       "{%s}".format(sb.mkString)
     }

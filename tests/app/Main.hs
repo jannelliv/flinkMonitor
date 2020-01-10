@@ -170,6 +170,8 @@ main = do
             finalOutFile = tmpDir </> "out.txt"
             savePointDir = tmpDir </> "savepoints"
             genshapeArg = sformat ("-" % stext) (args^.generatorshape)
+            genEasyArg = if args^.easy then [ft $ (0.001 :: Float), "-pB", ft $ (0.001 :: Float)]
+                         else []
         in
         do
             when (args^.noclear) $
@@ -177,7 +179,8 @@ main = do
 
             echo "Generating log ..."
             fastPipe (ctxt^.traceGenerator)
-                [genshapeArg, "-e", it $ args^.eventrate, "-i", it $ args^.indexrate, "-x", "1", it $ args^.loglength]
+                ([genshapeArg, "-e", it $ args^.eventrate, "-i", it $ args^.indexrate, "-x", "1", it $ args^.loglength]
+                    ++ genEasyArg)
                 logFileCsv
 
             echo "Preprocessing for multiple inputs ..."

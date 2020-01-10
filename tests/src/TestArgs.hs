@@ -29,6 +29,7 @@ data Config = Config { _eventrate :: Int
                      , _multisourcevariant :: Int
                      , _usereplayer :: Bool
                      , _usekafka :: Bool
+                     , _easy :: Bool
                      , _replayeraccel :: Float
                      , _sigma :: Float
                      , _maxooo :: Int
@@ -72,6 +73,7 @@ baseconfig = cmdArgsMode $ Config{ _eventrate = 1000 &= explicit &= name "eventr
                    , _multisourcevariant = 1 &= explicit &= name "variant" &= name "m" &= typ "INT" &= help "multisource variant to use"
                    , _usereplayer = False &= explicit &= name "replayer" &= name "r" &= typ "BOOL" &= help "should use replayer"
                    , _usekafka = False &= explicit &= name "kafka" &= name "k" &= typ "BOOL" &= help "should use kafka"
+                   , _easy = False &= explicit &= name "easy" &= typ "BOOL" &= help "decrease rate of A and B events"
                    , _replayeraccel = 1.0 &= explicit &= name "accel" &= name "a" &= typ "FLOAT" &= help "replayer acceleration"
                    , _novalidate = False &= explicit &= name "novalidate" &= help "don't generate and validate reference output"
                    , _insertcheckpoint = Nothing &= explicit &= name "insertcheckpoint" &= typ "INT" &= help "save and restore from snapshot after INT secs"
