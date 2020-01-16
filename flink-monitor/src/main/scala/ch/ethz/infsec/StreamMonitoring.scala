@@ -341,7 +341,8 @@ object StreamMonitoring {
 
 
       if(params.has("decider")) {
-        Rescaler.create(jobName, "127.0.0.1", processors)
+        val decider = new AllState(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
+        Rescaler.create(jobName, "127.0.0.1", processors, decider)
         //TODO:
         // 1) change the rescaler to run the decider on the jobmaster
         //    - change the Decider to locally invoke the rescaler (as now they are both on the jobmaster)

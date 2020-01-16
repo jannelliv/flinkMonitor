@@ -370,7 +370,7 @@ abstract class DeciderFlatMap[SlicingStrategy]
   def startup(): Unit = {
     if(triggeredAdapt) {
       adaptComplete = true
-      handleReopenTime
+      handleReopenTime()
     }
   }
 

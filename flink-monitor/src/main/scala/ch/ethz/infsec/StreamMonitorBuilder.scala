@@ -148,7 +148,6 @@ abstract class StreamMonitorBuilder(env: StreamExecutionEnvironment) {
     } else {
         parsedTrace
     }
-
     injectedTrace.flatMap(slicer)
       .setMaxParallelism(StreamMonitoring.inputParallelism)
       .setParallelism(StreamMonitoring.inputParallelism)

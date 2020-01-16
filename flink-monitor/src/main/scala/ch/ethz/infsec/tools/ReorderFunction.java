@@ -31,7 +31,6 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts = new Long2ReferenceOpenHashMap<>();
     private long[] maxOrderElem = new long[numSources];
     private long currentIdx = -2;
-    private long maxIdx = -1;
     private int numEOF = 0;
 
     private transient ListState<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state = null;
@@ -59,10 +58,9 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         if (ownSubtaskIdx == 0) {
             for (long l: maxOrderElem)
                 maxorderelem_state.add(l);
-            indices_state.add(currentIdx);
-            indices_state.add(maxIdx);
-            indices_state.add((long) numEOF);
         }
+        indices_state.add(currentIdx);
+        indices_state.add((long) numEOF);
         if (newStategy == null) {
             for (int i = 0; i < numMonitors; ++i) {
                 if (i == ownSubtaskIdx)
@@ -98,17 +96,21 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             for (Long2ReferenceOpenHashMap<ReferenceArrayList<Fact>> m: state)
                 idx2facts_state.add(m);
         }
+        /*System.out.println("LOL snapshot: subtask " + ownSubtaskIdx +
+                "\nmaxOrderElem: " + Arrays.toString(maxOrderElem) +
+                "\ncurr_idx = " + currentIdx + ", numEOF = " + numEOF +
+                "\nno elem in idx2Facts: " + idx2Facts);*/
     }
 
     @Override
     public void initializeState(FunctionInitializationContext ctxt) throws Exception {
+        int ownSubtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
         ListStateDescriptor<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state_desc =
                 new ListStateDescriptor<>(
                         "idx2facts_state",
                         TypeInformation.of(new TypeHint<Long2ReferenceMap<ReferenceArrayList<Fact>>>() {
                         })
                 );
-
         ListStateDescriptor<Long> maxorderelem_state_desc =
                 new ListStateDescriptor<>(
                         "maxorderelem_state",
@@ -123,7 +125,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                 );
         idx2facts_state = ctxt.getOperatorStateStore().getListState(idx2facts_state_desc);
         maxorderelem_state = ctxt.getOperatorStateStore().getUnionListState(maxorderelem_state_desc);
-        indices_state = ctxt.getOperatorStateStore().getUnionListState(indices_state_desc);
+        indices_state = ctxt.getOperatorStateStore().getListState(indices_state_desc);
         if (ctxt.isRestored()) {
             for (Long2ReferenceMap<ReferenceArrayList<Fact>> m: idx2facts_state.get()) {
                 for(Long2ReferenceMap.Entry<ReferenceArrayList<Fact>> k: m.long2ReferenceEntrySet()) {
@@ -144,14 +146,25 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             ArrayList<Long> indices = new ArrayList<>();
             for (Long l: indices_state.get())
                 indices.add(l);
-            if (indices.size() != 3)
+            if (indices.size() != 2)
                 throw new Exception("invariant: 3 saved indices");
             currentIdx = indices.get(0);
-            maxIdx = indices.get(1);
-            numEOF = Math.toIntExact(indices.get(2));
+            numEOF = Math.toIntExact(indices.get(1));
             newStategy = null;
             numSources = StreamMonitoring.inputParallelism();
+            /*System.out.println("LOL restore: subtask " + ownSubtaskIdx +
+                    "\nmaxOrderElem: " + Arrays.toString(maxOrderElem) +
+                    "\ncurr_idx = " + currentIdx + ", numEOF = " + numEOF +
+                    "\nno elem in idx2Facts: " + idx2Facts);*/
         }
+    }
+
+    private int noElems(Long2ReferenceMap<ReferenceArrayList<Fact>> dings) {
+        int sum = 0;
+        for (ReferenceArrayList<Fact> bla : dings.values()) {
+            sum += bla.size();
+        }
+        return sum;
     }
 
     private void insertElement(Fact fact, long idx) {
@@ -165,23 +178,29 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         }
     }
 
+    private long computeMaxIdx() {
+        long maxIdx = -1;
+        for (long l: idx2Facts.keySet()) {
+            if (l > maxIdx)
+                maxIdx = l;
+        }
+        return maxIdx;
+    }
+
     private void forceFlush(Collector<Fact> out) {
+        long maxIdx = computeMaxIdx();
         if (maxIdx != -1) {
             for (long idx = currentIdx + 1; idx <= maxIdx; ++idx) {
                 ReferenceArrayList<Fact> arr;
                 if ((arr = idx2Facts.get(idx)) != null) {
                     for (Fact fact : arr)
                         out.collect(fact);
-                    if (idx > maxIdx) {
-                        maxIdx = idx;
-                        out.collect(makeTerminator(idx));
-                    }
                 }
             }
         }
     }
 
-    private long minMaxOrderElem() {
+    private long getMaxAgreedIdx() {
         long min = Long.MAX_VALUE;
         for (long l : maxOrderElem) {
             if (l < min)
@@ -191,7 +210,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     }
 
     private void flushReady(Collector<Fact> out) {
-        long maxAgreedIdx = minMaxOrderElem();
+        long maxAgreedIdx = getMaxAgreedIdx();
         if (maxAgreedIdx < currentIdx)
             return;
 
@@ -241,7 +260,6 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                 throw new RuntimeException("should not happen got meta fact " + fact.getName());
         }
         long idx = indexExtractor(fact);
-        if (idx > maxIdx) maxIdx = idx;
         if (idx < currentIdx)
             throw new RuntimeException("FATAL ERROR: Got a timestamp that should already be flushed");
         insertElement(fact, idx);

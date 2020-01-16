@@ -3,6 +3,7 @@ package ch.ethz.infsec.tools
 import java.io.{BufferedReader, InputStreamReader}
 import java.net.{InetSocketAddress, ServerSocket, Socket}
 
+import ch.ethz.infsec.autobalancer.AllState
 import javax.xml.bind.DatatypeConverter
 import org.apache.flink.api.common.JobID
 import org.apache.flink.client.cli.CliArgsException
@@ -16,6 +17,7 @@ import scala.collection.immutable
 
 object Rescaler extends Serializable {
   class Rescaler extends Serializable {
+    private var decider: AllState = _
     private val logger = LoggerFactory.getLogger(this.getClass)
 
     private var server: ServerSocket = _
@@ -27,11 +29,11 @@ object Rescaler extends Serializable {
     private var parallelism: Int = -1
     private var in: BufferedReader = _
 
-    def init(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
+    def init(jobName: String, jmAddress: String, parallelism: Int, slicer: AllState, jmPort: Int = 6123): Unit = {
       try {
         server = new ServerSocket(10103)
         this.parallelism = parallelism
-
+        this.decider = slicer
         config.setString("jobmanager.rpc.address", jmAddress)
         client = new RestClusterClient[String](config, "RemoteExecutor")
 
@@ -137,9 +139,9 @@ object Rescaler extends Serializable {
 
 
 
-  def create(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
+  def create(jobName: String, jmAddress: String, parallelism: Int, slicer: AllState, jmPort: Int = 6123): Unit = {
     val rescaler = new Rescaler()
-    rescaler.init(jobName, jmAddress, parallelism, jmPort)
+    rescaler.init(jobName, jmAddress, parallelism, slicer, jmPort)
   }
 
   class RescaleInitiator extends Serializable {

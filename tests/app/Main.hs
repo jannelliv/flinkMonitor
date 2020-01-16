@@ -108,17 +108,25 @@ launchCheckpointingRun c sleepSecs savePointDir preProcessDir flinkOutDir = asyn
             rm_rf savePointDir
         mkdir_p savePointDir
         replayerJob <- launchReplayer c preProcessDir
-        flinkJob <- errExit False $ launchFlink c preProcessDir flinkOutDir
-        sleep sleepSecs
-        cancelFlink c savePointDir >>= wait
-        echo "Job was canceled"
-        wait flinkJob
-        metaDataFile <- findFile c savePointDir (Just "_metadata")
-        case metaDataFile of
-            Just f -> do
-                newFlinkJob <- launchFlinkRestore c preProcessDir flinkOutDir f
-                void $! waitBoth replayerJob newFlinkJob
-            Nothing -> fail "couldn't find metadata file of the canceled flink job"
+        flinkJob <- (errExit False) . (print_stderr False) $
+            launchFlink c preProcessDir flinkOutDir
+        sleepJob <- sleep sleepSecs & asyncSh
+        result <- waitEither flinkJob sleepJob
+        
+        case result of
+            Left _ -> do
+                echo_err =<< lastStderr 
+                fail "flink terminated before timeout expired"
+            Right _ -> do
+                cancelFlink c savePointDir >>= wait
+                echo "Job was canceled"
+                wait flinkJob
+                metaDataFile <- findFile c savePointDir (Just "_metadata")
+                case metaDataFile of
+                    Just f -> do
+                        newFlinkJob <- launchFlinkRestore c preProcessDir flinkOutDir f
+                        void $! waitBoth replayerJob newFlinkJob
+                    Nothing -> fail "couldn't find metadata file of the canceled flink job"
 
 
 findFile :: Ctxt -> FilePath -> Maybe T.Text -> Sh (Maybe FilePath)
