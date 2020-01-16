@@ -60,17 +60,19 @@ launchFlinkImpl :: Ctxt -> FilePath -> FilePath -> Maybe FilePath -> Sh (Async (
 launchFlinkImpl c preProcessDir flinkOutDir savePointDir = do
         maybe (echo "Starting Flink ...") (\_ -> echo "Restarting Flink") savePointDir
         asyncSh . print_stdout False $
-            run_ (c^.flinkExe) ("run" : restoreArgs ++ flinkArgs ++ extraArgs)
+            run_ (c^.flinkExe) ("run" : restoreArgs ++ flinkArgs ++ kafkaReplayerArg ++ deciderArg)
     where
         args = c^.inputArgs
         restoreArgs = maybe [] (\p -> ["-s", tt $ p]) savePointDir
         flinkArgs = [tt $ c^.jarPath, "--format", "csv", "--sig", tt $ c^.sigFile, "--formula",
                 tt $ c^.formulaFile, "--negate", "false", "--multi", it $ args^.multisourcevariant, "--monitor", "monpoly",
                 "--processors", it $ args^.processors, "--out", tt flinkOutDir, "--nparts", it $ args^.kafkaparts]
-        extraArgs = case ((args^.usereplayer), (args^.usekafka)) of
+        kafkaReplayerArg = case ((args^.usereplayer), (args^.usekafka)) of
             (True, True) -> ["--in", "kafka", "--clear", "false"]
             (False, True) -> ["--in", "kafka", "--kafkatestfile", tt $ preProcessDir, "--clear", "true"]
             _ -> ["--in", sformat (stext % ":" % int) (args^.sockhost) (args^.sockport)]
+        deciderArg = if args^.usedecider then ["-decider"]
+                                         else []
 
 launchFlink :: Ctxt -> FilePath -> FilePath -> Sh (Async ())
 launchFlink c preProcessDir flinkOutDir = launchFlinkImpl c preProcessDir flinkOutDir Nothing

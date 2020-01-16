@@ -17,7 +17,6 @@ import scala.collection.immutable
 
 object Rescaler extends Serializable {
   class Rescaler extends Serializable {
-    private var decider: AllState = _
     private val logger = LoggerFactory.getLogger(this.getClass)
 
     private var server: ServerSocket = _
@@ -29,11 +28,10 @@ object Rescaler extends Serializable {
     private var parallelism: Int = -1
     private var in: BufferedReader = _
 
-    def init(jobName: String, jmAddress: String, parallelism: Int, slicer: AllState, jmPort: Int = 6123): Unit = {
+    def init(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
       try {
         server = new ServerSocket(10103)
         this.parallelism = parallelism
-        this.decider = slicer
         config.setString("jobmanager.rpc.address", jmAddress)
         client = new RestClusterClient[String](config, "RemoteExecutor")
 
@@ -139,9 +137,9 @@ object Rescaler extends Serializable {
 
 
 
-  def create(jobName: String, jmAddress: String, parallelism: Int, slicer: AllState, jmPort: Int = 6123): Unit = {
+  def create(jobName: String, jmAddress: String, parallelism: Int, jmPort: Int = 6123): Unit = {
     val rescaler = new Rescaler()
-    rescaler.init(jobName, jmAddress, parallelism, slicer, jmPort)
+    rescaler.init(jobName, jmAddress, parallelism, jmPort)
   }
 
   class RescaleInitiator extends Serializable {

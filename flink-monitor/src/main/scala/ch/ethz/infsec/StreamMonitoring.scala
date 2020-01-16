@@ -305,7 +305,7 @@ object StreamMonitoring {
 
       env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
-      var monitor: StreamMonitorBuilder = new StreamMonitorBuilderSimple(env)
+      var monitor: StreamMonitorBuilder = null
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
       val textStream = in match {
         case Some(SocketEndpoint(h, p)) =>
@@ -313,7 +313,7 @@ object StreamMonitoring {
           inputFormat.setTerminatorMode(multiSourceVariant.getTerminatorMode)
           Thread.sleep(4000)
           monitor.socketSource(h, p)
-        case Some(FileEndPoint(f)) => if (watchInput) monitor.fileWatchSource(f) else monitor.simpleFileSource(f)
+        case Some(FileEndPoint(_)) => fail("file endpoint not supported")
         case Some(KafkaEndpoint()) =>
           MonitorKafkaConfig.init(clearTopic = clearTopic, numPartitions = Some(inputParallelism))
           inputParallelism = MonitorKafkaConfig.getNumPartitions
@@ -341,8 +341,8 @@ object StreamMonitoring {
 
 
       if(params.has("decider")) {
-        val decider = new AllState(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
-        Rescaler.create(jobName, "127.0.0.1", processors, decider)
+        //val decider = new AllState(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
+        //Rescaler.create(jobName, "127.0.0.1", processors)
         //TODO:
         // 1) change the rescaler to run the decider on the jobmaster
         //    - change the Decider to locally invoke the rescaler (as now they are both on the jobmaster)

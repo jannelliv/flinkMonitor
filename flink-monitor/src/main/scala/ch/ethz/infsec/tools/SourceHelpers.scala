@@ -1,7 +1,7 @@
 package ch.ethz.infsec.tools
 
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
-import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitorBuilderParInput}
+import ch.ethz.infsec.StreamMonitorBuilder
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
@@ -40,7 +40,7 @@ class ParallelSocketTextStreamFunction(hostname: String, port: Int) extends Rich
 
 sealed class MultiSourceVariant {
   def getStreamMonitorBuilder(env: StreamExecutionEnvironment): StreamMonitorBuilder = {
-    new StreamMonitorBuilderParInput(env, getReorderFunction)
+    new StreamMonitorBuilder(env, getReorderFunction)
   }
 
   def getTerminatorMode: TerminatorMode = {

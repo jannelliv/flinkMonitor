@@ -13,6 +13,7 @@ import qualified Data.Maybe as M
 import System.Console.CmdArgs
 import Shelly
 import qualified Data.Text as T
+import qualified Data.Foldable as F
 import Control.Lens
 import Control.Lens.TH
 default (T.Text)
@@ -29,6 +30,7 @@ data Config = Config { _eventrate :: Int
                      , _multisourcevariant :: Int
                      , _usereplayer :: Bool
                      , _usekafka :: Bool
+                     , _usedecider :: Bool
                      , _easy :: Bool
                      , _replayeraccel :: Float
                      , _sigma :: Float
@@ -73,6 +75,7 @@ baseconfig = cmdArgsMode $ Config{ _eventrate = 1000 &= explicit &= name "eventr
                    , _multisourcevariant = 1 &= explicit &= name "variant" &= name "m" &= typ "INT" &= help "multisource variant to use"
                    , _usereplayer = False &= explicit &= name "replayer" &= name "r" &= typ "BOOL" &= help "should use replayer"
                    , _usekafka = False &= explicit &= name "kafka" &= name "k" &= typ "BOOL" &= help "should use kafka"
+                   , _usedecider = False &= explicit &= name "decider" &= typ "BOOL" &= help "should use the decider"
                    , _easy = False &= explicit &= name "easy" &= typ "BOOL" &= help "decrease rate of A and B events"
                    , _replayeraccel = 1.0 &= explicit &= name "accel" &= name "a" &= typ "FLOAT" &= help "replayer acceleration"
                    , _novalidate = False &= explicit &= name "novalidate" &= help "don't generate and validate reference output"
@@ -90,14 +93,16 @@ parseArgs = cmdArgsRun baseconfig
 
 validateArgs :: Config -> Either () String
 validateArgs args =
-    let conditions = [((args^.generatorshape) `notElem` ["T", "L", "S"], "invalid generatorform")
-                     ,(args^.multisourcevariant < 1 || args^.multisourcevariant > 4, "multisource variant must be in 1 to 4")
-                     ,(args^.usereplayer && args^.multisourcevariant == 3, "variant 3 not compat. with replayer")
-                     ,((not $ args^.usereplayer) && args^.multisourcevariant == 4, "variant 4 needs replayer")
-                     ,((not (args^.usereplayer && args^.usekafka)) && (M.isJust $ args^.insertcheckpoint), "checkpoint needs kafka + replayer")]
-        rest = dropWhile (not . fst) conditions
+    let isCheckpointing = M.isJust $ args^.insertcheckpoint
+        incompats = [((args^.generatorshape) `notElem` ["T", "L", "S"], "invalid generatorform")
+                    ,((args^.usedecider) && isCheckpointing, "the decider is not compatible with checkpointing")
+                    ,(args^.multisourcevariant < 1 || args^.multisourcevariant > 4, "multisource variant must be in 1 to 4")
+                    ,(args^.usereplayer && args^.multisourcevariant == 3, "variant 3 not compat. with replayer")
+                    ,((not $ args^.usereplayer) && args^.multisourcevariant == 4, "variant 4 needs replayer")
+                    ,((not (args^.usereplayer && args^.usekafka)) && isCheckpointing, "checkpoint needs kafka + replayer")]
+        violation = F.find fst incompats
     in
-    maybe (Left ()) (Right . snd . fst) (uncons rest)
+    maybe (Left ()) (Right . snd) violation
 
 makeContext :: IO Ctxt
 makeContext = do

@@ -14,6 +14,12 @@ import org.apache.flink.util.Collector
 import scala.collection.mutable.ArrayBuffer
 import scala.util.Random
 
+class DummyDecider extends FlatMapFunction[(Int, Fact), Fact] {
+  override def flatMap(t: (Int, Fact), collector: Collector[Fact]): Unit = {
+
+  }
+}
+
 //problem: how to solve "final bit of stream needs to be processed to"
 //proposed solution: "end of stream message"
 //TODO: properly parameterize
