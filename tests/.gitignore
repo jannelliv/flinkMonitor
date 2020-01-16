@@ -2,3 +2,4 @@
 monitortesting.cabal
 *~
 monitortesting-exe
+*.log
