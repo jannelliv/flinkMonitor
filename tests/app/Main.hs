@@ -54,7 +54,7 @@ launchReplayer c preProcessDir = do
             then ["-o", "kafka"]
             else ["-o", sformat (stext % ":" % int) (args^.sockhost) (args^.sockport) ]
         replayerArgs = ["-i", "csv", "-n", it $ args^.kafkaparts, "-a", ft $ args^.replayeraccel,
-            "--clear", "--other_branch"] ++ (multiVariant2Args $ args^.multisourcevariant) ++ extraArgs ++ [tt $ preProcessDir]
+            "--clear", "--other_branch", "-t", "1000"] ++ (multiVariant2Args $ args^.multisourcevariant) ++ extraArgs ++ [tt $ preProcessDir]
 
 launchFlinkImpl :: Ctxt -> FilePath -> FilePath -> Maybe FilePath -> Sh (Async ())
 launchFlinkImpl c preProcessDir flinkOutDir savePointDir = do

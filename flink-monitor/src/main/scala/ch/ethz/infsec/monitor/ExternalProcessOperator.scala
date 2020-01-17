@@ -252,7 +252,9 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
             case DataOutputItem(data) => output.collect(new StreamRecord[OUT](data))
             case WatermarkItem(mark) => output.emitWatermark(mark)
             case WakeupItem() => ()
-            case LatencyMarkerItem(marker) => output.emitLatencyMarker(marker)
+            case LatencyMarkerItem(marker) =>
+              println("emitterThread():" + " "  + marker + " for subtask " + getRuntimeContext.getIndexOfThisSubtask)
+              output.emitLatencyMarker(marker)
             case ShutdownItem() => running = false
           }
 
@@ -396,6 +398,11 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
   }
 
   private def enqueueMarker(marker: InputItem): Unit = {
+    marker match {
+      case LatencyMarkerItem(mark) =>
+        println("enqueueMarker():" + acceptingMarkers + " "  + mark + " for subtask " + getRuntimeContext.getIndexOfThisSubtask)
+      case _ => ()
+    }
     if (acceptingMarkers)
       enqueueInput(marker)
     else

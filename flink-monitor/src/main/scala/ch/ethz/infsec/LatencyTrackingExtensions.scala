@@ -35,7 +35,7 @@ private class ProvidedLatencyOutputDecorator(
     val value = streamRecord.getValue
     if (value.startsWith(TIMESTAMP_PREFIX)) {
       val time = value.substring(TIMESTAMP_PREFIX.length).trim.toLong
-//      println("Input latency " + time + " at " + System.currentTimeMillis())
+      println("Input latency "  + time + " at " + System.currentTimeMillis() + " for subtask " + subtaskIndex)
       output.emitLatencyMarker(new LatencyMarker(time, operatorID, subtaskIndex))
     } else
       output.collect(streamRecord)

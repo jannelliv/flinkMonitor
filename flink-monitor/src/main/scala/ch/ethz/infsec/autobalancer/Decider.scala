@@ -286,6 +286,8 @@ abstract class DeciderFlatMap[SlicingStrategy]
 //    c.collect(Fact.meta("gsdt",""))
       c.collect(Fact.meta("gsdms",""))
     }
+    //gapt get average processing time
+    //r for response
     if (event.isMeta) {
         //CommandRecord(com,params)
         val com = event.getName
