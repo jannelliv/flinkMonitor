@@ -34,7 +34,7 @@ class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
     this.latencyMarkerMap = new mutable.LongMap[(Int, Int, Long)]()
     this.currIdx = 0
 
-    val metricGroup = getRuntimeContext.getMetricGroup.addGroup("roflgroup")
+    val metricGroup = getRuntimeContext.getMetricGroup.addGroup("latency")
     metricGroup.gauge[Int, Gauge[Int]]("peak", new Gauge[Int] {
       override def getValue: Int = {
         val earliest = System.currentTimeMillis() - 1000
@@ -56,6 +56,7 @@ class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
         latencyMarkerMap.get(i) match {
           case Some((count, delay, time)) =>
             if (count == numExpectedMarkers) {
+              println(s"lol got all expected latency markers with idx $i, delay is $delay")
               currentDelayIndex += 1
               if (currentDelayIndex >= delays.length)
                 currentDelayIndex = 0
@@ -63,6 +64,7 @@ class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
               delaySum += delay
               delaySamples += 1
               maxDelay = maxDelay.max(delay)
+              println(s"LOL max delay now is $maxDelay")
             } else {
               break()
             }
@@ -82,7 +84,7 @@ class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
       if (idx < currIdx) {
         throw new RuntimeException(s"INVARIANT: expected latency meta fact with idx >= ${currIdx}, has idx ${idx}")
       }
-      val markedTime = java.lang.Long.parseLong(in.getArgument(0).asInstanceOf[java.lang.String])
+      val markedTime = java.lang.Long.parseLong(in.getArgument(1).asInstanceOf[java.lang.String])
       val now = System.currentTimeMillis()
       val inDelay = (now - markedTime).toInt
       val count = latencyMarkerMap.get(idx) match {
