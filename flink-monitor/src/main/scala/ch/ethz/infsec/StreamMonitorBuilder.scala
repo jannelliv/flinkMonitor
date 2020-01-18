@@ -84,7 +84,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
 
   def assembleDeciderIteration(parsedTrace: DataStream[Fact],
                                slicer: HypercubeSlicer,
-                               monitorProcess: ExternalProcess[Fact, Fact],
+                               monitorProcess: ExternalProcess,
                                queueSize: Int): DataStream[Fact] = {
     val iterateFun = (iteration: DataStream[Fact]) => {
       val sampledTrace = iteration
@@ -161,7 +161,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
 
   def assembleWithoutDecider(parsedTrace: DataStream[Fact],
                              slicer: HypercubeSlicer,
-                             monitorProcess: ExternalProcess[Fact, Fact],
+                             monitorProcess: ExternalProcess,
                              queueSize: Int): DataStream[Fact] = {
 
       val parsedAndSlicedTrace =
@@ -208,7 +208,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
                traceFormat: TraceParser,
                decider: Boolean,
                slicer: HypercubeSlicer,
-               monitorProcess: ExternalProcess[Fact, Fact],
+               monitorProcess: ExternalProcess,
                queueSize: Int): DataStream[String] = {
     val parsedTrace =
       inputStream

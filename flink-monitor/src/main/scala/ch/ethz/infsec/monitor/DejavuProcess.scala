@@ -3,7 +3,7 @@ package monitor
 
 import ch.ethz.infsec.trace.formatter.DejavuTraceFormatter
 
-class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess[Fact, Fact] {
+class DejavuProcess(val command: Seq[String]) extends AbstractExternalProcess {
   private val formatter = new DejavuTraceFormatter
 
   override def supportsStateAccess: Boolean = false

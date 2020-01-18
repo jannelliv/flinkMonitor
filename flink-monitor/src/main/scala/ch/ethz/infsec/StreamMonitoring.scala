@@ -233,7 +233,7 @@ object StreamMonitoring {
       //TODO: replace
       val slicer = SlicingSpecification.mkSlicer(params, formula, processors)
 
-      val monitorProcess: ExternalProcess[Fact, Fact] = monitorCommand match {
+      val monitorProcess: ExternalProcess = monitorCommand match {
         case MONPOLY_CMD => {
           val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand :: List("-negate") else List(monitorCommand))
           val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)

@@ -8,7 +8,7 @@ import ch.ethz.infsec.trace.parser.MonpolyVerdictParser
 import org.slf4j.{Logger, LoggerFactory}
 
 class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[String])
-  extends AbstractExternalProcess[Fact, Fact] {
+  extends AbstractExternalProcess {
 
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_REPLY = "Current timepoint:"
