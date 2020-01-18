@@ -6,6 +6,7 @@ import ch.ethz.infsec.monitor.Fact
 import org.apache.flink.api.common.functions.{RichFlatMapFunction, RichMapFunction}
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.metrics.Gauge
+import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator}
 import org.apache.flink.util
 
 import scala.util.control.Breaks.{break, breakable}
@@ -33,7 +34,7 @@ class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
     this.latencyMarkerMap = new mutable.LongMap[(Int, Int, Long)]()
     this.currIdx = 0
 
-    val metricGroup = getRuntimeContext.getMetricGroup.addGroup("latency")
+    val metricGroup = getRuntimeContext.getMetricGroup.addGroup("roflgroup")
     metricGroup.gauge[Int, Gauge[Int]]("peak", new Gauge[Int] {
       override def getValue: Int = {
         val earliest = System.currentTimeMillis() - 1000

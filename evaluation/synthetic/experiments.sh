@@ -5,17 +5,30 @@ source "$WORK_DIR/config.sh"
 
 FORMULAS="easy-neg"
 NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
-MULTISOURCE_VARIANTS="1 2 4"
-EVENT_RATES="20000 30000 40000"
-MAX_OOO="2 4"
-WATERMARK_PERIOD="1 2 4"
+MULTISOURCE_VARIANTS="1"
+EVENT_RATES="500000"
+MAX_OOO="1"
+WATERMARK_PERIOD="1"
 ACCELERATIONS="1.0"
-INDEX_RATES="1 2000"
-NUM_INPUTS="1 2 4"
-PROCESSORS="4 8 16"
+INDEX_RATES="2000"
+NUM_INPUTS="4"
+PROCESSORS="8"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
+#FORMULAS="easy-neg"
+#NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
+#MULTISOURCE_VARIANTS="1 2 4"
+#EVENT_RATES="20000 30000 40000"
+#MAX_OOO="2 4"
+#WATERMARK_PERIOD="1 2 4"
+#ACCELERATIONS="1.0"
+#INDEX_RATES="1 2000"
+#NUM_INPUTS="1 2 4"
+#PROCESSORS="4 8 16"
+#MONPOLY_CPU_LIST="0"
+#AUX_CPU_LIST="10-11,34-35"
+#LOG_LENGTH=60
 
 echo $LOG_LENGTH > "$REPORT_DIR/gen.length"
 
@@ -28,7 +41,7 @@ make_log() {
     formula=$2
     for er in $EVENT_RATES; do
         for ir in $INDEX_RATES; do
-            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.01 -pB 0.495 $LOG_LENGTH > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
+            "$WORK_DIR/generator.sh" $flag -e $er -i $ir -w 10 -pA 0.001 -pB 0.001 $LOG_LENGTH > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
             "$WORK_DIR/replayer.sh" -a 0 -q $REPLAYER_QUEUE -i csv -f monpoly "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv" > "$OUTPUT_DIR/gen_${formula}_${er}_${ir}.log"
         done
     done
