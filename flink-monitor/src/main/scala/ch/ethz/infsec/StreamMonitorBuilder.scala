@@ -23,11 +23,12 @@ import org.apache.flink.streaming.connectors.kafka.FlinkKafkaConsumer011
  */
 class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunction) {
   def socketSource(host: String, port: Int): DataStream[String] = {
-    val rawSource = new ParallelSocketTextStreamFunction(host, port)
-    LatencyTrackingExtensions.addSourceWithProvidedMarkers(env, rawSource, "Socket source")
-      .setParallelism(StreamMonitoring.inputParallelism)
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
-      .uid("socket-source")
+      env
+        .addSource(new ParallelSocketTextStreamFunction(host, port))
+        .setParallelism(StreamMonitoring.inputParallelism)
+        .setMaxParallelism(StreamMonitoring.inputParallelism)
+        .name("Socket source")
+        .uid("socket-source")
   }
 
   def fileWatchSource(path: String): DataStream[String] = {
@@ -37,13 +38,16 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
   }
 
   def kafkaSource() : DataStream[String] = {
-    val rawSource = new FlinkKafkaConsumer011[String](MonitorKafkaConfig.getTopic,
+    val source = new FlinkKafkaConsumer011[String](MonitorKafkaConfig.getTopic,
       new TestSimpleStringSchema,
       MonitorKafkaConfig.getKafkaProps)
-    rawSource.setStartFromEarliest()
-    LatencyTrackingExtensions.addSourceWithProvidedMarkers(env, rawSource, "Kafka source")
+    source.setStartFromEarliest()
+
+    env
+      .addSource(source)
       .setParallelism(StreamMonitoring.inputParallelism)
       .setMaxParallelism(StreamMonitoring.inputParallelism)
+      .name("Kafka source")
       .uid("kafka-source")
   }
 
@@ -55,21 +59,24 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
 
   def socketSink(verdicts: DataStream[String], host: String, port: Int): Unit = {
     val sink = new SocketClientSink[String](host, port, new SimpleStringSchema(), 0)
-    LatencyTrackingExtensions.addPreciseLatencyTrackingSink(verdicts, sink)
+    verdicts
+      .addSink(sink)
       .setParallelism(1)
       .name("Socket sink")
       .uid("socket-sink")
   }
 
   def fileSink(verdicts: DataStream[String], path: String): Unit = {
-    LatencyTrackingExtensions.addPreciseLatencyTrackingSink(verdicts, new BucketingSink[String](path))
+    verdicts
+      .addSink(new BucketingSink[String](path))
       .setParallelism(1)
       .name("File sink")
       .uid("file-sink")
   }
 
   def printSink(verdicts: DataStream[String]): Unit = {
-    LatencyTrackingExtensions.addPreciseLatencyTrackingSink(verdicts, new PrintSinkFunction[String]())
+    verdicts
+      .addSink(new PrintSinkFunction[String]())
       .setParallelism(1)
       .name("Print sink")
       .uid("print-sink")
@@ -156,33 +163,39 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
                              slicer: HypercubeSlicer,
                              monitorProcess: ExternalProcess[Fact, Fact],
                              queueSize: Int): DataStream[Fact] = {
-      val parsedAndSlicedTrace = parsedTrace.flatMap(slicer)
-        .setMaxParallelism(StreamMonitoring.inputParallelism)
-        .setParallelism(StreamMonitoring.inputParallelism)
-        .name("Slicer")
-        .uid("slicer")
 
-      val indexTrace = parsedAndSlicedTrace
-        .flatMap(new AddSubtaskIndexFunction)
-        .setMaxParallelism(StreamMonitoring.inputParallelism)
-        .setParallelism(StreamMonitoring.inputParallelism)
-        .name("Add subtask index")
-        .uid("subtask_index")
+      val parsedAndSlicedTrace =
+        parsedTrace
+          .flatMap(slicer)
+          .setMaxParallelism(StreamMonitoring.inputParallelism)
+          .setParallelism(StreamMonitoring.inputParallelism)
+          .name("Slicer")
+          .uid("slicer")
 
-      val partitionedTraceWithoutId = indexTrace
-        .partitionCustom(new IdPartitioner, 0)
-        .map(k => (k._2, k._3))
-        .setParallelism(slicer.degree)
-        .setMaxParallelism(slicer.degree)
-        .name("Partition and remove slice ID")
-        .uid("remove-id")
+      val indexTrace =
+        parsedAndSlicedTrace
+          .flatMap(new AddSubtaskIndexFunction)
+          .setMaxParallelism(StreamMonitoring.inputParallelism)
+          .setParallelism(StreamMonitoring.inputParallelism)
+          .name("Add subtask index")
+          .uid("subtask_index")
 
-      val reorderedTrace = partitionedTraceWithoutId
-        .flatMap(reorder)
-        .setParallelism(slicer.degree)
-        .setMaxParallelism(slicer.degree)
-        .name("Reorder facts")
-        .uid("reorder-facts")
+      val partitionedTraceWithoutId =
+        indexTrace
+          .partitionCustom(new IdPartitioner, 0)
+          .map(k => (k._2, k._3))
+          .setParallelism(slicer.degree)
+          .setMaxParallelism(slicer.degree)
+          .name("Partition and remove slice ID")
+          .uid("remove-id")
+
+      val reorderedTrace =
+        partitionedTraceWithoutId
+          .flatMap(reorder)
+          .setParallelism(slicer.degree)
+          .setMaxParallelism(slicer.degree)
+          .name("Reorder facts")
+          .uid("reorder-facts")
 
       ExternalProcessOperator.transform(reorderedTrace, monitorProcess, queueSize)
         .setParallelism(slicer.degree)
@@ -197,12 +210,21 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
                slicer: HypercubeSlicer,
                monitorProcess: ExternalProcess[Fact, Fact],
                queueSize: Int): DataStream[String] = {
-    val parsedTrace = inputStream
-      .flatMap(new ParsingFunction(traceFormat))
-      .name("Trace parser")
-      .uid("trace-parser")
-      .setMaxParallelism(StreamMonitoring.inputParallelism)
+    val parsedTrace =
+      inputStream
+        .flatMap(new ParsingFunction(traceFormat))
+        .name("Trace parser")
+        .uid("trace-parser")
+        .setMaxParallelism(StreamMonitoring.inputParallelism)
+        .setParallelism(StreamMonitoring.inputParallelism)
+      .map(x => {
+        if (x.isMeta) {
+          println("LOL meta fact: " + x)
+        }
+        x
+      })
       .setParallelism(StreamMonitoring.inputParallelism)
+        .setMaxParallelism(StreamMonitoring.inputParallelism)
 
     val rawVerdicts = {
       if (decider) assembleDeciderIteration(parsedTrace, slicer, monitorProcess, queueSize)
@@ -210,15 +232,24 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
     }
 
     val filteredVerdicts =
-      rawVerdicts.filter(new VerdictFilter(slicer))
+      rawVerdicts
+        .filter(new VerdictFilter(slicer))
         .setParallelism(slicer.degree)
         .setMaxParallelism(slicer.degree)
         .name("Verdict filter")
         .uid("verdict-filter")
 
-    filteredVerdicts.flatMap(new PrintingFunction(new MonpolyVerdictFormatter))
-      .setParallelism(slicer.degree)
-      .setMaxParallelism(slicer.degree)
+    val latencyTracking =
+      filteredVerdicts
+        .flatMap(new LatencyProcessingFunction)
+        .setParallelism(1)
+        .setMaxParallelism(1)
+        .name("Latency tracking")
+        .uid("latency-tracking")
+
+    latencyTracking.flatMap(new PrintingFunction(new MonpolyVerdictFormatter))
+      .setParallelism(1)
+      .setMaxParallelism(1)
       .name("Verdict printer")
       .uid("verdict-printer")
   }

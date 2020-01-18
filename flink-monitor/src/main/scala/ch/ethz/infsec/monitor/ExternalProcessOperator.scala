@@ -253,7 +253,7 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
             case WatermarkItem(mark) => output.emitWatermark(mark)
             case WakeupItem() => ()
             case LatencyMarkerItem(marker) =>
-              println("emitterThread():" + " "  + marker + " for subtask " + getRuntimeContext.getIndexOfThisSubtask)
+              //println("emitterThread():" + " "  + marker + " for subtask " + getRuntimeContext.getIndexOfThisSubtask)
               output.emitLatencyMarker(marker)
             case ShutdownItem() => running = false
           }

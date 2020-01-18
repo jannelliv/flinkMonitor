@@ -121,6 +121,8 @@ class KafkaTestProducer(inputDir: String, inputFilePrefix: String) {
   private class ProducerThread(partNum: Int, src: Source) extends Thread {
     override def run(): Unit = {
       src.getLines().foreach(l => sendRecord(l, partNum))
+      sendRecord(">EOF<", partNum)
+      sendRecord(">TERMSTREAM<", partNum)
     }
   }
 

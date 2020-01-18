@@ -254,8 +254,10 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                 if ((++numEOF) == numSources)
                     forceFlush(out);
                 return;
-            } else if (fact.getName().equals("START") || fact.getName().equals("TERMSTREAM"))
+            } else if (fact.getName().equals("START") || fact.getName().equals("TERMSTREAM") || fact.getName().equals("LATENCY")) {
+                out.collect(fact);
                 return;
+            }
             else
                 throw new RuntimeException("should not happen got meta fact " + fact.getName());
         }

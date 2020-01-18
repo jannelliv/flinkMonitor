@@ -71,7 +71,6 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (trimmed.startsWith(">")) {
             terminateEvent(sink);
             alreadyTerminated = true;
-
             final Matcher matcher = commandArgumentPattern.matcher(trimmed.substring(1));
             String name;
             if (matcher.lookingAt()) {

@@ -19,11 +19,6 @@ sealed case class Config(numOutputs: Int = 4,
                          watermarkPeriod: Int = 2)
 
 abstract class TransformerImpl(numPartitions: Int, output: Array[Writer]) {
-  protected def sendEOFs(): Unit = {
-    sendRecord(">EOF<", None)
-    sendRecord(">TERMSTREAM<", None)
-  }
-
   protected def sendRecord(line: String, partition: Option[Int]): Unit = {
     partition match {
       case Some(i) =>
@@ -96,7 +91,6 @@ class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array
       }
     }
     sendWatermark(maxTs + 1)
-    sendEOFs()
   }
 
   override def runTransformer(): Unit = {
@@ -116,7 +110,6 @@ class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Ar
     for (line <- input.getLines()) {
       sendRecord(line, Some(Random.nextInt(numPartitions)))
     }
-    sendEOFs()
   }
 }
 
@@ -204,8 +197,6 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int,
       .foreach(e => e._1
         .foreach(k => sendRecord(k._3, Some(e._2)))
       )
-    sendRecord(currTime.max + emissionSeparator + ">EOF<", None)
-    sendRecord(currTime.max + emissionSeparator + ">TERMSTREAM<", None)
   }
 }
 

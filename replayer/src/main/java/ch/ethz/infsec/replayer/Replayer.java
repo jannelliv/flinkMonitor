@@ -38,9 +38,11 @@ public class Replayer {
         private Output output;
         private LinkedBlockingQueue<ArrayList<OutputItem>> queue;
         private Thread inputThread;
+        private boolean printEOF;
 
-        ReplayerWorker(BufferedReader input, Output output, TraceParser parser, TraceFormatter formatter) {
+        ReplayerWorker(BufferedReader input, Output output, TraceParser parser, TraceFormatter formatter, boolean printEOF) {
             assert input != null && output != null && parser != null && formatter != null;
+            this.printEOF = printEOF;
             this.input = input;
             this.output = output;
             this.parser = parser;
@@ -59,7 +61,7 @@ public class Replayer {
             inputThread = new Thread(inputWorker);
             inputThread.start();
 
-            OutputWorker outputWorker = new OutputWorker();
+            OutputWorker outputWorker = new OutputWorker(printEOF);
             Thread outputThread = new Thread(outputWorker);
             outputThread.start();
 
@@ -170,6 +172,12 @@ public class Replayer {
 
             private long startTimeMillis;
             private long startTimeNanos;
+            private long tsIdx = 0;
+            private boolean printEOF;
+
+            OutputWorker(boolean printEOF) {
+                this.printEOF = printEOF;
+            }
 
             private void delay(long emissionTime) throws InterruptedException {
                 long now = System.nanoTime();
@@ -182,8 +190,9 @@ public class Replayer {
 
             private void emitTimestamp(long relativeTimestamp) throws IOException {
                 final long timestamp = startTimeMillis + relativeTimestamp;
-                output.writeString(timestampPrefix + timestamp + "\n");
+                output.writeString(String.format(">LATENCY %d %d <\n", tsIdx, timestamp));
                 output.flush();
+                tsIdx++;
             }
 
             private void runInternal() throws InterruptedException, IOException {
@@ -209,6 +218,7 @@ public class Replayer {
                     outputItem.emit(output, formatter);
                     outputItem.reportDelivery(reporter, startTimeNanos);
 
+
                     if (!outputItems.hasNext()) {
                         ArrayList<OutputItem> chunk = queue.poll();
                         if (chunk == null) {
@@ -222,6 +232,11 @@ public class Replayer {
 
                 if (timestampInterval > 0) {
                     emitTimestamp(lastOutputTime);
+                }
+                if (printEOF) {
+                    output.writeString(">EOF<\n");
+                    output.writeString(">TERMSTREAM<\n");
+                    output.flush();
                 }
                 reporter.reportEnd();
 
@@ -781,7 +796,7 @@ public class Replayer {
             parser = getTraceParser(parserType, mode);
             formatter = getTraceFormatter(formatterType);
             formatter.setMarkDatabaseEnd(markDatabaseEnd);
-            ReplayerWorker repWorker = replayer.new ReplayerWorker(input, output, parser, formatter);
+            ReplayerWorker repWorker = replayer.new ReplayerWorker(input, output, parser, formatter, false);
 
             repWorker.run();
         } else {
@@ -833,7 +848,7 @@ public class Replayer {
                 TraceParser parser = getTraceParser(parserType, mode);
                 TraceFormatter formatter = getTraceFormatter(formatterType);
                 formatter.setMarkDatabaseEnd(markDatabaseEnd);
-                replayerWorkers.add(replayer.new ReplayerWorker(input, output, parser, formatter));
+                replayerWorkers.add(replayer.new ReplayerWorker(input, output, parser, formatter, true));
             }
 
             for (ReplayerWorker w: replayerWorkers) {
