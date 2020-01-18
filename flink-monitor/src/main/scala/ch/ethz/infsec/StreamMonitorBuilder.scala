@@ -217,14 +217,6 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         .uid("trace-parser")
         .setMaxParallelism(StreamMonitoring.inputParallelism)
         .setParallelism(StreamMonitoring.inputParallelism)
-      .map(x => {
-        if (x.isMeta) {
-          println("LOL meta fact: " + x)
-        }
-        x
-      })
-      .setParallelism(StreamMonitoring.inputParallelism)
-        .setMaxParallelism(StreamMonitoring.inputParallelism)
 
     val rawVerdicts = {
       if (decider) assembleDeciderIteration(parsedTrace, slicer, monitorProcess, queueSize)
