@@ -56,7 +56,7 @@ class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
         latencyMarkerMap.get(i) match {
           case Some((count, delay, time)) =>
             if (count == numExpectedMarkers) {
-              println(s"lol got all expected latency markers with idx $i, delay is $delay")
+              //println(s"lol got all expected latency markers with idx $i, delay is $delay")
               currentDelayIndex += 1
               if (currentDelayIndex >= delays.length)
                 currentDelayIndex = 0
@@ -64,7 +64,7 @@ class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
               delaySum += delay
               delaySamples += 1
               maxDelay = maxDelay.max(delay)
-              println(s"LOL max delay now is $maxDelay")
+              //println(s"LOL max delay now is $maxDelay")
             } else {
               break()
             }
