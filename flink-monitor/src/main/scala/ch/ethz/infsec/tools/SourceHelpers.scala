@@ -4,9 +4,11 @@ import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.StreamMonitorBuilder
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
-import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction}
+import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction, RichMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields
+import org.apache.flink.runtime.state.{FunctionInitializationContext, FunctionSnapshotContext}
+import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction
 import org.apache.flink.streaming.api.functions.source.{RichParallelSourceFunction, SocketTextStreamFunction, SourceFunction}
 import org.apache.flink.streaming.api.scala.StreamExecutionEnvironment
 import org.apache.flink.util.Collector
@@ -20,10 +22,18 @@ object DebugReorderFunction {
   val isDebug: Boolean = false
 }
 
-class DebugMap[U] extends MapFunction[U, U] {
+class DebugMap[U] extends RichMapFunction[U, U] with CheckpointedFunction {
   override def map(value: U): U = {
-    println("DEBUGMAP: " + System.identityHashCode(this) + " " + value.toString)
+    println(s"DEBUGMAP for partition ${getRuntimeContext.getIndexOfThisSubtask}, fact: $value")
     value
+  }
+
+  override def snapshotState(context: FunctionSnapshotContext): Unit = {
+    println(s"DEBUGMAP for partition ${getRuntimeContext.getIndexOfThisSubtask}: snapshotting")
+  }
+
+  override def initializeState(context: FunctionInitializationContext): Unit = {
+    println(s"DEBUGMAP for partition ${getRuntimeContext.getIndexOfThisSubtask}: initializing")
   }
 }
 

@@ -2,6 +2,8 @@ package ch.ethz.infsec.tools;
 
 import ch.ethz.infsec.StreamMonitoring;
 import ch.ethz.infsec.monitor.Fact;
+import ch.ethz.infsec.policy.GenFormula;
+import ch.ethz.infsec.policy.VariableID;
 import ch.ethz.infsec.slicer.HypercubeSlicer;
 import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
@@ -28,6 +30,7 @@ import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 @ForwardedFields({"1"})
 public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction{
     protected int numSources = StreamMonitoring.inputParallelism();
+    private GenFormula<VariableID> slicerFormula = StreamMonitoring.formula();
     private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts = new Long2ReferenceOpenHashMap<>();
     private long[] maxOrderElem = new long[numSources];
     private long currentIdx = -2;
@@ -69,7 +72,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                     idx2facts_state.add(new Long2ReferenceOpenHashMap<>());
             }
         } else {
-            HypercubeSlicer slicer = HypercubeSlicer.makeHypercubeSlicer(StreamMonitoring.formula(), newStategy);
+            HypercubeSlicer slicer = HypercubeSlicer.makeHypercubeSlicer(slicerFormula, newStategy);
             ArrayList<Long2ReferenceOpenHashMap<ReferenceArrayList<Fact>>> state = new ArrayList<>();
             ReferenceArrayList<Tuple2<Object, Fact>> list = new ReferenceArrayList<>();
             ListCollector<Tuple2<Object, Fact>> collector = new ListCollector<>(list);
@@ -147,11 +150,10 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             for (Long l: indices_state.get())
                 indices.add(l);
             if (indices.size() != 2)
-                throw new Exception("invariant: 3 saved indices");
+                throw new Exception(String.format("INVARIANT: expected 2 saved indices, got", indices.size()));
             currentIdx = indices.get(0);
             numEOF = Math.toIntExact(indices.get(1));
             newStategy = null;
-            numSources = StreamMonitoring.inputParallelism();
             /*System.out.println("LOL restore: subtask " + ownSubtaskIdx +
                     "\nmaxOrderElem: " + Arrays.toString(maxOrderElem) +
                     "\ncurr_idx = " + currentIdx + ", numEOF = " + numEOF +
@@ -192,6 +194,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         if (maxIdx != -1) {
             for (long idx = currentIdx + 1; idx <= maxIdx; ++idx) {
                 ReferenceArrayList<Fact> arr;
+                System.out.println(String.format("for partition %d, force flushing idx %d", getRuntimeContext().getIndexOfThisSubtask(), idx));
                 if ((arr = idx2Facts.get(idx)) != null) {
                     for (Fact fact : arr)
                         out.collect(fact);
@@ -217,6 +220,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         for (long idx = currentIdx + 1; idx <= maxAgreedIdx; ++idx) {
             ReferenceArrayList<Fact> arr;
             if ((arr = idx2Facts.get(idx)) != null) {
+                System.out.println(String.format("for partition %d, flushing idx %d", getRuntimeContext().getIndexOfThisSubtask(), idx));
                 idx2Facts.remove(idx);
                 for (Fact fact : arr)
                     out.collect(fact);

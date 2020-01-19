@@ -4,7 +4,7 @@ import ch.ethz.infsec.autobalancer.{DummyDecider, KnowledgeExtract, OutsideInflu
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ParallelSocketTextStreamFunction, ReorderFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, DebugMap, ParallelSocketTextStreamFunction, ReorderFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -196,6 +196,10 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
           .setMaxParallelism(slicer.degree)
           .name("Reorder facts")
           .uid("reorder-facts")
+          .map(new DebugMap[Fact])
+          .setParallelism(slicer.degree)
+          .setMaxParallelism(slicer.degree)
+          .uid("debug-map")
 
       ExternalProcessOperator.transform(reorderedTrace, monitorProcess, queueSize)
         .setParallelism(slicer.degree)
