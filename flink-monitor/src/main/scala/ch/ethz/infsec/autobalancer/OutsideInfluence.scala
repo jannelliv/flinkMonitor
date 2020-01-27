@@ -36,7 +36,7 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
       started = true
     }
     if (i.isMeta) {
-      println(s"outside influence got meta fact: $i")
+      //println(s"outside influence got meta fact: $i")
       if (i.getName == "init_slicer_tracker") {
         val initial_slicer = i.getArgument(0).asInstanceOf[java.lang.String]
         oldSlicer.unstringify(initial_slicer)

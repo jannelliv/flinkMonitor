@@ -4,7 +4,7 @@ import ch.ethz.infsec.autobalancer.{AllState, ConstantHistogram, DeciderFlatMapS
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ParallelSocketTextStreamFunction, ReorderFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, DebugMap, ParallelSocketTextStreamFunction, ReorderFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -116,6 +116,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         .partitionCustom(new IdPartitioner, 0)
         .map(k => (k._2, k._3))
         .setParallelism(slicer.degree)
+
         .setMaxParallelism(slicer.degree)
         .name("Partition and remove slice ID")
         .uid("remove-id")

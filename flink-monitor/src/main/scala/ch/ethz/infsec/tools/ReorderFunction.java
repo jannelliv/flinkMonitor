@@ -1,16 +1,12 @@
 package ch.ethz.infsec.tools;
 
-import ch.ethz.infsec.StreamMonitoring;
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.policy.GenFormula;
-import ch.ethz.infsec.policy.VariableID;
 import ch.ethz.infsec.slicer.HypercubeSlicer;
 import it.unimi.dsi.fastutil.longs.Long2LongMap;
 import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
-import it.unimi.dsi.fastutil.objects.ReferenceCollection;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.util.ListCollector;
 import org.apache.flink.api.common.state.ListState;
@@ -23,19 +19,17 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.util.Collector;
 import scala.Int;
 import scala.Tuple2;
-
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
-import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 
-@ForwardedFields({"1"})
 public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction, Serializable {
     private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts;
     protected int numSources;
     private long[] maxOrderElem;
     private long currentIdx;
     private int numEOF;
+    private long maxLatencyIdx;
 
     private transient ListState<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state = null;
     private transient ListState<Long> maxorderelem_state = null;
@@ -49,6 +43,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     abstract protected Fact makeTerminator(long idx);
 
     ReorderFunction(int numSources, HypercubeSlicer slicer) {
+        maxLatencyIdx = -1;
         currentIdx = -2;
         numEOF = 0;
         this.slicer = slicer;
@@ -195,18 +190,20 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     }
 
     private void forceFlush(Collector<Fact> out) {
-        throw new RuntimeException("should not happen");
-        /*long maxIdx = computeMaxIdx();
+        long maxIdx = computeMaxIdx();
         if (maxIdx != -1) {
             for (long idx = currentIdx + 1; idx <= maxIdx; ++idx) {
                 ReferenceArrayList<Fact> arr;
-                System.out.println(String.format("lol force flusing idx %d", idx));
                 if ((arr = idx2Facts.get(idx)) != null) {
-                    for (Fact fact : arr)
+                    for (Fact fact : arr) {
+                        if (!(fact.isMeta() && fact.getName().equals("LATENCY"))) {
+                            throw new RuntimeException("INVARIANT: force flushed only for latency markers");
+                        }
                         out.collect(fact);
+                    }
                 }
             }
-        }*/
+        }
     }
 
     private long getMaxAgreedIdx() {
@@ -237,6 +234,17 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
 
     }
 
+    private void updateMaxLatencyIdx(long idx, boolean isOrderElem) {
+        if (isOrderElem) {
+            long idxplus = idx + 1;
+            if (idxplus > maxLatencyIdx)
+                maxLatencyIdx = idxplus;
+        } else {
+            if (idx > maxLatencyIdx)
+                maxLatencyIdx = idx;
+        }
+    }
+
     @Override
     public void flatMap(Tuple2<Int, Fact> value, Collector<Fact> out) {
         int subtaskidx = (Integer) ((Object) value._1);
@@ -252,6 +260,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         if (isOrderElement(fact)) {
             long idx = indexExtractor(fact);
             //System.out.println("LOL: got order elem " + idx);
+            updateMaxLatencyIdx(idx, true);
             if (idx > maxOrderElem[subtaskidx])
                 maxOrderElem[subtaskidx] = idx;
             flushReady(out);
@@ -259,18 +268,32 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         }
 
         if (fact.isMeta()) {
-            if (fact.getName().equals("EOF")) {
-                if ((++numEOF) == numSources)
-                    forceFlush(out);
-            } else if (fact.getName().equals("set_slicer")) {
-                slicer.unstringify((String) fact.getArgument(0));
+            switch (fact.getName()) {
+                case "EOF":
+                    if ((++numEOF) == numSources)
+                        forceFlush(out);
+                    out.collect(fact);
+                    return;
+                case "set_slicer":
+                    slicer.unstringify((String) fact.getArgument(0));
+                    out.collect(fact);
+                    return;
+                case "LATENCY":
+                    if (maxLatencyIdx == -1)
+                        throw new RuntimeException("INVARIANT: maxLatencyIdx != -1");
+                    insertElement(fact, maxLatencyIdx);
+                    return;
+                case "START":
+                    return;
+                default:
+                    out.collect(fact);
+                    return;
             }
-            out.collect(fact);
-            return;
         }
         long idx = indexExtractor(fact);
+        updateMaxLatencyIdx(idx, false);
         if (idx < currentIdx)
-            throw new RuntimeException("FATAL ERROR: Got a timestamp that should already be flushed");
+            throw new RuntimeException("INVARIANT: idx >= currentIdx");
         insertElement(fact, idx);
     }
 }
