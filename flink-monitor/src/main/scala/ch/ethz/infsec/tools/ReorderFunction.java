@@ -19,12 +19,15 @@ import org.apache.flink.streaming.api.checkpoint.CheckpointedFunction;
 import org.apache.flink.util.Collector;
 import scala.Int;
 import scala.Tuple2;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 
 public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction, Serializable {
     private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts;
+    private Long2ReferenceMap<ReferenceArrayList<Fact>> terminatorLatencyMarkers;
     protected int numSources;
     private long[] maxOrderElem;
     private long currentIdx;
@@ -48,6 +51,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         numEOF = 0;
         this.slicer = slicer;
         this.numSources = numSources;
+        terminatorLatencyMarkers = new Long2ReferenceOpenHashMap<>();
         idx2Facts = new Long2ReferenceOpenHashMap<>();
         maxOrderElem = new long[numSources];
         Arrays.fill(maxOrderElem, -1);
@@ -170,39 +174,14 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     }
 
     private void insertElement(Fact fact, long idx) {
-        ReferenceArrayList<Fact> buf = idx2Facts.get(idx);
-        if (buf == null) {
-            ReferenceArrayList<Fact> nl = new ReferenceArrayList<>();
-            nl.add(fact);
-            idx2Facts.put(idx, nl);
+        if (idx < currentIdx)
+            throw new RuntimeException("INVARIANT: idx >= currentIdx");
+        ReferenceArrayList<Fact> buf;
+        if ((buf = idx2Facts.get(idx)) == null) {
+            buf = new ReferenceArrayList<>(Collections.singletonList(fact));
+            idx2Facts.put(idx, buf);
         } else {
             buf.add(fact);
-        }
-    }
-
-    private long computeMaxIdx() {
-        long maxIdx = -1;
-        for (long l: idx2Facts.keySet()) {
-            if (l > maxIdx)
-                maxIdx = l;
-        }
-        return maxIdx;
-    }
-
-    private void forceFlush(Collector<Fact> out) {
-        long maxIdx = computeMaxIdx();
-        if (maxIdx != -1) {
-            for (long idx = currentIdx + 1; idx <= maxIdx; ++idx) {
-                ReferenceArrayList<Fact> arr;
-                if ((arr = idx2Facts.get(idx)) != null) {
-                    for (Fact fact : arr) {
-                        if (!(fact.isMeta() && fact.getName().equals("LATENCY"))) {
-                            throw new RuntimeException("INVARIANT: force flushed only for latency markers");
-                        }
-                        out.collect(fact);
-                    }
-                }
-            }
         }
     }
 
@@ -213,6 +192,15 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                 min = l;
         }
         return min;
+    }
+
+    private long getMaxOrderElem() {
+        long max = -1;
+        for (long l : maxOrderElem) {
+            if (l > max)
+                max = l;
+        }
+        return max;
     }
 
     private void flushReady(Collector<Fact> out) {
@@ -228,21 +216,13 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                     out.collect(fact);
             }
             out.collect(makeTerminator(idx));
+            if((arr = terminatorLatencyMarkers.get(idx)) != null) {
+                terminatorLatencyMarkers.remove(idx);
+                for (Fact fact : arr)
+                    out.collect(fact);
+            }
         }
-
         currentIdx = maxAgreedIdx;
-
-    }
-
-    private void updateMaxLatencyIdx(long idx, boolean isOrderElem) {
-        if (isOrderElem) {
-            long idxplus = idx + 1;
-            if (idxplus > maxLatencyIdx)
-                maxLatencyIdx = idxplus;
-        } else {
-            if (idx > maxLatencyIdx)
-                maxLatencyIdx = idx;
-        }
     }
 
     @Override
@@ -260,7 +240,6 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         if (isOrderElement(fact)) {
             long idx = indexExtractor(fact);
             //System.out.println("LOL: got order elem " + idx);
-            updateMaxLatencyIdx(idx, true);
             if (idx > maxOrderElem[subtaskidx])
                 maxOrderElem[subtaskidx] = idx;
             flushReady(out);
@@ -270,8 +249,13 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         if (fact.isMeta()) {
             switch (fact.getName()) {
                 case "EOF":
-                    if ((++numEOF) == numSources)
-                        forceFlush(out);
+                    if ((++numEOF) == numSources) {
+                        if (!(terminatorLatencyMarkers.isEmpty() && idx2Facts.isEmpty())) {
+                            System.out.println("terminatorLatencyMarkers is " + terminatorLatencyMarkers);
+                            System.out.println("idx2Facts is " +  idx2Facts);
+                            throw new RuntimeException("INVARIANT: terminatorLatencyMarkers and idx2Facts should be empty after receiving all EOFS");
+                        }
+                    }
                     out.collect(fact);
                     return;
                 case "set_slicer":
@@ -281,7 +265,31 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                 case "LATENCY":
                     if (maxLatencyIdx == -1)
                         throw new RuntimeException("INVARIANT: maxLatencyIdx != -1");
-                    insertElement(fact, maxLatencyIdx);
+                    long maxOrderElem = getMaxOrderElem();
+                    long maxAgreed = getMaxAgreedIdx();
+                    if (maxAgreed >= maxLatencyIdx) {
+                        if (!idx2Facts.isEmpty())
+                            throw new RuntimeException("INVARIANT: idx2Facts.isEmpty()");
+                        if (maxOrderElem == maxAgreed) {
+                            out.collect(fact);
+                        } else {
+                            ReferenceArrayList<Fact> arr;
+                            if (maxOrderElem < currentIdx)
+                                throw new RuntimeException("INVARIANT: maxOrderElem >= currentIdx");
+                            if ((arr = terminatorLatencyMarkers.get(maxOrderElem)) != null) {
+                                arr.add(fact);
+                            } else {
+                                arr = new ReferenceArrayList<>(Collections.singletonList(fact));
+                                terminatorLatencyMarkers.put(maxOrderElem, arr);
+                            }
+                            //System.out.println(String.format("lol: for subtask %d got latency marker from subtask %d, inserting it as term %d, currentidx: %d", getRuntimeContext().getIndexOfThisSubtask(), subtaskidx, maxOrderElem, currentIdx));
+                        }
+                    } else {
+                        if (idx2Facts.get(maxLatencyIdx) == null)
+                            throw new RuntimeException("INVARIANT: idx2Facts.get(maxLatencyIdx) != null");
+                        insertElement(fact, maxLatencyIdx);
+                        //System.out.println(String.format("lol: for subtask %d got latency marker from subtask %d, inserting it at index %d, currentidx: %d", getRuntimeContext().getIndexOfThisSubtask(), subtaskidx, maxLatencyIdx, currentIdx));
+                    }
                     return;
                 case "START":
                     return;
@@ -291,9 +299,8 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             }
         }
         long idx = indexExtractor(fact);
-        updateMaxLatencyIdx(idx, false);
-        if (idx < currentIdx)
-            throw new RuntimeException("INVARIANT: idx >= currentIdx");
+        if (idx > maxLatencyIdx)
+            maxLatencyIdx = idx;
         insertElement(fact, idx);
     }
 }

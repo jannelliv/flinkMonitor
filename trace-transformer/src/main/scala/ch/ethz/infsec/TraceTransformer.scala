@@ -23,9 +23,9 @@ abstract class TransformerImpl(numPartitions: Int, output: Array[Writer]) {
     partition match {
       case Some(i) =>
         require(i >= 0 && i < numPartitions)
-        output(i).write(line + "\n")
+        output(i).write(s"$line\n")
       case None =>
-        (0 until numPartitions).foreach(i => output(i).write(line + "\n"))
+        (0 until numPartitions).foreach(i => output(i).write(s"$line\n"))
     }
   }
 
@@ -54,7 +54,7 @@ class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array
   }
 
   private def sendWatermark(tsVal: Int): Unit = {
-    sendRecord(">WATERMARK " + tsVal + "<", None)
+    sendRecord(s">WATERMARK $tsVal<", None)
   }
 
   private def writeToOutput[U <: mutable.Buffer[String]](factMap: mutable.Map[Int, U]): Unit = {
@@ -106,7 +106,7 @@ class WatermarkOrderTransformer(numPartitions: Int, input: Source, output: Array
 class PerPartitionOrderTransformer(numPartitions: Int, input: Source, output: Array[Writer]) extends TransformerImpl(numPartitions, output) {
   def runTransformer(): Unit = {
     val first_elem = WatermarkOrderHelpers.getTimeStamps(input).take(1).toArray.head._1
-    sendRecord(">START " + first_elem + "<", None)
+    sendRecord(s">START $first_elem<", None)
     for (line <- input.getLines()) {
       sendRecord(line, Some(Random.nextInt(numPartitions)))
     }
@@ -135,17 +135,17 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int,
                                             watermarkPeriod: Int)
   extends TransformerImpl(numPartitions, output) {
 
-  val dist: TruncNormDistribution = new TruncNormDistribution(sigma, 0.0, maxOOO)
+  val dist: TruncNormDistribution = new TruncNormDistribution(sigma, 0.0, maxOOO + 0.001)
   val emissionSeparator: String = "'"
 
   private def sample(): Int = math.round(dist.sample().floatValue())
 
   private def makeRecord(emissionTime: Int, line: String): String = {
-    emissionTime + emissionSeparator + line
+    s"$emissionTime$emissionSeparator$line"
   }
 
   private def makeWatermark(emissionTime: Int, tsVal: Int): String = {
-    emissionTime + emissionSeparator + ">WATERMARK " + tsVal + "<"
+    s"$emissionTime$emissionSeparator>WATERMARK $tsVal<"
   }
 
   override def runTransformer(): Unit = {
@@ -154,7 +154,7 @@ class WatermarkOrderEmissionTimeTransformer(numPartitions: Int,
     val outLines = (0 until numPartitions map (_ => ArrayBuffer[(Int, Int, String)]())).toArray
     val minTs = tsAndLines.minBy(_._1)._1
     val maxTs = tsAndLines.maxBy(_._1)._1
-    sendRecord(0 + emissionSeparator + ">START " + minTs + "<", None)
+    sendRecord(s"0$emissionSeparator>START  $minTs<", None)
     for ((ts, line) <- tsAndLines) {
       val samp = sample()
       val emissiontime = ts + samp - minTs
