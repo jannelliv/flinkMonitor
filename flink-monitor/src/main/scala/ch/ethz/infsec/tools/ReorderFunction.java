@@ -10,6 +10,7 @@ import it.unimi.dsi.fastutil.longs.Long2LongOpenHashMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceMap;
 import it.unimi.dsi.fastutil.longs.Long2ReferenceOpenHashMap;
 import it.unimi.dsi.fastutil.objects.ReferenceArrayList;
+import it.unimi.dsi.fastutil.objects.ReferenceCollection;
 import org.apache.flink.api.common.functions.RichFlatMapFunction;
 import org.apache.flink.api.common.functions.util.ListCollector;
 import org.apache.flink.api.common.state.ListState;
@@ -23,23 +24,23 @@ import org.apache.flink.util.Collector;
 import scala.Int;
 import scala.Tuple2;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import org.apache.flink.api.java.functions.FunctionAnnotation.ForwardedFields;
 
 @ForwardedFields({"1"})
-public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction{
-    protected int numSources = StreamMonitoring.inputParallelism();
-    private GenFormula<VariableID> slicerFormula = StreamMonitoring.formula();
-    private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts = new Long2ReferenceOpenHashMap<>();
-    private long[] maxOrderElem = new long[numSources];
-    private long currentIdx = -2;
-    private int numEOF = 0;
+public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fact>, Fact> implements CheckpointedFunction, Serializable {
+    private Long2ReferenceMap<ReferenceArrayList<Fact>> idx2Facts;
+    protected int numSources;
+    private long[] maxOrderElem;
+    private long currentIdx;
+    private int numEOF;
 
     private transient ListState<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state = null;
     private transient ListState<Long> maxorderelem_state = null;
     private transient ListState<Long> indices_state = null;
-    private String newStategy = null;
+    private HypercubeSlicer slicer;
 
     abstract protected boolean isOrderElement(Fact fact);
 
@@ -47,7 +48,13 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
 
     abstract protected Fact makeTerminator(long idx);
 
-    ReorderFunction() {
+    ReorderFunction(int numSources, HypercubeSlicer slicer) {
+        currentIdx = -2;
+        numEOF = 0;
+        this.slicer = slicer;
+        this.numSources = numSources;
+        idx2Facts = new Long2ReferenceOpenHashMap<>();
+        maxOrderElem = new long[numSources];
         Arrays.fill(maxOrderElem, -1);
     }
 
@@ -64,20 +71,19 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         }
         indices_state.add(currentIdx);
         indices_state.add((long) numEOF);
-        if (newStategy == null) {
+        /*if (newStategy == null) {
             for (int i = 0; i < numMonitors; ++i) {
                 if (i == ownSubtaskIdx)
                     idx2facts_state.add(idx2Facts);
                 else
                     idx2facts_state.add(new Long2ReferenceOpenHashMap<>());
             }
-        } else {
-            HypercubeSlicer slicer = HypercubeSlicer.makeHypercubeSlicer(slicerFormula, newStategy);
+        } else {*/
             ArrayList<Long2ReferenceOpenHashMap<ReferenceArrayList<Fact>>> state = new ArrayList<>();
             ReferenceArrayList<Tuple2<Object, Fact>> list = new ReferenceArrayList<>();
             ListCollector<Tuple2<Object, Fact>> collector = new ListCollector<>(list);
-            int maxDegree = slicer.maxDegree();
-            for (int i = 0; i < maxDegree; ++i)
+            int degree = slicer.degree();
+            for (int i = 0; i < degree; ++i)
                 state.add(new Long2ReferenceOpenHashMap<>());
             for (Long2ReferenceMap.Entry<ReferenceArrayList<Fact>> e: idx2Facts.long2ReferenceEntrySet()) {
                 for (Fact f: e.getValue()) {
@@ -98,16 +104,15 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             }
             for (Long2ReferenceOpenHashMap<ReferenceArrayList<Fact>> m: state)
                 idx2facts_state.add(m);
-        }
+        //}
         /*System.out.println("LOL snapshot: subtask " + ownSubtaskIdx +
                 "\nmaxOrderElem: " + Arrays.toString(maxOrderElem) +
                 "\ncurr_idx = " + currentIdx + ", numEOF = " + numEOF +
-                "\nno elem in idx2Facts: " + idx2Facts);*/
+                "\nno elem in idx2Facts: " + noElems(idx2Facts));*/
     }
 
     @Override
     public void initializeState(FunctionInitializationContext ctxt) throws Exception {
-        int ownSubtaskIdx = getRuntimeContext().getIndexOfThisSubtask();
         ListStateDescriptor<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state_desc =
                 new ListStateDescriptor<>(
                         "idx2facts_state",
@@ -150,14 +155,14 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             for (Long l: indices_state.get())
                 indices.add(l);
             if (indices.size() != 2)
-                throw new Exception(String.format("INVARIANT: expected 2 saved indices, got", indices.size()));
+                throw new Exception(String.format("INVARIANT: expected 2 saved indices, got %d", indices.size()));
             currentIdx = indices.get(0);
             numEOF = Math.toIntExact(indices.get(1));
-            newStategy = null;
-            /*System.out.println("LOL restore: subtask " + ownSubtaskIdx +
+            //newStategy = null;
+            /*System.out.println("LOL restore: subtask " + getRuntimeContext().getIndexOfThisSubtask() +
                     "\nmaxOrderElem: " + Arrays.toString(maxOrderElem) +
                     "\ncurr_idx = " + currentIdx + ", numEOF = " + numEOF +
-                    "\nno elem in idx2Facts: " + idx2Facts);*/
+                    "\nno elem in idx2Facts: " + noElems(idx2Facts));*/
         }
     }
 
@@ -190,17 +195,18 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     }
 
     private void forceFlush(Collector<Fact> out) {
-        long maxIdx = computeMaxIdx();
+        throw new RuntimeException("should not happen");
+        /*long maxIdx = computeMaxIdx();
         if (maxIdx != -1) {
             for (long idx = currentIdx + 1; idx <= maxIdx; ++idx) {
                 ReferenceArrayList<Fact> arr;
-                System.out.println(String.format("for partition %d, force flushing idx %d", getRuntimeContext().getIndexOfThisSubtask(), idx));
+                System.out.println(String.format("lol force flusing idx %d", idx));
                 if ((arr = idx2Facts.get(idx)) != null) {
                     for (Fact fact : arr)
                         out.collect(fact);
                 }
             }
-        }
+        }*/
     }
 
     private long getMaxAgreedIdx() {
@@ -220,7 +226,6 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
         for (long idx = currentIdx + 1; idx <= maxAgreedIdx; ++idx) {
             ReferenceArrayList<Fact> arr;
             if ((arr = idx2Facts.get(idx)) != null) {
-                System.out.println(String.format("for partition %d, flushing idx %d", getRuntimeContext().getIndexOfThisSubtask(), idx));
                 idx2Facts.remove(idx);
                 for (Fact fact : arr)
                     out.collect(fact);
@@ -257,13 +262,11 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
             if (fact.getName().equals("EOF")) {
                 if ((++numEOF) == numSources)
                     forceFlush(out);
-                return;
-            } else if (fact.getName().equals("START") || fact.getName().equals("TERMSTREAM") || fact.getName().equals("LATENCY")) {
-                out.collect(fact);
-                return;
+            } else if (fact.getName().equals("set_slicer")) {
+                slicer.unstringify((String) fact.getArgument(0));
             }
-            else
-                throw new RuntimeException("should not happen got meta fact " + fact.getName());
+            out.collect(fact);
+            return;
         }
         long idx = indexExtractor(fact);
         if (idx < currentIdx)
@@ -274,6 +277,10 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
 
 class ReorderTotalOrderFunction extends ReorderFunction {
     private Long2LongMap tpTotsMap = new Long2LongOpenHashMap();
+
+    ReorderTotalOrderFunction(int numSources, HypercubeSlicer slicer) {
+        super(numSources, slicer);
+    }
 
     @Override
     protected boolean isOrderElement(Fact fact) {
@@ -301,6 +308,10 @@ class ReorderTotalOrderFunction extends ReorderFunction {
 
 class ReorderCollapsedWithWatermarksFunction extends ReorderFunction {
 
+    ReorderCollapsedWithWatermarksFunction(int numSources, HypercubeSlicer slicer) {
+        super(numSources, slicer);
+    }
+
     @Override
     protected boolean isOrderElement(Fact fact) {
         return fact.isMeta() && fact.getName().equals("WATERMARK");
@@ -322,6 +333,10 @@ class ReorderCollapsedWithWatermarksFunction extends ReorderFunction {
 }
 
 class ReorderCollapsedPerPartitionFunction extends ReorderFunction {
+    ReorderCollapsedPerPartitionFunction(int numSources, HypercubeSlicer slicer) {
+        super(numSources, slicer);
+    }
+
     @Override
     protected boolean isOrderElement(Fact fact) {
         return fact.isTerminator();

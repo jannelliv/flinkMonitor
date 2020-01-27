@@ -95,11 +95,11 @@ validateArgs :: Config -> Either () String
 validateArgs args =
     let isCheckpointing = M.isJust $ args^.insertcheckpoint
         incompats = [((args^.generatorshape) `notElem` ["T", "L", "S"], "invalid generatorform")
-                    ,((args^.usedecider) && isCheckpointing, "the decider is not compatible with checkpointing")
+                    ,((args^.usedecider) && isCheckpointing, "the decider option is not compatible with the insertcheckpoint option")
                     ,(args^.multisourcevariant < 1 || args^.multisourcevariant > 4, "multisource variant must be in 1 to 4")
                     ,(args^.usereplayer && args^.multisourcevariant == 3, "variant 3 not compat. with replayer")
                     ,((not $ args^.usereplayer) && args^.multisourcevariant == 4, "variant 4 needs replayer")
-                    ,((not (args^.usereplayer && args^.usekafka)) && isCheckpointing, "checkpoint needs kafka + replayer")]
+                    ,((not (args^.usereplayer && args^.usekafka)) && (isCheckpointing || args^.usedecider), "checkpointing needs kafka + replayer")]
         violation = F.find fst incompats
     in
     maybe (Left ()) (Right . snd) violation

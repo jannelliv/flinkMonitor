@@ -37,7 +37,6 @@ package object slicer {
     }
 
     def parseSlicer(str: String): (IndexedSeq[(Int, Set[Any])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]], Int) ={
-      println("LOL: parsing slicer: " + str)
       val trim = str.substring(2, str.length - 2)
 
       val params = trim.split("\\},\\{")

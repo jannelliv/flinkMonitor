@@ -53,14 +53,14 @@ parseReference collapse reference =
         let tp' = if collapse then ts else tp in
         Verdict {timepoint = tp', timestamp = ts, args = a}) a) args_parsed
 
-verifyVerdicts :: Bool -> T.Text -> T.Text -> (Bool, T.Text)
+verifyVerdicts :: Bool -> T.Text -> T.Text -> (Bool, Int, T.Text)
 verifyVerdicts collapse reference verdicts =
   let referenceParsed = L.sort $ parseReference collapse reference
       verdictsParsed = L.sort $ parseReference collapse verdicts
       diffLines = aux referenceParsed verdictsParsed (TB.fromLazyText "")
       diffLines' = TL.toStrict $ TB.toLazyText diffLines
   in
-    (T.null diffLines', diffLines')
+    (T.null diffLines', length referenceParsed, diffLines')
   where
     added k = (TB.fromLazyText "ADDED   ") <>  (TB.fromString $ show k) <> (TB.fromLazyText "\n")
     missing k = (TB.fromLazyText "MISSING   ") <>  (TB.fromString $ show k) <> (TB.fromLazyText "\n")

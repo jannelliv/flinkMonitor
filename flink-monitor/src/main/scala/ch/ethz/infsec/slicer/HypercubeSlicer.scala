@@ -1,5 +1,6 @@
 package ch.ethz.infsec.slicer
 
+import ch.ethz.infsec.autobalancer.StatsHistogram
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy.{Pred, VariableID, _}
 
@@ -230,7 +231,7 @@ object HypercubeSlicer {
   def optimizeSingleSet(
       formula: Formula,
       degree: Int,
-      statistics: Statistics,
+      statistics: StatsHistogram,
       activeVariables: Set[Int]): Array[Int] = {
 
     require(degree >= 1)
@@ -271,12 +272,12 @@ object HypercubeSlicer {
     bestShares.toArray
   }
 
-  def optimize(formula: Formula, degree: Int, statistics: Statistics): HypercubeSlicer = {
+  def optimize(formula: Formula, degree: Int, statistics: StatsHistogram): HypercubeSlicer = {
     val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])}
     var heavyIndex = 0
     for (atom <- formula.atoms) {
       for ((Var(v), i) <- atom.args.zipWithIndex if v.isFree) {
-        val hitters = statistics.heavyHitters(atom.relation, i)
+        val hitters = statistics.heavyHitter(atom.relation, i)
         if (hitters.nonEmpty) {
           if (heavy(v.freeID)._1 < 0) {
             heavy(v.freeID) = (heavyIndex, hitters)

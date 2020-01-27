@@ -1,10 +1,10 @@
 package ch.ethz.infsec
 
-import ch.ethz.infsec.autobalancer.{DummyDecider, KnowledgeExtract, OutsideInfluence}
+import ch.ethz.infsec.autobalancer.{AllState, ConstantHistogram, DeciderFlatMapSimple, KnowledgeExtract, OutsideInfluence, StatsHistogram}
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
-import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, DebugMap, ParallelSocketTextStreamFunction, ReorderFunction, TestSimpleStringSchema}
+import ch.ethz.infsec.tools.{AddSubtaskIndexFunction, ParallelSocketTextStreamFunction, ReorderFunction, TestSimpleStringSchema}
 import ch.ethz.infsec.trace.formatter.MonpolyVerdictFormatter
 import ch.ethz.infsec.trace.parser.TraceParser
 import ch.ethz.infsec.trace.{ParsingFunction, PrintingFunction}
@@ -85,12 +85,14 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
   def assembleDeciderIteration(parsedTrace: DataStream[Fact],
                                slicer: HypercubeSlicer,
                                monitorProcess: ExternalProcess,
-                               queueSize: Int): DataStream[Fact] = {
+                               queueSize: Int,
+                               windowSize: Double): DataStream[Fact] = {
+    val decider = new AllState(new DeciderFlatMapSimple(slicer.degree, StreamMonitoring.inputParallelism, slicer.formula))
     val iterateFun = (iteration: DataStream[Fact]) => {
       val sampledTrace = iteration
-        .process(new OutsideInfluence)
-        .name("Sampling function")
-        .uid("sampling-function")
+        .process(new OutsideInfluence(slicer.degree, slicer.formula, windowSize))
+        .name("outside influence")
+        .uid("outside-influence")
         .setMaxParallelism(StreamMonitoring.inputParallelism)
         .setParallelism(StreamMonitoring.inputParallelism)
 
@@ -143,7 +145,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
 
       val feedBack = knowledgeExtractorCommandOutput
         .union(samplingOutput)
-        .flatMap(new DummyDecider)
+        .flatMap(decider)
         .setParallelism(1)
         .setMaxParallelism(1)
         .name("Decider")
@@ -156,7 +158,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
       (feedBack, rawVerdictsWithSideEffects)
     }
 
-    parsedTrace.iterate(iterateFun, 100L)
+    parsedTrace.iterate(iterateFun, 5000L)
   }
 
   def assembleWithoutDecider(parsedTrace: DataStream[Fact],
@@ -196,10 +198,10 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
           .setMaxParallelism(slicer.degree)
           .name("Reorder facts")
           .uid("reorder-facts")
-          .map(new DebugMap[Fact])
+          /*.map(new DebugMap[Fact])
           .setParallelism(slicer.degree)
           .setMaxParallelism(slicer.degree)
-          .uid("debug-map")
+          .uid("debug-map")*/
 
       ExternalProcessOperator.transform(reorderedTrace, monitorProcess, queueSize)
         .setParallelism(slicer.degree)
@@ -213,7 +215,8 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
                decider: Boolean,
                slicer: HypercubeSlicer,
                monitorProcess: ExternalProcess,
-               queueSize: Int): DataStream[String] = {
+               queueSize: Int,
+               windowSize: Double): DataStream[String] = {
     val parsedTrace =
       inputStream
         .flatMap(new ParsingFunction(traceFormat))
@@ -223,7 +226,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         .setParallelism(StreamMonitoring.inputParallelism)
 
     val rawVerdicts = {
-      if (decider) assembleDeciderIteration(parsedTrace, slicer, monitorProcess, queueSize)
+      if (decider) assembleDeciderIteration(parsedTrace, slicer, monitorProcess, queueSize, windowSize)
       else assembleWithoutDecider(parsedTrace, slicer, monitorProcess, queueSize)
     }
 

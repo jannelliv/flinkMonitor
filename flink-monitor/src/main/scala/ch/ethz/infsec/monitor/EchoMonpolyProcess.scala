@@ -1,7 +1,7 @@
 package ch.ethz.infsec
 package monitor
 
-class EchoMonpolyProcess(override val command: Seq[String]) extends MonpolyProcess(command, None) {
+class EchoMonpolyProcess(override val command: Seq[String], numSources: Int) extends MonpolyProcess(command, None, numSources) {
   override def supportsStateAccess: Boolean = false
 
   override protected def parseResult(line: String, sink: Fact => Unit): Boolean = {

@@ -1,8 +1,9 @@
 package ch.ethz.infsec.tools
 
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
-import ch.ethz.infsec.StreamMonitorBuilder
+import ch.ethz.infsec.{StreamMonitorBuilder, StreamMonitoring}
 import ch.ethz.infsec.monitor.Fact
+import ch.ethz.infsec.slicer.HypercubeSlicer
 import ch.ethz.infsec.trace.parser.TraceParser.TerminatorMode
 import org.apache.flink.api.common.functions.{MapFunction, RichFlatMapFunction, RichMapFunction}
 import org.apache.flink.api.common.serialization.SimpleStringSchema
@@ -49,8 +50,8 @@ class ParallelSocketTextStreamFunction(hostname: String, port: Int) extends Rich
 }
 
 sealed class MultiSourceVariant {
-  def getStreamMonitorBuilder(env: StreamExecutionEnvironment): StreamMonitorBuilder = {
-    new StreamMonitorBuilder(env, getReorderFunction)
+  def getStreamMonitorBuilder(env: StreamExecutionEnvironment, numSources: Int, slicer: HypercubeSlicer): StreamMonitorBuilder = {
+    new StreamMonitorBuilder(env, getReorderFunction(numSources, slicer))
   }
 
   def getTerminatorMode: TerminatorMode = {
@@ -62,11 +63,11 @@ sealed class MultiSourceVariant {
     }
   }
 
-  private def getReorderFunction: ReorderFunction = {
+  private def getReorderFunction(numSources: Int, slicer: HypercubeSlicer): ReorderFunction = {
     this match {
-      case TotalOrder() => new ReorderTotalOrderFunction()
-      case PerPartitionOrder() => new ReorderCollapsedPerPartitionFunction()
-      case WaterMarkOrder() => new ReorderCollapsedWithWatermarksFunction()
+      case TotalOrder() => new ReorderTotalOrderFunction(numSources, slicer)
+      case PerPartitionOrder() => new ReorderCollapsedPerPartitionFunction(numSources, slicer)
+      case WaterMarkOrder() => new ReorderCollapsedWithWatermarksFunction(numSources, slicer)
       case _ => throw new Exception("case failed")
     }
   }

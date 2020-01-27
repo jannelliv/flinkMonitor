@@ -229,7 +229,8 @@ main = do
                     Just f -> do
                         verdicts <- readfile f
                         echo "Comparing outputs ..."
-                        let (correct, diffs) = verifyVerdicts (ctxt^.shouldCollapse) reference verdicts
+                        let (correct, noReference, diffs) = verifyVerdicts (ctxt^.shouldCollapse) reference verdicts
+                        echo $ sformat ("Verifying " % int % " verdicts ...") noReference
                         if correct then echo "=== TEST PASSED ==="
                         else do
                             echo diffs

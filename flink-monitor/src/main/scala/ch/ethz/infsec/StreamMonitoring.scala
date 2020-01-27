@@ -238,7 +238,7 @@ object StreamMonitoring {
           val monitorArgs = if (command.nonEmpty) command else (if (negate) monitorCommand :: List("-negate") else List(monitorCommand))
           val margs = monitorArgs ++ List("-sig", signatureFile, "-formula", formulaFile)
           logger.info("Monitor command: {}", margs.mkString(" "))
-          new MonpolyProcess(margs, initialStateFile)
+          new MonpolyProcess(margs, initialStateFile, inputParallelism)
         }
         case ECHO_DEJAVU_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
@@ -248,7 +248,7 @@ object StreamMonitoring {
         case ECHO_MONPOLY_CMD => {
           val monitorArgs = if (command.nonEmpty) command else List(monitorCommand)
           logger.info("Monitor command: {}", monitorArgs.mkString(" "))
-          new EchoMonpolyProcess(monitorArgs)
+          new EchoMonpolyProcess(monitorArgs, inputParallelism)
         }
         case DEJAVU_CMD => {
           if (slicer.requiresFilter) {
@@ -309,7 +309,7 @@ object StreamMonitoring {
       // textStream = env.addSource[String](helpers.createStringConsumerForTopic("flink_input","localhost:9092","flink"))
       val textStream = in match {
         case Some(SocketEndpoint(h, p)) =>
-          monitor = multiSourceVariant.getStreamMonitorBuilder(env)
+          monitor = multiSourceVariant.getStreamMonitorBuilder(env, inputParallelism, slicer)
           inputFormat.setTerminatorMode(multiSourceVariant.getTerminatorMode)
           Thread.sleep(4000)
           monitor.socketSource(h, p)
@@ -323,7 +323,7 @@ object StreamMonitoring {
             val testProducer = new KafkaTestProducer(kafkaDir, kafkaPrefix)
             testProducer.runProducer(true)
           }
-          monitor = multiSourceVariant.getStreamMonitorBuilder(env)
+          monitor = multiSourceVariant.getStreamMonitorBuilder(env, inputParallelism, slicer)
           inputFormat.setTerminatorMode(multiSourceVariant.getTerminatorMode)
           monitor.kafkaSource()
         case _ => fail("Cannot parse the input argument")
@@ -331,7 +331,7 @@ object StreamMonitoring {
       env.setMaxParallelism(inputParallelism)
       env.setParallelism(inputParallelism)
 
-      val verdicts = monitor.assemble(textStream, inputFormat, params.has("decider"), slicer, monitorProcess, queueSize)
+      val verdicts = monitor.assemble(textStream, inputFormat, params.has("decider"), slicer, monitorProcess, queueSize, params.getInt("windowsize",100))
 
       out match {
         case Some(SocketEndpoint(h, p)) => monitor.socketSink(verdicts, h, p)
