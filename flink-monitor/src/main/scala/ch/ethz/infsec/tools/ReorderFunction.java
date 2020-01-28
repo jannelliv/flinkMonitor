@@ -46,7 +46,8 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     abstract protected Fact makeTerminator(long idx);
 
     ReorderFunction(int numSources, HypercubeSlicer slicer) {
-        maxLatencyIdx = -1;
+        //FIXME: should be the first ts
+        maxLatencyIdx = 0;
         currentIdx = -2;
         numEOF = 0;
         this.slicer = slicer;
