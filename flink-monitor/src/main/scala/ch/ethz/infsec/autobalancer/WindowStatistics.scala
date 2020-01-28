@@ -219,7 +219,7 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, de
     frames(lastFrame).clearFrame()
   }
 
-  var justHadRollover = false
+  //var justHadRollover = false
 
   //todo: the timestamp is atm nonsense, needs fixing
   var frameTimestamp:Double = 0//new trace.Timestamp();
@@ -230,17 +230,17 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, de
       first = false
     }
     frames(lastFrame).addEvent(event)
-    justHadRollover = false
-    while(event.getTimestamp >= frameTimestamp + timestampDeltaBetweenFrames) {
+    //justHadRollover = false
+    /*while(event.getTimestamp >= frameTimestamp + timestampDeltaBetweenFrames) {
       nextFrame()
       frameTimestamp = frameTimestamp + timestampDeltaBetweenFrames
       justHadRollover = true
-    }
+    }*/
   }
 
-  def hadRollover() : Boolean = {
+  /*def hadRollover() : Boolean = {
     return justHadRollover
-  }
+  }*/
 
   def getHistogram: Histogram = histogram
 }

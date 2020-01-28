@@ -3,10 +3,9 @@ package ch.ethz.infsec
 import java.util.stream.Collector
 
 import ch.ethz.infsec.monitor.Fact
-import org.apache.flink.api.common.functions.{RichFlatMapFunction, RichMapFunction}
+import org.apache.flink.api.common.functions.RichFlatMapFunction
 import org.apache.flink.configuration.Configuration
 import org.apache.flink.metrics.Gauge
-import org.apache.flink.streaming.api.operators.{AbstractStreamOperator, OneInputStreamOperator}
 import org.apache.flink.util
 
 import scala.util.control.Breaks.{break, breakable}
