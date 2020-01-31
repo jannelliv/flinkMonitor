@@ -212,7 +212,9 @@ public class Replayer {
                             nextTimestampToEmit += timestampInterval;
                         }
                     }
-                    lastOutputTime = outputItem.emissionTime;
+
+                    if (outputItem.emissionTime > lastOutputTime)
+                        lastOutputTime = outputItem.emissionTime;
 
                     delay(outputItem.emissionTime);
                     outputItem.emit(output, formatter);

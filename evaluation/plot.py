@@ -552,7 +552,7 @@ if __name__ == '__main__':
 
         # # NOKIA
         nokia_nproc = summary.select(experiment='nokia', stage=1)
-        nokia_nproc.plot('event_rate', ['max'], series_levels=['tool', 'processors'], column_levels=['statistics'],  title="Latency (Nokia)" , path="nokia_nproc.pdf")
+        nokia_nproc.plot('event_rate', ['max'], series_levels=['tool', 'processors'], column_levels=['numsources'],  title="Latency (Nokia)" , path="nokia_nproc.pdf")
         
         #nokia_formulas = summary.select(experiment='nokia', tool='flink_monpoly', checkpointing=True, stage=1)
         #nokia_formulas.plot('event_rate', ['max'], series_levels=['formula'], column_levels=['statistics'], title="Latency (Nokia)", path="nokia_formulas.pdf")
@@ -560,9 +560,9 @@ if __name__ == '__main__':
         #nokia_series = series.select(experiment='nokia', statistics=False, stage=1)
         #nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
 
-        nokia_throughput = throughput.select(experiment='nokia', stage=1)
-        nokia_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_throughput_monpoly.pdf")
-        nokia_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_runtime_monpoly.pdf")
+        #nokia_throughput = throughput.select(experiment='nokia', stage=1)
+        #nokia_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_throughput_monpoly.pdf")
+        #nokia_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_runtime_monpoly.pdf")
 
 
         # nokia_nproc = summary.select(experiment='nokiaCMP', stage=1)
