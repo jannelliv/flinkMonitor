@@ -225,10 +225,10 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         .uid("trace-parser")
         .setMaxParallelism(StreamMonitoring.inputParallelism)
         .setParallelism(StreamMonitoring.inputParallelism)
-        .map(new DebugMap[Fact])
+        /*.map(new DebugMap[Fact])
         .setParallelism(StreamMonitoring.inputParallelism)
         .setMaxParallelism(StreamMonitoring.inputParallelism)
-        .uid("debug-map")
+        .uid("debug-map")*/
 
     val rawVerdicts = {
       if (decider) assembleDeciderIteration(parsedTrace, slicer, monitorProcess, queueSize, windowSize)
