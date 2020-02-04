@@ -264,27 +264,11 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                     out.collect(fact);
                     return;
                 case "LATENCY":
-                    if (maxLatencyIdx == -1)
-                        throw new RuntimeException("INVARIANT: maxLatencyIdx != -1");
-                    long maxOrderElem = getMaxOrderElem();
                     long maxAgreed = getMaxAgreedIdx();
-                    if (maxAgreed >= maxLatencyIdx) {
+                    if (maxAgreed >= maxLatencyIdx || maxLatencyIdx == -1) {
                         if (!idx2Facts.isEmpty())
                             throw new RuntimeException("INVARIANT: idx2Facts.isEmpty()");
-                        if (maxOrderElem == maxAgreed) {
-                            out.collect(fact);
-                        } else {
-                            ReferenceArrayList<Fact> arr;
-                            if (maxOrderElem < currentIdx)
-                                throw new RuntimeException("INVARIANT: maxOrderElem >= currentIdx");
-                            if ((arr = terminatorLatencyMarkers.get(maxOrderElem)) != null) {
-                                arr.add(fact);
-                            } else {
-                                arr = new ReferenceArrayList<>(Collections.singletonList(fact));
-                                terminatorLatencyMarkers.put(maxOrderElem, arr);
-                            }
-                            //System.out.println(String.format("lol: for subtask %d got latency marker from subtask %d, inserting it as term %d, currentidx: %d", getRuntimeContext().getIndexOfThisSubtask(), subtaskidx, maxOrderElem, currentIdx));
-                        }
+                        out.collect(fact);
                     } else {
                         if (idx2Facts.get(maxLatencyIdx) == null)
                             throw new RuntimeException("INVARIANT: idx2Facts.get(maxLatencyIdx) != null");
