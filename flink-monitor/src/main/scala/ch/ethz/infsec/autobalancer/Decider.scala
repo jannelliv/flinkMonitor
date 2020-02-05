@@ -3,6 +3,7 @@ package ch.ethz.infsec.autobalancer
 import java.io.FileWriter
 import java.util
 
+import ch.ethz.infsec.autobalancer.HypercubeCostSlicerTracker.SlicerTrackerCost
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy.Formula
 import ch.ethz.infsec.slicer.HypercubeSlicer
@@ -74,8 +75,7 @@ abstract class DeciderFlatMap
   var assumedFutureStableWindowsAmount : Double = 1.0
 
   var isAdapting = false
-  var costFirst = 0
-  var costSecond = 0
+  var slicingCosts: Option[HypercubeCostSlicerTracker] = None
   var histogram: Option[StatsHistogram] = None
   var noHistograms: Int = 0
   var noCost: Int = 0
@@ -98,7 +98,7 @@ abstract class DeciderFlatMap
   }
 
 
-  def makeAdaptDecision() : Unit = {
+  def makeAdaptDecision(costFirst: Int, costSecond: Int) : Unit = {
     val prevSlicerForLog = lastSlicing
     //while in the middle of an adapting we don't re-adapt
     if(costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,histogram.get) / assumedFutureStableWindowsAmount < costSecond * avgMaxProcessingTime) {
@@ -163,6 +163,7 @@ abstract class DeciderFlatMap
       if (!waitingForApts)
         throw new RuntimeException("INVARIANT: receive apt ==> waitingForApts == true")
       val apt = Double.unbox(event.getArgument(0))
+      logCommand(eventPartition, com, apt)
       avgMaxProcessingTime = math.max(apt.toDouble / 1000.0, avgMaxProcessingTime)
       if(avgMaxProcessingTime < 0.0001)
         avgMaxProcessingTime = 0.0001
@@ -174,17 +175,24 @@ abstract class DeciderFlatMap
         waitingForApts = false
         logFile.write("waiting for apts = false\n")
       }
-      logCommand(eventPartition, com, apt)
     } else if(com == "memory") {
       //shutdownMemory = event.getArgument(0).asInstanceOf[java.lang.String].toLong
       //logCommand(eventPartition, com, shutdownMemory)
     } else if(com == "slicing_cost") {
+      logCommand(eventPartition, "slicing_cost", "")
       if (!waitingForCosts)
         throw new RuntimeException("INVARIANT: receive slicing_cost ==> waitingForCosts == true")
-      val addedFirst = Int.unbox(event.getArgument(0))
-      val addedSecond = Int.unbox(event.getArgument(1))
-      costFirst += addedFirst
-      costSecond += addedSecond
+      val newCosts = HypercubeCostSlicerTracker.fromBase64(event.getArgument(0).asInstanceOf[java.lang.String])
+      slicingCosts match {
+        case None =>
+          if (noCost != 0)
+            throw new RuntimeException("INVARIANT: slicingCosts == NONE ==> noCosts == 0")
+          slicingCosts = Some(newCosts)
+        case Some(costs) =>
+          if (noCost <= 0)
+            throw new RuntimeException("INVARIANT: histogram == Some(_) ==> noCosts > 0")
+          costs.merge(newCosts)
+      }
       noCost += 1
       if (noCost > numSources)
         throw new RuntimeException("INVARIANT: noCost <= numSources")
@@ -193,8 +201,8 @@ abstract class DeciderFlatMap
         waitingForCosts = false
         logFile.write("waiting for costs = false\n")
       }
-      logCommand(eventPartition, com, s"$addedFirst, $addedSecond")
     } else if(com == "histogram") {
+      logCommand(eventPartition, "histogram", "")
       if (!waitingForHistograms)
         throw new RuntimeException("INVARIANT: receive histogram ==> waitingForHistograms == true")
       val newHistogram = StatsHistogram.fromBase64(event.getArgument(0).asInstanceOf[java.lang.String])
@@ -216,7 +224,6 @@ abstract class DeciderFlatMap
         waitingForHistograms = false
         logFile.write("waiting for histogram = false\n")
       }
-      logCommand(eventPartition, "histogram", "")
     } else if (com == "hello_decider") {
       return
     } else {
@@ -226,7 +233,8 @@ abstract class DeciderFlatMap
     if(waitingForHistograms || waitingForCosts || waitingForApts)
       return
 
-    makeAdaptDecision()
+    val costs = slicingCosts.get.bothCosts()
+    makeAdaptDecision(costs._1, costs._2)
     if (isAdapting) {
       sendAdaptMessage(c,lastSlicing)
     } else {
@@ -242,9 +250,8 @@ abstract class DeciderFlatMap
       }
       noCost = 0
       noHistograms = 0
+      slicingCosts = None
       histogram = None
-      costFirst = 0
-      costSecond = 0
 
       c.collect(Fact.meta("start_sampling", sliceCandidate.stringify))
       waitingForHistograms = true

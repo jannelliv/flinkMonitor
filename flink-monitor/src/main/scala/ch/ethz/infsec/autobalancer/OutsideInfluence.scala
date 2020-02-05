@@ -1,6 +1,7 @@
 package ch.ethz.infsec.autobalancer
 
 import java.io._
+import java.util.Base64
 
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy.Formula
@@ -66,7 +67,7 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
     }
     if (shouldSample) {
       if (System.currentTimeMillis() > startTime + 1500) {
-        val costFact = Fact.meta("slicing_cost", slicerTracker.firstArr, slicerTracker.secondArr)
+        val costFact = Fact.meta("slicing_cost", slicerTracker.toBase64)
         context.output(OutsideInfluence.statsOutput, (getRuntimeContext.getIndexOfThisSubtask, costFact))
         val histogram = NormalHistogram(windowStatistics.getHistogram, degree)
         val histFact = Fact.meta("histogram", histogram.toBase64)
@@ -96,19 +97,12 @@ object HypercubeCostSlicerTracker {
   def biCosts(c1: SlicerTrackerCost, c2: SlicerTrackerCost): SlicerTrackerCost =
     c1.zip(c2).map(k => k._1 + k._2)
 
-  def totalCosts(arrs: List[(SlicerTrackerCost, SlicerTrackerCost)]): (Int, Int) = {
-    val deg = arrs.head._1.length
-    val sum = arrs.foldLeft((ArrayBuffer.fill(deg)(0), ArrayBuffer.fill(deg)(0)))((sum, c) => (biCosts(sum._1, c._1), biCosts(sum._2, c._2)))
-    (cost(sum._1), cost(sum._2))
-  }
-
-  def cost(arrayBuffer: ArrayBuffer[Int]) : Int = {
-    var max = 0
-    for(v <- arrayBuffer) {
-      if(v > max)
-        max = v
-    }
-    max
+  def fromBase64(s: String): HypercubeCostSlicerTracker = {
+    val data = Base64.getDecoder.decode(s)
+    val ois = new ObjectInputStream(new ByteArrayInputStream(data))
+    val o = ois.readObject
+    ois.close()
+    o.asInstanceOf[HypercubeCostSlicerTracker]
   }
 }
 
@@ -116,11 +110,32 @@ class HypercubeCostSlicerTracker(initialSlicer : HypercubeSlicer, degree : Int) 
   type Record = Fact
   var first : HypercubeSlicer = initialSlicer
   var second : HypercubeSlicer = initialSlicer
+  require(degree > 0)
 
   var firstArr : ArrayBuffer[Int] = ArrayBuffer.fill(degree)(0)
   var secondArr : ArrayBuffer[Int] = ArrayBuffer.fill(degree)(0)
 
+  private def cost(arrayBuffer: ArrayBuffer[Int]) : Int = {
+    var max = 0
+    for(v <- arrayBuffer) {
+      if(v > max)
+        max = v
+    }
+    max
+  }
+
+  def bothCosts(): (Int, Int) = (cost(firstArr), cost(secondArr))
+
+  def merge(other: HypercubeCostSlicerTracker) : Unit = {
+    firstArr = HypercubeCostSlicerTracker.biCosts(other.firstArr, firstArr)
+    secondArr = HypercubeCostSlicerTracker.biCosts(other.secondArr, secondArr)
+  }
+
   def reset(_first : HypercubeSlicer, _second : HypercubeSlicer): Unit = {
+    if (_first.degree != degree)
+      throw new RuntimeException("INVARIANT: _first.degree == degree")
+    if (_first.degree != _second.degree)
+      throw new RuntimeException("INVARIANT: _first.degree == _second.degree")
     first = _first
     second = _second
     firstArr = ArrayBuffer.fill(degree)(0)
@@ -135,5 +150,13 @@ class HypercubeCostSlicerTracker(initialSlicer : HypercubeSlicer, degree : Int) 
   def addEvent(event:Record): Unit = {
     addEventInternal(event,first,firstArr)
     addEventInternal(event,second,secondArr)
+  }
+
+  def toBase64: String = {
+    val baos = new ByteArrayOutputStream()
+    val oos = new ObjectOutputStream(baos)
+    oos.writeObject(this)
+    oos.close()
+    Base64.getEncoder.encodeToString(baos.toByteArray)
   }
 }
