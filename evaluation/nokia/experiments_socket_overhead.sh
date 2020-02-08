@@ -3,16 +3,16 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-FORMULAS="ins-1-2-neg del-1-2-neg"
+FORMULAS="ins-1-2-neg"
 #FORMULAS="custom-neg ins-1-2-neg del-1-2-neg"
 NEGATE=""
 #MULTISOURCE_VARIANTS="2 4"
 #ACCELERATIONS="1000 2000 3000 4000 5000"
 #PROCESSORS="1/0-2,24-26 2/0-3,24-27 4/0-5,24-29 8/0-9,24-33"
 MULTISOURCE_VARIANTS="2"
-ACCELERATIONS="3000 5000 7000"
-PROCESSORS="1 2 4 8 16"
-KAFKA_PARTS="1 2 4"
+ACCELERATIONS="1000 3000 5000 6000"
+PROCESSORS="8"
+KAFKA_PARTS="1"
 MONPOLY_CPU_LIST="0"
 MONPOLY_CMDS="$MONPOLY_EXE"
 AUX_CPU_LIST="10-11,34-35"
@@ -116,7 +116,7 @@ for numsources in $KAFKA_PARTS; do
                             JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
                             rm -r "$VERDICT_FILE" 2> /dev/null
                             "$WORK_DIR/replayer.sh" --other_branch -o "127.0.0.1:6060" -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
-                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "127.0.0.1:6060" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $cmd -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources $(monpoly_cmd_to_flink_args "$cmd" "$STATE_FILE")  > "$JOB_REPORT"
+                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "127.0.0.1:6060" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $cmd -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources $(monpoly_cmd_to_flink_args "$cmd" "$STATE_FILE") --skipreorder  > "$JOB_REPORT"
                             wait
                         done # reps
                     done # cmd

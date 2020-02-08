@@ -8,61 +8,43 @@ import scala.collection.mutable
 import scala.util.Random
 import scala.util.hashing.MurmurHash3
 
-class HypercubeSlicer private () extends DataSlicer with Serializable {
-  private var seed: Long = _
-  private var strides: Array[Array[Int]] = _
-  private val parser: SlicerParser = new SlicerParser
-  var shares: IndexedSeq[IndexedSeq[Int]] = _
-  var heavy: IndexedSeq[(Int, Set[Any])] = _
-  var variablesInOrder: Seq[VariableID] = _
-  var seeds: Array[Array[Int]] = _
-  var dimensions: Int = _
-  var maxDegree: Int = _
-  var formula: Formula = _
-  var degree: Int = _
+class HypercubeSlicer(
+                       val formula: Formula,
+                       var heavy: IndexedSeq[(Int, Set[Any])],
+                       var shares: IndexedSeq[IndexedSeq[Int]],
+                       val maxDegree: Int,
+                       val seed: Long = 1234) extends DataSlicer with Serializable {
+  private val parser = new SlicerParser
 
-  private def init(
-            formula: Formula,
-            heavy: IndexedSeq[(Int, Set[Any])],
-            shares: IndexedSeq[IndexedSeq[Int]],
-            maxDegree: Int,
-            seed: Long) : Unit = {
-    this.formula = formula
-    this.heavy = heavy
-    this.shares = shares
-    this.maxDegree = maxDegree
-    this.seed = seed
-    initCommon()
-    seeds = {
-      val random = new Random(seed)
-      // We enforce equal seeds for equal share combinations. This reduces the amount of duplication
-      // if a variable is not sliced even in the "light" case.
-      val distinctShares = shares.distinct
-      val distinctSeeds = Array.fill(distinctShares.length){Array.fill(dimensions){random.nextInt()}}
-      Array.tabulate(shares.length){ i =>
-        val j = distinctShares.indexOf(shares(i))
-        distinctSeeds(j)
-      }
+  // The number of variables with heavy hitters is limited to 30 because of the internal encoding
+  // of variable sets as bit masks. A higher limit is probably unreasonable.
+  require(heavy.count(x => x._1 >= 0) <= 30)
+  require(heavy.forall{case (k, h) => k < 30 && ((k < 0) == h.isEmpty)})
+  require({val bits = heavy.filter(x => x._1 >= 0).map(_._1); bits.size == bits.distinct.size})
+  require(shares.length == (1 << heavy.count(x => x._1 >= 0)))
+  require(shares.zipWithIndex.forall{case (s, _) => s.length == formula.freeVariables.size})
+
+  val dimensions: Int = formula.freeVariables.size
+
+  private def calcDegree: Int = shares.map(s => if (s.isEmpty) 1 else s.product).max
+
+  private var _degree: Int = calcDegree
+  override def degree: Int = _degree
+  require(degree <= maxDegree)
+
+  private var seeds: Array[Array[Int]] = {
+    val random = new Random(seed)
+    // We enforce equal seeds for equal share combinations. This reduces the amount of duplication
+    // if a variable is not sliced even in the "light" case.
+    val distinctShares = shares.distinct
+    val distinctSeeds = Array.fill(distinctShares.length){Array.fill(dimensions){random.nextInt()}}
+    Array.tabulate(shares.length){ i =>
+      val j = distinctShares.indexOf(shares(i))
+      distinctSeeds(j)
     }
   }
 
-  private def initCommon() : Unit = {
-    // The number of variables with heavy hitters is limited to 30 because of the internal encoding
-    // of variable sets as bit masks. A higher limit is probably unreasonable.
-    require(heavy.count(x => x._1 >= 0) <= 30)
-    require(heavy.forall{case (k, h) => k < 30 && ((k < 0) == h.isEmpty)})
-    require({val bits = heavy.filter(x => x._1 >= 0).map(_._1); bits.size == bits.distinct.size})
-    require(shares.length == (1 << heavy.count(x => x._1 >= 0)))
-    require(shares.zipWithIndex.forall{case (s, _) => s.length == formula.freeVariables.size})
-    dimensions = formula.freeVariables.size
-    degree = calcDegree
-    require(degree <= maxDegree)
-    strides = calcStrides
-    // TODO(JS): Verify whether Monpoly enumerates free variable in DFS order.
-    variablesInOrder = formula.freeVariablesInOrder.distinct
-  }
-
-  private def calcDegree: Int = shares.map(s => if (s.isEmpty) 1 else s.product).max
+  private var strides = calcStrides
 
   private def calcStrides: Array[Array[Int]] = {
     val strides = Array.fill(shares.length){Array.fill(dimensions)(1)}
@@ -152,6 +134,9 @@ class HypercubeSlicer private () extends DataSlicer with Serializable {
     //println(">{(%s),(%s),(%s)}<".format("data,x,y", valuation.mkString(","), internalSet.mkString(",")))
   }
 
+  // TODO(JS): Verify whether Monpoly enumerates free variable in DFS order.
+  val variablesInOrder: Seq[VariableID] = formula.freeVariablesInOrder.distinct
+
   override def filterVerdict(slice: Int, verdict: Fact): Boolean = {
     var heavySet = 0
     // Note: Variables are in a different order here, so i is not the index into "heavy"!
@@ -180,7 +165,7 @@ class HypercubeSlicer private () extends DataSlicer with Serializable {
     slice == expectedSlice
   }
 
-  override def stringify: String = parser.stringify(heavy, shares, seeds, maxDegree)
+  override def stringify: String = parser.stringify(heavy, shares, seeds)
 
   override def toString: String = stringify
 
@@ -189,7 +174,8 @@ class HypercubeSlicer private () extends DataSlicer with Serializable {
     heavy = res._1
     shares = res._2
     seeds = res._3
-    maxDegree = res._4
+    strides = calcStrides
+    _degree = calcDegree
   }
 
   // TODO(JS): Relax restriction on rigid predicates.
@@ -201,23 +187,6 @@ class HypercubeSlicer private () extends DataSlicer with Serializable {
 }
 
 object HypercubeSlicer {
-  def makeHypercubeSlicer(  formula: Formula,
-                            heavy: IndexedSeq[(Int, Set[Any])],
-                            shares: IndexedSeq[IndexedSeq[Int]],
-                            maxDegree: Int,
-                            seed: Long = 1234 ) : HypercubeSlicer = {
-    val slicer = new HypercubeSlicer()
-    slicer.init(formula, heavy, shares, maxDegree, seed)
-    slicer
-  }
-  def makeHypercubeSlicer(formula: Formula, slicerParams: String) : HypercubeSlicer = {
-    val slicer = new HypercubeSlicer()
-    slicer.formula = formula
-    slicer.unstringify(slicerParams)
-    slicer.initCommon()
-    slicer
-  }
-
   // TODO(JS): This is a temporary workaround until we properly support rigid/built-in predicates.
   private def isRigidRelation(relation: String): Boolean = relation.startsWith("__")
 
@@ -225,14 +194,14 @@ object HypercubeSlicer {
     val heavy = Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])}
     val sharesById: Map[Int, Int] = shares.map { case (v, e) => (v.freeID, e) }.withDefaultValue(1)
     val simpleShares = Array.tabulate(formula.freeVariables.size)(sharesById(_))
-    makeHypercubeSlicer(formula, heavy, Array[IndexedSeq[Int]](simpleShares), shares.values.product)
+    new HypercubeSlicer(formula, heavy, Array[IndexedSeq[Int]](simpleShares), shares.values.product)
   }
 
   def optimizeSingleSet(
-      formula: Formula,
-      degree: Int,
-      statistics: StatsHistogram,
-      activeVariables: Set[Int]): Array[Int] = {
+                         formula: Formula,
+                         degree: Int,
+                         statistics: StatsHistogram,
+                         activeVariables: Set[Int]): Array[Int] = {
 
     require(degree >= 1)
 
@@ -298,6 +267,9 @@ object HypercubeSlicer {
       val activeVariables = (0 until formula.freeVariables.size).filter(v => (h & (1 << heavy(v)._1)) == 0).toSet
       optimizeSingleSet(formula, degree, statistics, activeVariables)
     })
-    makeHypercubeSlicer(formula, heavy, shares, degree)
+
+    val slicer = new HypercubeSlicer(formula, heavy, shares, degree)
+    //println(slicer.stringify())
+    slicer
   }
 }

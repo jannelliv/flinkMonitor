@@ -21,15 +21,15 @@ object OutsideInfluence {
 class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) extends ProcessFunction[Fact, Fact] {
   var eventsObserved = 0
   var eventObsTillSample = 0
-  var sampleEventFreqUpperBoundary = 100 //todo: automatically figured out
-  var sampleEventFreqLowerBoundary = 10
+  var sampleEventFreqUpperBoundary = 20 //todo: automatically figured out
+  var sampleEventFreqLowerBoundary = 5
+  var noSampledEvents = 0
   var oldSlicer: HypercubeSlicer = HypercubeSlicer.optimize(formula, degree, ConstantHistogram())
   var newSlicer: HypercubeSlicer = HypercubeSlicer.optimize(formula, degree, ConstantHistogram())
   var slicerTracker: HypercubeCostSlicerTracker = _
   var windowStatistics: WindowStatistics = new WindowStatistics(1, windowSize, degree)
   var shouldSample: Boolean = false
-  var isInit: Boolean = false
-  var started: Boolean = false
+  @transient var started: Boolean = false
   var startTime: Long = 0
 
   def startSampling(): Unit = {
@@ -44,29 +44,28 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
     }
     if (i.isMeta) {
       //println(s"outside influence got meta fact: $i")
-      if (i.getName == "init_slicer_tracker") {
-        val initial_slicer = i.getArgument(0).asInstanceOf[java.lang.String]
-        oldSlicer.unstringify(initial_slicer)
-        newSlicer.unstringify(initial_slicer)
-        isInit = true
-        slicerTracker = new HypercubeCostSlicerTracker(oldSlicer, degree)
-        startSampling()
-        return
-      }
-      if (i.getName == "start_sampling") {
-        if (!isInit)
-          throw new RuntimeException("INVARIANT: start_sample before init_slicer_tracker")
-
-        val newStrategy = i.getArgument(0).asInstanceOf[java.lang.String]
-        oldSlicer.unstringify(newSlicer.stringify)
-        newSlicer.unstringify(newStrategy)
-        slicerTracker.reset(newSlicer, oldSlicer)
-        startSampling()
-        return
+      i.getName match {
+        case "init_slicer_tracker" =>
+          println(s"the inital slicer has degree ${oldSlicer.degree} and maxdegree ${oldSlicer.maxDegree}")
+          val initial_slicer = i.getArgument(0).asInstanceOf[java.lang.String]
+          oldSlicer.unstringify(initial_slicer)
+          newSlicer.unstringify(initial_slicer)
+          slicerTracker = new HypercubeCostSlicerTracker(oldSlicer, degree)
+          startSampling()
+          return
+        case "start_sampling" =>
+          val newStrategy = i.getArgument(0).asInstanceOf[java.lang.String]
+          newSlicer.unstringify(newStrategy)
+          println(s"the new strategy has degree ${newSlicer.degree}")
+          slicerTracker.reset(newSlicer, oldSlicer)
+          startSampling()
+          return
+        case _ => ()
       }
     }
     if (shouldSample) {
-      if (System.currentTimeMillis() > startTime + 1500) {
+      if (System.currentTimeMillis() > startTime + 4500) {
+        println(s"outsideinfluence ${getRuntimeContext.getIndexOfThisSubtask} sampled $noSampledEvents events, sending to decider")
         val costFact = Fact.meta("slicing_cost", slicerTracker.toBase64)
         context.output(OutsideInfluence.statsOutput, (getRuntimeContext.getIndexOfThisSubtask, costFact))
         val histogram = NormalHistogram(windowStatistics.getHistogram, degree)
@@ -74,6 +73,7 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
         context.output(OutsideInfluence.statsOutput, (getRuntimeContext.getIndexOfThisSubtask, histFact))
         eventsObserved = 0
         eventObsTillSample = 0
+        noSampledEvents = 0
         shouldSample = false
         windowStatistics.nextFrame()
       } else {
@@ -81,6 +81,7 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
           eventsObserved = 0
           eventObsTillSample = Random.nextInt(sampleEventFreqUpperBoundary + 1) + sampleEventFreqLowerBoundary
           slicerTracker.addEvent(i)
+          noSampledEvents += 1
           windowStatistics.addEvent(i)
         } else {
           eventsObserved = eventsObserved + 1
@@ -132,10 +133,10 @@ class HypercubeCostSlicerTracker(initialSlicer : HypercubeSlicer, degree : Int) 
   }
 
   def reset(_first : HypercubeSlicer, _second : HypercubeSlicer): Unit = {
-    if (_first.degree != degree)
-      throw new RuntimeException("INVARIANT: _first.degree == degree")
+    /*if (_first.degree != degree)
+      throw new RuntimeException(s"INVARIANT: _first.degree == degree, expected degree $degree, _first has degree ${_first.degree}")
     if (_first.degree != _second.degree)
-      throw new RuntimeException("INVARIANT: _first.degree == _second.degree")
+      throw new RuntimeException(s"INVARIANT: _first.degree == _second.degree, first is ${_first.degree}, second is ${_second.degree}")*/
     first = _first
     second = _second
     firstArr = ArrayBuffer.fill(degree)(0)

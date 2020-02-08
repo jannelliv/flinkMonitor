@@ -6,7 +6,7 @@ package object slicer {
       val value: Any = if (str.startsWith("\""))
         str.stripPrefix("\"").stripSuffix("\"")
       else
-        Int.box(str.toInt)
+        Long.box(str.toLong)
       value
     }
 
@@ -24,6 +24,7 @@ package object slicer {
 
     private def parseNestedIt(str: String): IndexedSeq[IndexedSeq[Int]] = {
       val it = str.substring(1, str.length - 1).split("\\),\\(")
+
       it.toIndexedSeq.map(_.split(",")).map(a => a.map(Integer.parseInt).toIndexedSeq)
     }
 
@@ -36,7 +37,7 @@ package object slicer {
       if (simpleShares.isEmpty) 1 else simpleShares.product
     }
 
-    def parseSlicer(str: String): (IndexedSeq[(Int, Set[Any])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]], Int) ={
+    def parseSlicer(str: String): (IndexedSeq[(Int, Set[Any])], IndexedSeq[IndexedSeq[Int]], Array[Array[Int]]) ={
       val trim = str.substring(2, str.length - 2)
 
       val params = trim.split("\\},\\{")
@@ -44,19 +45,13 @@ package object slicer {
       val heavy = parseHeavy(params(0))
       val shares = parseNestedIt(params(1))
       val seeds = parseNestedIt(params(2))
-      val maxDegree = parseDomain(params(3))
 
-      (heavy, shares, seeds.map(_.toArray).toArray, maxDegree.toString.toInt)
+      (heavy, shares, seeds.map(_.toArray).toArray)
     }
 
     private def stringifyDomain(value: Any): String = value match {
-      case x: java.lang.Integer => x.toString
+      case x: java.lang.Long => x.toString
       case x: String => "\"" + x + "\""
-    }
-
-    private def stringifyDegree(value: Any): String = value match {
-      case x: java.lang.Integer => "{%s}".format(x.toString)
-      case x: String => "{%s}".format("\"" + x + "\"")
     }
 
     private def stringifyDomainSet(domain: Set[Any]): String = {
@@ -91,14 +86,14 @@ package object slicer {
       "{%s}".format(sb.mkString)
     }
 
-    def stringify(heavy: Iterable[(Int, Set[Any])], shares: Iterable[Iterable[Int]], seeds: Array[Array[Int]], maxDegree: Int): String = {
+    def stringify(heavy: Iterable[(Int, Set[Any])], shares: Iterable[Iterable[Int]], seeds: Array[Array[Int]]): String = {
       val itSeeds = seeds.toIterable.map(_.toIterable)
+
       val sb = new StringBuilder
 
       sb ++= stringifyHeavy(heavy) + ","
       sb ++= stringifyNestedIt(shares) + ","
-      sb ++= stringifyNestedIt(itSeeds) + ","
-      sb ++= stringifyDegree(maxDegree)
+      sb ++= stringifyNestedIt(itSeeds)
 
       "{%s}".format(sb.mkString)
     }

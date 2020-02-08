@@ -62,7 +62,6 @@ abstract class DeciderFlatMap
   def getSlicingStrategy(ws : StatsHistogram) : HypercubeSlicer
   def slicingCost(strat:HypercubeSlicer, events:ArrayBuffer[Fact]) : Double
   def adaptationCost(strat:HypercubeSlicer, ws:StatsHistogram) : Double
-  def sendAdaptMessage(c: Collector[Fact], strat: HypercubeSlicer) : Unit
 
   var avgMaxProcessingTime : Double = 0.01
 
@@ -83,6 +82,8 @@ abstract class DeciderFlatMap
   var waitingForCosts = false
   var waitingForHistograms = false
   var waitingForApts = false
+  var waitingForAdaptConfirms = false
+  var noAdaptConfirms = 0;
 
   private var lastShutdownInitiatedTime : Long = 0
   //TODO: reconsider if we might have to put this into monpoly.process for correctness
@@ -97,17 +98,25 @@ abstract class DeciderFlatMap
     }
   }
 
+  def sendAdaptMessage(c: Collector[Fact], strat: HypercubeSlicer) : Unit = {
+    val param:String = strat.stringify
+    c.collect(Fact.meta("set_slicer", param))
+    waitingForAdaptConfirms = true
+  }
 
   def makeAdaptDecision(costFirst: Int, costSecond: Int) : Unit = {
     val prevSlicerForLog = lastSlicing
     //while in the middle of an adapting we don't re-adapt
-    if(costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,histogram.get) / assumedFutureStableWindowsAmount < costSecond * avgMaxProcessingTime) {
+    val lhs = costFirst * avgMaxProcessingTime + adaptationCost(sliceCandidate,histogram.get) / assumedFutureStableWindowsAmount
+    val rhs = costSecond * avgMaxProcessingTime
+    if(lhs < rhs) {
       lastSlicing = sliceCandidate
       isAdapting = true
     }
     if(shouldDumpData) {
       val realtimeTimestamp = System.currentTimeMillis()
       logFile.write("--------- Status at time: "+realtimeTimestamp+" ---------\n")
+      logFile.write(s"lhs is: $lhs, rhs is: $rhs\n")
       logFile.write("adapting: "+isAdapting+"\n")
       logFile.write("current slicer: "+prevSlicerForLog+"\n")
       if(isAdapting) {
@@ -140,8 +149,8 @@ abstract class DeciderFlatMap
   //  var tempF : FileWriter = _
   //  var tempF2 : FileWriter = _
   override def flatMap(in: (Int, Fact), c: Collector[Fact]): Unit = {
-    if (isAdapting)
-      throw new RuntimeException("shouldAdapt == true ==> no more commands")
+    /*if (isAdapting)
+      throw new RuntimeException("shouldAdapt == true ==> no more commands")*/
     val event = in._2
     if(!event.isMeta) {
       throw new RuntimeException("decider expects meta facts")
@@ -152,10 +161,12 @@ abstract class DeciderFlatMap
       logFile = new FileWriter("decider.log",true)
       logFile.write("started\n")
       logFile.flush()
+      println(s"sending inital slice candiate with degree ${lastSlicing.degree}")
       c.collect(Fact.meta("init_slicer_tracker", lastSlicing.stringify))
       waitingForCosts = true
       logFile.write("waiting for costs = true\n")
       waitingForHistograms = true
+      isAdapting = false
       logFile.write("waiting for histogram = true\n")
     }
     val com = event.getName
@@ -168,9 +179,9 @@ abstract class DeciderFlatMap
       if(avgMaxProcessingTime < 0.0001)
         avgMaxProcessingTime = 0.0001
       noApt += 1
-      if (noApt > numSources)
-        throw new RuntimeException("INVARIANT: noApt <= numSources")
-      if (noApt == numSources) {
+      if (noApt > degree)
+        throw new RuntimeException("INVARIANT: noApt <= degree")
+      if (noApt == degree) {
         noApt = 0
         waitingForApts = false
         logFile.write("waiting for apts = false\n")
@@ -226,11 +237,20 @@ abstract class DeciderFlatMap
       }
     } else if (com == "hello_decider") {
       return
+    } else if (com == "set_slicer") {
+      if (!waitingForAdaptConfirms)
+        throw new RuntimeException("INVARIANT: set_slicer ==> waitingforadaptconfirms")
+      noAdaptConfirms += 1
+      if (noAdaptConfirms == degree) {
+        noAdaptConfirms = 0
+        waitingForAdaptConfirms = false
+        new RescaleInitiator().rescale(degree)
+      }
     } else {
       throw new Exception("META FACT UNKNOWN TO THE DECIDER")
     }
 
-    if(waitingForHistograms || waitingForCosts || waitingForApts)
+    if(waitingForHistograms || waitingForCosts || waitingForApts || waitingForAdaptConfirms)
       return
 
     val costs = slicingCosts.get.bothCosts()
@@ -252,8 +272,9 @@ abstract class DeciderFlatMap
       noHistograms = 0
       slicingCosts = None
       histogram = None
-
+      println("")
       c.collect(Fact.meta("start_sampling", sliceCandidate.stringify))
+      println(s"sending slice candidate with degree ${sliceCandidate.degree}")
       waitingForHistograms = true
       logFile.write("waiting for histogram = true\n")
       waitingForCosts = true
@@ -326,10 +347,4 @@ class DeciderFlatMapSimple(degree : Int, numSources:Int, formula : Formula) exte
   //the cost of shuffling all the data around is also hard to estimate, as it deals with networks as well as the details of the monitoring algo
   //we can assume that the cost of adaptation is at most linear in the total amount of memory used by all nodes (or rather O(n*m) at worst, with n being amount of nodes and m being amount of memory, which would be all nodes transmitting all their memory to all other nodes)
   override def adaptationCost(strat: HypercubeSlicer, ws: StatsHistogram): Double = shutdownTime
-
-  override def sendAdaptMessage(c: Collector[Fact], strat: HypercubeSlicer) : Unit = {
-    val param:String = strat.stringify
-    c.collect(Fact.meta("set_slicer", param))
-    new RescaleInitiator().rescale(degree)
-  }
 }

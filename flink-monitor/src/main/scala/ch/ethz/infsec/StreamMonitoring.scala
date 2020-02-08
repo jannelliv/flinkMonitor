@@ -330,8 +330,9 @@ object StreamMonitoring {
       }
       env.setMaxParallelism(inputParallelism)
       env.setParallelism(inputParallelism)
-
-      val verdicts = monitor.assemble(textStream, inputFormat, params.has("decider"), slicer, monitorProcess, queueSize, params.getInt("windowsize",100))
+      if (params.has("skipreorder") && inputParallelism != 1)
+        fail("skipreorder ==> inputParallelism == 1")
+      val verdicts = monitor.assemble(textStream, inputFormat, params.has("decider"), !params.has("skipreorder"), slicer, monitorProcess, queueSize, params.getInt("windowsize",100))
 
       out match {
         case Some(SocketEndpoint(h, p)) => monitor.socketSink(verdicts, h, p)

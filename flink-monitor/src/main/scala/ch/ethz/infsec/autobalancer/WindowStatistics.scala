@@ -222,13 +222,13 @@ class WindowStatistics(maxFrames : Int, timestampDeltaBetweenFrames : Double, de
   //var justHadRollover = false
 
   //todo: the timestamp is atm nonsense, needs fixing
-  var frameTimestamp:Double = 0//new trace.Timestamp();
-  var first = true;
+  //var frameTimestamp:Double = 0//new trace.Timestamp();
+  //var first = true;
   def addEvent(event : Fact) : Unit = {
-    if(first) {
+    /*if(first) {
       frameTimestamp = event.getTimestamp
       first = false
-    }
+    }*/
     frames(lastFrame).addEvent(event)
     //justHadRollover = false
     /*while(event.getTimestamp >= frameTimestamp + timestampDeltaBetweenFrames) {

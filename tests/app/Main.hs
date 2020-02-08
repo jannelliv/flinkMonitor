@@ -182,6 +182,8 @@ main = do
             genshapeArg = sformat ("-" % stext) (args^.generatorshape)
             genEasyArg = if args^.easy then ["-pA", ft $ (0.001 :: Float), "-pB", ft $ (0.001 :: Float)]
                          else []
+            genExpArg = if not $ T.null (args^.exponents) then ["-z", args^.exponents]
+                        else []
         in
         do
             when (args^.noclear) $
@@ -190,7 +192,7 @@ main = do
             echo "Generating log ..."
             fastPipe (ctxt^.traceGenerator)
                 ([genshapeArg, "-e", it $ args^.eventrate, "-i", it $ args^.indexrate, "-x", "1", it $ args^.loglength]
-                    ++ genEasyArg)
+                    ++ genEasyArg ++ genExpArg)
                 logFileCsv
 
             echo "Preprocessing for multiple inputs ..."

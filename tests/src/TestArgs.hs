@@ -25,6 +25,7 @@ data Config = Config { _eventrate :: Int
                      , _sockport :: Int
                      , _formula :: T.Text
                      , _sig :: T.Text
+                     , _exponents :: T.Text
                      , _processors :: Int
                      , _kafkaparts :: Int
                      , _multisourcevariant :: Int
@@ -64,6 +65,7 @@ makeFieldsNoPrefix ''Ctxt
 baseconfig :: Mode (CmdArgs Config)
 baseconfig = cmdArgsMode $ Config{ _eventrate = 1000 &= explicit &= name "eventrate" &= name "e" &= typ "INT" &= help "event rate of the generated log"
                    , _indexrate = 10 &= explicit &= name "indexrate" &= name "i" &= typ "INT" &= help "index rate of the generated log"
+                   , _exponents = "" &= explicit &= name "exponents" &= typ "list" &= help "the exponents for the heavy hitter test"
                    , _loglength = 60 &= explicit &= name "loglength" &= name "l" &= typ "INT" &= help "length of the generated log"
                    , _sockhost = "127.0.0.1" &= explicit &= name "socket_host" &= typ "STRING" &= help "the ip of the sockets"
                    , _sockport = 6060 &= explicit &= name "port" &= typ "INT" &= help "the port if sockets are used instead of kafka"

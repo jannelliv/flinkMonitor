@@ -85,6 +85,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
   def assembleDeciderIteration(parsedTrace: DataStream[Fact],
                                slicer: HypercubeSlicer,
                                monitorProcess: ExternalProcess,
+                               shouldReorder: Boolean,
                                queueSize: Int,
                                windowSize: Double): DataStream[Fact] = {
     val decider = new AllState(new DeciderFlatMapSimple(slicer.degree, StreamMonitoring.inputParallelism, slicer.formula))
@@ -121,12 +122,18 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         .name("Partition and remove slice ID")
         .uid("remove-id")
 
-      val reorderedTrace = partitionedTraceWithoutId
-        .flatMap(reorder)
-        .setParallelism(slicer.degree)
-        .setMaxParallelism(slicer.degree)
-        .name("Reorder facts")
-        .uid("reorder-facts")
+      val reorderedTrace =
+        if (shouldReorder) {
+          partitionedTraceWithoutId
+            .flatMap(reorder)
+            .setParallelism(slicer.degree)
+            .setMaxParallelism(slicer.degree)
+            .name("Reorder facts")
+            .uid("reorder-facts")
+        } else {
+          partitionedTraceWithoutId
+            .map(_._2)
+        }
 
       val rawVerdicts = ExternalProcessOperator.transform(reorderedTrace, monitorProcess, queueSize)
         .setParallelism(slicer.degree)
@@ -159,12 +166,13 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
       (feedBack, rawVerdictsWithSideEffects)
     }
 
-    parsedTrace.iterate(iterateFun, 5000L)
+    parsedTrace.iterate(iterateFun, 20000L)
   }
 
   def assembleWithoutDecider(parsedTrace: DataStream[Fact],
                              slicer: HypercubeSlicer,
                              monitorProcess: ExternalProcess,
+                             shouldReorder: Boolean,
                              queueSize: Int): DataStream[Fact] = {
 
       val parsedAndSlicedTrace =
@@ -193,12 +201,17 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
           .uid("remove-id")
 
       val reorderedTrace =
-        partitionedTraceWithoutId
-          .flatMap(reorder)
-          .setParallelism(slicer.degree)
-          .setMaxParallelism(slicer.degree)
-          .name("Reorder facts")
-          .uid("reorder-facts")
+        if (shouldReorder) {
+          partitionedTraceWithoutId
+            .flatMap(reorder)
+            .setParallelism(slicer.degree)
+            .setMaxParallelism(slicer.degree)
+            .name("Reorder facts")
+            .uid("reorder-facts")
+        } else {
+          partitionedTraceWithoutId
+            .map(_._2)
+        }
           /*.map(new DebugMap[Fact])
           .setParallelism(slicer.degree)
           .setMaxParallelism(slicer.degree)
@@ -214,6 +227,7 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
   def assemble(inputStream: DataStream[String],
                traceFormat: TraceParser,
                decider: Boolean,
+               shouldReorder: Boolean,
                slicer: HypercubeSlicer,
                monitorProcess: ExternalProcess,
                queueSize: Int,
@@ -231,8 +245,8 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         .uid("debug-map")*/
 
     val rawVerdicts = {
-      if (decider) assembleDeciderIteration(parsedTrace, slicer, monitorProcess, queueSize, windowSize)
-      else assembleWithoutDecider(parsedTrace, slicer, monitorProcess, queueSize)
+      if (decider) assembleDeciderIteration(parsedTrace, slicer, monitorProcess, shouldReorder, queueSize, windowSize)
+      else assembleWithoutDecider(parsedTrace, slicer, monitorProcess, shouldReorder, queueSize)
     }
 
     val filteredVerdicts =

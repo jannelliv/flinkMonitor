@@ -13,12 +13,12 @@ import scala.collection.mutable.ArrayBuffer
 
 // NOTE(JS): Also performs basic filtering (constants).
 abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCheckpointed[String] {
-  var formula: Formula
+  val formula: Formula
 
   // TODO(JS): Required for commands. Can be eliminated once elastic rescaling is implemented.
-  var maxDegree: Int
+  val maxDegree: Int
 
-  var degree: Int
+  def degree: Int
 
   var pendingSlicer: String = _
 
@@ -109,6 +109,7 @@ abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCh
       }
       i += 1
     }
+
     slices.foreach(s => f.collect(s, fact))
   }
 
@@ -124,29 +125,21 @@ abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCh
     }
   }
 
-  def process(in: Fact): IndexedSeq[(Int,Fact)] = {
-    val c = new Collector[(Int,Fact)] {
-      val buffer = new ArrayBuffer[(Int,Fact)]()
-      override def collect(record: (Int,Fact)): Unit = buffer.append(record)
+  def process(f: Fact): IndexedSeq[(Int, Fact)] = {
+    val buf = new ArrayBuffer[(Int, Fact)]()
+    val collector = new Collector[(Int, Fact)] {
+      override def collect(t: (Int, Fact)): Unit = buf.append(t)
+
       override def close(): Unit = ()
     }
-    flatMap(in, c)
-    c.buffer
+    flatMap(f, collector)
+    buf
   }
 
-  def processAll(in: TraversableOnce[Fact]): IndexedSeq[(Int,Fact)] = {
-     val c = new Collector[(Int,Fact)] {
-       val buffer = new ArrayBuffer[(Int,Fact)]()
-       override def collect(record: (Int,Fact)): Unit = buffer.append(record)
-       override def close(): Unit = ()
-     }
-     in.foreach(flatMap(_, c))
-     c.buffer
-  }
+  def processAll(fact: IndexedSeq[Fact]): IndexedSeq[(Int, Fact)] = fact.flatMap(f => process(f))
 
   override def snapshotState(checkpointId: Long, timestamp: Long): util.List[String] =
     util.Collections.singletonList(if (pendingSlicer == null) stringify else pendingSlicer)
-
 
   override def restoreState(state: util.List[String]): Unit = {
     assert(state.size() == 1)

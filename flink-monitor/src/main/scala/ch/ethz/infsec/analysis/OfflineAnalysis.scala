@@ -100,14 +100,14 @@ object OfflineAnalysis {
       case None =>
         val filteredStream = if (monitoringFormula.nonEmpty) {
           logger.info("Collecting trace statistics with filtering")
-          val dataSlicer: DataSlicer = new DataSlicer with Serializable {
+          val dataSlicer = new DataSlicer with Serializable {
             override def addSlicesOfValuation(
               valuation: Array[Any],
               slices: mutable.HashSet[Int]): Unit = slices += 0
 
-            override var maxDegree: Int = 1
-            override var degree: Int = 1
-            override var formula: Formula = monitoringFormula.get
+            override val maxDegree: Int = 1
+            override val degree: Int = 1
+            override val formula: Formula = monitoringFormula.get
 
             override def stringify: String = ""
 

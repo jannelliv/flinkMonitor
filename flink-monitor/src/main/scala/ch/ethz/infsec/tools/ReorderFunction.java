@@ -32,6 +32,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     private long[] maxOrderElem;
     private long currentIdx;
     private int numEOF;
+    private int numNewStrategy;
     private long maxLatencyIdx;
 
     private transient ListState<Long2ReferenceMap<ReferenceArrayList<Fact>>> idx2facts_state = null;
@@ -47,6 +48,7 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
 
     ReorderFunction(int numSources, HypercubeSlicer slicer) {
         //FIXME: should be the first ts
+        numNewStrategy = 0;
         maxLatencyIdx = 0;
         currentIdx = -2;
         numEOF = 0;
@@ -260,8 +262,13 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                     out.collect(fact);
                     return;
                 case "set_slicer":
-                    slicer.unstringify((String) fact.getArgument(0));
-                    out.collect(fact);
+                    if (++numNewStrategy == numSources) {
+                        numNewStrategy = 0;
+                        slicer.unstringify((String) fact.getArgument(0));
+                        out.collect(fact);
+                    }
+                    if (numNewStrategy > numSources)
+                        throw new RuntimeException("INVARIANT: numNewStrategy <= numSources");
                     return;
                 case "LATENCY":
                     long maxAgreed = getMaxAgreedIdx();
