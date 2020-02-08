@@ -20,3 +20,4 @@ ldcc.csv.gz
 plot2-latency.csv
 plot2-series.csv
 visual/visual/*
+*.pdf
