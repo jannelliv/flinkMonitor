@@ -16,7 +16,7 @@ PROCESSORS="16"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
-BALANCES=('1.0,1.0,1.0,1.0,1.0' '0.666,0.111,0.111,0.112', '0.333,0.333,0.166,0.168')
+DISTS=("1.0,1.0,1.0,1.0,1.0", "0.666,0.111,0.111,0.112", "0.333,0.333,0.166,0.168")
 #FORMULAS="easy-neg"
 #NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 #MULTISOURCE_VARIANTS="1 2 4"
@@ -99,44 +99,46 @@ echo "Flink without checkpointing:"
 for procs in $PROCESSORS; do
     for numsources in $NUM_INPUTS; do
         echo "  $numsources sources, $procs processors:"
-        for variant in $MULTISOURCE_VARIANTS; do
-            echo "      variant ${variant}:"
-            for formula in $FORMULAS; do
-                echo "          formula ${formula}:"
-                for er in $EVENT_RATES; do
-                    for ir in $INDEX_RATES; do
-                        for maxooo in $MAX_OOO; do
-                            for wmperiod in $WATERMARK_PERIOD; do
-                                if [ "${variant}" != "4" ] && ( [ "${maxooo}" != "1" ] || [ "${wmperiod}" != "1" ] ); then
-                                    continue
-                                fi
-                                INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                                "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources --watermark_period $wmperiod --max_ooo $maxooo -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
-                                echo "              Event rate ${er}, index rate ${ir}, max ooo ${maxooo}, wm period: ${wmperiod}:"
-                                for acc in $ACCELERATIONS; do
-                                    echo "                  Acceleration $acc:"
-                                    for i in $(seq 1 $REPETITIONS); do
-                                        echo "                    Repetition $i ..."
-                                        JOB_NAME="gen_flink_monpoly_${procs}_${numsources}_${variant}_${formula}_${er}_${ir}_${maxooo}_${wmperiod}_${acc}_${i}"
-                                        DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
-                                        TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
-                                        BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
-                                        JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+        for ((distidx=0; distidx <  ${#DISTS[@]}; distidx++)); do
+            for variant in $MULTISOURCE_VARIANTS; do
+                echo "      variant ${variant}, dist ${DISTS[distidx]} with index $distidx:"
+                for formula in $FORMULAS; do
+                    echo "          formula ${formula}:"
+                    for er in $EVENT_RATES; do
+                        for ir in $INDEX_RATES; do
+                            for maxooo in $MAX_OOO; do
+                                for wmperiod in $WATERMARK_PERIOD; do
+                                    if [ "${variant}" != "4" ] && ( [ "${maxooo}" != "1" ] || [ "${wmperiod}" != "1" ] ); then
+                                        continue
+                                    fi
+                                    INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
+                                    "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources --watermark_period $wmperiod --max_ooo --distribution "${DISTS[distidx]}" $maxooo -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
+                                    echo "              Event rate ${er}, index rate ${ir}, max ooo ${maxooo}, wm period: ${wmperiod}:"
+                                    for acc in $ACCELERATIONS; do
+                                        echo "                  Acceleration $acc:"
+                                        for i in $(seq 1 $REPETITIONS); do
+                                            echo "                    Repetition $i ..."
+                                            JOB_NAME="gen_flink_monpoly_${procs}_${numsources}_${variant}_${formula}_${er}_${ir}_${maxooo}_${wmperiod}_${acc}_${distidx}_${i}"
+                                            DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                                            TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                                            BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                                            JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
 
-                                        rm -r "$VERDICT_FILE" 2> /dev/null
-                                        #echo "$WORK_DIR/replayer.sh --other_branch -o 127.0.0.1:6060 -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 $EXEC_LOG_DIR/preprocess_out"
-                                        "$WORK_DIR/replayer.sh" --other_branch -o "127.0.0.1:6060" -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
-                                        "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "127.0.0.1:6060" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources > "$JOB_REPORT"
-                                        wait
-                                    done #reps
-                                done #acc
-                                rm -rf "$EXEC_LOG_DIR/preprocess_out"*
-                            done #wmperiod
-                        done #maxooo
-                    done #ir
-                done #er
-            done #formula
-        done #variant
+                                            rm -r "$VERDICT_FILE" 2> /dev/null
+                                            #echo "$WORK_DIR/replayer.sh --other_branch -o 127.0.0.1:6060 -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 $EXEC_LOG_DIR/preprocess_out"
+                                            "$WORK_DIR/replayer.sh" --other_branch -o "127.0.0.1:6060" -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$EXEC_LOG_DIR/preprocess_out" 2> "$DELAY_REPORT" &
+                                            "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in "127.0.0.1:6060" --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources > "$JOB_REPORT"
+                                            wait
+                                        done #reps
+                                    done #acc
+                                    rm -rf "$EXEC_LOG_DIR/preprocess_out"*
+                                done #wmperiod
+                            done #maxooo
+                        done #ir
+                    done #er
+                done #formula
+            done #variant
+        done #dist
     done #ninps
 done #procs
 #"$FLINK_BIN/stop-cluster.sh" &> /dev/null || fail "failed to stop flink"

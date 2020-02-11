@@ -184,6 +184,8 @@ main = do
                          else []
             genExpArg = if not $ T.null (args^.exponents) then ["-z", args^.exponents]
                         else []
+            transDistArg = if not $ T.null (args^.distribution) then ["--distribution", args^.distribution]
+                         else []
         in
         do
             when (args^.noclear) $
@@ -196,9 +198,9 @@ main = do
                 logFileCsv
 
             echo "Preprocessing for multiple inputs ..."
-            cmd (ctxt^.traceTransformer) "-v" (it $ args^.multisourcevariant) "-n" (it $ args^.kafkaparts)
-                "-o" preProcessDir "--max_ooo" (it $ args^.maxooo) "--sigma" (ft $ args^.sigma)
-                "--watermark_period" (it $ args^.watermarkperiod) logFileCsv
+            run_ (ctxt^.traceTransformer) (["-v", (it $ args^.multisourcevariant), "-n", (it $ args^.kafkaparts),
+                "-o", tt $ preProcessDir, "--max_ooo", (it $ args^.maxooo), "--sigma", (ft $ args^.sigma),
+                "--watermark_period", (it $ args^.watermarkperiod), tt$ logFileCsv] ++ transDistArg)
             
             unless (args^.novalidate) $ do
                 echo "Converting to monpoly format for validation ..."

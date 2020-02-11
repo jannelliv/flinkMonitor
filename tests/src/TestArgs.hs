@@ -24,6 +24,7 @@ data Config = Config { _eventrate :: Int
                      , _sockhost :: T.Text
                      , _sockport :: Int
                      , _formula :: T.Text
+                     , _distribution :: T.Text
                      , _sig :: T.Text
                      , _exponents :: T.Text
                      , _processors :: Int
@@ -71,6 +72,7 @@ baseconfig = cmdArgsMode $ Config{ _eventrate = 1000 &= explicit &= name "eventr
                    , _sockport = 6060 &= explicit &= name "port" &= typ "INT" &= help "the port if sockets are used instead of kafka"
                    , _formula = "triangle-neg.mfotl" &= explicit &= name "formula" &= name "f" &= typ "FORMULA_NAME" &= help "the formula to monitor"
                    , _sig = "synth.sig" &= explicit &= name "signature" &= name "s" &= typ "SIGNATURE_NAME" &= help "signature name of the formula"
+                   , _distribution = "" &= explicit &= name "distribution" &= typ "P0,P1,...,PN" &= help "the cat. probs for facts to be assigned to partition"
                    , _processors = 2 &= explicit &= name "procs" &= name "p" &= typ "INT" &= help "number of monitors"
                    , _kafkaparts = 4 &= explicit &= name "nparts" &= name "n" &= typ "INT" &= help "number of input partitions"
                    , _generatorshape = "T" &= explicit &= name "shape" &= typ "STRING" &= help "T = Triangle, S = Star, L = Linear"
