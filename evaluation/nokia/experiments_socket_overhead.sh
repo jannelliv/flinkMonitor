@@ -86,9 +86,9 @@ done
 
 start_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
-"$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
-sleep 3.0
-"$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
+#"$ZOOKEEPER_EXE" start &> /dev/null || fail "failed to start zookeeper"
+#sleep 3.0
+#"$KAFKA_BIN/kafka-server-start.sh" -daemon "$KAFKA_CONFIG_FILE" &> /dev/null &
 "$FLINK_BIN/start-cluster.sh" &> /dev/null || fail "failed to start flink"
 echo "Flink without checkpointing:"
 for numsources in $KAFKA_PARTS; do

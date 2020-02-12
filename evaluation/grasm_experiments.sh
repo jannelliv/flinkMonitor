@@ -1,7 +1,7 @@
 #!/bin/bash
 pkill -9 java
 
-./nokia/experiments_kafka_overhead.sh.sh
+./nokia/experiments_kafka_overhead.sh
 mkdir nokia_kafka_overhead_reports
 cp -a reports/* nokia_kafka_overhead_reports
 pkill -9 java
