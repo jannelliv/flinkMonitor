@@ -12,7 +12,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
 
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_REPLY = "Current timepoint:"
-
+  private val SET_SLICER_OK = "Slicing parameters updated"
   private val LOAD_STATE_OK = "Loaded state"
   private val SAVE_STATE_OK = "Saved state"
 
@@ -223,6 +223,8 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
           updateProcessTime(System.nanoTime() - start)
           true
       }
+    } else if(line.startsWith(SET_SLICER_OK)) {
+      true
     } else {
       parser.parseLine(sink(_), line)
       true

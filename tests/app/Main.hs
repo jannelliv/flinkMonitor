@@ -66,7 +66,7 @@ launchFlinkImpl c preProcessDir flinkOutDir savePointDir = do
         restoreArgs = maybe [] (\p -> ["-s", tt $ p]) savePointDir
         flinkArgs = [tt $ c^.jarPath, "--format", "csv", "--sig", tt $ c^.sigFile, "--formula",
                 tt $ c^.formulaFile, "--negate", "false", "--multi", it $ args^.multisourcevariant, "--monitor", "monpoly",
-                "--processors", it $ args^.processors, "--out", tt flinkOutDir, "--nparts", it $ args^.kafkaparts]
+                "--processors", it $ args^.processors, "--out", tt flinkOutDir, "--nparts", it $ args^.kafkaparts, "--command", "\"/home/rofl/git/scalable-online-monitor/evaluation/run-monpoly.sh {ID}\""]
         kafkaReplayerArg = case ((args^.usereplayer), (args^.usekafka)) of
             (True, True) -> ["--in", "kafka", "--clear", "false"]
             (False, True) -> ["--in", "kafka", "--kafkatestfile", tt $ preProcessDir, "--clear", "true"]

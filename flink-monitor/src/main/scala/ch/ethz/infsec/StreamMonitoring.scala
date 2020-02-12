@@ -343,20 +343,7 @@ object StreamMonitoring {
 
       if(params.has("decider")) {
         //val decider = new AllState(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
-        //Rescaler.create(jobName, "127.0.0.1", processors)
-        //TODO:
-        // 1) change the rescaler to run the decider on the jobmaster
-        //    - change the Decider to locally invoke the rescaler (as now they are both on the jobmaster)
-        //    - Decider decisions are now async and sent to the OutsideInfluence
-        //    - receive (async) statistics from the OutsideInfluence
-        //    - receive (async) metrics from the KnowledgeExtractor
-        // 2) adapt KnowledgeExtract to communicate with the Decider directly
-        //    - move some receiver logic from the OutsideInfluence to the Decider
-        // 3) change the OutsideInfluence to async communicate with the Decider
-        //    - statistics are now forwarded in an async manner to the Decider
-        //    - OutsideInfluence must forward Decider decisions in a sync manner
-        //    - move statistics claculation from the Decider to OutsideInfluence
-        // 4) (Optional) find better names from OutsideInfluence and KnowledgeExtractor
+        Rescaler.create(jobName, "127.0.0.1", processors)
 
         //new AllState(new DeciderFlatMapSimple(slicer.degree, formula, params.getInt("windowsize",100)))
         Thread.sleep(2000)

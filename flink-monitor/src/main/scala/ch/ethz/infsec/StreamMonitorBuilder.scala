@@ -117,7 +117,6 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         .partitionCustom(new IdPartitioner, 0)
         .map(k => (k._2, k._3))
         .setParallelism(slicer.degree)
-
         .setMaxParallelism(slicer.degree)
         .name("Partition and remove slice ID")
         .uid("remove-id")
