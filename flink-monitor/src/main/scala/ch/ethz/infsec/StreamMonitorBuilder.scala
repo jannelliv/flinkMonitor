@@ -211,10 +211,10 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
           partitionedTraceWithoutId
             .map(_._2)
         }
-          .map(new DebugMap[Fact])
+          /*.map(new DebugMap[Fact])
           .setParallelism(slicer.degree)
           .setMaxParallelism(slicer.degree)
-          .uid("debug-map")
+          .uid("debug-map")*/
 
       ExternalProcessOperator.transform(reorderedTrace, monitorProcess, queueSize)
         .setParallelism(slicer.degree)
