@@ -177,6 +177,10 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     }
 
     private void insertElement(Fact fact, long idx) {
+        int bla = noElems(idx2Facts);
+        if (bla > 5000) {
+            System.out.println(String.format("reorder %d: %d elemens in buff", getRuntimeContext().getIndexOfThisSubtask(), bla));
+        }
         if (idx < currentIdx)
             throw new RuntimeException("INVARIANT: idx >= currentIdx");
         ReferenceArrayList<Fact> buf;

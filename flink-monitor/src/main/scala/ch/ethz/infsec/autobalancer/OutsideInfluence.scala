@@ -21,7 +21,7 @@ object OutsideInfluence {
 class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) extends ProcessFunction[Fact, Fact] {
   var eventsObserved = 0
   var eventObsTillSample = 0
-  var sampleEventFreqUpperBoundary = 20 //todo: automatically figured out
+  var sampleEventFreqUpperBoundary = 20
   var sampleEventFreqLowerBoundary = 5
   var noSampledEvents = 0
   var oldSlicer: HypercubeSlicer = HypercubeSlicer.optimize(formula, degree, ConstantHistogram())
@@ -43,10 +43,8 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
       started = true
     }
     if (i.isMeta) {
-      //println(s"outside influence got meta fact: $i")
       i.getName match {
         case "init_slicer_tracker" =>
-          println(s"the inital slicer has degree ${oldSlicer.degree} and maxdegree ${oldSlicer.maxDegree}")
           val initial_slicer = i.getArgument(0).asInstanceOf[java.lang.String]
           oldSlicer.unstringify(initial_slicer)
           newSlicer.unstringify(initial_slicer)
@@ -56,7 +54,6 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
         case "start_sampling" =>
           val newStrategy = i.getArgument(0).asInstanceOf[java.lang.String]
           newSlicer.unstringify(newStrategy)
-          println(s"the new strategy has degree ${newSlicer.degree}")
           slicerTracker.reset(newSlicer, oldSlicer)
           startSampling()
           return
@@ -65,7 +62,6 @@ class OutsideInfluence(degree : Int, formula : Formula, windowSize : Double) ext
     }
     if (shouldSample) {
       if (System.currentTimeMillis() > startTime + 4500) {
-        println(s"outsideinfluence ${getRuntimeContext.getIndexOfThisSubtask} sampled $noSampledEvents events, sending to decider")
         val costFact = Fact.meta("slicing_cost", slicerTracker.toBase64)
         context.output(OutsideInfluence.statsOutput, (getRuntimeContext.getIndexOfThisSubtask, costFact))
         val histogram = NormalHistogram(windowStatistics.getHistogram, degree)

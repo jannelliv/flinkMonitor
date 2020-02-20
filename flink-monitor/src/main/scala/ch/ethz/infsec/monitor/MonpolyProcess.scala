@@ -286,6 +286,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
   }
 
   private def createTempFiles(parallelism: Int): Unit = {
+    println("init tempstatefiles")
     tempStateFiles = (0 until parallelism).map(i => {
       val path = tempDirectory.resolve("state-" + i + ".bin")
       path.toFile.deleteOnExit()

@@ -24,12 +24,8 @@ class AllState(_rfmf : DeciderFlatMapSimple)
   type State = DeciderFlatMapSimple
 
   var started = true
-  @transient var logFile : FileWriter = new FileWriter("AllState.log", true)
-  logFile.write("started\n")
 
   private def getState: DeciderFlatMapSimple = {
-    logFile.write("getState\n")
-    logFile.flush()
     rfmf.shutdown()
     rfmf
   }
@@ -48,8 +44,6 @@ class AllState(_rfmf : DeciderFlatMapSimple)
   }
 
   def terminate(f: Fact => Unit): Unit = {
-    logFile.write("terminate\n")
-    logFile.flush()
   }
 }
 
@@ -161,7 +155,6 @@ abstract class DeciderFlatMap
       logFile = new FileWriter("decider.log",true)
       logFile.write("started\n")
       logFile.flush()
-      println(s"sending inital slice candiate with degree ${lastSlicing.degree}")
       c.collect(Fact.meta("init_slicer_tracker", lastSlicing.stringify))
       waitingForCosts = true
       logFile.write("waiting for costs = true\n")
@@ -241,9 +234,11 @@ abstract class DeciderFlatMap
       if (!waitingForAdaptConfirms)
         throw new RuntimeException("INVARIANT: set_slicer ==> waitingforadaptconfirms")
       noAdaptConfirms += 1
+      logFile.write(s"got total of $noAdaptConfirms adapt confirmations")
       if (noAdaptConfirms == degree) {
         noAdaptConfirms = 0
         waitingForAdaptConfirms = false
+        logFile.write("now triggering rescaling")
         new RescaleInitiator().rescale(degree)
       }
     } else {
@@ -272,9 +267,7 @@ abstract class DeciderFlatMap
       noHistograms = 0
       slicingCosts = None
       histogram = None
-      println("")
       c.collect(Fact.meta("start_sampling", sliceCandidate.stringify))
-      println(s"sending slice candidate with degree ${sliceCandidate.degree}")
       waitingForHistograms = true
       logFile.write("waiting for histogram = true\n")
       waitingForCosts = true
