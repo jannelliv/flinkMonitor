@@ -110,7 +110,7 @@ for numsources in $KAFKA_PARTS; do
                         for i in $(seq 1 $REPETITIONS); do
                             echo "                      Repetition $i ..."
                             clear_topic $numsources
-                            JOB_NAME="nokia_flink_monpoly_${numsources}_${procs}_${cmd_string}_${variant}_${formula}_${acc}_1_${i}"
+                            JOB_NAME="nokia_flink_monpoly_${numsources}_${procs}_${cmd_string}_${variant}_${formula}_${acc}_${reorder}_1_${i}"
                             DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                             TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                             BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"

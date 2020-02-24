@@ -61,6 +61,36 @@ monpoly_cmd_to_flink_args(){
     fi
 }
 
+reorder_to_flink_args(){
+    if [[ "$1" == "yes" ]]; then
+        echo "--skipreorder"
+    elif [[ "$1" == "no" ]]; then
+        echo ""
+    else
+        fail "unknown reorder mode"
+    fi
+}
+
+inp_type_replayer_args(){
+    if [[ "$1" == "sockets" ]]; then
+        echo "-o \"127.0.0.1:6060\""
+    elif [[ "$1" == "kafka" ]]; then
+        echo "-o kafka"
+    else
+        fail "unknown reorder mode"
+    fi
+}
+
+inp_type_flink_args(){
+    if [[ "$1" == "sockets" ]]; then
+        echo "--in \"127.0.0.1:6060\""
+    elif [[ "$1" == "kafka" ]]; then
+        echo "--in kafka"
+    else
+        fail "unknown reorder mode"
+    fi
+}
+
 variant_replayer_params() {
     if [[ "$1" == "1" ]]; then
         echo "--term TIMEPOINTS"
