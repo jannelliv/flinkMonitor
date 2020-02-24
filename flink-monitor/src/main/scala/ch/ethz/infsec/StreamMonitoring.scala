@@ -330,8 +330,8 @@ object StreamMonitoring {
       }
       env.setMaxParallelism(inputParallelism)
       env.setParallelism(inputParallelism)
-      if (params.has("skipreorder") && inputParallelism != 1)
-        fail("skipreorder ==> inputParallelism == 1")
+      /*if (params.has("skipreorder") && inputParallelism != 1)
+        fail("skipreorder ==> inputParallelism == 1")*/
       val verdicts = monitor.assemble(textStream, inputFormat, params.has("decider"), !params.has("skipreorder"), slicer, monitorProcess, queueSize, params.getInt("windowsize",100))
 
       out match {

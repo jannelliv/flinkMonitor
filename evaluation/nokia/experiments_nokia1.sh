@@ -4,7 +4,7 @@ WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
 #FORMULAS="ins-1-2-neg del-1-2-neg"
-FORMULAS="false"
+FORMULAS="false-neg"
 NEGATE=""
 MULTISOURCE_VARIANTS="2"
 INPUT_TYPE="sockets"
