@@ -71,21 +71,21 @@ reorder_to_flink_args(){
     fi
 }
 
-inp_type_replayer_args(){
+inp_type_out_flag(){
     if [[ "$1" == "sockets" ]]; then
-        echo "-o "127.0.0.1:6060""
+        echo "127.0.0.1:6060"
     elif [[ "$1" == "kafka" ]]; then
-        echo "-o kafka"
+        echo "kafka"
     else
         fail "unknown reorder mode"
     fi
 }
 
-inp_type_flink_args(){
+inp_type_in_flag(){
     if [[ "$1" == "sockets" ]]; then
-        echo "--in "127.0.0.1:6060""
+        echo "127.0.0.1:6060"
     elif [[ "$1" == "kafka" ]]; then
-        echo "--in kafka"
+        echo "kafka"
     else
         fail "unknown reorder mode"
     fi

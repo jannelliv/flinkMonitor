@@ -14,6 +14,7 @@ MONPOLY_CPU_LIST="0"
 MONPOLY_CMD=$BLANK_MONPOLY_EXE
 REORDER="yes no"
 
+
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"
@@ -92,8 +93,8 @@ for inp_type in $INPUT_TYPE; do
                                     JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
                                     PREPROCESSED_FILE="$STATE_DIR/preprocessed_${variant}_${numsources}_"
                                     rm -r "$VERDICT_FILE" 2> /dev/null
-                                    "$WORK_DIR/replayer.sh" --other_branch $(inp_type_replayer_args "$inp_type") -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$PREPROCESSED_FILE" 2> "$DELAY_REPORT" &
-                                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" $(inp_type_flink_args "$inp_type") --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_CMD -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources $(reorder_to_flink_args "$reorder") $(monpoly_cmd_to_flink_args "$MONPOLY_CMD" "$STATE_FILE")  > "$JOB_REPORT"
+                                    "$WORK_DIR/replayer.sh" --other_branch -o $(inp_type_out_flag "$inp_type") -v $(variant_replayer_params $variant) -n $numsources -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 "$PREPROCESSED_FILE" 2> "$DELAY_REPORT" &
+                                    "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in $(inp_type_in_flag "$inp_type") --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_CMD -nonewlastts $NEGATE" --sig "$WORK_DIR/nokia/ldcc.sig" --formula "$WORK_DIR/nokia/$formula.mfotl" --processors $procs --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" --multi $variant --clear false --nparts $numsources $(reorder_to_flink_args "$reorder") $(monpoly_cmd_to_flink_args "$MONPOLY_CMD" "$STATE_FILE")  > "$JOB_REPORT"
                                     wait
                                 done # reps
                         done # acc
