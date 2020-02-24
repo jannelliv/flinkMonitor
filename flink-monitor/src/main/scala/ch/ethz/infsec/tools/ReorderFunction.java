@@ -177,10 +177,10 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
     }
 
     private void insertElement(Fact fact, long idx) {
-        int bla = noElems(idx2Facts);
+        /*int bla = noElems(idx2Facts);
         if (bla > 5000) {
             System.out.println(String.format("reorder %d: %d elemens in buff", getRuntimeContext().getIndexOfThisSubtask(), bla));
-        }
+        }*/
         if (idx < currentIdx)
             throw new RuntimeException("INVARIANT: idx >= currentIdx");
         ReferenceArrayList<Fact> buf;
@@ -258,8 +258,8 @@ public abstract class ReorderFunction extends RichFlatMapFunction<Tuple2<Int, Fa
                 case "EOF":
                     if ((++numEOF) == numSources) {
                         if (!(terminatorLatencyMarkers.isEmpty() && idx2Facts.isEmpty())) {
-                            System.out.println("terminatorLatencyMarkers is " + terminatorLatencyMarkers);
-                            System.out.println("idx2Facts is " +  idx2Facts);
+                            //System.out.println("terminatorLatencyMarkers is " + terminatorLatencyMarkers);
+                            //System.out.println("idx2Facts is " +  idx2Facts);
                             throw new RuntimeException("INVARIANT: terminatorLatencyMarkers and idx2Facts should be empty after receiving all EOFS");
                         }
                     }

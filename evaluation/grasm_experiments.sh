@@ -13,7 +13,7 @@ cp -a ../../reports/* nokia2_reports
 rm -rf ../../reports/*
 pkill -9 java
 
-./nokia/experiments_nokia3.sh
+./nokia/experiments_nokia1.sh
 mkdir nokia1_reports
 cp -a ../../reports/* nokia1_reports
 rm -rf ../../reports/*
