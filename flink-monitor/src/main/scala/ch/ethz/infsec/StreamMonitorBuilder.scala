@@ -210,9 +210,9 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         } else {
           partitionedTraceWithoutId
             .map(_._2)
+            .setParallelism(StreamMonitoring.processors)
             .setMaxParallelism(StreamMonitoring.processors)
-            .setMaxParallelism(StreamMonitoring.processors)
-            .name("forward, dont reorder")
+            .name("forward")
             .uid("forward-monitors")
         }
           /*.map(new DebugMap[Fact])
