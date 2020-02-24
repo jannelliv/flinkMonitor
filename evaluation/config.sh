@@ -63,9 +63,9 @@ monpoly_cmd_to_flink_args(){
 
 reorder_to_flink_args(){
     if [[ "$1" == "yes" ]]; then
-        echo "--skipreorder"
-    elif [[ "$1" == "no" ]]; then
         echo ""
+    elif [[ "$1" == "no" ]]; then
+        echo "--skipreorder"
     else
         fail "unknown reorder mode"
     fi
@@ -73,7 +73,7 @@ reorder_to_flink_args(){
 
 inp_type_replayer_args(){
     if [[ "$1" == "sockets" ]]; then
-        echo "-o \"127.0.0.1:6060\""
+        echo "-o "127.0.0.1:6060""
     elif [[ "$1" == "kafka" ]]; then
         echo "-o kafka"
     else
@@ -83,7 +83,7 @@ inp_type_replayer_args(){
 
 inp_type_flink_args(){
     if [[ "$1" == "sockets" ]]; then
-        echo "--in \"127.0.0.1:6060\""
+        echo "--in "127.0.0.1:6060""
     elif [[ "$1" == "kafka" ]]; then
         echo "--in kafka"
     else
