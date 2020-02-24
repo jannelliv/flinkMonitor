@@ -203,15 +203,15 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
         if (shouldReorder) {
           partitionedTraceWithoutId
             .flatMap(reorder)
-            .setParallelism(slicer.degree)
-            .setMaxParallelism(slicer.degree)
+            .setParallelism(StreamMonitoring.processors)
+            .setMaxParallelism(StreamMonitoring.processors)
             .name("Reorder facts")
             .uid("reorder-facts")
         } else {
           partitionedTraceWithoutId
             .map(_._2)
-            .setMaxParallelism(slicer.degree)
-            .setMaxParallelism(slicer.degree)
+            .setMaxParallelism(StreamMonitoring.processors)
+            .setMaxParallelism(StreamMonitoring.processors)
             .name("forward, dont reorder")
             .uid("forward-monitors")
         }
