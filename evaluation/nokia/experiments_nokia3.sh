@@ -3,17 +3,16 @@
 WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
-INPUT_TYPE="sockets"
-FORMULAS="ins-1-2-neg del-1-2-neg"
+INPUT_TYPE="kafka sockets"
+FORMULAS="ins-1-2-neg"
 NEGATE=""
 MULTISOURCE_VARIANTS="2"
-KAFKA_PARTS="1 2 4"
-PROCESSORS="1 2 4 8 16"
-ACCELERATIONS="3000 5000 7000"
+KAFKA_PARTS="1"
+PROCESSORS="16"
+ACCELERATIONS="500 1000 2000"
 MONPOLY_CPU_LIST="0"
 MONPOLY_CMD=$MONPOLY_EXE
 REORDER="yes"
-
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
 
 VERDICT_FILE="$OUTPUT_DIR/verdicts.txt"

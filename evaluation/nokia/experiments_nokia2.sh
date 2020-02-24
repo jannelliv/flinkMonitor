@@ -4,15 +4,15 @@ WORK_DIR=`cd "$(dirname "$BASH_SOURCE")/.."; pwd`
 source "$WORK_DIR/config.sh"
 
 INPUT_TYPE="sockets"
-FORMULAS="ins-1-2-neg del-1-2-neg"
+FORMULAS="false-neg"
 NEGATE=""
 MULTISOURCE_VARIANTS="2"
 KAFKA_PARTS="1 2 4"
-PROCESSORS="1 2 4 8 16"
+PROCESSORS="16"
 ACCELERATIONS="3000 5000 7000"
 MONPOLY_CPU_LIST="0"
-MONPOLY_CMD=$MONPOLY_EXE
-REORDER="yes"
+MONPOLY_CMD=$BLANK_MONPOLY_EXE
+REORDER="yes no"
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
 
