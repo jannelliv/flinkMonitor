@@ -82,6 +82,7 @@ for inp_type in $INPUT_TYPE; do
                         for acc in $ACCELERATIONS; do
                             echo "                  Acceleration $acc:"
                                 for i in $(seq 1 $REPETITIONS); do
+                                    clear_topic $numsources                                
                                     echo "                      Repetition $i ..."
                                     JOB_NAME="nokia_flink_monpoly_${inp_type}_${reorder}_${numsources}_${procs}_${variant}_${formula}_${acc}_${i}"
                                     DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
