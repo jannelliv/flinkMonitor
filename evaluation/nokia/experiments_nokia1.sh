@@ -13,7 +13,7 @@ PROCESSORS="1"
 KAFKA_PARTS="4"
 MONPOLY_CPU_LIST="0"
 MONPOLY_CMD=$BLANK_MONPOLY_EXE
-REORDER="yes"
+REORDER="no"
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
 
