@@ -832,6 +832,7 @@ public class Replayer {
             for (int i = 0; i < numInputFiles; ++i) {
                 BufferedReader input;
                 try {
+                    System.out.println("first replayer worker reading from " + inputFilename + i + ".csv");
                     input = new BufferedReader(new FileReader(inputFilename + i + ".csv"));
                 } catch (FileNotFoundException e) {
                     System.err.println("Error: " + e.getMessage());
