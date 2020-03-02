@@ -16,6 +16,7 @@ PROCESSORS="16"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
+REPETITIONS=5
 #FORMULAS="easy-neg"
 #NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 #MULTISOURCE_VARIANTS="1 2 4"

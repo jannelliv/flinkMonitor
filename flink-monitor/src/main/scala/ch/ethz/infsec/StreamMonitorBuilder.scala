@@ -182,25 +182,23 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
           .name("Slicer")
           .uid("slicer")
 
-      val indexTrace =
-        parsedAndSlicedTrace
-          .flatMap(new AddSubtaskIndexFunction)
-          .setMaxParallelism(StreamMonitoring.inputParallelism)
-          .setParallelism(StreamMonitoring.inputParallelism)
-          .name("Add subtask index")
-          .uid("subtask_index")
-
-      val partitionedTraceWithoutId =
-        indexTrace
-          .partitionCustom(new IdPartitioner, 0)
-          .map(k => (k._2, k._3))
-          .setParallelism(slicer.degree)
-          .setMaxParallelism(slicer.degree)
-          .name("Partition and remove slice ID")
-          .uid("remove-id")
-
       val reorderedTrace =
         if (shouldReorder) {
+          val indexTrace =
+            parsedAndSlicedTrace
+              .flatMap(new AddSubtaskIndexFunction)
+              .setMaxParallelism(StreamMonitoring.inputParallelism)
+              .setParallelism(StreamMonitoring.inputParallelism)
+              .name("Add subtask index")
+              .uid("subtask_index")
+          val partitionedTraceWithoutId =
+            indexTrace
+              .partitionCustom(new IdPartitioner, 0)
+              .map(k => (k._2, k._3))
+              .setParallelism(slicer.degree)
+              .setMaxParallelism(slicer.degree)
+              .name("Partition and remove slice ID")
+              .uid("remove-id")
           partitionedTraceWithoutId
             .flatMap(reorder)
             .setParallelism(StreamMonitoring.processors)
@@ -208,12 +206,13 @@ class StreamMonitorBuilder(env: StreamExecutionEnvironment, reorder: ReorderFunc
             .name("Reorder facts")
             .uid("reorder-facts")
         } else {
-          partitionedTraceWithoutId
-            .map(_._2)
-            .setParallelism(StreamMonitoring.processors)
-            .setMaxParallelism(StreamMonitoring.processors)
-            .name("forward")
-            .uid("forward-monitors")
+          parsedAndSlicedTrace
+            .partitionCustom(new IdPartitioner, 0)
+            .map(k => k._2)
+            .setParallelism(slicer.degree)
+            .setMaxParallelism(slicer.degree)
+            .name("Partition and remove slice ID")
+            .uid("remove-id")
         }
           /*.map(new DebugMap[Fact])
           .setParallelism(slicer.degree)
