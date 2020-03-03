@@ -16,7 +16,7 @@ PROCESSORS="16"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
-REPETITIONS=5
+REPETITIONS=10
 #FORMULAS="easy-neg"
 #NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 #MULTISOURCE_VARIANTS="1 2 4"
@@ -111,7 +111,7 @@ for procs in $PROCESSORS; do
                                     continue
                                 fi
                                 INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                                "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources --watermark_period $wmperiod --max_ooo $maxooo -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
+                                "$WORK_DIR"/trace-transformer.sh --seed 5747549845 -v $variant -n $numsources --watermark_period $wmperiod --max_ooo $maxooo -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
                                 echo "              Event rate ${er}, index rate ${ir}, max ooo ${maxooo}, wm period: ${wmperiod}:"
                                 for acc in $ACCELERATIONS; do
                                     echo "                  Acceleration $acc:"
