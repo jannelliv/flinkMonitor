@@ -13,7 +13,7 @@ ACCELERATIONS="3000 5000 7000"
 MONPOLY_CPU_LIST="0"
 MONPOLY_CMD=$BLANK_MONPOLY_EXE
 REORDER="yes no"
-
+REPETITIONS=5
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
 

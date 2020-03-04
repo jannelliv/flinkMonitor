@@ -16,6 +16,7 @@ KAFKA_PARTS="1"
 MONPOLY_CPU_LIST="0"
 MONPOLY_CMDS="$MONPOLY_EXE"
 AUX_CPU_LIST="10-11,34-35"
+REPETITIONS=5
 
 cat "$ROOT_DIR/ldcc_sample.csv" | wc -l > "$REPORT_DIR/nokia.events"
 
