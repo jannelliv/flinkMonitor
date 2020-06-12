@@ -11,7 +11,7 @@ fatal_error() {
     exit 1
 }
 
-required_tools=("curl" "git" "opam" "mvn" "python3")
+required_tools=("curl" "git" "opam" "mvn" "python3" "m4")
 for tool in "${required_tools[@]}"; do
     which "$tool" > /dev/null || fatal_error "$tool is not installed"
 done
@@ -103,7 +103,7 @@ fi
 
 #TODO: add relaxed rescaling release for Flink 1.7
 flink_dir="$target_dir/flink"
-flink_url="https://www-eu.apache.org/dist/flink/flink-1.7.2/flink-1.7.2-bin-hadoop28-scala_2.12.tgz"
+flink_url="https://archive.apache.org/dist/flink/flink-1.7.2/flink-1.7.2-bin-hadoop28-scala_2.12.tgz"
 if [[ -d "$flink_dir" ]]; then
     info "Flink directory exists, skipping"
     info "delete $flink_dir to reinstall"
@@ -131,7 +131,7 @@ else
 fi
 
 zookeeper_dir="$target_dir/zookeeper"
-zookeeper_url="https://www-us.apache.org/dist/zookeeper/zookeeper-3.5.6/apache-zookeeper-3.5.6-bin.tar.gz"
+zookeeper_url="https://archive.apache.org/dist/zookeeper/zookeeper-3.5.6/apache-zookeeper-3.5.6-bin.tar.gz"
 if [[ -d "$zookeeper_dir" ]]; then
     info "Zookeeper directory exists, skipping"
     info "delete $zookeeper_dir to reinstall"
