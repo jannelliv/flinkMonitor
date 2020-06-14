@@ -41,14 +41,14 @@ plot_overall_labels <- function(p, row_label = NULL, col_label = NULL) {
   # Construct the new strip grobs
   if (!is.null(row_label)) {
     stripR <- gTree(name = "Strip_right", children = gList(
-      rectGrob(gp = gpar(col = NA, fill = "grey85")),
-      textGrob(labelR, rot = -90, gp = gpar(fontsize = 10.0, col = "grey10"))))
+      rectGrob(gp = gpar(col = NA, fill = "white")),
+      textGrob(labelR, rot = -90, gp = gpar(fontsize = 10.0, col = "black"))))
   }
   
   if (!is.null(col_label)) {
     stripT <- gTree(name = "Strip_top", children = gList(
-      rectGrob(gp = gpar(col = NA, fill = "grey85")),
-      textGrob(labelT, gp = gpar(fontsize = 10.0, col = "grey10"))))
+      rectGrob(gp = gpar(col = NA, fill = "white"), height = unit(0.2, "npc"), y = unit(0.2, "npc")),
+      textGrob(labelT, gp = gpar(fontsize = 10.0, col = "black"))))
   }
   
   # Position the grobs in the gtable
@@ -82,11 +82,56 @@ kformatter <- function(x) paste0(format(round(x / 1e3, 1), trim = TRUE, scientif
 
 variant_to_text <- function(v) {
   return(case_when (
-    v == 1 ~ "Total order",
-    v == 2 ~ "Per-partition order",
-    v == 4 ~ "Watermark order"
+    v == 1 ~ "Total event order and in-order ingestion",
+    v == 2 ~ "Partial event order and in-order ingestion",
+    v == 4 ~ "Total event order and out-of-order ingestion"
   ))
 }
+
+wp_to_text <- function(v) {
+  return(paste("Watermark period =",v,"s"))
+}
+
+proc_to_text <- function(v) {
+  return(case_when (
+    v == 1 ~ paste(v,"submonitor"),
+    TRUE ~ paste(v,"submonitors")
+  ))
+}
+
+
+acc_to_text <- function(v) {
+  return(case_when (
+    v == 1000 ~ "1000",
+    v == 2000 ~ "2000",
+    TRUE ~ paste("Acceleration =",v)
+  ))
+}
+
+er_to_text <- function(v) {
+  return(paste("Event rate =",v,"1/s"))
+}
+
+ir_to_text <- function(v) {
+  return(paste("Index rate =",v,"1/s"))
+}
+
+formula_to_text <- function(param) {
+  return(case_when (
+    param == "del-1-2-neg" ~ "Formula $\\varphi_{del}$",
+    param == "ins-1-2-neg" ~ "Formula $\\varphi_{ins}$",
+    param == "false-neg" ~ "Formula $\\bot$",
+    param == "easy-neg" ~ "Formula $\\varphi_{e}$"
+  ))
+}
+
+reorder_to_text <- function(param) {
+  return(case_when (
+    param == "no" ~ "\\xmark",
+    param == "yes" ~ "\\cmark",
+  ))
+}
+
 max_peak <- function(file_name, n_cols_drop) {
   tmp_file = read.csv(file_name)
   if (n_cols_drop != 0) {
@@ -179,28 +224,41 @@ for (experiment in synthetic_exp_list) {
 }
 
 nokia3_peak = process_all_peak("nokia3_reports", nokia_regex, nokia_cols, 0)
+
+####################################
+##### SYNTH3
+####################################
 #Imbalance plot
 imbalance_latency$eventrate <- as.numeric(as.character(imbalance_latency$eventrate))
-tikz(file = "imbalance_plot.tex", width = 4.5, height = 3)
+tikz(file = "imbalance_plot.tex", width = 4.77, height = 1.8)
 plot <- ggplot(data = imbalance_latency, aes(x=eventrate, y=maxlatency, group=distidx)) +
   geom_line(aes(linetype=distidx)) +
   geom_point(aes(shape=distidx)) +
   coord_cartesian(ylim = c(0,25)) +
   scale_x_continuous(labels = kformatter) +
   labs(x = "Event rate (1/s)", y="Maximum Latency (s)") +
-  scale_linetype_discrete(name = "Load distribution", breaks = c(0,2,1), labels=c("$(\\frac{1}{4},\\frac{1}{4},\\frac{1}{4},\\frac{1}{4})$", "$(\\frac{1}{3},\\frac{1}{3},\\frac{1}{6},\\frac{1}{6})$", "$(\\frac{2}{3},\\frac{1}{9},\\frac{1}{9},\\frac{1}{9})$")) +
-  scale_shape_discrete(name = "Load distribution", breaks = c(0,2,1), labels=c("$(\\frac{1}{4},\\frac{1}{4},\\frac{1}{4},\\frac{1}{4})$", "$(\\frac{1}{3},\\frac{1}{3},\\frac{1}{6},\\frac{1}{6})$", "$(\\frac{2}{3},\\frac{1}{9},\\frac{1}{9},\\frac{1}{9})$")) +
+  scale_linetype_discrete(name = "Source distribution:", breaks = c(0,2,1), labels=c("$(\\frac{1}{4},\\frac{1}{4},\\frac{1}{4},\\frac{1}{4})$", "$(\\frac{1}{3},\\frac{1}{3},\\frac{1}{6},\\frac{1}{6})$", "$(\\frac{2}{3},\\frac{1}{9},\\frac{1}{9},\\frac{1}{9})$")) +
+  scale_shape_discrete(name = "Source distribution:", breaks = c(0,2,1), labels=c("$(\\frac{1}{4},\\frac{1}{4},\\frac{1}{4},\\frac{1}{4})$", "$(\\frac{1}{3},\\frac{1}{3},\\frac{1}{6},\\frac{1}{6})$", "$(\\frac{2}{3},\\frac{1}{9},\\frac{1}{9},\\frac{1}{9})$")) +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", 
+        strip.background = element_rect(
+          color="white", fill="white", size=1.5, linetype="solid"),
+        legend.margin=margin(t = -3, b = 0, unit='mm'),
+        plot.margin = unit(x = c(0, 0, 0, 0), units = "mm")
+       )
 print(plot)
 dev.off()
 print(plot)
 
+
+####################################
+##### SYNTH1
+####################################
 #synthetic plot with index rate
 socket_reports = experiments$socket_reports
 socket_reports <- socket_reports %>% mutate(variant = as.factor(variant_to_text(variant)))
 socket_reports$eventrate <- as.numeric(as.character(socket_reports$eventrate))
-fixed_idx_rate <- filter(socket_reports, indexrate==4000, numsources!=1)
+fixed_idx_rate <- filter(socket_reports, indexrate==4000)
 #fixed_no_sources <- filter(socket_reports, numsources!=1)
 # pg0 <- ggplot(data = fixed_no_sources, aes(x=eventrate, y=maxlatency, group=indexrate)) +
 #   geom_line(aes(linetype=indexrate)) +
@@ -210,77 +268,124 @@ fixed_idx_rate <- filter(socket_reports, indexrate==4000, numsources!=1)
 #   geom_errorbar(aes(x=eventrate, ymin=min_run, ymax=max_run, color=indexrate)) +
 #   facet_grid(numsources ~ variant) +
 #   theme_bw() +
-#   theme(legend.position = "bottom")
+#   theme(legend.position = "bottom", 
+#         strip.background = element_rect(
+#          color="white", fill="white", size=1.5, linetype="solid"
+#         ))
+fixed_idx_rate <- fixed_idx_rate %>% mutate(indexrate = as.factor(ir_to_text(indexrate)))
 pg1 <- ggplot(data = fixed_idx_rate, aes(x=eventrate, y=maxlatency, group=numsources)) +
   geom_line(aes(linetype=numsources)) +
   geom_point(aes(shape=numsources)) +
   scale_x_continuous(labels = kformatter) +
-  labs(x = "Eventrate (1/s)", y = "Maximum latency (s)", shape="Number of inputs", linetype="Number of inputs") +
+  labs(x = "Event rate (1/s)", y = "Maximum latency (s)", shape="Number of input sources:", linetype="Number of input sources:") +
   geom_errorbar(aes(x=eventrate, ymin=min_run, ymax=max_run), width=20000, size=0.2, show.legend = FALSE) +
-  facet_grid(. ~ variant) +
+  facet_grid(indexrate ~ variant) +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", 
+        strip.background = element_rect(
+          color="white", fill="white", size=1.5, linetype="solid"),
+        legend.margin=margin(t = -3, b = 0, unit='mm'),
+        plot.margin = unit(x = c(0, 0, 0, 0), units = "mm")
+       )
 
 # tikz(file = "synth_plot_fixed_src.tex", width = 5, height = 3)
 # print(pg0)
 # dev.off()
 # print(pg0)
 print(pg1)
-tikz(file = "synth_plot_fixed_idx_rate.tex", width = 5, height = 3)
+tikz(file = "synth_plot_fixed_idx_rate.tex", width = 5, height = 2)
 print(pg1)
 dev.off()
 
-#mode 4 plots
-mode4_reports = filter(experiments$socket_mode4_reports, numsources != 1)
+
+####################################
+##### SYNTH2
+####################################
+#mode 4 plots 
+mode4_reports = filter(experiments$socket_mode4_reports)
+mode4_reports <- mode4_reports %>% mutate(wmperiod = as.factor(wp_to_text(wmperiod)))
 mode4_reports$maxooo <- as.integer(as.character(mode4_reports$maxooo))
+mode4_reports <- mode4_reports %>% mutate(eventrate = as.factor(er_to_text(eventrate)))
 plot <- ggplot(data = mode4_reports, aes(x=maxooo, y=maxlatency, group=numsources)) +
   geom_line(aes(linetype=numsources)) +
   geom_point(aes(shape=numsources)) +
   geom_errorbar(aes(x=maxooo, ymin=min_run, ymax=max_run), size=0.25, width=0.2, show.legend = FALSE) +
-  labs(x = "$\\delta_{\\mathit{max}}$ (s)", y="Maximum Latency (s)", linetype="Number of inputs", shape="Number of inputs") +
+  labs(x = "Maximum delay (s)", y="Maximum latency (s)", linetype="Number of input sources:", shape="Number of input sources:") +
   facet_grid(eventrate ~ wmperiod, scales = "free_y") +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", 
+        strip.background = element_rect(
+          color="white", fill="white", size=1.5, linetype="solid"),
+        legend.margin=margin(t = -3, b = 0, unit='mm'),
+        plot.margin = unit(x = c(0, 0, 0, 0), units = "mm")
+       )
 print(plot)
-tikz(file = "mode4_plot.tex", width = 6.5, height = 4)
-plot_overall_labels(plot, "Event rate", "$T_{\\mathit{wm}}$")
+tikz(file = "mode4_plot.tex", width = 5, height = 3.4)
+print(plot)
 dev.off()
 
-#nokia1 grid
+
+
+####################################
+##### NOKIA1
+####################################
 nokia_reports = filter(experiments$nokia1_reports, procs != 6)
 nokia_reports$acc <- as.numeric(as.character(nokia_reports$acc))
 nokia_reports$procs <- as.integer(as.character(nokia_reports$procs))
 nokia_reports <- mutate(nokia_reports, formula = str_replace_all(as.character(formula), fixed("_"), "-"))
+nokia_reports <- filter(nokia_reports, procs!=2,procs!=8)
+nokia_reports <- nokia_reports %>% mutate(formula = as.factor(formula_to_text(formula)))
+nokia_reports <- nokia_reports %>% mutate(procs = as.factor(proc_to_text(procs)))
+nokia_reports$procs_f = factor(nokia_reports$procs, levels=c('1 submonitor','4 submonitors','16 submonitors'))
 plot <- ggplot(data = nokia_reports, aes(x=acc, y=maxlatency, group=numsources)) +
   geom_line(aes(linetype=numsources)) +
   geom_point(aes(shape=numsources)) +
-  labs(x = "Acceleration", y = "Maximum latency (s)", linetype="Number of inputs", shape="Number of inputs") +
+  labs(x = "Acceleration", y = "Maximum latency (s)", linetype="Number of input sources:", shape="Number of input sources:") +
   scale_x_continuous(labels = kformatter) +
-  facet_grid(procs ~ formula) +
-  coord_cartesian(ylim = c(0.0, 16.5)) +
+  facet_grid(procs_f ~ formula) +
+  coord_cartesian(ylim = c(0.0, 29.0)) +
   theme_bw() +
-  theme(legend.position = "bottom")
-tikz(file = "nokia1.tex", width = 6.5, height = 7)
-plot_overall_labels(plot, "Number of submonitors", "Formula")
-dev.off()
+  theme(legend.position = "bottom", 
+        strip.background = element_rect(
+          color="white", fill="white", size=1.5, linetype="solid"),
+        legend.margin=margin(t = -3, b = 0, unit='mm'),
+        plot.margin = unit(x = c(0, 0, 0, 0), units = "mm")
+       )
 print(plot)
-#Nokia2 reorder overhead
+tikz(file = "nokia1.tex", width = 5, height = 4)
+print(plot)
+dev.off()
+
+
+
+####################################
+##### NOKIA2
+####################################
 nokia2_fixed_acc = filter(experiments$nokia2_reports, acc!=7000)
 nokia2_fixed_acc$numsources <- as.numeric(as.character(nokia2_fixed_acc$numsources))
+nokia2_fixed_acc <- nokia2_fixed_acc %>% mutate(acc = as.factor(acc_to_text(acc)))
+#nokia2_fixed_acc <- nokia2_fixed_acc %>% mutate(reorder = as.factor(reorder_to_text(reorder)))
 plot <- ggplot(data = nokia2_fixed_acc, aes(x = numsources, y = maxlatency, group = reorder)) +
   geom_line(aes(linetype=reorder)) +
   geom_point(aes(shape=reorder)) +
   facet_grid(. ~ acc) +
   geom_errorbar(aes(x=numsources, ymin=min_run, ymax=max_run), position = "dodge", width=0.3, size=0.3, show.legend = FALSE) +
-  labs(x = "Number of inputs", y = "Maximum latency (s)", linetype="Reorder", shape="Reorder") +
+  labs(x = "Number of input sources", y = "Maximum latency (s)", linetype="Use reorder function:", shape="Use reorder function:") +
   theme_bw() +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom", 
+        strip.background = element_rect(
+          color="white", fill="white", size=1.5, linetype="solid"),
+        legend.margin=margin(t = -3, b = 0, unit='mm'),
+        plot.margin = unit(x = c(0, 0, 0, 0), units = "mm")
+       )
 print(plot)
-tikz(file = "nokia2.tex", width = 6, height = 3)
-plot_overall_labels(plot, col_label = "Acceleration")
+tikz(file = "nokia2.tex", width = 4.77, height = 2)
+print(plot)
 dev.off()
 
-#Nokia3 kafka vs sockets
+####################################
+##### NOKIA3
+####################################
 mints = nokia3_peak %>% group_by(inptype, acc) %>% summarise(mints = min(timestamp)) %>% ungroup()
 nokia3_peak_transformed = inner_join(nokia3_peak, mints, by = c("acc", "inptype")) %>%
   mutate(timestamp = timestamp - mints) %>%
@@ -288,15 +393,23 @@ nokia3_peak_transformed = inner_join(nokia3_peak, mints, by = c("acc", "inptype"
   filter(peak < 22.0)
 nokia3_peak_transformed$timestamp <- as.integer(as.character(nokia3_peak_transformed$timestamp))
 nokia3_peak_transformed$acc <- as.integer(as.character(nokia3_peak_transformed$acc))
+nokia3_peak_transformed <- nokia3_peak_transformed %>% mutate(acc = as.factor(acc_to_text(acc)))
+nokia3_peak_transformed$acc_f = factor(nokia3_peak_transformed$acc, levels=c('Acceleration = 500','1000','2000'))
 plot <- ggplot(data = nokia3_peak_transformed, aes(x=timestamp, y=peak, group=inptype)) +
   geom_line(aes(linetype=inptype)) +
-  labs(x = "Time (s)", y = "Peak latency (s)") +
+  labs(x = "Time (s)", y = "Latency (s)") +
   coord_cartesian(ylim = c(0,20)) +
-  facet_grid(. ~ acc, space = "free_x", scales = "free_x") +
-  scale_linetype_discrete(name = "Input type", breaks = c("kafka", "sockets"), labels=c("Kafka", "Sockets")) +
+  facet_grid(. ~ acc_f, space = "free_x", scales = "free_x") +
+  scale_linetype_discrete(name = "Input type:", breaks = c("kafka", "sockets"), labels=c("Kafka", "Sockets")) +
   theme_bw() +
-  theme(legend.position = "bottom")
-tikz(file = "nokia3.tex", width = 6, height = 3)
-plot_overall_labels(plot, col_label = "Acceleration")
-dev.off()
+  theme(legend.position = "bottom", 
+        strip.background = element_rect(
+          color="white", fill="white", size=1.5, linetype="solid"),
+        legend.margin=margin(t = -3, b = 0, unit='mm'),
+        plot.margin = unit(x = c(0, 0, 0, 0), units = "mm")
+       )
 print(plot)
+tikz(file = "nokia3.tex", width = 4.77, height = 2)
+print(plot)
+dev.off()
+
