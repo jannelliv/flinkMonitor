@@ -1,19 +1,14 @@
-Usage: generator.sh {-S | -L | -T | -P <pattern>} [options...] [trace length]
+Usage: generator.sh {-S | -L | -T | -P <pattern>} [options 1...] [<trace length>]
 
-Options:
+       OR
+
+       generator.sh -sig <sig_file> [options 2...] [<trace length>]
+
+Common options:
 
     <trace length>
             The length of the trace in seconds. If not specified, an unbounded
             stream is generated.
-
-    -S | -L | -T
-            Selects the star, linear, or triangle event pattern (see below).
-            Exactly one of these (or -P) must be selected.
-
-    -P <pattern>
-            Specifies a custom event pattern. A pattern consists of three event
-            names, each followed by a comma-separated list of variables
-            enclosed in parentheses.
 
     -seed <number>
             Sets the seed for the random generator
@@ -26,6 +21,19 @@ Options:
 
     -t <timestamp>
             The initial timestamp used for the first events (default: 0).
+
+
+Options 1:
+
+    -S | -L | -T
+            Selects the star, linear, or triangle event pattern (see below).
+            Exactly one of these (or -P) must be selected.
+
+    -P <pattern>
+            Specifies a custom event pattern. A pattern consists of three event
+            names, each followed by a comma-separated list of variables
+            enclosed in parentheses.
+
 
     -x <violation ratio>
             The frequency of violations, relative to the total number of
@@ -51,16 +59,45 @@ Options:
             101 being the most frequent value.
 
 
+Options 2:
+
+    -q <sample queue size>
+            The size of the queue containing the most recently sampled unique
+            data values (default: 100)
+
+    -r <fresh value rate>
+            Probability to sample a fresh value (not among the q most recent)
+            (default: 0.1)
+
+
+General description:
+---------------------
+
 The stream generator prints a random stream of timestamped events to the
 standard output. The generator produces a finite trace instead if a length is
-specified. In either case, the sequence of evence is produced at once and not
+specified. In either case, the sequence of events is produced at once and not
 as a real-time stream. Simultaneous events are grouped into time-points, which
 are also called indices. The number of indices per second can be changed by
-specifying option -i. The total number of events per second is set with option
--e.
+specifying option -i. The total number of events per second is set with option -e.
 
 Events are parametrized by data values. Two events are said to match if the
-corresponding data values are equal. There are three types of events:
+corresponding data values are equal.
+
+Overall, the output consists of lines with the following format, each
+representing a single event:
+
+    <event name>, tp=<index>, ts=<timestamp>, x0=<value 1>, x1=<value 2>, ...
+
+Indexes and timestamps start at zero. A different starting timestamp can be set
+with option -t.
+
+There are two modes of event generation: based on a fixed set of events (option 1)
+or based on an arbitrary set of events (option 2).
+
+Option 1:
+----------
+
+There are three types of events:
 
   - Base events (type A).
 
@@ -116,10 +153,18 @@ Note that violations always have uniform values to prevent accidental
 matchings. For the same reason, Zipf-distributed values of type C events start
 at 1 000 001.
 
-The output consists of lines with the following format, each representing
-a single event:
+Option 2:
+----------
 
-    <event name>, tp=<index>, ts=<timestamp>, x0=<value 1>, x1=<value 2>, ...
+Events are defined by a signature file. It must be supplied via the -sig flag.
+The format of the signature file is as follows:
 
-Indexes and timestamps start at zero. A different starting timestamp can be set
-with option -t.
+(<Event name>\(\) | <Event name>\(<Variable name>(,<Variable name>)*\))*
+
+New lines are optional, but can occur only after each full event definition.
+Spaces are normalized as usual.
+
+In this mode the generator keeps a configurable number (flag -q) of unique most
+recently sampled data values. With a configurable probability (flag -r), the
+generator samples new values (not among the most recent).
+

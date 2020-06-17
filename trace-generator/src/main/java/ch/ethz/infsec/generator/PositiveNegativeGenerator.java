@@ -218,6 +218,7 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
         appendEventUsingSchedule(builder, timestamp, eventPattern.getNegativeEvent(), negativeVariables, negativeQueue);
     }
 
+    @Override
     String getSignature() {
         StringBuilder signature = new StringBuilder();
         for (String event : new String[] {eventPattern.getBaseEvent(), eventPattern.getPositiveEvent(), eventPattern.getNegativeEvent()}) {
@@ -248,6 +249,7 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
         return atom.toString();
     }
 
+    @Override
     String getFormula() {
         return String.format("(ONCE [0,%d) %s) IMPLIES %s IMPLIES ALWAYS [0,%d) NOT %s",
                 positiveWindow,
@@ -255,5 +257,29 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
                 makeAtom(eventPattern.getPositiveEvent()),
                 negativeWindow,
                 makeAtom(eventPattern.getNegativeEvent()));
+    }
+
+    public static AbstractEventGenerator getInstance(RandomGenerator random,
+                                                     int eventRate,
+                                                     int indexRate,
+                                                     long firstTimestamp,
+                                                     EventPattern eventPattern,
+                                                     float baseRatio,
+                                                     float positiveRatio,
+                                                     float violationProbability,
+                                                     int windowSize,
+                                                     Map<String, Double> zipfExponents,
+                                                     Map<String, Integer> zipfOffsets){
+        PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate, firstTimestamp, eventPattern);
+        for (Map.Entry<String, Double> entry : zipfExponents.entrySet()) {
+            if (entry.getValue() > 0.0) {
+                generator.setZipfExponent(entry.getKey(), entry.getValue(), zipfOffsets.getOrDefault(entry.getKey(), 0));
+            }
+        }
+        generator.setEventDistribution(baseRatio, positiveRatio, violationProbability);
+        generator.setPositiveWindow(windowSize);
+        generator.setNegativeWindow(windowSize);
+        generator.initialize();
+        return generator;
     }
 }

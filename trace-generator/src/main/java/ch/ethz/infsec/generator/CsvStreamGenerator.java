@@ -41,6 +41,10 @@ public class CsvStreamGenerator {
         Map<String, Integer> zipfOffsets = new HashMap<>();
         long firstTimestamp = 0;
         int streamLength = -1;
+        String inputSigFilename = null;
+        int queueSize = 100;
+        float newValueSampleRatio = 0.1f;
+        SimpleSignature simpleSig = null;
         String sigFilename = null;
         String formulaFilename = null;
         int seed=314159265;
@@ -138,6 +142,30 @@ public class CsvStreamGenerator {
                         }
                         seed = Integer.parseInt(args[++i]);
                         break;
+                    case "-sig":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        inputSigFilename = args[++i];
+                        try{
+                            simpleSig=SimpleSignature.parse(inputSigFilename);
+                        } catch (InvalidEventPatternException | IOException e){
+                            e.printStackTrace();
+                            System.exit(0);
+                        }
+                        break;
+                    case "-q":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        queueSize = Integer.parseInt(args[++i]);
+                        break;
+                    case "-r":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        newValueSampleRatio = Float.parseFloat(args[++i]);
+                        break;
                     case "-osig":
                         if (i + 1 == args.length) {
                             invalidArgument();
@@ -163,23 +191,24 @@ public class CsvStreamGenerator {
         } catch (NumberFormatException e) {
             invalidArgument();
         }
-        if (eventPattern == null) {
+        if (eventPattern == null && simpleSig==null) {
             invalidArgument();
         }
 
         float violationProbability = relativeViolations / (float) eventRate;
 
         RandomGenerator random = new JDKRandomGenerator(seed);
-        PositiveNegativeGenerator generator = new PositiveNegativeGenerator(random, eventRate, indexRate, firstTimestamp, eventPattern);
-        for (Map.Entry<String, Double> entry : zipfExponents.entrySet()) {
-            if (entry.getValue() > 0.0) {
-                generator.setZipfExponent(entry.getKey(), entry.getValue(), zipfOffsets.getOrDefault(entry.getKey(), 0));
-            }
-        }
-        generator.setEventDistribution(baseRatio, positiveRatio, violationProbability);
-        generator.setPositiveWindow(windowSize);
-        generator.setNegativeWindow(windowSize);
-        generator.initialize();
+
+
+        AbstractEventGenerator generator =
+                simpleSig!=null ? SimpleEventGenerator.getInstance(random,
+                        eventRate, indexRate, firstTimestamp,
+                        simpleSig, queueSize, newValueSampleRatio) :
+                        PositiveNegativeGenerator.getInstance(random,
+                                eventRate, indexRate, firstTimestamp, eventPattern,
+                                baseRatio, positiveRatio, violationProbability, windowSize,
+                                zipfExponents, zipfOffsets);
+
 
         if (sigFilename != null) {
             try (PrintWriter writer = new PrintWriter(sigFilename)) {

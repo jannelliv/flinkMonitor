@@ -62,4 +62,8 @@ abstract class AbstractEventGenerator {
                 .append('=')
                 .append(value);
     }
+
+    String getSignature() { return ""; }
+
+    String getFormula() { return ""; }
 }
