@@ -1,6 +1,6 @@
 package ch.ethz.infsec
 
-import java.io.{BufferedWriter, FileWriter, Writer}
+import java.io.{BufferedWriter, FileWriter, OutputStreamWriter, Writer}
 
 import org.apache.commons.math3.distribution.{EnumeratedIntegerDistribution, GeometricDistribution, RealDistribution, UniformRealDistribution}
 import org.apache.commons.math3.random.{RandomGenerator, Well19937c}
@@ -13,15 +13,16 @@ import scala.util.Random
 
 sealed case class Config(numOutputs: Int = 4,
                          transformerId: Int = 1,
-                         inputCsv: String = "input.csv",
+                         inputCsv: String = "",
                          distribution: Option[String] = None,
-                         outoutCsvPrefix: String = "output",
+                         outoutCsvPrefix: String = "",
                          sigma: Double = 2.0,
                          maxOOO: Int = 5,
                          seed: Long = Random.nextLong(),
-                         watermarkPeriod: Int = 2)
+                         watermarkPeriod: Int = 2,
+                         start:Boolean=true)
 
-abstract class TransformerImpl(rng: RandomGenerator, numPartitions: Int, partitionDist: EnumeratedIntegerDistribution, output: Array[Writer]) {
+abstract class TransformerImpl(rng: RandomGenerator, numPartitions: Int, partitionDist: EnumeratedIntegerDistribution, output: Array[Writer],start:Boolean) {
   protected def sendRecord(line: String, partition: Option[Int]): Unit = {
     partition match {
       case Some(i) =>
@@ -48,8 +49,9 @@ class WatermarkOrderTransformer(rng: RandomGenerator,
                                 numPartitions: Int,
                                 partitionDist: EnumeratedIntegerDistribution,
                                 input: Source,
-                                output: Array[Writer])
-  extends TransformerImpl(rng, numPartitions, partitionDist, output) {
+                                output: Array[Writer],
+                                start:Boolean)
+  extends TransformerImpl(rng, numPartitions, partitionDist, output,start) {
   private def moveCurrTs(currTs: Long, elementsLeft: Array[Int]): Int = {
     //Return the index of the first non-zero value of the array
     for (i <- currTs.toInt until elementsLeft.length) {
@@ -115,11 +117,14 @@ class PerPartitionOrderTransformer(rng: RandomGenerator,
                                    numPartitions: Int,
                                    partitionDist: EnumeratedIntegerDistribution,
                                    input: Source,
-                                   output: Array[Writer])
-  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output) {
+                                   output: Array[Writer],
+                                   start:Boolean)
+  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output,start) {
   def runTransformer(): Unit = {
-    val first_elem = WatermarkOrderHelpers.getTimeStamps(input).take(1).toArray.head._1
-    sendRecord(s">START $first_elem<", None)
+    if(start) {
+      val first_elem = WatermarkOrderHelpers.getTimeStamps(input).take(1).toArray.head._1
+      sendRecord(s">START $first_elem<", None)
+    }
     for (line <- input.getLines()) {
       sendRecord(line, Some(partitionDist.sample()))
     }
@@ -147,8 +152,9 @@ class WatermarkOrderEmissionTimeTransformer(rng: RandomGenerator,
                                             output: Array[Writer],
                                             sigma: Double,
                                             maxOOO: Int,
-                                            watermarkPeriod: Int)
-  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output) {
+                                            watermarkPeriod: Int,
+                                            start:Boolean)
+  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output,start) {
 
   val dist: TruncNormDistribution = new TruncNormDistribution(rng, sigma, 0.0, maxOOO + 0.001)
   val emissionSeparator: String = "'"
@@ -169,7 +175,8 @@ class WatermarkOrderEmissionTimeTransformer(rng: RandomGenerator,
     val outLines = (0 until numPartitions map (_ => ArrayBuffer[(Int, Int, String)]())).toArray
     val minTs = tsAndLines.minBy(_._1)._1
     val maxTs = tsAndLines.maxBy(_._1)._1
-    sendRecord(s"0$emissionSeparator>START  $minTs<", None)
+    if(start)
+      sendRecord(s"0$emissionSeparator>START  $minTs<", None)
     for ((ts, line) <- tsAndLines) {
       val samp = sample()
       val emissiontime = ts + samp - minTs
@@ -222,6 +229,11 @@ object TraceTransformer {
     import builder._
     val parser = OParser.sequence(
       programName("Trace transformer"),
+      opt[Boolean]('s',"start-ts")
+        .optional()
+        .valueName("<bool>")
+        .action((d, c) => c.copy(start = d))
+        .text("write the start time-stamp to each partition"),
       opt[String]("distribution")
           .optional()
           .valueName("<p1,p2,...,pn>")
@@ -268,7 +280,7 @@ object TraceTransformer {
         .action((watermarkPeriod, c) => c.copy(watermarkPeriod = watermarkPeriod))
         .text("when v = 4: period of the watermarks"),
       arg[String]("<input csv>")
-        .required()
+        .optional()
         .action((filename, c) => c.copy(inputCsv = filename))
     )
     OParser.parse(parser, args, Config()) match {
@@ -281,11 +293,21 @@ object TraceTransformer {
     val config = parseArgs(args)
     val rng = new Well19937c
     rng.setSeed(config.seed)
-    val input = Source.fromFile(config.inputCsv)
-    val output: Array[Writer] = (0 until config.numOutputs)
+    val input = config.inputCsv match {
+      case "" => Source.fromInputStream(System.in)
+      case _  => Source.fromFile(config.inputCsv)
+    }
+    val output: Array[Writer] =
+      if (config.numOutputs == 1)
+        config.outoutCsvPrefix match {
+          case "" => Array(new BufferedWriter(new OutputStreamWriter(System.out)))
+          case _ => Array(new BufferedWriter(new FileWriter(config.outoutCsvPrefix + "0.csv")))
+        }
+      else
+      (0 until config.numOutputs)
       .map(k =>
-        new BufferedWriter(new FileWriter(config.outoutCsvPrefix + k.toString + ".csv"))
-      ).toArray
+            new BufferedWriter(new FileWriter((if (config.outoutCsvPrefix=="") "output" else config.outoutCsvPrefix) + k.toString + ".csv"))
+          ).toArray
     val numOutputs = config.numOutputs
     val singletons = (0 until numOutputs).toArray
     val probabilities = config.distribution match {
@@ -301,8 +323,8 @@ object TraceTransformer {
     }
     val partitionDist = new EnumeratedIntegerDistribution(rng, singletons, probabilities)
     val transformer: TransformerImpl = config.transformerId match {
-      case 1 | 2 => new PerPartitionOrderTransformer(rng, config.numOutputs, partitionDist, input, output)
-      case 3 => new WatermarkOrderTransformer(rng, config.numOutputs, partitionDist, input, output)
+      case 1 | 2 => new PerPartitionOrderTransformer(rng, config.numOutputs, partitionDist, input, output,config.start)
+      case 3 => new WatermarkOrderTransformer(rng, config.numOutputs, partitionDist, input, output,config.start)
       case 4 => new WatermarkOrderEmissionTimeTransformer(rng,
                                                           config.numOutputs,
                                                           partitionDist,
@@ -310,7 +332,8 @@ object TraceTransformer {
                                                           output,
                                                           config.sigma,
                                                           config.maxOOO,
-                                                          config.watermarkPeriod)
+                                                          config.watermarkPeriod,
+                                                          config.start)
       case _ => throw new Exception("cannot not happen")
     }
 

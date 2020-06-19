@@ -616,6 +616,10 @@ public class Replayer {
                 return new MonpolyTraceFormatter();
             case "monpoly-linear":
                 return new MonpolyLinearizingTraceFormatter();
+            case "verimon":
+                return new MonpolyTraceFormatter();
+            case "verimon-linear":
+                return new MonpolyLinearizingTraceFormatter();
             case "dejavu":
                 return new DejavuTraceFormatter();
             case "dejavu-linear":
