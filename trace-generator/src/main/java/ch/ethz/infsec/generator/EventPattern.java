@@ -15,6 +15,23 @@ interface EventPattern extends Signature {
         return getArguments(e).size();
     }
 
+    @Override
+    default String getString() {
+        StringBuilder signature = new StringBuilder();
+        for (String event : new String[] {getBaseEvent(), getPositiveEvent(), getNegativeEvent()}) {
+            signature.append(event).append('(');
+            final int arity = getArguments(event).size();
+            for (int i = 0; i < arity; ++i) {
+                if (i > 0) {
+                    signature.append(',');
+                }
+                signature.append("int");
+            }
+            signature.append(")\n");
+        }
+        return signature.toString();
+    }
+
     List<String> getVariables();
 
     String getBaseEvent();

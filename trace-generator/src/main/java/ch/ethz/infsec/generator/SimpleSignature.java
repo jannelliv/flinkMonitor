@@ -67,14 +67,21 @@ public class SimpleSignature implements Signature {
         return new SimpleSignature(events, arities);
     }
 
-    private static String string_of(String [] l){
-        String res = "[";
-        for (String s : l) {
-            res+=s;
-            res+="; ";
+    @Override
+    public String getString(){
+        StringBuilder signature = new StringBuilder();
+        for (String event : events) {
+            signature.append(event).append('(');
+            final int arity = arities.get(event);
+            for (int i = 0; i < arity; ++i) {
+                if (i > 0) {
+                    signature.append(',');
+                }
+                signature.append("int");
+            }
+            signature.append(")\n");
         }
-        res+="]";
-        return res;
+        return signature.toString();
     }
 
 }

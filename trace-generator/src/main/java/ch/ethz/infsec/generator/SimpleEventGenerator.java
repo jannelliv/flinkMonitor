@@ -15,8 +15,9 @@ final class SimpleEventGenerator extends AbstractEventGenerator {
     private final Queue<Integer> values;
     private final int domainSize;
     private final float newFraction;
+    private final String formula;
 
-    SimpleEventGenerator(RandomGenerator random, int eventRate, int indexRate, long firstTimestamp, SimpleSignature s, int ds, float nf) {
+    SimpleEventGenerator(RandomGenerator random, int eventRate, int indexRate, long firstTimestamp, SimpleSignature s, int ds, float nf, String f) {
         super(random, eventRate, indexRate, firstTimestamp);
         this.sig = s;
         this.domainSize = ds;
@@ -24,10 +25,15 @@ final class SimpleEventGenerator extends AbstractEventGenerator {
         values = new ArrayDeque<Integer>(domainSize);
         eventDistribution = new UniformIntegerDistribution(random, 0, sig.getEvents().size()-1);
         valueDistribution = new UniformIntegerDistribution(random, 0, 999_999_999);
-
+        this.formula = f;
     }
 
-    @Override
+    SimpleEventGenerator(RandomGenerator random, int eventRate, int indexRate, long firstTimestamp, SimpleSignature s, int ds, float nf) {
+        this (random, eventRate, indexRate, firstTimestamp,s,ds,nf,null);
+    }
+
+
+        @Override
     void appendNextEvent(StringBuilder builder, long timestamp) {
         //Sample event name
         List<String> events = sig.getEvents();
@@ -78,14 +84,25 @@ final class SimpleEventGenerator extends AbstractEventGenerator {
 
     }
 
+    @Override
+    String getSignature() {
+        return sig.getString();
+    }
+
+    @Override
+    String getFormula() {
+        return formula;
+    }
+
     public static AbstractEventGenerator getInstance(RandomGenerator random,
                                                      int eventRate,
                                                      int indexRate,
                                                      long firstTimestamp,
                                                      SimpleSignature s,
                                                      int ds,
-                                                     float nf){
-        return new SimpleEventGenerator(random, eventRate, indexRate, firstTimestamp, s, ds, nf);
+                                                     float nf,
+                                                     String f){
+        return new SimpleEventGenerator(random, eventRate, indexRate, firstTimestamp, s, ds, nf,f);
     }
 
 }

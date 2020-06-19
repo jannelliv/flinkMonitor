@@ -7,5 +7,6 @@ import java.util.List;
 interface Signature {
     List<String> getEvents();
     int getArity(String e);
+    String getString();
 
 }

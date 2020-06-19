@@ -220,19 +220,7 @@ final class PositiveNegativeGenerator extends AbstractEventGenerator {
 
     @Override
     String getSignature() {
-        StringBuilder signature = new StringBuilder();
-        for (String event : new String[] {eventPattern.getBaseEvent(), eventPattern.getPositiveEvent(), eventPattern.getNegativeEvent()}) {
-            signature.append(event).append('(');
-            final int arity = eventPattern.getArguments(event).size();
-            for (int i = 0; i < arity; ++i) {
-                if (i > 0) {
-                    signature.append(',');
-                }
-                signature.append("int");
-            }
-            signature.append(")\n");
-        }
-        return signature.toString();
+        return eventPattern.getString();
     }
 
     private String makeAtom(String event) {

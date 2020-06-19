@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -42,9 +44,11 @@ public class CsvStreamGenerator {
         long firstTimestamp = 0;
         int streamLength = -1;
         String inputSigFilename = null;
+        String inputFormulaFilename = null;
         int queueSize = 100;
         float newValueSampleRatio = 0.1f;
         SimpleSignature simpleSig = null;
+        String formula = null;
         String sigFilename = null;
         String formulaFilename = null;
         int seed=314159265;
@@ -154,6 +158,21 @@ public class CsvStreamGenerator {
                             System.exit(0);
                         }
                         break;
+                    case "-formula":
+                        if (i + 1 == args.length) {
+                            invalidArgument();
+                        }
+                        inputFormulaFilename = args[++i];
+                        try{
+                            formula=Files.readAllLines(Paths.get(inputFormulaFilename))
+                                            .stream()
+                                            .map((String x) -> x + " ")
+                                            .reduce("",String::concat);
+                        } catch (IOException e){
+                            e.printStackTrace();
+                            System.exit(0);
+                        }
+                        break;
                     case "-q":
                         if (i + 1 == args.length) {
                             invalidArgument();
@@ -203,7 +222,7 @@ public class CsvStreamGenerator {
         AbstractEventGenerator generator =
                 simpleSig!=null ? SimpleEventGenerator.getInstance(random,
                         eventRate, indexRate, firstTimestamp,
-                        simpleSig, queueSize, newValueSampleRatio) :
+                        simpleSig, queueSize, newValueSampleRatio,formula) :
                         PositiveNegativeGenerator.getInstance(random,
                                 eventRate, indexRate, firstTimestamp, eventPattern,
                                 baseRatio, positiveRatio, violationProbability, windowSize,
