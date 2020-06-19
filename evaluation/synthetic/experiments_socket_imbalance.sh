@@ -16,7 +16,7 @@ PROCESSORS="16"
 MONPOLY_CPU_LIST="0"
 AUX_CPU_LIST="10-11,34-35"
 LOG_LENGTH=60
-DISTS=("1.0,1.0,1.0,1.0,1.0", "0.666,0.111,0.111,0.112", "0.333,0.333,0.166,0.168")
+DISTS=("0.25,0.25,0.25,0.25", "0.666,0.111,0.111,0.112", "0.333,0.333,0.166,0.168")
 #FORMULAS="easy-neg"
 #NEGATE="" # if formulas above are suffixed with -neg this should be "", otherwise "-negate"
 #MULTISOURCE_VARIANTS="1 2 4"
@@ -112,7 +112,7 @@ for procs in $PROCESSORS; do
                                         continue
                                     fi
                                     INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                                    "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources --watermark_period $wmperiod --max_ooo --distribution "${DISTS[distidx]}" $maxooo -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
+                                    "$WORK_DIR"/trace-transformer.sh -v $variant -n $numsources --watermark_period $wmperiod --max_ooo $maxooo --distribution "${DISTS[distidx]}" -o "$EXEC_LOG_DIR/preprocess_out" "$INPUT_FILE"
                                     echo "              Event rate ${er}, index rate ${ir}, max ooo ${maxooo}, wm period: ${wmperiod}:"
                                     for acc in $ACCELERATIONS; do
                                         echo "                  Acceleration $acc:"
