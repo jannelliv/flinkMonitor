@@ -122,7 +122,7 @@ appears in multiple places, then those places correspond to each other, and
 they must have equal values in a match. A custom pattern is supplies as
 a single argument after option -P. For example,
 
-    generator.sh -P "e1(x) e2(x,y,z) e3(y,z)" 10
+    generator.sh -P "e1(x)e2(x,y,z)e3(y,z)" 10
 
 generates a 10 second trace, where the names of the event types A, B, and C are
 e1, e2, and e3, respectively. Events e1 have one data values, while events e2

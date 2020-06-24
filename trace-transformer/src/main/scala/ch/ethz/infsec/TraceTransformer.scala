@@ -18,11 +18,23 @@ sealed case class Config(numOutputs: Int = 4,
                          outoutCsvPrefix: String = "",
                          sigma: Double = 2.0,
                          maxOOO: Int = 5,
-                         seed: Long = Random.nextLong(),
+                         seed: Long = 314159265,
                          watermarkPeriod: Int = 2,
                          start:Boolean=true)
 
-abstract class TransformerImpl(rng: RandomGenerator, numPartitions: Int, partitionDist: EnumeratedIntegerDistribution, output: Array[Writer],start:Boolean) {
+object WatermarkOrderHelpers {
+  def getTimeStamps(input: Source): Iterator[(Int, String)] = {
+    input.getLines().map(k => {
+      val ts = k.split(',')(2).split('=')(1).trim.toInt
+      (ts, k)
+    })
+  }
+}
+
+abstract class TransformerImpl(rng: RandomGenerator,
+                               numPartitions: Int,
+                               partitionDist: EnumeratedIntegerDistribution,
+                               output: Array[Writer],start:Boolean) {
   protected def sendRecord(line: String, partition: Option[Int]): Unit = {
     partition match {
       case Some(i) =>
@@ -36,14 +48,24 @@ abstract class TransformerImpl(rng: RandomGenerator, numPartitions: Int, partiti
   def runTransformer(): Unit
 }
 
-object WatermarkOrderHelpers {
-  def getTimeStamps(input: Source): Iterator[(Int, String)] = {
-    input.getLines().map(k => {
-      val ts = k.split(',')(2).split('=')(1).trim.toInt
-      (ts, k)
-    })
+class PerPartitionOrderTransformer(rng: RandomGenerator,
+                                   numPartitions: Int,
+                                   partitionDist: EnumeratedIntegerDistribution,
+                                   input: Source,
+                                   output: Array[Writer],
+                                   start:Boolean)
+  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output,start) {
+  def runTransformer(): Unit = {
+    if(start) {
+      val first_elem = WatermarkOrderHelpers.getTimeStamps(input).take(1).toArray.head._1
+      sendRecord(s">START $first_elem<", None)
+    }
+    for (line <- input.getLines()) {
+      sendRecord(line, Some(partitionDist.sample()))
+    }
   }
 }
+
 
 class WatermarkOrderTransformer(rng: RandomGenerator,
                                 numPartitions: Int,
@@ -113,23 +135,6 @@ class WatermarkOrderTransformer(rng: RandomGenerator,
   }
 }
 
-class PerPartitionOrderTransformer(rng: RandomGenerator,
-                                   numPartitions: Int,
-                                   partitionDist: EnumeratedIntegerDistribution,
-                                   input: Source,
-                                   output: Array[Writer],
-                                   start:Boolean)
-  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output,start) {
-  def runTransformer(): Unit = {
-    if(start) {
-      val first_elem = WatermarkOrderHelpers.getTimeStamps(input).take(1).toArray.head._1
-      sendRecord(s">START $first_elem<", None)
-    }
-    for (line <- input.getLines()) {
-      sendRecord(line, Some(partitionDist.sample()))
-    }
-  }
-}
 
 class TruncNormDistribution(rng: RandomGenerator, sigma: Double, a: Double, b: Double) {
   require(a < b)

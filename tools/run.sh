@@ -8,6 +8,8 @@ function generator {
     GPARAMS=""
     TPARAMS=""
     TT=""
+    GSEED=""
+    TSEED=""
     while [[ $# -gt 0 ]]
     do
       key="$1"
@@ -19,16 +21,11 @@ function generator {
           shift 
           ;; 
           -seed)
-          GPARAMS="$GPARAMS -seed $2"
-          TPARAMS="$TPARAMS --seed $2"
+          GSEED="-seed $2"
+          TSEED="--seed $2"
           shift 
           shift 
           ;; 
-          -oo)
-          TPARAMS="$TPARAMS -v 3"
-          TT="y"
-          shift
-          ;;
           -et)
           TPARAMS="$TPARAMS -v 4"
           TT="y"
@@ -51,14 +48,20 @@ function generator {
       esac
     done
 
-  if [ -z "$TPARAMS" ]; then
-    $BASE_DIR/generator.sh $GPARAMS
-  else 
-    if [ -z "$TT" ]; then
-      $BASE_DIR/generator.sh $GPARAMS | $BASE_DIR/trace-transformer.sh -v 3 -n 1 -s false $TPARAMS
-    else
-      $BASE_DIR/generator.sh $GPARAMS | $BASE_DIR/trace-transformer.sh -n 1 -s false $TPARAMS
+  if [[ "$GPARAMS" == *" --help "* ]]; then
+    $BASE_DIR/generator.sh $GSEED $GPARAMS
+    cat $BASE_DIR/README-GEN
+  else
+    if [ -z "$TPARAMS" ]; then
+      $BASE_DIR/generator.sh $GSEED $GPARAMS
+    else 
+      if [ -z "$TT" ]; then
+        $BASE_DIR/generator.sh $GSEED $GPARAMS | $BASE_DIR/trace-transformer.sh -v 4 -n 1 -s false $TSEED $TPARAMS
+      else
+        $BASE_DIR/generator.sh $GSEED $GPARAMS | $BASE_DIR/trace-transformer.sh -n 1 -s false $TSEED $TPARAMS
+      fi
     fi
+
   fi
 
 }
@@ -67,6 +70,7 @@ function oracle {
 
     PARAMS=""
     FORMULA=""
+    INTERVAL="10"
     while [[ $# -gt 0 ]]
     do
       key="$1"
@@ -96,8 +100,8 @@ function oracle {
   if [ -z "$FORMULA" ]; then
     verimon $PARAMS
   else 
-    $BASE_DIR/generator.sh $FORMULA $INTERVAL -osig ../tmp.sig -oformula ../tmp.mfotl
-    verimon -sig ../tmp.sig -formula ../tmp.mfotl $PARAMS
+    $BASE_DIR/generator.sh $FORMULA -w $INTERVAL -osig ../tmp.sig -oformula ../tmp.mfotl
+    verimon -sig ../tmp.sig -formula ../tmp.mfotl -negate $PARAMS
     rm ../tmp.sig
     rm ../tmp.mfotl
   fi

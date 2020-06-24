@@ -754,6 +754,7 @@ public class Replayer {
                     case "--clear":
                         clearTopic = true;
                         break;
+                    case "-nt":
                     case "-no-end-marker":
                         markDatabaseEnd = false;
                         break;

@@ -36,9 +36,16 @@ Options:
     -e
 	    explicit emissiontime
 
-    --terms NO_TERM | TIMESTAMPS | TIMEPOINTS
-            controls the generation of timestamps in the parser
-            
+    --term NO_TERM | TIMESTAMPS | TIMEPOINTS
+            controls the generation of terminators in the parser
+            NO_TERM = parser just parses the trace as is
+            TIMESTAMPS = parsers adds terminators after a new time-stamp
+            TIMEPOINT = parsers adds terminators after a new time-point
+
+    -nt | -no-end-marker
+            Replayer does not print end markers (i.e., terminators)
+
+
     -o <host>:<port>
             Opens a TCP server listening on the given host name and port.
             Only a single client is accepted, to which the output is written.

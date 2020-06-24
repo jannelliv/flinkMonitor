@@ -1,8 +1,8 @@
 #!/bin/bash
 
-pushd ..
-mvn -Dmaven.test.skip package
-popd
+#pushd ..
+#mvn -Dmaven.test.skip package
+#popd
 
 mkdir -p tmp
 cp -r ../replayer ./tmp
