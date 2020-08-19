@@ -85,8 +85,8 @@ function oracle {
           shift 
           shift 
           ;;
-          -P)
-          FORMULA="$1 $2"
+          -P|-sig|-formula)
+          FORMULA="$FORMULA $1 $2"
           shift # past argument
           shift # past value
           ;; 
