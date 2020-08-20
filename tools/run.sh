@@ -42,7 +42,7 @@ function generator {
           shift 
           ;; 
           *) 
-          GPARAMS="$GPARAMS $1"
+          GPARAMS="$GPARAMS $1 "
           shift
           ;;
       esac
