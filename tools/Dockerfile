@@ -5,12 +5,12 @@ RUN sudo apt-get update && sudo apt-get install --no-install-recommends -y \
     && sudo rm -rf /var/lib/apt/lists/*
 
 USER root
-ENV SDIR /home/ubuntu
-ENV WDIR /home/ubuntu/work
+ENV SDIR /
+ENV WDIR /work
 RUN mkdir -p ${SDIR}
 RUN mkdir -p ${WDIR}
 WORKDIR ${WDIR}
 ADD . ${SDIR}
 RUN chmod +x ${SDIR}/run.sh
-ENTRYPOINT ["/home/ubuntu/run.sh"]
+ENTRYPOINT ["/run.sh"]
 
