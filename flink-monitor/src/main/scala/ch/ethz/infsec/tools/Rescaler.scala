@@ -3,6 +3,7 @@ package ch.ethz.infsec.tools
 import java.io.{BufferedReader, InputStreamReader}
 import java.net.{InetSocketAddress, ServerSocket, Socket}
 
+import ch.ethz.infsec.autobalancer.AllState
 import javax.xml.bind.DatatypeConverter
 import org.apache.flink.api.common.JobID
 import org.apache.flink.client.cli.CliArgsException
@@ -31,7 +32,6 @@ object Rescaler extends Serializable {
       try {
         server = new ServerSocket(10103)
         this.parallelism = parallelism
-
         config.setString("jobmanager.rpc.address", jmAddress)
         client = new RestClusterClient[String](config, "RemoteExecutor")
 

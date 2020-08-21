@@ -1,7 +1,7 @@
 package ch.ethz.infsec
 package monitor
 
-trait ExternalProcess[IN, OUT] extends Serializable {
+trait ExternalProcess extends Serializable {
   var identifier: Option[String]
 
   def supportsStateAccess: Boolean
@@ -11,14 +11,14 @@ trait ExternalProcess[IN, OUT] extends Serializable {
   def openAndMerge(initialStates: Iterable[Array[Byte]]): Unit
 
   // Input functions
-  def enablesSyncBarrier(in: IN): Boolean
-  def writeItem(in: IN): Unit
+  def enablesSyncBarrier(in: Fact): Boolean
+  def writeItem(in: Fact): Unit
   def writeSyncBarrier(): Unit
   def initSnapshot(): Unit
   def shutdown(): Unit
 
   // Output functions
-  def readResults(sink: OUT => Unit): Unit
+  def readResults(sink: Fact => Unit): Unit
   def readSnapshot(): Seq[Array[Byte]]
   def join(): Int
 

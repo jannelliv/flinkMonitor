@@ -57,7 +57,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
 
     private void finishDatabase(Consumer<Fact> sink) {
         factBuffer.forEach(sink);
-        sink.accept(Fact.terminator(timestamp));
+        sink.accept(Fact.terminator(Long.parseLong(timestamp)));
         timestamp = null;
         relationName = null;
         factBuffer.clear();
@@ -68,7 +68,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
     }
 
     private void finishTuple() {
-        factBuffer.add(new Fact(relationName, timestamp, new ArrayList<>(fields)));
+        factBuffer.add(Fact.make(relationName, Long.parseLong(timestamp), new ArrayList<>(fields)));
         fields.clear();
     }
 
@@ -78,7 +78,7 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
     }
 
     private void finishCommand(Consumer<Fact> sink) {
-        sink.accept(new Fact(relationName, null, new ArrayList<>(fields)));
+        sink.accept(Fact.meta(relationName, new ArrayList<>(fields)));
         fields.clear();
         relationName = null;
     }
@@ -213,6 +213,11 @@ public class MonpolyTraceParser implements TraceParser, Serializable {
     public void endOfInput(Consumer<Fact> sink) throws ParseException {
         lexer.atEnd();
         runParser(sink);
+    }
+
+    @Override
+    public void setTerminatorMode(TerminatorMode mode) {
+        throw new RuntimeException("not implemented");
     }
 
     public void parse(Consumer<Fact> sink, String input) throws ParseException {

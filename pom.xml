@@ -31,6 +31,7 @@
         <module>replayer</module>
         <module>trace-generator</module>
         <module>benchmarks</module>
+        <module>trace-transformer</module>
     </modules>
 
     <properties>

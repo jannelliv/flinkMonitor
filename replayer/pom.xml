@@ -13,10 +13,29 @@
 
     <artifactId>replayer</artifactId>
     <name>Log Replayer</name>
+    <properties>
+        <kafka.version>0.11.0.3</kafka.version>
+    </properties>
 
     <packaging>jar</packaging>
 
     <dependencies>
+        <dependency>
+            <groupId>org.scala-lang</groupId>
+            <artifactId>scala-library</artifactId>
+            <version>${scala.version}</version>
+            <scope>compile</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>${kafka.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ch.ethz.infsec</groupId>
+            <artifactId>monitoring-common</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>ch.ethz.infsec</groupId>
             <artifactId>trace-formats</artifactId>

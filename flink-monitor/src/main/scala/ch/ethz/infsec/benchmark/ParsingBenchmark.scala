@@ -19,11 +19,13 @@ class ParsingBenchmark(input: Iterator[String], parser: TraceParser) {
 }
 
 class NullParser extends TraceParser {
-  override def parseLine(sink: Consumer[Fact], line: String): Unit = sink.accept(Fact.terminator(line))
+  override def parseLine(sink: Consumer[Fact], line: String): Unit = sink.accept(Fact.terminator(line.toLong))
 
   override def endOfInput(sink: Consumer[Fact]): Unit = ()
 
   override def inInitialState(): Boolean = true
+
+  override def setTerminatorMode(mode: TraceParser.TerminatorMode): Unit = throw new Exception("not implemented")
 }
 
 object ParsingBenchmark {

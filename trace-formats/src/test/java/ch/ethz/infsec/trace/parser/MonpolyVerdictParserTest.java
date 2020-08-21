@@ -31,20 +31,20 @@ public class MonpolyVerdictParserTest {
         parser.endOfInput(sink::add);
 
         assertEquals(Arrays.asList(
-                Fact.make("", "123", "1001"),
-                Fact.terminator("123"),
-                Fact.make("", "456", "1002", "xyz"),
-                Fact.terminator("456"),
-                Fact.make("", "789", "1003", "foo", "bar"),
-                Fact.make("", "789", "1003", "a", "1b"),
-                Fact.terminator("789")
+                Fact.make("", 123L, "1001"),
+                Fact.terminator(123L),
+                Fact.make("", 456L, "1002", "xyz"),
+                Fact.terminator(456L),
+                Fact.make("", 789L, "1003", "foo", "bar"),
+                Fact.make("", 789L, "1003", "a", "1b"),
+                Fact.terminator(789L)
         ), sink);
 
         sink.clear();
         parser.parseLine(sink::add, "@123. (time point 1004): (9)");
         assertEquals(Arrays.asList(
-                Fact.make("", "123", "1004", "9"),
-                Fact.terminator("123")
+                Fact.make("", 123L, "1004", "9"),
+                Fact.terminator(123L)
         ), sink);
     }
 
@@ -66,8 +66,8 @@ public class MonpolyVerdictParserTest {
 
         parser.parseLine(sink::add, "@123. (time point 1001): (xyz)\n");
         assertEquals(Arrays.asList(
-                Fact.make("", "123", "1001", "xyz"),
-                Fact.terminator("123")
+                Fact.make("", 123L, "1001", "xyz"),
+                Fact.terminator(123L)
         ), sink);
     }
 
@@ -87,8 +87,8 @@ public class MonpolyVerdictParserTest {
         parser.parseLine(sink::add, "@123. (time point 1002): (a)\n");
         parser.endOfInput(sink::add);
         assertEquals(Arrays.asList(
-                Fact.make("", "123", "1002", "a"),
-                Fact.terminator("123")
+                Fact.make("", 123L, "1002", "a"),
+                Fact.terminator(123L)
         ), sink);
     }
 }

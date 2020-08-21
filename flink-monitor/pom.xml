@@ -17,13 +17,16 @@
     <name>Flink Monitor Job</name>
 
     <properties>
-        <scala.binary.version>2.12</scala.binary.version>
-        <scala.version>2.12.7</scala.version>
         <flink.version>1.7.2</flink.version>
     </properties>
 
     <dependencies>
-
+        <dependency>
+            <groupId>it.unimi.dsi</groupId>
+            <artifactId>fastutil</artifactId>
+            <version>8.3.0</version>
+            <scope>compile</scope>
+        </dependency>
         <dependency>
             <groupId>ch.ethz.infsec</groupId>
             <artifactId>spec-parser</artifactId>
@@ -142,9 +145,17 @@
                 </configuration>
                 <executions>
                     <execution>
+                        <id>scala-compile</id>
+                        <phase>process-resources</phase>
                         <goals>
                             <goal>add-source</goal>
                             <goal>compile</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>scala-test-compile</id>
+                        <phase>process-test-resources</phase>
+                        <goals>
                             <goal>testCompile</goal>
                         </goals>
                     </execution>

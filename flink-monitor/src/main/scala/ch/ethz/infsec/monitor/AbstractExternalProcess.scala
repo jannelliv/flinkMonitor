@@ -7,7 +7,7 @@ import org.slf4j.{Logger, LoggerFactory}
 
 import scala.collection.JavaConverters
 
-abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT] {
+abstract class AbstractExternalProcess extends ExternalProcess {
   @transient protected var process: Process = _
 
   @transient protected var writer: BufferedWriter = _
@@ -37,9 +37,9 @@ abstract class AbstractExternalProcess[IN, OUT] extends ExternalProcess[IN, OUT]
 
   override def shutdown(): Unit = writer.close()
 
-  protected def parseResult(line: String, sink: OUT => Unit): Boolean
+  protected def parseResult(line: String, sink: Fact => Unit): Boolean
 
-  override def readResults(sink: OUT => Unit): Unit = {
+  override def readResults(sink: Fact => Unit): Unit = {
     var more = true
     do {
       val line = reader.readLine()

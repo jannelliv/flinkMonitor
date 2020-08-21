@@ -1,16 +1,16 @@
-FROM infsec/monpoly
+FROM infsec/verimon
 
 RUN sudo apt-get update && sudo apt-get install --no-install-recommends -y \
     openjdk-8-jdk \
-    maven \
     && sudo rm -rf /var/lib/apt/lists/*
 
 USER root
-ENV WDIR /home/ubuntu
+ENV SDIR /
+ENV WDIR /work
+RUN mkdir -p ${SDIR}
 RUN mkdir -p ${WDIR}
 WORKDIR ${WDIR}
-ADD . ${WDIR}
-RUN chmod +x ${WDIR}/run.sh
-RUN mvn package
-ENTRYPOINT ["/home/ubuntu/run.sh"]
+ADD . ${SDIR}
+RUN chmod +x ${SDIR}/run.sh
+ENTRYPOINT ["/run.sh"]
 

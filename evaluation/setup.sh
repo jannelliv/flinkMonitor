@@ -11,7 +11,7 @@ fatal_error() {
     exit 1
 }
 
-required_tools=("curl" "git" "opam" "mvn" "python3")
+required_tools=("curl" "git" "opam" "mvn" "python3" "m4")
 for tool in "${required_tools[@]}"; do
     which "$tool" > /dev/null || fatal_error "$tool is not installed"
 done
@@ -28,6 +28,7 @@ else
     opam init --compiler="$ocaml_compiler" --no-setup || fatal_error "opam init failed"
 fi
 eval $(opam config env)
+opam install -y ocamlfind || fatal_error "installing ocamlfind failed"
 
 ### MonPoly ###################################################################
 
@@ -83,18 +84,18 @@ export PATH="$PATH:${scala_dir}/bin"
 
 monitor_dir="$target_dir/scalable-online-monitor"
 monitor_url="https://bitbucket.org/krle/scalable-online-monitor"
-monitor_branch="master"
+monitor_branch="multisource_checkpointing"
 if [[ -d "$monitor_dir" ]]; then
     info "project directory exists, skipping"
     info "delete $monitor_dir to reinstall"
-    [[ -a "$monitor_dir/flink-monitor/target/parallel-online-monitoring-1.0-SNAPSHOT.jar" ]] || info "WARNING: monitor jar not found, please build manually"
+    [[ -a "$monitor_dir/flink-monitor/target/flink-monitor-1.0-SNAPSHOT.jar" ]] || info "WARNING: monitor jar not found, please build manually"
     [[ -a "$monitor_dir/replayer/target/replayer-1.0-SNAPSHOT.jar" ]] || info "WARNING: replayer jar not found, please build manually"
     [[ -a "$monitor_dir/trace-generator/target/trace-generator-1.0-SNAPSHOT.jar" ]] || info "WARNING: trace generator jar not found, please build manually"
 else
     info "cloning the project repository (initial branch: $monitor_branch)"
     git clone --branch "$monitor_branch" "$monitor_url" "$monitor_dir" || fatal_error "could not clone the project repository"
     info "building the project"
-    (cd "$monitor_dir" && mvn clean package) || fatal_error "could not build the scalable online monitor and related tools"
+    (cd "$monitor_dir" && mvn clean -Dmaven.test.skip package) || fatal_error "could not build the scalable online monitor and related tools"
 fi
 
 
@@ -102,7 +103,7 @@ fi
 
 #TODO: add relaxed rescaling release for Flink 1.7
 flink_dir="$target_dir/flink"
-flink_url="https://www-eu.apache.org/dist/flink/flink-1.7.2/flink-1.7.2-bin-hadoop28-scala_2.12.tgz"
+flink_url="https://archive.apache.org/dist/flink/flink-1.7.2/flink-1.7.2-bin-hadoop28-scala_2.12.tgz"
 if [[ -d "$flink_dir" ]]; then
     info "Flink directory exists, skipping"
     info "delete $flink_dir to reinstall"
@@ -115,9 +116,47 @@ else
     rm "$flink_archive"
 fi
 
+kafka_dir="$target_dir/kafka"
+kafka_url="https://archive.apache.org/dist/kafka/0.11.0.3/kafka_2.12-0.11.0.3.tgz"
+if [[ -d "$kafka_dir" ]]; then
+    info "Kafka directory exists, skipping"
+    info "delete $kafka_dir to reinstall"
+else
+    info "downloading Kafka"
+    kafka_archive="$target_dir/kafka.tar.gz"
+    [[ ! -a "$kafka_archive" ]] || fatal_error "would overwrite kafka.tar.gz"
+    curl -fLR# -o "$kafka_archive" "$kafka_url" || fatal_error "could not download Kafka"
+    (cd "$target_dir" && tar -xzf "$kafka_archive" && mv kafka_2.12-0.11.0.3 kafka) || fatal_error "could not extract Kafka archive"
+    rm "$kafka_archive"
+fi
+
+zookeeper_dir="$target_dir/zookeeper"
+zookeeper_url="https://archive.apache.org/dist/zookeeper/zookeeper-3.5.6/apache-zookeeper-3.5.6-bin.tar.gz"
+if [[ -d "$zookeeper_dir" ]]; then
+    info "Zookeeper directory exists, skipping"
+    info "delete $zookeeper_dir to reinstall"
+else
+    info "downloading Zookeeper"
+    zookeeper_archive="$target_dir/zookeeper.tar.gz"
+    [[ ! -a "$zookeeper_archive" ]] || fatal_error "would overwrite zookeeper.tar.gz"
+    curl -fLR# -o "$zookeeper_archive" "$zookeeper_url" || fatal_error "could not download Zookeeper"
+    (cd "$target_dir" && tar -xzf "$zookeeper_archive" && mv apache-zookeeper-3.5.6-bin zookeeper) || fatal_error "could not extract Zookeeper archive"
+    rm "$zookeeper_archive"
+fi
+
 # Configuration
 info "replacing the Flink configuration"
 cp "$monitor_dir/evaluation/flink-conf.yaml" "$flink_dir/conf" || fatal_error "could not copy the Flink configuration"
+
+info "replacing the Kafka configuration"
+cp "$monitor_dir/evaluation/server.properties" "$kafka_dir/config" || fatal_error "could not copy the Kafka configuration"
+
+if [[ -a "$zookeeper_dir/conf/zoo.cfg" ]]; then
+    info "zookeeper config already exists"
+else
+    info "replacing the Zookeeper configuration"
+    mv "$zookeeper_dir/conf/zoo_sample.cfg" "$zookeeper_dir/conf/zoo.cfg"
+fi
 
 ### Nokia log #################################################################
 

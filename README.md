@@ -4,9 +4,9 @@ The Scalable Online Monitoring Project
 A scalable online monitor implemented on the Apache Flink® distributed stream
 processing engine.
 
-Copyright © 2017-2019 Information Security Group, Department of Computer
+Copyright © 2017-2020 Information Security Group, Department of Computer
 Science, ETH Zürich, Switzerland. Authors in alphabetical order: Frederik Brix,
-Srđan Krstić, Joshua Schneider, Dmitriy Traytel.
+Matthieu Gras, Srđan Krstić, Joshua Schneider, Dmitriy Traytel.
 
 This program is distributed under the terms of the GNU Lesser General Public
 License, version 3 or later.

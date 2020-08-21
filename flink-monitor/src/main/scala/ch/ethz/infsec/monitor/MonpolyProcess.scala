@@ -7,12 +7,12 @@ import ch.ethz.infsec.trace.formatter.MonpolyTraceFormatter
 import ch.ethz.infsec.trace.parser.MonpolyVerdictParser
 import org.slf4j.{Logger, LoggerFactory}
 
-class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[String])
-  extends AbstractExternalProcess[Fact, Fact] {
+class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[String], numSources: Int)
+  extends AbstractExternalProcess {
 
   private val GET_INDEX_COMMAND = ">get_pos<\n"
   private val GET_INDEX_REPLY = "Current timepoint:"
-
+  private val SET_SLICER_OK = "Slicing parameters updated"
   private val LOAD_STATE_OK = "Loaded state"
   private val SAVE_STATE_OK = "Saved state"
 
@@ -32,6 +32,8 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
   @transient protected var commandAndTimeQueue: java.util.concurrent.LinkedBlockingQueue[Either[Option[Fact], Long]] = _
   @transient private var processTimeMovingAverage = 0.0 // owned by reading interface
   @transient private var memory = ""
+  @transient private var numMemReqs = 0
+  @transient private var numAptReqs = 0
 
   override def supportsStateAccess: Boolean = true
 
@@ -199,12 +201,21 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
         case Left(None) => false
         case Left(Some(command)) =>
           command.getName match {
-            case "get_apt" => sink(Fact.meta("apt", Double.box(processTimeMovingAverage / 1e6)))
-            case "get_memory" =>
-              if (memory == "") {
-                readResidentialMemory()
+            case "get_apt" =>
+              numAptReqs += 1
+              if (numAptReqs == numSources) {
+                numAptReqs = 0
+                sink(Fact.meta("apt", Double.box(processTimeMovingAverage / 1e6)))
               }
-              sink(Fact.meta("memory", memory))
+            case "get_memory" =>
+              numMemReqs += 1
+              if (numMemReqs == numSources) {
+                numMemReqs = 0
+                if (memory == "") {
+                  readResidentialMemory()
+                }
+                sink(Fact.meta("memory", memory))
+              }
             case _ => sink(command)
           }
           true
@@ -212,6 +223,8 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
           updateProcessTime(System.nanoTime() - start)
           true
       }
+    } else if(line.startsWith(SET_SLICER_OK)) {
+      true
     } else {
       parser.parseLine(sink(_), line)
       true
@@ -273,6 +286,7 @@ class MonpolyProcess(val command: Seq[String], val initialStateFile: Option[Stri
   }
 
   private def createTempFiles(parallelism: Int): Unit = {
+    //println("init tempstatefiles")
     tempStateFiles = (0 until parallelism).map(i => {
       val path = tempDirectory.resolve("state-" + i + ".bin")
       path.toFile.deleteOnExit()

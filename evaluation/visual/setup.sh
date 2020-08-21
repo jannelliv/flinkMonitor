@@ -5,7 +5,7 @@
 # setup script (i.e., $TARGET_DIR is the installation folder)
 VISUAL_SCRIPT_DIR=`cd "$(dirname "$BASH_SOURCE")"; pwd`
 TARGET_DIR=`pwd`
-FLINK_HOME=${TARGET_DIR}/flink
+FLINK_HOME=${TARGET_DIR}/../flink
 VISUAL_TARGET_DIR=`pwd`/visual
 mkdir -p ${VISUAL_TARGET_DIR}
 cd ${VISUAL_TARGET_DIR}

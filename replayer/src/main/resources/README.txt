@@ -30,6 +30,22 @@ Options:
             between the reader and writer thread (default: 1024). Increase this
             value if -vv repeatedly reports underruns.
 
+    -n <number of sources>
+	    Number of different input sources, output will be written to kafka
+
+    -e
+	    explicit emissiontime
+
+    --term NO_TERM | TIMESTAMPS | TIMEPOINTS
+            controls the generation of terminators in the parser
+            NO_TERM = parser just parses the trace as is
+            TIMESTAMPS = parsers adds terminators after a new time-stamp
+            TIMEPOINT = parsers adds terminators after a new time-point
+
+    -nt | -no-end-marker
+            Replayer does not print end markers (i.e., terminators)
+
+
     -o <host>:<port>
             Opens a TCP server listening on the given host name and port.
             Only a single client is accepted, to which the output is written.

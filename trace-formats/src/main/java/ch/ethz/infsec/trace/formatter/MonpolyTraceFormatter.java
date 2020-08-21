@@ -61,14 +61,17 @@ public class MonpolyTraceFormatter extends AbstractMonpolyFormatter implements T
             printString(fact.getName(), tempBuilder);
             for (Object arg : fact.getArguments()) {
                 tempBuilder.append(' ');
-                printString(arg.toString(), tempBuilder);
+                if (fact.getName().equals("set_slicer"))
+                    tempBuilder.append(arg.toString());
+                else
+                    printString(arg.toString(), tempBuilder);
             }
             tempBuilder.append("<\n");
             sink.accept(tempBuilder.toString());
         } else {
             if (fact.isTerminator()) {
                 builder.append('@');
-                printString(fact.getTimestamp(), builder);
+                printString(Long.toString(fact.getTimestamp()), builder);
                 printAndClearDatabase();
                 if (markDatabaseEnd) {
                     builder.append(';');

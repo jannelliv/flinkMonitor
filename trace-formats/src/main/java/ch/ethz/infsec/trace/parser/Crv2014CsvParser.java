@@ -11,27 +11,42 @@ import java.util.regex.Pattern;
 public class Crv2014CsvParser implements TraceParser, Serializable {
     private static final long serialVersionUID = -919182766017476946L;
 
-    private String lastTimePoint;
-    private String lastTimestamp;
+    private Long lastTimePoint;
+    private Long lastTimestamp;
     private boolean alreadyTerminated;
+    private boolean genTermsforTp;
+    private boolean genTermsforTs;
 
     public Crv2014CsvParser() {
         this.lastTimePoint = null;
         this.lastTimestamp = null;
         this.alreadyTerminated = false;
+        this.genTermsforTp = true;
+        this.genTermsforTs = true;
     }
 
     private void terminateEvent(Consumer<Fact> sink) {
         if (lastTimePoint != null && !alreadyTerminated) {
-            sink.accept(Fact.terminator(lastTimestamp));
+            Fact fact = Fact.terminator(lastTimestamp);
+            fact.setTimepoint(lastTimePoint);
+            sink.accept(fact);
         }
     }
 
-    private void beginNewEvent(Consumer<Fact> sink, String newTimePoint, String newTimestamp) {
+    private void beginNewEvent(Consumer<Fact> sink, Long newTimePoint, Long newTimestamp) {
         terminateEvent(sink);
         lastTimePoint = newTimePoint;
         lastTimestamp = newTimestamp;
         alreadyTerminated = false;
+    }
+
+    @Override
+    public void setTerminatorMode(TerminatorMode mode) {
+        switch (mode) {
+            case ALL_TERMINATORS: genTermsforTs = true; genTermsforTp = true; break;
+            case ONLY_TIMESTAMPS: genTermsforTs = true; genTermsforTp = false; break;
+            case NO_TERMINATORS: genTermsforTs = false; genTermsforTp = false; break;
+        }
     }
 
     @Override
@@ -47,6 +62,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (trimmed.isEmpty()) {
             return;
         }
+
         if (trimmed.equals(";;")) {
             terminateEvent(sink);
             alreadyTerminated = true;
@@ -55,7 +71,6 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (trimmed.startsWith(">")) {
             terminateEvent(sink);
             alreadyTerminated = true;
-
             final Matcher matcher = commandArgumentPattern.matcher(trimmed.substring(1));
             String name;
             if (matcher.lookingAt()) {
@@ -75,7 +90,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
                 matcher.region(matcher.end(), trimmed.length() - 1);
             }
 
-            sink.accept(new Fact(name, null, arguments));
+            sink.accept(Fact.meta(name, arguments));
             return;
         }
 
@@ -97,7 +112,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (end < 0) {
             throw new ParseException(line);
         }
-        final String timePoint = line.substring(start, end).trim();
+        final Long timePoint = Long.valueOf(line.substring(start, end).trim());
 
         start = line.indexOf('=', end + 1) + 1;
         if (start <= 0) {
@@ -107,7 +122,7 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
         if (end < 0) {
             end = line.length();
         }
-        final String timestamp = line.substring(start, end).trim();
+        final Long timestamp = Long.valueOf(line.substring(start, end).trim());
 
         final ArrayList<Object> arguments = new ArrayList<>();
         while (end < line.length()) {
@@ -122,11 +137,19 @@ public class Crv2014CsvParser implements TraceParser, Serializable {
             arguments.add(line.substring(start, end).trim());
         }
 
-        if (!(timePoint.equals(lastTimePoint) && timestamp.equals(lastTimestamp))) {
-            beginNewEvent(sink, timePoint, timestamp);
+        if (genTermsforTs) {
+            boolean check = false;
+            if (!timestamp.equals(lastTimestamp)) {
+                beginNewEvent(sink, timePoint, timestamp);
+                check = true;
+            }
+            if (!timePoint.equals(lastTimePoint) && genTermsforTp && !check) {
+                beginNewEvent(sink, timePoint, timestamp);
+            }
         }
-
-        sink.accept(new Fact(factName, timestamp, arguments));
+        Fact fact = Fact.make(factName, timestamp, arguments);
+        fact.setTimepoint(timePoint);
+        sink.accept(fact);
     }
 
     @Override

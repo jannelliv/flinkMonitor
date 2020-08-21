@@ -49,10 +49,10 @@ class Data:
         self.name = name
         self.df = df
 
-    def select(self, experiment=ANY, tool=ANY, checkpointing=ANY, statistics=ANY, processors=ANY, formula=ANY, heavy_hitters=ANY, event_rate=ANY, index_rate=ANY, stage=ANY):
+    def select(self, experiment=ANY, tool=ANY, checkpointing=ANY, statistics=ANY, numsources=ANY, processors=ANY, cmd=ANY, variant=ANY, formula=ANY, heavy_hitters=ANY, event_rate=ANY, index_rate=ANY, stage=ANY):
         # print(self.df)
         # print("Select  " + str((experiment, tool, checkpointing, statistics, processors, formula, heavy_hitters, event_rate, index_rate, stage)))
-        view = self.df.loc[(experiment, tool, checkpointing, statistics, processors, formula, heavy_hitters, event_rate, index_rate, stage), :]
+        view = self.df.loc[(experiment, tool, checkpointing, statistics, numsources, processors, cmd, variant, formula, heavy_hitters, event_rate, index_rate, stage), :]
         return Data(self.name, view)
 
     def export(self, *columns, drop_levels=[], path=None):
@@ -139,10 +139,10 @@ class Data:
 
 
 class Loader:
-    job_levels = ['experiment', 'tool', 'checkpointing', 'statistics', 'processors', 'formula', 'heavy_hitters', 'event_rate', 'index_rate', 'stage', 'repetition']
+    job_levels = ['experiment', 'tool', 'checkpointing', 'statistics', 'numsources', 'processors', 'cmd', 'variant', 'formula', 'heavy_hitters', 'event_rate', 'index_rate', 'stage', 'repetition']
 
-                #metrics_nokia_flink_monpoly_stats_8_del_1_2_neg_5000_1_1.csv
-    job_regex = r"(nokia|nokiaCMP|gen|genCMP|genh)(_flink)?_(monpoly|dejavu)(_ft)?(_stats)?(?:_(\d+))?_([a-zA-Z0-9-_]+neg)(?:_h(\d+))?_(\d+)(?:_(\d+))?_([01])_(\d+)"
+                #metrics_nokia_flink_monpoly_stats_8_2_normalcmd_4_del_1_2_neg_5000_1_1.csv
+    job_regex = r"(nokia|nokiaCMP|gen|genCMP|genh)(_flink)?_(monpoly|dejavu)(_ft)?(_stats)?_(\d+)_(\d+)_([a-z]+)_(\d+)_([a-zA-Z0-9-_]+neg)(?:_h(\d+))?_(\d+)(?:_(\d+))?_([01])_(\d+)"
     metrics_pattern = re.compile(r"metrics_" + job_regex + r"\.csv")
     delay_pattern = re.compile(job_regex + r"_delay\.txt")
     time_pattern = re.compile(job_regex + r"_time(?:_(\d+))?\.txt")
@@ -296,13 +296,16 @@ class Loader:
                 tool,
                 bool(metrics_match.group(4)),               #ft?
                 bool(metrics_match.group(5)),               #stats?
-                int(metrics_match.group(6) or 1),           #CPUs(?)
-                metrics_match.group(7).replace('_', '-'),   #formula
-                int(metrics_match.group(8) or 0),           #heavy hitters?
-                int(metrics_match.group(9)),                #event rate
-                int(metrics_match.group(10) or 0),          #index rate?
-                int(metrics_match.group(11)),               #stage
-                int(metrics_match.group(12)),               #repetition
+                int(metrics_match.group(6) or 1),           #Num sources
+                int(metrics_match.group(7)),                #CPUs?
+                metrics_match.group(8),                      #monpoly cmd
+                int(metrics_match.group(9)),                #Multisource variant
+                metrics_match.group(10).replace('_', '-'),   #formula
+                int(metrics_match.group(11) or 0),           #heavy hitters?
+                int(metrics_match.group(12)),                #event rate
+                int(metrics_match.group(13) or 0),          #index rate?
+                int(metrics_match.group(14)),               #stage
+                int(metrics_match.group(15)),               #repetition
                 )
             self.read_metrics(key, path)
             return
@@ -318,16 +321,19 @@ class Loader:
                 tool=delay_match.group(3)
             key = (
                 delay_match.group(1),                     #experiment
-                tool,                                     #tool
+                tool,
                 bool(delay_match.group(4)),               #ft?
                 bool(delay_match.group(5)),               #stats?
-                int(delay_match.group(6) or 1),           #CPUs?
-                delay_match.group(7).replace('_', '-'),   #formula
-                int(delay_match.group(8) or 0),           #heavy hitters?
-                int(delay_match.group(9)),                #event rate
-                int(delay_match.group(10) or 0),          #index rate?
-                int(delay_match.group(11)),               #stage
-                int(delay_match.group(12)),               #repetition
+                int(delay_match.group(6) or 1),           #Num sources
+                int(delay_match.group(7)),                #CPUs?
+                delay_match.group(8),                      #monpoly cmd
+                int(delay_match.group(9)),                #Multisource variant
+                delay_match.group(10).replace('_', '-'),   #formula
+                int(delay_match.group(11) or 0),           #heavy hitters?
+                int(delay_match.group(12)),                #event rate
+                int(delay_match.group(13) or 0),          #index rate?
+                int(delay_match.group(14)),               #stage
+                int(delay_match.group(15)),               #repetition
                 )
             self.read_replayer_delay(key, path)
             return
@@ -344,18 +350,21 @@ class Loader:
                 tool=time_match.group(3)
             key = (
                 time_match.group(1),                     #experiment
-                tool,                                    #tool
+                tool,
                 bool(time_match.group(4)),               #ft?
                 bool(time_match.group(5)),               #stats?
-                int(time_match.group(6) or 1),           #CPUs(?)
-                time_match.group(7).replace('_', '-'),   #formula
-                int(time_match.group(8) or 0),           #heavy hitters?
-                int(time_match.group(9)),                #event rate
-                int(time_match.group(10) or 0),          #index rate?
-                int(time_match.group(11)),               #stage
-                int(time_match.group(12)),               #repetition
+                int(time_match.group(6) or 1),           #Num sources
+                int(time_match.group(7)),                #CPUs?
+                time_match.group(8),                 #monpoly cmd
+                int(time_match.group(9)),                #Multisource variant
+                time_match.group(10).replace('_', '-'),   #formula
+                int(time_match.group(11) or 0),           #heavy hitters?
+                int(time_match.group(12)),                #event rate
+                int(time_match.group(13) or 0),          #index rate?
+                int(time_match.group(14)),               #stage
+                int(time_match.group(15)),               #repetition
                 )
-            monitor_index = int(time_match.group(13) or default_monitor_index)
+            monitor_index = int(time_match.group(16) or default_monitor_index)
             self.read_memory(key, monitor_index, path)
             if not bool(time_match.group(2)):            #flink?
                 self.read_time(key,path,False)
@@ -371,16 +380,19 @@ class Loader:
                 tool=job_match.group(3)
             key = (
                 job_match.group(1),                     #experiment
-                tool,                                   #tool
+                tool,
                 bool(job_match.group(4)),               #ft?
                 bool(job_match.group(5)),               #stats?
-                int(job_match.group(6) or 1),           #CPUs(?)
-                job_match.group(7).replace('_', '-'),   #formula
-                int(job_match.group(8) or 0),           #heavy hitters?
-                int(job_match.group(9)),                #event rate
-                int(job_match.group(10) or 0),          #index rate?
-                int(job_match.group(11)),               #stage
-                int(job_match.group(12)),               #repetition
+                int(job_match.group(6) or 1),           #Num sources
+                int(job_match.group(7)),                #CPUs?
+                job_match.group(8),                      #monpoly cmd
+                int(job_match.group(9)),                #Multisource variant
+                job_match.group(10).replace('_', '-'),   #formula
+                int(job_match.group(11) or 0),           #heavy hitters?
+                int(job_match.group(12)),                #event rate
+                int(job_match.group(13) or 0),          #index rate?
+                int(job_match.group(14)),               #stage
+                int(job_match.group(15)),               #repetition
                 )
             self.read_time(key, path, True)
             return
@@ -450,11 +462,6 @@ class Loader:
         tmp1['events'] = tmp1.apply(foo, axis=1)
         timedf['throughput'] = tmp1['events'] / timedf['runtime']
         return timedf
-
-        
-
-        
-
 
     def process(self):
         raw_memory = pd.concat(self.memory_data, keys=self.memory_keys, names=self.job_levels)
@@ -540,23 +547,22 @@ if __name__ == '__main__':
         # gen_throughput = throughput.select(experiment='genCMP', stage=0)
         # gen_throughput.df.reset_index('index_rate', drop=True, inplace=True)
         # gen_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic with Dejavu)" , path="gen_throughput_dejavu.pdf")
-        # gen_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic with Dejavu)" , path="gen_runtime_dejavu.pdf")
+        #gen_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (synthetic with Dejavu)" , path="gen_runtime_dejavu.pdf")
 
 
         # # NOKIA
+        nokia_nproc = summary.select(experiment='nokia', stage=1)
+        nokia_nproc.plot('event_rate', ['max'], series_levels=['tool', 'numsources'], column_levels=['processors'],  title="Latency (Nokia)" , path="nokia_nproc.pdf")
+        
+        #nokia_formulas = summary.select(experiment='nokia', tool='flink_monpoly', checkpointing=True, stage=1)
+        #nokia_formulas.plot('event_rate', ['max'], series_levels=['formula'], column_levels=['statistics'], title="Latency (Nokia)", path="nokia_formulas.pdf")
+        
+        #nokia_series = series.select(experiment='nokia', statistics=False, stage=1)
+        #nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
 
-        # nokia_nproc = summary.select(experiment='nokia', stage=1)
-        # nokia_nproc.plot('event_rate', ['max'], series_levels=['tool', 'processors'], column_levels=['statistics'],  title="Latency (Nokia)" , path="nokia_nproc.pdf")
-
-        # nokia_formulas = summary.select(experiment='nokia', tool='flink_monpoly', checkpointing=True, stage=1)
-        # nokia_formulas.plot('event_rate', ['max'], series_levels=['formula'], column_levels=['statistics'], title="Latency (Nokia)", path="nokia_formulas.pdf")
-
-        # nokia_series = series.select(experiment='nokia', statistics=False, stage=1)
-        # nokia_series.plot('timestamp', 'peak', series_levels=['tool', 'processors'], column_levels=['checkpointing', 'repetition'], style='-', title="Latency (Nokia)", path="nokia_series.pdf")
-
-        # nokia_throughput = throughput.select(experiment='nokia', stage=1)
-        # nokia_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_throughput_monpoly.pdf")
-        # nokia_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_runtime_monpoly.pdf")
+        nokia_throughput = throughput.select(experiment='nokia', stage=1)
+        nokia_throughput.plot('event_rate', ['throughput'], series_levels=['tool', 'numsources'], column_levels=['processors'], title="Throughput (nokia)" , path="nokia_throughput_monpoly.pdf")
+        #nokia_throughput.plot('event_rate', ['runtime'], series_levels=['tool', 'processors'], column_levels=['formula'], title="Throughput (nokia)" , path="nokia_runtime_monpoly.pdf")
 
 
         # nokia_nproc = summary.select(experiment='nokiaCMP', stage=1)
@@ -586,42 +592,42 @@ if __name__ == '__main__':
         # gen_nproc_export.export('max', 'peak', 'average', 'memory', path="all.csv")
 
         # # PLOT1
-        synth_export = summary.select(experiment='gen', heavy_hitters=0, stage=1)
-        synth_export.export('max', 'memory', path="plot1-latency.csv")
+        #synth_export = summary.select(experiment='gen', heavy_hitters=0, stage=1)
+        #synth_export.export('max', 'memory', path="plot1-latency.csv")
 
-        synth_export = throughput.select(experiment='gen', heavy_hitters=0, stage=0)
-        synth_export.export('throughput', path="plot1-throughput.csv")
+        #synth_export = throughput.select(experiment='gen', heavy_hitters=0, stage=0)
+        #synth_export.export('throughput', path="plot1-throughput.csv")
 
         # # PLOT1-dejavu
-        synth_export = summary.select(experiment='genCMP',checkpointing=False, heavy_hitters=0, stage=1)
-        synth_export.export('max', 'memory', path="plot1-dejavu-latency.csv")
+        #synth_export = summary.select(experiment='genCMP',checkpointing=False, heavy_hitters=0, stage=1)
+        #synth_export.export('max', 'memory', path="plot1-dejavu-latency.csv")
 
-        synth_export = throughput.select(experiment='genCMP',checkpointing=False, heavy_hitters=0, stage=0)
-        synth_export.export('throughput', path="plot1-dejavu-throughput.csv")
+        #synth_export = throughput.select(experiment='genCMP',checkpointing=False, heavy_hitters=0, stage=0)
+        #synth_export.export('throughput', path="plot1-dejavu-throughput.csv")
 
 
         # # PLOT2
-        nokia_export = summary.select(experiment='nokia', statistics=False, heavy_hitters=0, stage=1)
-        nokia_export.export('max', 'memory', path="plot2-latency.csv")
+        #nokia_export = summary.select(experiment='nokia', statistics=False, heavy_hitters=0, stage=1)
+        #nokia_export.export('max', 'memory', path="plot2-latency.csv")
 
-        nokia_export = series.select(experiment='nokia', statistics=False, heavy_hitters=0, stage=1)
-        nokia_export.df=nokia_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,1), :]
-        nokia_export.export('peak', 'memory', path="plot2-series.csv")
+        #nokia_export = series.select(experiment='nokia', statistics=False, heavy_hitters=0, stage=1)
+        #nokia_export.df=nokia_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,1), :]
+        #nokia_export.export('peak', 'memory', path="plot2-series.csv")
 
 
         # # PLOT2-dejavu
-        nokia_export = summary.select(experiment='nokiaCMP', statistics=False, heavy_hitters=0, stage=1)
-        nokia_export.export('max', 'memory', path="plot2-dejavu-latency.csv")
+        #nokia_export = summary.select(experiment='nokiaCMP', statistics=False, heavy_hitters=0, stage=1)
+        #nokia_export.export('max', 'memory', path="plot2-dejavu-latency.csv")
 
-        nokia_export = series.select(experiment='nokiaCMP', statistics=False, heavy_hitters=0, stage=1)
-        nokia_export.df=nokia_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,1), :]
-        nokia_export.export('peak', 'memory', path="plot2-dejavu-series.csv")
+        #nokia_export = series.select(experiment='nokiaCMP', statistics=False, heavy_hitters=0, stage=1)
+        #nokia_export.df=nokia_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,1), :]
+        #nokia_export.export('peak', 'memory', path="plot2-dejavu-series.csv")
 
         # # PLOT3
-        genh_slices_export = slices.select(experiment='genh', tool='flink_monpoly', checkpointing=True, event_rate=750, index_rate=1, stage=1)
-        monitors=['monitor_tp0','monitor_tp1','monitor_tp2','monitor_tp3','monitor_tp4','monitor_tp5','monitor_tp6','monitor_tp7','monitor_tp8','monitor_tp9','monitor_tp10','monitor_tp11','monitor_tp12','monitor_tp13','monitor_tp14','monitor_tp15']
-        genh_slices_export.df=genh_slices_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,monitors), :]
-        genh_slices_export.export('total_events', drop_levels=['monitor'], path="plot3-slices.csv")
+        #genh_slices_export = slices.select(experiment='genh', tool='flink_monpoly', checkpointing=True, event_rate=750, index_rate=1, stage=1)
+        #monitors=['monitor_tp0','monitor_tp1','monitor_tp2','monitor_tp3','monitor_tp4','monitor_tp5','monitor_tp6','monitor_tp7','monitor_tp8','monitor_tp9','monitor_tp10','monitor_tp11','monitor_tp12','monitor_tp13','monitor_tp14','monitor_tp15']
+        #genh_slices_export.df=genh_slices_export.df.loc[(ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,ANY,monitors), :]
+        #genh_slices_export.export('total_events', drop_levels=['monitor'], path="plot3-slices.csv")
 
 
 

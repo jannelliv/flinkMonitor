@@ -12,7 +12,7 @@ public class MonpolyLinearizingTraceFormatter extends MonpolyTraceFormatter {
     public void printFact(TraceConsumer sink, Fact fact) throws IOException {
         if (!fact.isTerminator()) {
             builder.append('@');
-            printString(fact.getTimestamp(), builder);
+            printString(Long.toString(fact.getTimestamp()), builder);
             builder.append(' ');
             printString(fact.getName(), builder);
             List<Object> arguments = fact.getArguments();

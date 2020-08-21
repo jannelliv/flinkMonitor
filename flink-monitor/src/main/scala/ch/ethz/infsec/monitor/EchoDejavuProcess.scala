@@ -6,7 +6,7 @@ class EchoDejavuProcess(override val command: Seq[String]) extends DejavuProcess
     if (line.startsWith(DejavuProcess.SYNC)) {
       false
     } else {
-      sink(Fact.make("", "", line))
+      sink(Fact.make("", 0L, line))
       true
     }
   }

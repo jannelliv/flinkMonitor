@@ -11,10 +11,15 @@ import java.util.stream.Collectors;
  * A fact represents a single tuple in a temporal structure. It stores the name of the relation that the tuple is part
  * of the arguments of the tuple, and the time-stamp. The position within the temporal structure is implicit: It is
  * encoded by the position of the fact in a stream. Moreover, each structure (i.e., the set of relations associated with
- * a single point in time) is closed by a special <em>terminator fact</em>, which does not have a relation name.
+ * a single point in time) is closed by a special <em>terminator fact</em>, which does not have a relation name (i.e., it
+ * is null).
  * <p>
  * The argument list can be heterogeneous. The only admissible types are {@link String}, {@link Long}, and {@link
  * Double}, though this is currently not enforced.
+ * <p>
+ * Verdict-facts are not part of the temporal structure, they are the outputs of a monitor.
+ * Verdict-facts have empty strings (i.e., "") as their names. Time-points, time-stamps and arguments have
+ * valid values.
  * <p>
  * Meta-facts carry metadata that is not part of the temporal structure. Meta-facts do not have a time-stamp.
  * <p>
@@ -23,19 +28,31 @@ import java.util.stream.Collectors;
 public class Fact implements Serializable {
     private static final long serialVersionUID = -7663140134871742122L;
 
-    // Invariant: At most one of name and timestamp is null.
+    // Invariant: At most one of name and (timestamp and timepoint) is null.
     private String name;
-    private String timestamp;
+    private long timestamp;
+    private long timepoint = -1;
     private List<Object> arguments;
 
-    public Fact(String name, String timestamp, List<Object> arguments) {
+    private Fact(String name, long timestamp, List<Object> arguments) {
         this.name = name;
         this.timestamp = timestamp;
-        this.arguments = Objects.requireNonNull(arguments, "arguments");
+        this.arguments = arguments;
     }
 
-    public static Fact make(String name, String timestamp, Object... arguments) {
-        return new Fact(name, timestamp, Arrays.asList(arguments));
+
+    private Fact(String name, long timestamp, Object... arguments) {
+        this.name = name;
+        this.timestamp = timestamp;
+        this.arguments = Arrays.asList(arguments);
+    }
+
+    public static Fact make(String name, long timestamp, List<Object> arguments) {
+        return new Fact(name, timestamp, arguments);
+    }
+
+    public static Fact make(String name, long timestamp, Object... arguments) {
+        return new Fact(name, timestamp, arguments);
     }
 
     public String getName() {
@@ -46,11 +63,15 @@ public class Fact implements Serializable {
         this.name = name;
     }
 
-    public String getTimestamp() {
-        return timestamp;
+    public void setTimepoint(long timepoint) {
+        this.timepoint = timepoint;
     }
 
-    public void setTimestamp(String timestamp) {
+    public long getTimepoint() { return timepoint; }
+
+    public long getTimestamp() { return timestamp; }
+
+    public void setTimestamp(long timestamp) {
         this.timestamp = timestamp;
     }
 
@@ -74,16 +95,21 @@ public class Fact implements Serializable {
         return name == null;
     }
 
-    public static Fact terminator(String timestamp) {
+    public static Fact terminator(long timestamp) {
+        assert timestamp != -1;
         return new Fact(null, timestamp, Collections.emptyList());
     }
 
     public boolean isMeta() {
-        return timestamp == null;
+        return timestamp == -1;
+    }
+
+    public static Fact meta(String name, List<Object> arguments) {
+        return new Fact(name, -1, arguments);
     }
 
     public static Fact meta(String name, Object... arguments) {
-        return new Fact(name, null, Arrays.asList(arguments));
+        return new Fact(name, -1, arguments);
     }
 
     @Override
@@ -98,7 +124,7 @@ public class Fact implements Serializable {
 
     @Override
     public int hashCode() {
-        return Objects.hash(name, timestamp, arguments);
+        return Objects.hash(name, timepoint, timestamp, arguments);
     }
 
     @Override

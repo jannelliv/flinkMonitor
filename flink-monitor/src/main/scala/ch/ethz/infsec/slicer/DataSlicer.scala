@@ -9,6 +9,7 @@ import org.apache.flink.streaming.api.checkpoint.ListCheckpointed
 import org.apache.flink.util.Collector
 
 import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 // NOTE(JS): Also performs basic filtering (constants).
 abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCheckpointed[String] {
@@ -123,6 +124,19 @@ abstract class DataSlicer extends FlatMapFunction[Fact, (Int, Fact)] with ListCh
       processEvent(fact, collector)
     }
   }
+
+  def process(f: Fact): IndexedSeq[(Int, Fact)] = {
+    val buf = new ArrayBuffer[(Int, Fact)]()
+    val collector = new Collector[(Int, Fact)] {
+      override def collect(t: (Int, Fact)): Unit = buf.append(t)
+
+      override def close(): Unit = ()
+    }
+    flatMap(f, collector)
+    buf
+  }
+
+  def processAll(fact: IndexedSeq[Fact]): IndexedSeq[(Int, Fact)] = fact.flatMap(f => process(f))
 
   override def snapshotState(checkpointId: Long, timestamp: Long): util.List[String] =
     util.Collections.singletonList(if (pendingSlicer == null) stringify else pendingSlicer)

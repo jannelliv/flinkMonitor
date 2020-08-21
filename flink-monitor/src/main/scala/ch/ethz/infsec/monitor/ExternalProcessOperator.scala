@@ -20,14 +20,14 @@ import org.slf4j.LoggerFactory
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ArrayBuffer
 
-class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capacity: Int)
-  extends AbstractStreamOperator[OUT] with OneInputStreamOperator[IN, OUT] {
+class ExternalProcessOperator(process: ExternalProcess, capacity: Int)
+  extends AbstractStreamOperator[Fact] with OneInputStreamOperator[Fact, Fact] {
+  chainingStrategy = ChainingStrategy.ALWAYS
 
   chainingStrategy = ChainingStrategy.ALWAYS
 
   require(capacity > 0)
   private val maxBatchSize: Int = capacity / 10
-
   private val MARKER_STATE_NAME = "_external_process_operator_marker_state_"
   private val OUTPUT_STATE_NAME = "_external_process_operator_output_state_"
   private val PROCESS_STATE_NAME = "_external_process_operator_process_state_"
@@ -38,13 +38,13 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
 
   private trait OutputItem
 
-  private case class DataInputItem(data: IN) extends InputItem
+  private case class DataInputItem(data: Fact) extends InputItem
 
-  private case class DataOutputItem(data: OUT) extends OutputItem
+  private case class DataOutputItem(data: Fact) extends OutputItem
 
   private case class WatermarkItem(mark: Watermark) extends InputItem with SyncItem with OutputItem
 
-  private case class LatencyMarkerItem(mark: LatencyMarker) extends InputItem with SyncItem with OutputItem
+  private case class LatencyMarkerItem(mark: Fact) extends InputItem with SyncItem with OutputItem
 
   private case class SnapshotRequestItem() extends InputItem with SyncItem
 
@@ -81,7 +81,7 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
   override def setup(
                       containingTask: StreamTask[_, _],
                       config: StreamConfig,
-                      output: Output[StreamRecord[OUT]]): Unit = {
+                      output: Output[StreamRecord[Fact]]): Unit = {
 
     super.setup(containingTask, config, output)
 
@@ -251,10 +251,12 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
           // TODO(JS): In AsyncWaitOperator, a TimestampedCollector is used, which recycles a single record object.
           // Do we want to do the same here?
           request match {
-            case DataOutputItem(data) => output.collect(new StreamRecord[OUT](data))
+            case DataOutputItem(data) => output.collect(new StreamRecord[Fact](data))
             case WatermarkItem(mark) => output.emitWatermark(mark)
             case WakeupItem() => ()
-            case LatencyMarkerItem(marker) => output.emitLatencyMarker(marker)
+            case LatencyMarkerItem(marker) =>
+              output.collect(new StreamRecord[Fact](marker))
+              //println("emitterThread():" + " "  + marker + " for subtask " + getRuntimeContext.getIndexOfThisSubtask)
             case ShutdownItem() => running = false
           }
 
@@ -398,6 +400,11 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
   }
 
   private def enqueueMarker(marker: InputItem): Unit = {
+    /*marker match {
+      case LatencyMarkerItem(mark) =>
+        println("enqueueMarker():" + acceptingMarkers + " "  + mark + " for subtask " + getRuntimeContext.getIndexOfThisSubtask)
+      case _ => ()
+    }*/
     if (acceptingMarkers)
       enqueueInput(marker)
     else
@@ -406,10 +413,14 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
 
   override def processWatermark(mark: Watermark): Unit = enqueueMarker(WatermarkItem(mark))
 
-  override def processLatencyMarker(marker: LatencyMarker): Unit = enqueueMarker(LatencyMarkerItem(marker))
+  def processMetaLatencyMarker(marker: LatencyMarkerItem): Unit = enqueueMarker(marker)
 
-  override def processElement(streamRecord: StreamRecord[IN]): Unit = {
+  override def processElement(streamRecord: StreamRecord[Fact]): Unit = {
     val value = streamRecord.getValue
+    if (value.isMeta && value.getName == "LATENCY") {
+      processMetaLatencyMarker(LatencyMarkerItem(value))
+      return
+    }
     enqueueInput(DataInputItem(value))
     acceptingMarkers = process.enablesSyncBarrier(value)
     if (acceptingMarkers) {
@@ -451,9 +462,9 @@ class ExternalProcessOperator[IN, OUT](process: ExternalProcess[IN, OUT], capaci
 
 object ExternalProcessOperator {
   // TODO(JS): Do we need to "clean" the process?
-  def transform[IN, OUT: TypeInformation](in: DataStream[IN], process: ExternalProcess[IN, OUT], capacity: Int): DataStream[OUT] = {
+  def transform(in: DataStream[Fact], process: ExternalProcess, capacity: Int): DataStream[Fact] = {
     in.transform(
       "External Process",
-      new ExternalProcessOperator[IN, OUT](process, capacity))
+      new ExternalProcessOperator(process, capacity))
   }
 }

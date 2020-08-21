@@ -106,13 +106,11 @@ print(str(len(job_map_max)) + " max jobs extracted")
 print(str(len(job_map_avg)) + " avg jobs extracted")
 print(str(len(job_map_peak)) + " peak jobs extracted")
 
-common_jobs = set(job_map_record.keys()).intersection(set(job_map_max.keys()))
-common_jobs = common_jobs.intersection(job_map_avg.keys())
+common_jobs = set(job_map_avg.keys()).intersection(set(job_map_max.keys()))
 common_jobs = common_jobs.intersection(job_map_peak.keys())
 
 #additional jobs
-non_common_jobs = set(job_map_record.keys())-common_jobs
-non_common_jobs = non_common_jobs.union(set(job_map_max.keys())-common_jobs)
+non_common_jobs = set(job_map_max.keys())-common_jobs
 non_common_jobs = non_common_jobs.union(set(job_map_avg.keys())-common_jobs)
 non_common_jobs = non_common_jobs.union(set(job_map_peak.keys())-common_jobs)
 print("Skipping the "+ str(len(non_common_jobs)) +" jobs not in common: " + str(non_common_jobs))
@@ -165,7 +163,7 @@ def l2d(l):
     return dict
 
 def get_subprocesses(j):
-    job_regex = re.compile(r"(nokia|nokiaCMP|gen|genCMP|genh)(_flink)?_(monpoly|dejavu)(_ft)?(_stats)?(?:_(\d+))?_([a-zA-Z0-9-_]+neg)(?:_h(\d+))?_(\d+)(?:_(\d+))?_([01])_(\d+)")
+    job_regex = re.compile(r"(nokia|nokiaCMP|gen|genCMP|genh)(_flink)?_(monpoly|dejavu)(_ft)?(_stats)?(?:_(\d+))?_([a-zA-Z0-9-_]+neg).*")
     job_match = job_regex.fullmatch(j)
     return int(job_match.group(6) or 1)
 

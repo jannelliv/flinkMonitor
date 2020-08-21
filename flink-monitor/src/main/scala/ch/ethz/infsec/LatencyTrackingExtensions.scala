@@ -1,23 +1,112 @@
 package ch.ethz.infsec
 
-import org.apache.flink.api.common.typeinfo.TypeInformation
-import org.apache.flink.api.java.typeutils.InputTypeConfigurable
-import org.apache.flink.api.scala.ClosureCleaner
-import org.apache.flink.metrics.Gauge
-import org.apache.flink.runtime.jobgraph.OperatorID
-import org.apache.flink.streaming.api.datastream.{DataStreamSink, DataStreamSource}
-import org.apache.flink.streaming.api.functions.sink.SinkFunction
-import org.apache.flink.streaming.api.functions.source.SourceFunction
-import org.apache.flink.streaming.api.graph.StreamConfig
-import org.apache.flink.streaming.api.operators.{Output, StreamSink, StreamSource}
-import org.apache.flink.streaming.api.scala._
-import org.apache.flink.streaming.api.watermark.Watermark
-import org.apache.flink.streaming.runtime.streamrecord.{LatencyMarker, StreamRecord}
-import org.apache.flink.streaming.runtime.streamstatus.StreamStatusMaintainer
-import org.apache.flink.streaming.runtime.tasks.StreamTask
-import org.apache.flink.util.OutputTag
+import java.util.stream.Collector
 
-private class ProvidedLatencyOutputDecorator(
+import ch.ethz.infsec.monitor.Fact
+import org.apache.flink.api.common.functions.RichFlatMapFunction
+import org.apache.flink.configuration.Configuration
+import org.apache.flink.metrics.Gauge
+import org.apache.flink.util
+
+import scala.util.control.Breaks.{break, breakable}
+import scala.collection.mutable
+
+class LatencyProcessingFunction extends RichFlatMapFunction[Fact, Fact] {
+  @transient private var delays: Array[(Long, Int)] = _
+  @transient private var currentDelayIndex: Int = 0
+  @transient private var delaySum: Long = 0
+  @transient private var delaySamples: Int = 0
+  @transient private var maxDelay: Int = 0
+  @transient private var latencyMarkerMap: mutable.LongMap[(Int, Int, Long)] = _
+  @transient private var currIdx: Long = _
+
+  private val numExpectedMarkers = StreamMonitoring.inputParallelism * StreamMonitoring.processors
+
+  override def open(parameters: Configuration): Unit = {
+    super.open(parameters)
+
+    this.delays = Array.fill(20)((0, 0))
+    this.currentDelayIndex = 0
+    this.delaySum = 0
+    this.delaySamples = 0
+    this.maxDelay = 0
+    this.latencyMarkerMap = new mutable.LongMap[(Int, Int, Long)]()
+    this.currIdx = 0
+
+    val metricGroup = getRuntimeContext.getMetricGroup.addGroup("latency")
+    metricGroup.gauge[Int, Gauge[Int]]("peak", new Gauge[Int] {
+      override def getValue: Int = {
+        val earliest = System.currentTimeMillis() - 1000
+        delays.filter(_._1 > earliest).foldLeft(0)(_ max _._2)
+      }
+    })
+    metricGroup.gauge[Int, Gauge[Int]]("max", new Gauge[Int] {
+      override def getValue: Int = maxDelay
+    })
+    metricGroup.gauge[Int, Gauge[Int]]("average", new Gauge[Int] {
+      override def getValue: Int = (delaySum.toDouble / delaySamples.toDouble).round.toInt
+    })
+  }
+
+  def updateLatency(): Unit = {
+    var i = currIdx;
+    breakable {
+      while (true) {
+        latencyMarkerMap.get(i) match {
+          case Some((count, delay, time)) =>
+            if (count == numExpectedMarkers) {
+              //println(s"lol got all expected latency markers with idx $i, delay is $delay")
+              currentDelayIndex += 1
+              if (currentDelayIndex >= delays.length)
+                currentDelayIndex = 0
+              delays(currentDelayIndex) = (time, delay)
+              delaySum += delay
+              delaySamples += 1
+              maxDelay = maxDelay.max(delay)
+              //println(s"LOL max delay now is $maxDelay")
+            } else {
+              break()
+            }
+          case None => break()
+        }
+        i += 1
+      }
+    }
+    currIdx = i
+  }
+
+  override def flatMap(in: Fact, collector: util.Collector[Fact]): Unit = {
+    //println("LOL latency tracking: " + in)
+    if (in.isMeta && in.getName == "LATENCY") {
+      //println("lol got latency fact: " + in)
+      val idx = java.lang.Long.parseLong(in.getArgument(0).asInstanceOf[java.lang.String])
+      if (idx < currIdx) {
+        throw new RuntimeException(s"INVARIANT: expected latency meta fact with idx >= ${currIdx}, has idx ${idx}")
+      }
+      val markedTime = java.lang.Long.parseLong(in.getArgument(1).asInstanceOf[java.lang.String])
+      val now = System.currentTimeMillis()
+      val inDelay = (now - markedTime).toInt
+      val count = latencyMarkerMap.get(idx) match {
+        case Some((count, delay, time)) =>
+          val (delayNew, timeNew) = if (delay >= inDelay) (delay, time) else (inDelay, now)
+          latencyMarkerMap += (idx -> (count+1, delayNew, timeNew))
+          count+1
+        case None =>
+          latencyMarkerMap += (idx -> (1, inDelay, now))
+          1
+      }
+      if (count == numExpectedMarkers && idx == currIdx) {
+        updateLatency()
+      } else if (count > numExpectedMarkers) {
+        throw new RuntimeException(s"INVARIANT: too many latency meta facts received, expected ${numExpectedMarkers} got ${count}")
+      }
+    } else {
+      collector.collect(in)
+    }
+  }
+}
+
+/*private class ProvidedLatencyOutputDecorator(
     output: Output[StreamRecord[String]],
     operatorID: OperatorID,
     subtaskIndex: Int) extends Output[StreamRecord[String]] {
@@ -35,7 +124,7 @@ private class ProvidedLatencyOutputDecorator(
     val value = streamRecord.getValue
     if (value.startsWith(TIMESTAMP_PREFIX)) {
       val time = value.substring(TIMESTAMP_PREFIX.length).trim.toLong
-//      println("Input latency " + time + " at " + System.currentTimeMillis())
+      println("Input latency "  + time + " at " + System.currentTimeMillis() + " for subtask " + subtaskIndex)
       output.emitLatencyMarker(new LatencyMarker(time, operatorID, subtaskIndex))
     } else
       output.collect(streamRecord)
@@ -122,7 +211,7 @@ object LatencyTrackingExtensions {
     env.getJavaEnv.clean(sourceFunction)
 
     val sourceOperator = new ProvidedLatencyStreamSource(sourceFunction)
-    val sourceStream = new DataStreamSource(env.getJavaEnv, typeInfo, sourceOperator, false, sourceName)
+    val sourceStream = new DataStreamSource(env.getJavaEnv, typeInfo, sourceOperator, true, sourceName)
     new DataStream[String](sourceStream.returns(typeInfo))
   }
 
@@ -148,4 +237,4 @@ object LatencyTrackingExtensions {
     env.getJavaEnv.addOperator(sink.getTransformation)
     sink
   }
-}
+}*/

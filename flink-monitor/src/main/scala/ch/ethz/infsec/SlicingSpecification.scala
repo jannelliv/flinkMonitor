@@ -2,6 +2,8 @@ package ch.ethz.infsec
 
 import java.io.PrintWriter
 
+import ch.ethz.infsec.autobalancer.Helpers.Domain
+import ch.ethz.infsec.autobalancer.{ConstantHistogram, StatsHistogram}
 import ch.ethz.infsec.policy.Formula
 import ch.ethz.infsec.slicer.HypercubeSlicer
 import org.apache.flink.api.java.utils.ParameterTool
@@ -61,15 +63,16 @@ object SlicingSpecification {
     } else if (ratesSpec.nonEmpty) {
       logger.info("Optimizing shares for statistics: {}", rates.mkString(", "))
       HypercubeSlicer.optimize(
-        formula, degree, new slicer.Statistics {
+        formula, degree, new StatsHistogram {
           override def relationSize(relation: String): Double = rates(relation)
 
-          override def heavyHitters(relation: String, attribute: Int): Set[Any] =
-            heavyHittersMap((relation, attribute)).toSet
+          override def merge(statsHistogram: StatsHistogram): Unit = throw new Exception("cannot call merge on this")
+
+          override def heavyHitter(relation: String, attribute: Int): Set[Domain] = heavyHittersMap((relation, attribute)).toSet
         })
     } else {
       logger.info("Optimizing shares for equal statistics and no heavy hitters")
-      HypercubeSlicer.optimize(formula, degree, slicer.Statistics.constant)
+      HypercubeSlicer.optimize(formula, degree, ConstantHistogram())
     }
 
     val dumpFilename = parameters.get("dump-shares", "")
