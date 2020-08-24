@@ -117,7 +117,9 @@ class WatermarkOrderEmissionTimeTransformer(input: BufferedReader,
 
   private val pendingTimestamps = Array.fill(numPartitions)(new mutable.TreeMap[Long, Int]())
 
-  private val nextWatermarks = Array.fill(numPartitions)(0L)
+  private val nextWatermarks = Array.fill(numPartitions)(watermarkPeriod.toLong)
+
+  private var maxTimestamp = 0L
 
   private def outputUpto(limit: Long): Unit = {
     while (outputQueue.nonEmpty && outputQueue.head._1 <= limit) {
@@ -145,6 +147,7 @@ class WatermarkOrderEmissionTimeTransformer(input: BufferedReader,
 
   override protected def handleRecord(line: String): Unit = {
     val timestamp = extractTimestamp(line)
+    maxTimestamp = timestamp
     val relativeTimestamp = timestamp - minTimestamp
     outputUpto(relativeTimestamp - 1)
 
@@ -157,7 +160,13 @@ class WatermarkOrderEmissionTimeTransformer(input: BufferedReader,
     pendingMap(timestamp) = pendingMap.getOrElse(timestamp, 0) + 1
   }
 
-  override protected def handleEnd(): Unit = outputUpto(Long.MaxValue)
+  override protected def handleEnd(): Unit = {
+    outputUpto(Long.MaxValue)
+    for (partition <- 0 until numPartitions) {
+      val watermark = makeWatermark(nextWatermarks(partition), maxTimestamp)
+      sendRecordToOne(partition, watermark)
+    }
+  }
 }
 
 object TraceTransformer {
