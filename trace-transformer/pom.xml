@@ -14,7 +14,7 @@
     <artifactId>trace-transformer</artifactId>
     <packaging>jar</packaging>
 
-    <name>Trace transformer</name>
+    <name>Multi-Source Trace Transformer</name>
 
     <dependencies>
         <dependency>

@@ -1,140 +1,78 @@
 package ch.ethz.infsec
 
-import java.io.{BufferedWriter, FileWriter, OutputStreamWriter, Writer}
+import java.io._
 
-import org.apache.commons.math3.distribution.{EnumeratedIntegerDistribution, GeometricDistribution, RealDistribution, UniformRealDistribution}
+import org.apache.commons.math3.distribution.{EnumeratedIntegerDistribution, UniformRealDistribution}
 import org.apache.commons.math3.random.{RandomGenerator, Well19937c}
 import org.apache.commons.math3.special.Erf
 
 import scala.collection.mutable
-import scala.collection.mutable.ArrayBuffer
-import scala.io.Source
-import scala.util.Random
 
 sealed case class Config(numOutputs: Int = 4,
                          transformerId: Int = 1,
                          inputCsv: String = "",
                          distribution: Option[String] = None,
-                         outoutCsvPrefix: String = "",
+                         outputCsvPrefix: String = "",
                          sigma: Double = 2.0,
                          maxOOO: Int = 5,
                          seed: Long = 314159265,
                          watermarkPeriod: Int = 2,
-                         start:Boolean=true)
+                         start: Boolean = true)
 
-object WatermarkOrderHelpers {
-  def getTimeStamps(input: Source): Iterator[(Int, String)] = {
-    input.getLines().map(k => {
-      val ts = k.split(',')(2).split('=')(1).trim.toInt
-      (ts, k)
-    })
-  }
-}
-
-abstract class TransformerImpl(rng: RandomGenerator,
-                               numPartitions: Int,
-                               partitionDist: EnumeratedIntegerDistribution,
-                               output: Array[Writer],start:Boolean) {
-  protected def sendRecord(line: String, partition: Option[Int]): Unit = {
-    partition match {
-      case Some(i) =>
-        require(i >= 0 && i < numPartitions)
-        output(i).write(s"$line\n")
-      case None =>
-        (0 until numPartitions).foreach(i => output(i).write(s"$line\n"))
-    }
-  }
-
-  def runTransformer(): Unit
-}
-
-class PerPartitionOrderTransformer(rng: RandomGenerator,
-                                   numPartitions: Int,
-                                   partitionDist: EnumeratedIntegerDistribution,
-                                   input: Source,
+abstract class AbstractTransformer(input: BufferedReader,
                                    output: Array[Writer],
-                                   start:Boolean)
-  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output,start) {
+                                   start: Boolean) {
+
+  val numPartitions: Int = output.length
+
+  protected def extractTimestamp(line: String): Long =
+    line.split(',')(2).split('=')(1).trim.toLong
+
+  protected def sendRecordToAll(line: String): Unit =
+    output.foreach(_.write(line + "\n"))
+
+  protected def sendRecordToOne(partition: Int, line: String): Unit =
+    output(partition).write(line + "\n")
+
+  protected var minTimestamp = 0L
+
+  protected def formatStart(ts: Long): String
+
+  protected def handleRecord(line: String): Unit
+
+  protected def handleEnd(): Unit
+
   def runTransformer(): Unit = {
-    if(start) {
-      val first_elem = WatermarkOrderHelpers.getTimeStamps(input).take(1).toArray.head._1
-      sendRecord(s">START $first_elem<", None)
+    val firstLine = input.readLine()
+    if (firstLine != null) {
+      minTimestamp = extractTimestamp(firstLine)
+      if (start) {
+        sendRecordToAll(formatStart(minTimestamp))
+      }
+      handleRecord(firstLine)
+
+      var line: String = null
+      while ({line = input.readLine(); line != null}) {
+        handleRecord(line)
+      }
     }
-    for (line <- input.getLines()) {
-      sendRecord(line, Some(partitionDist.sample()))
-    }
+    handleEnd()
   }
 }
 
+class PerPartitionOrderTransformer(input: BufferedReader,
+                                   partitionDist: EnumeratedIntegerDistribution,
+                                   output: Array[Writer],
+                                   start: Boolean)
+  extends AbstractTransformer(input, output, start) {
+  require(partitionDist.getSupportUpperBound < numPartitions)
 
-class WatermarkOrderTransformer(rng: RandomGenerator,
-                                numPartitions: Int,
-                                partitionDist: EnumeratedIntegerDistribution,
-                                input: Source,
-                                output: Array[Writer],
-                                start:Boolean)
-  extends TransformerImpl(rng, numPartitions, partitionDist, output,start) {
-  private def moveCurrTs(currTs: Long, elementsLeft: Array[Int]): Int = {
-    //Return the index of the first non-zero value of the array
-    for (i <- currTs.toInt until elementsLeft.length) {
-      if (elementsLeft(i) != 0) {
-        return i
-      }
-    }
-    //DONE
-    elementsLeft.length
-  }
+  override protected def formatStart(ts: Long): String = s">START $ts<"
 
-  private def sendWatermark(tsVal: Int): Unit = {
-    sendRecord(s">WATERMARK $tsVal<", None)
-  }
+  override protected def handleRecord(line: String): Unit = sendRecordToOne(partitionDist.sample(), line)
 
-  private def writeToOutput[U <: mutable.Buffer[String]](factMap: mutable.Map[Int, U]): Unit = {
-    val sampler = new GeometricDistribution(0.5)
-    val maxTs = factMap.keys.max
-
-    //Lowest TS for which not all facts have been written to the output
-    var currTs = factMap.keys.min
-
-    //TS are the idx of the arr, the values are the numbers of facts left for that TS
-    val elementsLeft = new Array[Int](maxTs + 1)
-
-    //Init the number of elements for each key
-    factMap.keys.foreach(k => elementsLeft(k) = factMap(k).length)
-
-    while (currTs != maxTs + 1) {
-      val currTsRet = moveCurrTs(currTs, elementsLeft)
-
-      //currTS update, send a watermark
-      if (currTsRet > currTs) {
-        sendWatermark(currTsRet - 1)
-      }
-
-      currTs = currTsRet
-      //Select a timestamp with a random offset (~ Geo) from the currentTS
-      val tsSample = math.min(maxTs, currTs + sampler.sample())
-      if (elementsLeft(tsSample) > 0) {
-        val buf = factMap(tsSample)
-        elementsLeft(tsSample) -= 1
-        //Select a random fact in the the set of facts with TS tsSample
-        val idxSample = rng.nextInt(buf.length)
-        val line = buf.remove(idxSample)
-        sendRecord(line, Some(partitionDist.sample()))
-      }
-    }
-    sendWatermark(maxTs + 1)
-  }
-
-  override def runTransformer(): Unit = {
-    val tsToLines = WatermarkOrderHelpers.getTimeStamps(input)
-      .toArray
-      .groupBy(_._1)
-      .mapValues(k => mutable.ArrayBuffer(k.map(_._2): _*))
-    //Randomize the trace and write it to the output
-    writeToOutput(mutable.Map() ++= tsToLines)
-  }
+  override protected def handleEnd(): Unit = ()
 }
-
 
 class TruncNormDistribution(rng: RandomGenerator, sigma: Double, a: Double, b: Double) {
   require(a < b)
@@ -150,81 +88,76 @@ class TruncNormDistribution(rng: RandomGenerator, sigma: Double, a: Double, b: D
   def sample(): Double = quantile(unif.sample())
 }
 
-class WatermarkOrderEmissionTimeTransformer(rng: RandomGenerator,
-                                            numPartitions: Int,
+class WatermarkOrderEmissionTimeTransformer(input: BufferedReader,
                                             partitionDist: EnumeratedIntegerDistribution,
-                                            input: Source,
+                                            timeDist: TruncNormDistribution,
                                             output: Array[Writer],
-                                            sigma: Double,
-                                            maxOOO: Int,
                                             watermarkPeriod: Int,
-                                            start:Boolean)
-  extends TransformerImpl(rng, numPartitions, partitionDist: EnumeratedIntegerDistribution, output,start) {
+                                            start: Boolean)
+  extends AbstractTransformer(input, output, start) {
+  require(partitionDist.getSupportUpperBound < numPartitions)
 
-  val dist: TruncNormDistribution = new TruncNormDistribution(rng, sigma, 0.0, maxOOO + 0.001)
   val emissionSeparator: String = "'"
 
-  private def sample(): Int = math.round(dist.sample().floatValue())
+  private def sampleDelta(): Long = math.round(timeDist.sample())
 
-  private def makeRecord(emissionTime: Int, line: String): String = {
+  private def makeRecord(emissionTime: Long, line: String): String = {
     s"$emissionTime$emissionSeparator$line"
   }
 
-  private def makeWatermark(emissionTime: Int, tsVal: Int): String = {
+  private def makeWatermark(emissionTime: Long, tsVal: Long): String = {
     s"$emissionTime$emissionSeparator>WATERMARK $tsVal<"
   }
 
-  override def runTransformer(): Unit = {
-    val tsAndLines = WatermarkOrderHelpers.getTimeStamps(input).toArray
-    val currTime = (0 until numPartitions map (_ => 0)).toArray
-    val outLines = (0 until numPartitions map (_ => ArrayBuffer[(Int, Int, String)]())).toArray
-    val minTs = tsAndLines.minBy(_._1)._1
-    val maxTs = tsAndLines.maxBy(_._1)._1
-    if(start)
-      sendRecord(s"0$emissionSeparator>START  $minTs<", None)
-    for ((ts, line) <- tsAndLines) {
-      val samp = sample()
-      val emissiontime = ts + samp - minTs
-      require(emissiontime >= 0.0)
-      val partition = partitionDist.sample()
-      if (emissiontime > currTime(partition))
-        currTime(partition) = emissiontime
-      val record = makeRecord(emissiontime, line)
-      outLines(partition).append((emissiontime, ts, record))
-    }
+  override protected def formatStart(ts: Long): String =
+    s"0$emissionSeparator>START $ts<"
 
-    outLines
-      .transform(k => k.sortWith((e1, e2) => e1._1 < e2._1))
-      .zipWithIndex
-      .transform(k => {
-        val allLines = k._1
-        val partId = k._2
-        var currTime = 0
-        val maxTime = allLines.last._1
-        val buf = new ArrayBuffer[(Int, Int, String)]()
-        val tsLeft = mutable.Map() ++= allLines.groupBy(_._2).mapValues(_.length)
-        for (e <- allLines) {
-          val (emissionTime, timeStamp, _) = e
-          buf.append(e)
-          require(tsLeft(timeStamp) > 0)
-          tsLeft(timeStamp) -= 1
-          if (tsLeft(timeStamp) == 0)
-            tsLeft -= timeStamp
-          if (emissionTime >= currTime + watermarkPeriod) {
-            currTime = emissionTime
-            if (tsLeft.keySet.nonEmpty) {
-              val minDoneTs = tsLeft.keySet.min - 1
-              buf.append((currTime, minDoneTs, makeWatermark(currTime, minDoneTs)))
-            }
-          }
-        }
-        buf.append((maxTime, maxTs, makeWatermark(maxTime, maxTs)))
-        (buf, partId)
-      })
-      .foreach(e => e._1
-        .foreach(k => sendRecord(k._3, Some(e._2)))
-      )
+  private val outputQueue = new mutable.PriorityQueue[(Long, Int, Long, String)]()(
+    Ordering.by[(Long, Int, Long, String), Long](_._1).reverse)
+
+  private val pendingTimestamps = Array.fill(numPartitions)(new mutable.TreeMap[Long, Int]())
+
+  private val nextWatermarks = Array.fill(numPartitions)(0L)
+
+  private def outputUpto(limit: Long): Unit = {
+    while (outputQueue.nonEmpty && outputQueue.head._1 <= limit) {
+      val (emissionTime, partition, timestamp, line) = outputQueue.dequeue()
+
+      val watermarkTime = pendingTimestamps(partition).firstKey - 1
+      var nextWatermark = nextWatermarks(partition)
+      while (nextWatermark <= emissionTime) {
+        sendRecordToOne(partition, makeWatermark(nextWatermark, watermarkTime))
+        nextWatermark = nextWatermark + watermarkPeriod
+      }
+      nextWatermarks(partition) = nextWatermark
+
+      val record = makeRecord(emissionTime, line)
+      sendRecordToOne(partition, record)
+
+      val pending = pendingTimestamps(partition)(timestamp)
+      if (pending == 1) {
+        pendingTimestamps(partition) -= timestamp
+      } else {
+        pendingTimestamps(partition)(timestamp) = pending - 1
+      }
+    }
   }
+
+  override protected def handleRecord(line: String): Unit = {
+    val timestamp = extractTimestamp(line)
+    val relativeTimestamp = timestamp - minTimestamp
+    outputUpto(relativeTimestamp - 1)
+
+    val emissionTime = relativeTimestamp + sampleDelta()
+    require(emissionTime >= 0)
+    val partition = partitionDist.sample()
+    outputQueue.enqueue((emissionTime, partition, timestamp, line))
+
+    val pendingMap = pendingTimestamps(partition)
+    pendingMap(timestamp) = pendingMap.getOrElse(timestamp, 0) + 1
+  }
+
+  override protected def handleEnd(): Unit = outputUpto(Long.MaxValue)
 }
 
 object TraceTransformer {
@@ -259,7 +192,7 @@ object TraceTransformer {
       opt[String]('o', "outputprefix")
         .optional()
         .valueName("<prefix>")
-        .action((prefix, c) => c.copy(outoutCsvPrefix = prefix))
+        .action((prefix, c) => c.copy(outputCsvPrefix = prefix))
         .text("Name of the output files"),
       opt[Long]("seed")
         .optional()
@@ -299,19 +232,19 @@ object TraceTransformer {
     val rng = new Well19937c
     rng.setSeed(config.seed)
     val input = config.inputCsv match {
-      case "" => Source.fromInputStream(System.in)
-      case _  => Source.fromFile(config.inputCsv)
+      case "" => new BufferedReader(new InputStreamReader(System.in))
+      case _  => new BufferedReader(new FileReader(config.inputCsv))
     }
     val output: Array[Writer] =
       if (config.numOutputs == 1)
-        config.outoutCsvPrefix match {
+        config.outputCsvPrefix match {
           case "" => Array(new BufferedWriter(new OutputStreamWriter(System.out)))
-          case _ => Array(new BufferedWriter(new FileWriter(config.outoutCsvPrefix + "0.csv")))
+          case _ => Array(new BufferedWriter(new FileWriter(config.outputCsvPrefix + "0.csv")))
         }
       else
       (0 until config.numOutputs)
       .map(k =>
-            new BufferedWriter(new FileWriter((if (config.outoutCsvPrefix=="") "output" else config.outoutCsvPrefix) + k.toString + ".csv"))
+            new BufferedWriter(new FileWriter((if (config.outputCsvPrefix=="") "output" else config.outputCsvPrefix) + k.toString + ".csv"))
           ).toArray
     val numOutputs = config.numOutputs
     val singletons = (0 until numOutputs).toArray
@@ -327,19 +260,15 @@ object TraceTransformer {
         split
     }
     val partitionDist = new EnumeratedIntegerDistribution(rng, singletons, probabilities)
-    val transformer: TransformerImpl = config.transformerId match {
-      case 1 | 2 => new PerPartitionOrderTransformer(rng, config.numOutputs, partitionDist, input, output,config.start)
-      case 3 => new WatermarkOrderTransformer(rng, config.numOutputs, partitionDist, input, output,config.start)
-      case 4 => new WatermarkOrderEmissionTimeTransformer(rng,
-                                                          config.numOutputs,
+    val transformer: AbstractTransformer = config.transformerId match {
+      case 1 | 2 => new PerPartitionOrderTransformer(input, partitionDist, output, config.start)
+      case 4 => new WatermarkOrderEmissionTimeTransformer(input,
                                                           partitionDist,
-                                                          input,
+                                                          new TruncNormDistribution(rng, config.sigma, 0.0, config.maxOOO + 0.001),
                                                           output,
-                                                          config.sigma,
-                                                          config.maxOOO,
                                                           config.watermarkPeriod,
                                                           config.start)
-      case _ => throw new Exception("cannot not happen")
+      case _ => throw new Exception("unsupported transformer version " + config.transformerId)
     }
 
     transformer.runTransformer()
