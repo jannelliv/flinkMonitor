@@ -189,7 +189,7 @@ object TraceTransformer {
       opt[Int]('v', "version")
         .required()
         .valueName("<int>")
-        .validate(k => if (k >= 1 && k <= 4) Right(()) else Left("variant must be between 1 and 4"))
+        .validate(k => if (k == 1 || k == 2 || k == 4) Right(()) else Left("variant must be between 1 and 4"))
         .action((n, c) => c.copy(transformerId = n))
         .text("Id of the transformer that should be applied"),
       opt[Int]('n', "numoutputs")
