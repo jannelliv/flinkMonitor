@@ -103,29 +103,27 @@ public class Replayer {
                 parsedItems.clear();
             }
 
-            private void processFact(Fact fact) {
-                final long timestamp = fact.getTimestamp();
-                if (firstTimestamp < 0) {
-                    firstTimestamp = timestamp;
-                }
+            private long calculateEmissionTime(long timestamp) {
                 long emissionTime;
                 if (timeMultiplier > 0.0) {
                     emissionTime = Math.round((double) (timestamp - firstTimestamp) / timeMultiplier * 1000.0);
                 } else {
                     emissionTime = 0;
                 }
-                parsedItems.add(new FactItem(emissionTime, fact));
+                return emissionTime;
+            }
+
+            private void processFact(Fact fact) {
+                final long timestamp = fact.getTimestamp();
+                if (firstTimestamp < 0) {
+                    firstTimestamp = timestamp;
+                }
+                parsedItems.add(new FactItem(calculateEmissionTime(timestamp), fact));
             }
 
             private void processFactExplicitEmissiontime(Fact fact) {
                 assert currEmissionTime != -1;
-                long emissionTime;
-                if (timeMultiplier > 0.0) {
-                    emissionTime = Math.round((double) (currEmissionTime - firstTimestamp) / timeMultiplier * 1000.0);
-                } else {
-                    emissionTime = 0;
-                }
-                parsedItems.add(new FactItem(emissionTime, fact));
+                parsedItems.add(new FactItem(calculateEmissionTime(currEmissionTime), fact));
             }
 
             public void run() {
@@ -141,7 +139,7 @@ public class Replayer {
                             line = parts[1];
                         }
                         if (line.startsWith(commandPrefix)) {
-                            CommandItem commandItem = new CommandItem(line);
+                            CommandItem commandItem = new CommandItem(calculateEmissionTime(currEmissionTime), line);
                             putItem(commandItem, false);
                         } else {
                             if (explicitEmissiontime)
@@ -318,8 +316,8 @@ public class Replayer {
     private static final class CommandItem extends OutputItem {
         final String command;
 
-        CommandItem(String command) {
-            super(0);
+        CommandItem(long emissionTime, String command) {
+            super(emissionTime);
             this.command = command;
         }
 
