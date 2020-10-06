@@ -4,6 +4,7 @@ import ch.ethz.infsec.kafka.MonitorKafkaConfig;
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.trace.formatter.*;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
+import ch.ethz.infsec.trace.parser.DejavuTraceParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import ch.ethz.infsec.trace.parser.TraceParser;
 import org.apache.commons.io.IOUtils;
@@ -595,6 +596,10 @@ public class Replayer {
                 parser = new Crv2014CsvParser(); break;
             case "monpoly":
                 parser = new MonpolyTraceParser(); break;
+            case "dejavu":
+                parser = new DejavuTraceParser(); break;
+            case "dejavu-timed":
+                parser = new DejavuTraceParser(true); break;
             default:
                 invalidArgument();
                 throw new RuntimeException("unreachable");
