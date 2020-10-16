@@ -8,7 +8,7 @@
         <groupId>ch.ethz.infsec</groupId>
         <artifactId>scalable-online-monitor</artifactId>
         <version>1.0-SNAPSHOT</version>
-        <relativePath>..</relativePath>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
     <artifactId>monitoring-common</artifactId>

@@ -34,7 +34,7 @@ class VariablePrinter(variables: Map[VariableID, String]) extends VariableMapper
   override def map(variable: VariableID): String = variables(variable)
 }
 
-sealed trait Term[V] extends Serializable {
+trait Term[V] extends Serializable { //removed "sealed" --> problem?
   def freeVariables: Set[V]
   def freeVariablesInOrder: Seq[V]
   def map[W](mapper: VariableMapper[V, W]): Term[W]
@@ -75,7 +75,7 @@ object Interval {
   val any = Interval(0, None)
 }
 
-sealed trait GenFormula[V] extends Serializable {
+trait GenFormula[V] extends Serializable {  //removed "sealed" --> problem?
   def atoms: Set[Pred[V]]
   def atomsInOrder: Seq[Pred[V]]
   def freeVariables: Set[V]

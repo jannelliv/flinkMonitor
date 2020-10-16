@@ -9,7 +9,7 @@ import java.util.stream.Collectors;
 
 /**
  * A fact represents a single tuple in a temporal structure. It stores the name of the relation that the tuple is part
- * of the arguments of the tuple, and the time-stamp. The position within the temporal structure is implicit: It is
+ * of, the arguments of the tuple, and the time-stamp. The position within the temporal structure is implicit: It is
  * encoded by the position of the fact in a stream. Moreover, each structure (i.e., the set of relations associated with
  * a single point in time) is closed by a special <em>terminator fact</em>, which does not have a relation name (i.e., it
  * is null).

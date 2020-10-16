@@ -1,6 +1,7 @@
 package ch.ethz.infsec
 
-import ch.ethz.infsec.autobalancer.{AllState, DeciderFlatMapSimple, KnowledgeExtract, OutsideInfluence}
+import
+ch.ethz.infsec.autobalancer.{AllState, DeciderFlatMapSimple, KnowledgeExtract, OutsideInfluence}
 import ch.ethz.infsec.kafka.MonitorKafkaConfig
 import ch.ethz.infsec.monitor.{ExternalProcess, ExternalProcessOperator, Fact}
 import ch.ethz.infsec.slicer.{HypercubeSlicer, VerdictFilter}
