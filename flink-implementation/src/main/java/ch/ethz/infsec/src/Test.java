@@ -8,22 +8,30 @@ import ch.ethz.infsec.trace.ParsingFunction;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import org.apache.flink.api.common.functions.FilterFunction;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
+import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
+import org.apache.flink.util.Collector;
+import org.apache.flink.util.OutputTag;
+import scala.Option;
+import scala.collection.Iterator;
+import scala.collection.Set;
 import scala.reflect.ClassTag;
 import scala.util.Either;
+import scala.collection.JavaConverters.*;
 
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Function;
 
+
+
 public class Test {
-    public static void main(String[] args){
-        Either<String, GenFormula<VariableID>> a = Policy.read("");
+    public static void main(String[] args) throws Exception{
+        Either<String, GenFormula<VariableID>> a = Policy.read("(x > 2)");
         // See what the input should actually look like! ???
-        //the input is the string which represents the formula, and it can also be given via the terminal
-        //The return type is Either a String or a Policy formula
-        //check
+
         if(a.isLeft()){
             throw new ExceptionInInitializerError();
         }else{
@@ -37,137 +45,262 @@ public class Test {
             //not sure if this hostname and portname make sense!
             DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()));
             //could also be a MonPoly parser, depending on the input --> ?
-            //DataStream<Fact> facts2 = text.flatMap(new ParsingFunction(new MonpolyTraceParser()));
-            //Which parser of the above two should I be working with?
             //The above is the stream from which we have to find the satisfactions!
-
             //atomic facts should go to operators that handle atoms:
             //ATOMIC OPERATORS
 
-            DataStream<Fact> atomicSatisfactions = facts.filter(new FilterFunction<Fact>() {
-                @Override
-                public boolean filter(Fact event) throws Exception {
-                    //filter out the events that satisfy the leaves of the parsing
-                    //tree, aka the predicates.
-                    //Get the predicates
-                    //create a filter for each predicate and a new datastream for each pred!
-                    //This whole thing should actually be implemented with a different method
-                    return true;
-                }
-            });
+
+            HashMap<String, OutputTag<Fact>> hashmap = new HashMap<String, OutputTag<Fact>>();
+
+
+            Set<Pred<VariableID>> atomSet = formula.atoms();
+            Iterator iter = atomSet.iterator();
+            OutputTag<Fact> outputTag;
+            while(iter.hasNext()) {
+                Pred<VariableID> n = (Pred<VariableID>) iter.next();
+                outputTag = new OutputTag<Fact>(n.toString()) {};
+                hashmap.put(n.relation(), outputTag);
+            }
+            SingleOutputStreamOperator<Fact> mainDataStream = facts
+                    .process(new ProcessFunction<Fact, Fact>() {
+
+                        @Override
+                        public void processElement(
+                                Fact fact,
+                                Context ctx,
+                                Collector<Fact> out) throws Exception {
+                            // emit data to regular output
+                            //out.collect(fact);
+
+                            // emit data to side output
+                            ctx.output(hashmap.get(fact.getName()), fact);
+                        }
+                    });
+            DataStream<List<Optional<Object>>> sink = writeTo((JavaGenFormula) formula, (JavaGenFormula) formula, hashmap, mainDataStream);
+            //is the above the correct way to create a sink?
+            e.execute();
         }
+
     }
 
-    public static DataStream<Fact> meval(DataStream<Fact> inputDS, JavaGenFormula f){
-        return (DataStream<Fact>) f.accept(new MevalFormulaVisitor() {
+    public static DataStream<List<Optional<Object>>> writeTo(JavaGenFormula formula, JavaGenFormula subformula, HashMap<String, OutputTag<Fact>> hashmap,
+                                                             SingleOutputStreamOperator<Fact> mainDataStream){
+
+        return (DataStream<List<Optional<Object>>>) subformula.accept(new StructFormulaVisitor() {
             @Override
-            public DataStream<Fact> visit(JavaPred f) {
-
-                return inputDS.filter(new FilterFunction<Fact>() {
+            public DataStream<List<Optional<Object>>> visit(JavaPred f) {
+                OutputTag<Fact> factStream = hashmap.get(((JavaPred) f).toString());
+                return mainDataStream.getSideOutput(factStream).flatMap(new FlatMapFunction<Fact, List<Optional<Object>>>() {
                     @Override
-                    public boolean filter(Fact fact) throws Exception {
-                        if(fact.getName().equals(f.relation()) && fact.getArity() == f.args().size()){
-                            Object[] ts = f.args().toArray(ClassTag.Object());
-                            //not sure if the above makes sense
-                            Object[] ys = fact.getArguments().toArray();
-                            for(int i = 0; i < ts.length; i++){
-                                if(ts[i] instanceof JavaConst){
-                                    if(ts[i].equals(ys[i])){
-                                        continue;
+                    public void flatMap(Fact value, Collector<List<Optional<Object>>> out) throws Exception {
+                        if(value.getName().equals(f.relation()) && value.getArity() == f.args().size()){
+                        //TODO: remove safe check and put it in the match method
+                            Object[] tsArray = f.args().toArray(ClassTag.Object());
+                            List<Object> ts = new ArrayList<>(Arrays.asList(tsArray));
+                            List<Object> ys = value.getArguments();
+                            Optional<Function<String, Optional<Object>>> result = match(ts, ys);
+                            if(result.isPresent()){
+                                List<Optional<Object>> list = new LinkedList<Optional<Object>>();
+                                //building of satisfaction, from the fact:
+                                for(freeVar : formula.freeVariablesInOrder()){
+                                    if(!f.freeVariables().contains(freeVar)) {
+                                        Optional<Object> none = Optional.empty();
+                                        list.add(none);
                                     }else{
-                                        return false;
+                                        List<Object> factArgs = value.getArguments();
+                                        for(int i = 0; i < factArgs.size(); i++){
+                                            //this is not really efficient, but is it correct?
+                                            if(factArgs.get(i).toString().equals(freeVar.toString())){
+                                                Optional<Object> satValue = Optional.of(factArgs.get(i));
+                                                list.add(satValue);
+                                            }
+                                        }
                                     }
-                                }else if(ts[i] instanceof JavaVar){
-
-                                }else{
-                                    return false;
-                                    //this should actually return an error
                                 }
+                                out.collect(list);
                             }
 
                         }
-                        return false;
+                        //if there are no satisfactions, we simply don't put anything in the collector.
 
-                        //instead of terminator, this has to be isPred, somehow
+                    }
+                });
+
+            }
+
+            @Override
+            public DataStream<List<Optional<Object>>> visit(JavaNot f) {
+                DataStream<List<Optional<Object>>> input = writeTo((JavaGenFormula) formula, (JavaGenFormula)  f.arg(), hashmap, mainDataStream);
+                //is it ok to do the cast as I did above?
+
+                return input.flatMap(new FlatMapFunction<List<Optional<Object>>, List<Optional<Object>>>() {
+                    @Override
+                    public void flatMap(List<Optional<Object>> value, Collector<List<Optional<Object>>> out) throws Exception {
+                        //do I have to implement the flink/isabelle operator logic here?
                     }
                 });
             }
 
             @Override
-            public DataStream<Fact> visit(JavaNot f) {
+            public DataStream<List<Optional<Object>>> visit(JavaAnd f) {
+                DataStream<List<Optional<Object>>> input1 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg1(), hashmap, mainDataStream);
+                DataStream<List<Optional<Object>>> input2 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg2(), hashmap, mainDataStream);
+                ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+                return connectedStreams.flatMap(new CoFlatMapFunction<List<Optional<Object>>, List<Optional<Object>>,
+                        List<Optional<Object>>>() {
+
+                    @Override
+                    public void flatMap1(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
+
+                    }
+
+                    @Override
+                    public void flatMap2(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
+
+                    }
+                });
+
+            }
+
+            @Override
+            public DataStream<List<Optional<Object>>> visit(JavaAll f) {
+                DataStream<List<Optional<Object>>> input = writeTo((JavaGenFormula) formula, (JavaGenFormula)  f.arg(), hashmap, mainDataStream);
+
+
+                return input.flatMap(new FlatMapFunction<List<Optional<Object>>, List<Optional<Object>>>() {
+                    @Override
+                    public void flatMap(List<Optional<Object>> value, Collector<List<Optional<Object>>> out) throws Exception {
+
+                    }
+                });
+
+            }
+
+            @Override
+            public DataStream<List<Optional<Object>>> visit(JavaEx f) {
+                DataStream<List<Optional<Object>>> input = writeTo((JavaGenFormula) formula, (JavaGenFormula)  f.arg(), hashmap, mainDataStream);
+
+
+                return input.flatMap(new FlatMapFunction<List<Optional<Object>>, List<Optional<Object>>>() {
+                    @Override
+                    public void flatMap(List<Optional<Object>> value, Collector<List<Optional<Object>>> out) throws Exception {
+
+                    }
+                });
+            }
+
+            @Override
+            public DataStream<List<Optional<Object>>> visit(JavaFalse f) {
+                return null; //don't know how to handle this!
+            }
+
+            @Override
+            public DataStream<List<Optional<Object>>> visit(JavaTrue f) {
                 return null;
             }
 
             @Override
-            public DataStream<Fact> visit(JavaAnd f) {
-                return null;
+            public DataStream<List<Optional<Object>>> visit(JavaNext f) {
+                DataStream<List<Optional<Object>>> input = writeTo((JavaGenFormula) formula, (JavaGenFormula)  f.arg(), hashmap, mainDataStream);
+
+
+                return input.flatMap(new FlatMapFunction<List<Optional<Object>>, List<Optional<Object>>>() {
+                    @Override
+                    public void flatMap(List<Optional<Object>> value, Collector<List<Optional<Object>>> out) throws Exception {
+
+                    }
+                });
             }
 
             @Override
-            public DataStream<Fact> visit(JavaAll f) {
-                return null;
+            public DataStream<List<Optional<Object>>> visit(JavaOr f) {
+                DataStream<List<Optional<Object>>> input1 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg1(), hashmap, mainDataStream);
+                DataStream<List<Optional<Object>>> input2 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg2(), hashmap, mainDataStream);
+                ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+                return connectedStreams.flatMap(new CoFlatMapFunction<List<Optional<Object>>, List<Optional<Object>>,
+                        List<Optional<Object>>>() {
+
+                    @Override
+                    public void flatMap1(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
+
+                    }
+
+                    @Override
+                    public void flatMap2(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
+
+                    }
+                });
             }
 
             @Override
-            public DataStream<Fact> visit(JavaEx f) {
-                return null;
+            public DataStream<List<Optional<Object>>> visit(JavaPrev f) {
+                DataStream<List<Optional<Object>>> input = writeTo((JavaGenFormula) formula, (JavaGenFormula)  f.arg(), hashmap, mainDataStream);
+
+
+                return input.flatMap(new FlatMapFunction<List<Optional<Object>>, List<Optional<Object>>>() {
+                    @Override
+                    public void flatMap(List<Optional<Object>> value, Collector<List<Optional<Object>>> out) throws Exception {
+
+                    }
+                });
             }
 
             @Override
-            public DataStream<Fact> visit(JavaFalse f) {
-                return null;
+            public DataStream<List<Optional<Object>>> visit(JavaSince f) {
+                DataStream<List<Optional<Object>>> input1 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg1(), hashmap, mainDataStream);
+                DataStream<List<Optional<Object>>> input2 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg2(), hashmap, mainDataStream);
+                ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+                return connectedStreams.flatMap(new CoFlatMapFunction<List<Optional<Object>>, List<Optional<Object>>,
+                        List<Optional<Object>>>() {
+
+                    @Override
+                    public void flatMap1(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
+
+                    }
+
+                    @Override
+                    public void flatMap2(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
+
+                    }
+                });
             }
 
             @Override
-            public DataStream<Fact> visit(JavaTrue f) {
-                return null;
-            }
+            public DataStream<List<Optional<Object>>> visit(JavaUntil f) {
+                DataStream<List<Optional<Object>>> input1 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg1(), hashmap, mainDataStream);
+                DataStream<List<Optional<Object>>> input2 = writeTo((JavaGenFormula) formula, (JavaGenFormula) f.arg2(), hashmap, mainDataStream);
+                ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+                return connectedStreams.flatMap(new CoFlatMapFunction<List<Optional<Object>>, List<Optional<Object>>,
+                        List<Optional<Object>>>() {
 
-            @Override
-            public DataStream<Fact> visit(JavaNext f) {
-                return null;
-            }
+                    @Override
+                    public void flatMap1(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
 
-            @Override
-            public DataStream<Fact> visit(JavaOr f) {
-                return null;
-            }
+                    }
 
-            @Override
-            public DataStream<Fact> visit(JavaPrev f) {
-                return null;
-            }
+                    @Override
+                    public void flatMap2(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
 
-            @Override
-            public DataStream<Fact> visit(JavaSince f) {
-                return null;
-            }
-
-            @Override
-            public DataStream<Fact> visit(JavaUntil f) {
-                return null;
+                    }
+                });
             }
         });
-
     }
 
-    //ask if my implementation of match is as expected and similar to the isabelle code
-    public static Optional<Function<Integer, Object>> match(List<Object> ts, List<Object> ys){
-        //are the elements of ts the indices of the terms in the predicate arguments? I don't think so
-        //Is it wrong to have an Object here as a function output?
+    public static Optional<Function<String, Optional<Object>>> match(List<Object> ts, List<Object> ys){
         if(ts.size() == 0 && ys.size() == 0) {
-            Function<Integer, Object> emptyMap = new Function<Integer, Object>() {
-                //are the indices of the predicate arguments used as the domain of maps, e.g. emptyMap?
+            Function<String, Optional<Object>> emptyMap = new Function<String, Optional<Object>>() {
                 @Override
-                public Optional<Object> apply(Integer integer) {
-                    return null;
+                public Optional<Object> apply(String s) {
+                    return Optional.empty();
                 }
             };
-            Optional<Function<Integer, Object>> result = emptyMap;
+            Optional<Function<String, Optional<Object>>> result = Optional.of(emptyMap);
             return result;
         }else {
             if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaConst)) {
                 if(ts.get(0).equals(ys.get(0))) {
+
                     ts.remove(0);
                     ys.remove(0);
                     return match(ts, ys);
@@ -175,25 +308,37 @@ public class Test {
                     return Optional.empty();
                 }
             }else if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaVar)) {
-                Optional<Function<Integer, Optional<Object>>> recFunction = match(ts, ys);
+                JavaVar x = (JavaVar) ts.remove(0);
+
+                Object y = ys.remove(0);
+                Optional<Function<String, Optional<Object>>> recFunction = match(ts, ys);
                 if(!recFunction.isPresent()){
                     return Optional.empty();
                 }else{
-                    Function<Integer, Object> f = recFunction.get();
-                    if(!(f.apply(0)).isPresent()){
-                        Function<Integer, Object> after = new Function<Integer, Object>() {
+                    Function<String, Optional<Object>> f = recFunction.get();
+                    if(!(f.apply(x.toString())).isPresent()){
+                        Function<Optional<Object>, Optional<Object>> after = new Function<Optional<Object>, Optional<Object>>() {
                             @Override
-                            public Optional<Object> apply(Integer index) {
-                                if(index == 0){
-                                    //Optional<Object> yOpt = Optional.of(ys.get(0));
-                                    return ys.get(0); //yOpt;
+                            public Optional<Object> apply(Optional<Object> x) {
+                                if(ts.indexOf(x) == 0){
+                                    Optional<Object> yOpt = Optional.of(ys.get(0));
+                                    return yOpt;
                                 }else{
-                                    return recFunction.apply(index);
+                                    return  f.apply(x.toString());
                                 }
-                                return null;
+
                             }
                         };
-                        Function<Integer, Optional<Object>> mappingFunction = (Function<Integer, Optional<Object>>) f.andThen(after);
+                        Function<String, Optional<Object>> mappingFunction = f.andThen(after);
+
+                    }else{
+                        Object z = f.apply(x.toString()).get();
+                        Object u = ys.get(0);
+                        if (u.equals(z)){
+                            return Optional.of(f);
+                        }else{
+                            return Optional.empty();
+                        }
 
                     }
                 }
@@ -201,7 +346,7 @@ public class Test {
                 return Optional.empty();
             }
         }
-        return null;
+        return Optional.empty();
 
     }
 }

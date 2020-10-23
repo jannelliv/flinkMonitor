@@ -81,6 +81,7 @@ under the License.
             <artifactId>scala-library</artifactId>
         </dependency>
 
+
         <!-- Add connector dependencies here. They must be in the default scope (compile). -->
 
         <!-- Example:
