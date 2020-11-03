@@ -4,8 +4,8 @@ import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Interval;
 import ch.ethz.infsec.policy.Prev;
 
-
 public abstract class JavaPrev extends Prev implements JavaGenFormula {
+
 
     public JavaPrev(Interval interval, GenFormula arg) {
         super(interval, arg);

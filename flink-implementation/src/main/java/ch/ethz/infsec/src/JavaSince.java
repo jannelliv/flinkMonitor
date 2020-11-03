@@ -4,7 +4,6 @@ import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Interval;
 import ch.ethz.infsec.policy.Since;
 
-
 public abstract class JavaSince extends Since implements JavaGenFormula {
 
     public JavaSince(Interval interval, GenFormula arg1, GenFormula arg2) {

@@ -3,7 +3,6 @@ package ch.ethz.infsec.src;
 import ch.ethz.infsec.policy.Pred;
 import scala.collection.Seq;
 
-
 public abstract class JavaPred extends Pred implements JavaGenFormula {
 
     public JavaPred(String relation, Seq args) {

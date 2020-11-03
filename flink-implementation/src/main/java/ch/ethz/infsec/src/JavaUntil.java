@@ -1,6 +1,4 @@
 package ch.ethz.infsec.src;
-
-
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Interval;
 import ch.ethz.infsec.policy.Until;

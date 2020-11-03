@@ -2,7 +2,6 @@ package ch.ethz.infsec.src;
 import ch.ethz.infsec.monitor.Fact;
 import org.apache.flink.streaming.api.datastream.*;
 
-//does this have to be abstract??
 public abstract class MevalFormulaVisitor implements FormulaVisitor {
     public abstract DataStream<Fact> visit(JavaPred f);
     public abstract DataStream<Fact> visit(JavaNot f);

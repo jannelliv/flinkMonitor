@@ -1,11 +1,10 @@
 package ch.ethz.infsec.src;
-import ch.ethz.infsec.monitor.Fact;
+
 import org.apache.flink.streaming.api.datastream.*;
 
 import java.util.List;
 import java.util.Optional;
 
-//does this have to be abstract??
 public abstract class StructFormulaVisitor implements FormulaVisitor {
     public abstract DataStream<List<Optional<Object>>> visit(JavaPred f);
     public abstract DataStream<List<Optional<Object>>> visit(JavaNot f);

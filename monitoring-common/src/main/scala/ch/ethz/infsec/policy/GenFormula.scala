@@ -1,6 +1,7 @@
 package ch.ethz.infsec.policy
 
 
+
 // This is explicitly not a case class, such that each instance represent a fresh variable name.
 class VariableID(val nameHint: String, val freeID: Int = -1) extends Serializable {
   def isFree: Boolean = freeID >= 0
@@ -34,7 +35,7 @@ class VariablePrinter(variables: Map[VariableID, String]) extends VariableMapper
   override def map(variable: VariableID): String = variables(variable)
 }
 
-trait Term[V] extends Serializable { //removed "sealed" --> problem?
+sealed trait Term[V] extends Serializable {
   def freeVariables: Set[V]
   def freeVariablesInOrder: Seq[V]
   def map[W](mapper: VariableMapper[V, W]): Term[W]
@@ -75,7 +76,7 @@ object Interval {
   val any = Interval(0, None)
 }
 
-trait GenFormula[V] extends Serializable {  //removed "sealed" --> problem?
+sealed trait GenFormula[V] extends Serializable {
   def atoms: Set[Pred[V]]
   def atomsInOrder: Seq[Pred[V]]
   def freeVariables: Set[V]
@@ -266,15 +267,20 @@ case class Release[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[
 
 object GenFormula {
   def implies[V](arg1: GenFormula[V], arg2: GenFormula[V]): GenFormula[V] = Or(Not(arg1), arg2)
+
   def equiv[V](arg1: GenFormula[V], arg2: GenFormula[V]): GenFormula[V] = And(implies(arg1, arg2), implies(arg2, arg1))
+
   def once[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Since(interval, True(), arg)
+
   def historically[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Trigger(interval, False(), arg)
+
   def eventually[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Until(interval, True(), arg)
+
   def always[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Release(interval, False(), arg)
 
   def resolve(phi: GenFormula[String]): GenFormula[VariableID] = {
     val freeVariables: Map[String, VariableID] =
-      phi.freeVariables.toSeq.sorted.zipWithIndex.map{ case (n, i) => (n, new VariableID(n, i)) }(collection.breakOut)
+      phi.freeVariables.toSeq.sorted.zipWithIndex.map { case (n, i) => (n, new VariableID(n, i)) }(collection.breakOut)
     phi.map(new VariableResolver(freeVariables))
   }
 
@@ -307,8 +313,8 @@ object GenFormula {
       case Or(arg1, arg2) => And(neg(arg1), neg(arg2))
       case All(bound, arg) => Ex(bound, neg(arg))
       case Ex(bound, arg) => All(bound, neg(arg))
-      case Prev(i, arg) => Or(Prev(i, neg(arg)), Not(Prev(i, True())))  // TODO(JS): Verify this equivalence
-      case Next(i, arg) => Or(Next(i, neg(arg)), Not(Next(i, True())))  // TODO(JS): Verify this equivalence
+      case Prev(i, arg) => Or(Prev(i, neg(arg)), Not(Prev(i, True()))) // TODO(JS): Verify this equivalence
+      case Next(i, arg) => Or(Next(i, neg(arg)), Not(Next(i, True()))) // TODO(JS): Verify this equivalence
       case Since(i, arg1, arg2) => Trigger(i, neg(arg1), neg(arg2))
       case Trigger(i, arg1, arg2) => Since(i, neg(arg1), neg(arg2))
       case Until(i, arg1, arg2) => Release(i, neg(arg1), neg(arg2))
@@ -319,3 +325,11 @@ object GenFormula {
     pos(phi)
   }
 }
+trait JavaGenFormulaUnsealed [V] extends GenFormula[V]  {
+
+}
+
+trait JavaTermUnsealed [V] extends Term[V] {
+
+}
+

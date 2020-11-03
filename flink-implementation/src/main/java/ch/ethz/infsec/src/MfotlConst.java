@@ -1,9 +1,9 @@
 package ch.ethz.infsec.src;
 
-public class MfotlConst<T> extends MfotlTerm {
-    public final T value;
+public class MfotlConst extends MfotlTerm {
+    public final Object value;
 
-    public MfotlConst(T value) {
+    public MfotlConst(Object value) {
         this.value = value;
     }
 }

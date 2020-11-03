@@ -4,7 +4,6 @@ import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Interval;
 import ch.ethz.infsec.policy.Next;
 
-
 public abstract class JavaNext extends Next implements JavaGenFormula {
 
     public JavaNext(Interval interval, GenFormula arg) {

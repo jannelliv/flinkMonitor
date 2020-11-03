@@ -1,11 +1,14 @@
 package ch.ethz.infsec.src;
-import org.apache.flink.streaming.api.datastream.*;
 import ch.ethz.infsec.policy.JavaGenFormulaUnsealed;
-import ch.ethz.infsec.policy.True;
-import org.apache.kafka.common.utils.Java;
+
+import java.util.List;
+import java.util.Set;
 
 public interface JavaGenFormula extends JavaGenFormulaUnsealed {
-    public <T> T accept(FormulaVisitor<T> v);
+    <T> T accept(FormulaVisitor<T> v);
+
+    void setFreeVars(Set<Object> fv, List<Object> fvio);
+
 }
 
 
