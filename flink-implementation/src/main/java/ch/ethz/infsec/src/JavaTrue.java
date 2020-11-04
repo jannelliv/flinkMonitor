@@ -22,4 +22,6 @@ public class JavaTrue<T> extends True<T> implements JavaGenFormula<T> {
     public boolean canEqual(Object that) {
         return false;
     }
+
+
 }
