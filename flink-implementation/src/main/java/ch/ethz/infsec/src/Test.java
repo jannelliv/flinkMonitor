@@ -12,7 +12,7 @@ import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
+//import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 
@@ -23,8 +23,7 @@ import scala.collection.Set;
 import scala.util.Either;
 
 import java.util.*;
-import java.util.function.Function;
-
+import static ch.ethz.infsec.src.Init0.convert;
 
 
 public class Test {
@@ -48,11 +47,7 @@ public class Test {
             //The above is the stream from which we have to find the satisfactions!
             //atomic facts should go to operators that handle atoms:
             //ATOMIC OPERATORS
-
-
             HashMap<String, OutputTag<Fact>> hashmap = new HashMap<String, OutputTag<Fact>>();
-
-
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator iter = atomSet.iterator();
             OutputTag<Fact> outputTag;
@@ -76,7 +71,7 @@ public class Test {
                             ctx.output(hashmap.get(fact.getName()), fact);
                         }
                     });
-            Mformula mformula = ((JavaGenFormula)formula).accept(new Init0(formula.freeVariablesInOrder()));
+            Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             //is it normal that I have to cast here?
             DataStream<List<Optional<Object>>> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
             //is the above the correct way to create a sink?
@@ -84,4 +79,6 @@ public class Test {
         }
 
     }
+
+
 }

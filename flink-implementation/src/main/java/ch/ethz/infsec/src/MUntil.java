@@ -1,5 +1,6 @@
 package ch.ethz.infsec.src;
 
+import ch.ethz.infsec.policy.Interval;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
@@ -31,6 +32,8 @@ public class MUntil implements Mformula<List<Optional<Object>>> {
         this.muaux = triples;
 
     }
+
+
 
     @Override
     public <T> DataStream<List<Optional<Object>>> accept(MformulaVisitor<T> v) {

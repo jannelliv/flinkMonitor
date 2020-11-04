@@ -3,14 +3,12 @@ package ch.ethz.infsec.src;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public class MRel implements Mformula<List<Optional<Object>>> {
-    Set<List<Optional<Object>>> table;
+    HashSet<LinkedList<Optional<Object>>> table;
 
-    public MRel(Set<List<Optional<Object>>> table){
+    public MRel(HashSet<LinkedList<Optional<Object>>> table){
         this.table = table;
     }
 

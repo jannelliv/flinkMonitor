@@ -3,14 +3,21 @@ package ch.ethz.infsec.src;
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Not;
 
-public abstract class JavaNot extends Not implements JavaGenFormula {
+import static ch.ethz.infsec.src.Init0.convert;
 
-    public JavaNot(GenFormula arg) {
+public class JavaNot<T> extends Not<T> implements JavaGenFormula<T> {
+
+    public JavaNot(GenFormula<T> arg) {
         super(arg);
     }
 
     public <T> T accept(FormulaVisitor<T> v) {
         return v.visit(this);
+    }
+
+    @Override
+    public JavaGenFormula<T> arg(){
+        return convert(super.arg());
     }
 
     @Override

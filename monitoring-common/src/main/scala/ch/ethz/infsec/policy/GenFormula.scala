@@ -325,11 +325,11 @@ object GenFormula {
     pos(phi)
   }
 }
-trait JavaGenFormulaUnsealed [V] extends GenFormula[V]  {
+trait JavaGenFormulaUnsealed[V] extends GenFormula[V]  {
 
 }
 
-trait JavaTermUnsealed [V] extends Term[V] {
+trait JavaTermUnsealed[V] extends Term[V] {
 
 }
 

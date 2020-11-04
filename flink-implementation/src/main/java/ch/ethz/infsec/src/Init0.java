@@ -1,16 +1,23 @@
 package ch.ethz.infsec.src;
+import ch.ethz.infsec.policy.GenFormula;
+import ch.ethz.infsec.policy.Pred;
 import ch.ethz.infsec.policy.VariableID;
+import ch.ethz.infsec.policy.VariableMapper;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
+import scala.collection.immutable.List;
+import scala.collection.immutable.Set;
 
 import java.util.*;
 
 //does this have to be abstract??
 public class Init0 implements FormulaVisitor<Mformula> {
-    List<VariableID> freeVariablesInOrder; //shouldn't this be of type VariableID?
+    ArrayList<VariableID> freeVariablesInOrder; //shouldn't this be of type VariableID?
 
     public Init0(Seq<VariableID> fvio){
-        this.freeVariablesInOrder = new ArrayList<>((Collection<VariableID>) JavaConverters.seqAsJavaListConverter(fvio));
+        this.freeVariablesInOrder = new ArrayList<VariableID>(JavaConverters.seqAsJavaList(fvio));
+        //If you would use List<VariableID> there, you could avoid the two conversions steps (one before the recursive call and the other in the Init0 constructor).
+
     }
 
 
@@ -23,36 +30,37 @@ public class Init0 implements FormulaVisitor<Mformula> {
             //don't know how to handle Eq
             if(((JavaOr) f.arg()).arg1() instanceof JavaNot){
                 //check if arg2 is a safe_formula
-                List<Object> freeVarsInOrder1 = new ArrayList<>((Collection<? extends Object>) JavaConverters.seqAsJavaListConverter(((JavaOr) f.arg()).arg1().freeVariablesInOrder()));
-                List<Object> freeVarsInOrder2 = new ArrayList<>((Collection<? extends Object>) JavaConverters.seqAsJavaListConverter(((JavaOr) f.arg()).arg2().freeVariablesInOrder()));
+                //make sure it's correct that you have
+                ArrayList<Object> freeVarsInOrder1 = new ArrayList<Object>(JavaConverters.seqAsJavaList(((JavaOr) f.arg()).arg1().freeVariablesInOrder()));
+                ArrayList<Object> freeVarsInOrder2 = new ArrayList<Object>(JavaConverters.seqAsJavaList(((JavaOr) f.arg()).arg2().freeVariablesInOrder()));
                 boolean isSubset = freeVarsInOrder1.containsAll(freeVarsInOrder2);
-                if(isSubset && safe_formula((JavaGenFormula) ((JavaOr) f.arg()).arg2())){
+                if(isSubset && safe_formula(((JavaOr) f.arg()).arg2())){
                     Optional<Object> el = Optional.empty();
-                    List<Optional<Object>> listEl = new LinkedList<>();
+                    LinkedList<Optional<Object>> listEl = new LinkedList<Optional<Object>>();
                     listEl.add(el);
-                    Set<List<Optional<Object>>> setEl = new HashSet<>();
+                    HashSet<LinkedList<Optional<Object>>> setEl = new HashSet<LinkedList<Optional<Object>>>();
                     setEl.add(listEl);
-                    List<Set<List<Optional<Object>>>> fst = new LinkedList<>();
-                    List<Set<List<Optional<Object>>>> snd = new LinkedList<>();
+                    LinkedList<HashSet<LinkedList<Optional<Object>>>> fst = new LinkedList<HashSet<LinkedList<Optional<Object>>>>();
+                    LinkedList<HashSet<LinkedList<Optional<Object>>>> snd = new LinkedList<HashSet<LinkedList<Optional<Object>>>>();
                     fst.add(setEl);
                     snd.add(setEl);
-                    return new MAnd(((JavaGenFormula)  ((JavaOr) f.arg()).arg1()).accept(new Init0((((JavaOr) f.arg()).arg1()).freeVariablesInOrder())),
-                            false, ((JavaGenFormula)  ((JavaOr) f.arg()).arg2()).accept(new Init0((((JavaOr) f.arg()).arg2()).freeVariablesInOrder())),
-                            new Tuple<>(fst, snd));
+                    return new MAnd((((JavaOr)convert(f.arg())).arg1()).accept(new Init0((((JavaOr) convert(f.arg())).arg1()).freeVariablesInOrder())),
+                            false, (((JavaOr) convert(f.arg())).arg2()).accept(new Init0((((JavaOr) convert(f.arg())).arg2()).freeVariablesInOrder())),
+                            new Tuple<LinkedList<HashSet<LinkedList<Optional<Object>>>>, LinkedList<HashSet<LinkedList<Optional<Object>>>>>(fst, snd));
                 }else{
                     if(((JavaOr) f.arg()).arg2() instanceof JavaNot){
                         Optional<Object> el = Optional.empty();
-                        List<Optional<Object>> listEl = new LinkedList<>();
+                        LinkedList<Optional<Object>> listEl = new LinkedList<>();
                         listEl.add(el);
-                        Set<List<Optional<Object>>> setEl = new HashSet<>();
+                        HashSet<LinkedList<Optional<Object>>> setEl = new HashSet<>();
                         setEl.add(listEl);
-                        List<Set<List<Optional<Object>>>> fst = new LinkedList<>();
-                        List<Set<List<Optional<Object>>>> snd = new LinkedList<>();
+                        LinkedList<HashSet<LinkedList<Optional<Object>>>> fst = new LinkedList<>();
+                        LinkedList<HashSet<LinkedList<Optional<Object>>>> snd = new LinkedList<>();
                         fst.add(setEl);
                         snd.add(setEl);
-                        return new MAnd(((JavaGenFormula)  ((JavaOr) f.arg()).arg1()).accept(new Init0((((JavaOr) f.arg()).arg1()).freeVariablesInOrder()) {}),
-                                true,((JavaGenFormula)  ((JavaOr) f.arg()).arg2()).accept(new Init0((((JavaOr) f.arg()).arg2()).freeVariablesInOrder()) {}),
-                                new Tuple<>(fst, snd));
+                        return new MAnd((((JavaOr)convert(f.arg())).arg1()).accept(new Init0((((JavaOr) convert(f.arg())).arg1()).freeVariablesInOrder())),
+                                false, (((JavaOr) convert(f.arg())).arg2()).accept(new Init0((((JavaOr) convert(f.arg())).arg2()).freeVariablesInOrder())),
+                                new Tuple<LinkedList<HashSet<LinkedList<Optional<Object>>>>, LinkedList<HashSet<LinkedList<Optional<Object>>>>>(fst, snd));
                     }else{
                         return null;
                     }
@@ -68,36 +76,36 @@ public class Init0 implements FormulaVisitor<Mformula> {
     }
 
     public Mformula visit(JavaAnd f) {
-        JavaGenFormula arg1 = (JavaGenFormula) f.arg1();
-        JavaGenFormula arg2 = (JavaGenFormula) f.arg2();
+        JavaGenFormula arg1 = convert(f.arg1());
+        JavaGenFormula arg2 = convert(f.arg2());
         if(safe_formula(arg2)){
             Optional<Object> el = Optional.empty();
-            List<Optional<Object>> listEl = new LinkedList<>();
+            LinkedList<Optional<Object>> listEl = new LinkedList<>();
             listEl.add(el);
-            Set<List<Optional<Object>>> setEl = new HashSet<>();
+            HashSet<LinkedList<Optional<Object>>> setEl = new HashSet<>();
             setEl.add(listEl);
-            List<Set<List<Optional<Object>>>> fst = new LinkedList<>();
-            List<Set<List<Optional<Object>>>> snd = new LinkedList<>();
+            LinkedList<HashSet<LinkedList<Optional<Object>>>> fst = new LinkedList<>();
+            LinkedList<HashSet<LinkedList<Optional<Object>>>> snd = new LinkedList<>();
             fst.add(setEl);
             snd.add(setEl);
-            return new MAnd(arg1.accept(new Init0(arg1.freeVariablesInOrder()) {}), true, arg2.accept(new Init0(arg2.freeVariablesInOrder()) {}),
-                    new Tuple<>(fst, snd));
+            return new MAnd(arg1.accept(new Init0(arg1.freeVariablesInOrder())), true, arg2.accept(new Init0(arg2.freeVariablesInOrder())),
+                    new Tuple<LinkedList<HashSet<LinkedList<Optional<Object>>>>, LinkedList<HashSet<LinkedList<Optional<Object>>>>>(fst, snd));
         }else{
-            List<Object> freeVarsInOrder1 = new ArrayList<>((Collection<? extends Object>) JavaConverters.seqAsJavaListConverter(arg1.freeVariablesInOrder()));
-            List<Object> freeVarsInOrder2 = new ArrayList<>((Collection<? extends Object>) JavaConverters.seqAsJavaListConverter(arg2.freeVariablesInOrder()));
+            ArrayList<Object> freeVarsInOrder1 = new ArrayList<Object>(JavaConverters.seqAsJavaList(arg1.freeVariablesInOrder()));
+            ArrayList<Object> freeVarsInOrder2 = new ArrayList<Object>(JavaConverters.seqAsJavaList(arg2.freeVariablesInOrder()));
             boolean isSubset = freeVarsInOrder1.containsAll(freeVarsInOrder2);
             if(arg2 instanceof JavaNot && isSubset){
                 Optional<Object> el = Optional.empty();
-                List<Optional<Object>> listEl = new LinkedList<>();
+                LinkedList<Optional<Object>> listEl = new LinkedList<>();
                 listEl.add(el);
-                Set<List<Optional<Object>>> setEl = new HashSet<>();
+                HashSet<LinkedList<Optional<Object>>> setEl = new HashSet<>();
                 setEl.add(listEl);
-                List<Set<List<Optional<Object>>>> fst = new LinkedList<>();
-                List<Set<List<Optional<Object>>>> snd = new LinkedList<>();
+                LinkedList<HashSet<LinkedList<Optional<Object>>>> fst = new LinkedList<>();
+                LinkedList<HashSet<LinkedList<Optional<Object>>>> snd = new LinkedList<>();
                 fst.add(setEl);
                 snd.add(setEl);
-                return new MAnd(arg1.accept(new Init0(arg1.freeVariablesInOrder()) {}), false, arg2.accept(new Init0(arg2.freeVariablesInOrder()) {}),
-                        new Tuple<>(fst, snd));
+                return new MAnd(arg1.accept(new Init0(arg1.freeVariablesInOrder())), false, arg2.accept(new Init0(arg2.freeVariablesInOrder())),
+                        new Tuple<LinkedList<HashSet<LinkedList<Optional<Object>>>>, LinkedList<HashSet<LinkedList<Optional<Object>>>>>(fst, snd));
             }else{
                 return null;
             }
@@ -117,22 +125,22 @@ public class Init0 implements FormulaVisitor<Mformula> {
 
         this.freeVariablesInOrder.add(0,varScala);
         Seq<VariableID> fvios = JavaConverters.asScalaBufferConverter(this.freeVariablesInOrder).asScala().toSeq();
-        JavaGenFormula subformula = (JavaGenFormula) f.arg();
-        return new MExists(subformula.accept(new Init0(fvios) {}));
+        JavaGenFormula subformula = convert(f.arg());
+        return new MExists(subformula.accept(new Init0(fvios)));
     }
 
     public MRel visit(JavaFalse f) {
         int n = f.freeVariablesInOrder().size();
-        Set<List<Optional<Object>>> table = new HashSet<>();
-        List<Optional<Object>> el = new LinkedList<>();
+        HashSet<LinkedList<Optional<Object>>> table = new HashSet<>();
+        LinkedList<Optional<Object>> el = new LinkedList<>();
         table.add(el);
         return new MRel(table); // aka empty table
     }
 
     public MRel visit(JavaTrue f) {
         int n = f.freeVariablesInOrder().size();
-        Set<List<Optional<Object>>> table = new HashSet<>();
-        List<Optional<Object>> el = new LinkedList<>();
+        HashSet<LinkedList<Optional<Object>>> table = new HashSet<>();
+        LinkedList<Optional<Object>> el = new LinkedList<>();
         for(int i = 0; i < n; i++){
             //not sure if this is efficient
             el.add(Optional.empty());
@@ -142,7 +150,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
     }
 
     public MNext visit(JavaNext f) {
-        return new MNext(f.interval(), f.accept((FormulaVisitor<Mformula>) new Init0(f.freeVariablesInOrder()) {}), true, new LinkedList<Integer>());
+        return new MNext(f.interval(), f.accept(new Init0(f.freeVariablesInOrder())), true, new LinkedList<Integer>());
     }
 
     public MOr visit(JavaOr f) {
@@ -157,8 +165,8 @@ public class Init0 implements FormulaVisitor<Mformula> {
         fst.add(setEl);
         snd.add(setEl);
         //NOT SURE IF I HAD TO ADD THE ABOVE ELEMENTS
-        return new MOr(((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder()){}),
-                ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder()){}),
+        return new MOr(((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder())),
+                ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder())),
                 new Tuple(fst, snd));
     }
 
@@ -170,7 +178,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
         listEl2.add(listEl);
         List<List<List<Optional<Object>>>> listEl3 = new LinkedList<>();
         listEl3.add(listEl2);
-        return new MPrev(f.interval(), f.accept((FormulaVisitor<Mformula>) new Init0(f.freeVariablesInOrder()) {}),
+        return new MPrev(f.interval(), f.accept((FormulaVisitor<Mformula>) new Init0(f.freeVariablesInOrder())),
                 true, new LinkedList<Integer>(), listEl3);
 
     }
@@ -187,18 +195,18 @@ public class Init0 implements FormulaVisitor<Mformula> {
         snd.add(setEl);
         if(safe_formula((JavaGenFormula) f.arg1())){
             return new MSince(true,
-                    ((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder()){}),
+                    ((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder())),
                     f.interval(),
-                    ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder()){}),
+                    ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder())),
                     new Tuple(fst, snd),
                     new LinkedList<Integer>(),
                     new LinkedList<Triple<Integer, Set<List<Optional<Object>>>, Set<List<Optional<Object>>>>>());
         }else{
-            if(((JavaGenFormula)f.arg1()) instanceof JavaNot){
+            if((f.arg1()) instanceof JavaNot){
                 return new MSince(false,
-                        ((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder()){}),
+                        (convert(f.arg1())).accept(new Init0((convert(f.arg1())).freeVariablesInOrder()){}),
                         f.interval(),
-                        ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder()){}),
+                        ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder())),
                         new Tuple(fst, snd),
                         new LinkedList<Integer>(),
                         new LinkedList<Triple<Integer, Set<List<Optional<Object>>>, Set<List<Optional<Object>>>>>());
@@ -221,18 +229,18 @@ public class Init0 implements FormulaVisitor<Mformula> {
         snd.add(setEl);
         if(safe_formula((JavaGenFormula) f.arg1())){
             return new MUntil(true,
-                    ((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder()){}),
+                    ((JavaGenFormula)f.arg1()).accept(new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder())),
                     f.interval(),
-                    ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder()){}),
+                    ((JavaGenFormula)f.arg2()).accept(new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder())),
                     new Tuple(fst, snd),
                     new LinkedList<Integer>(),
                     new LinkedList<Triple<Integer, Set<List<Optional<Object>>>, Set<List<Optional<Object>>>>>());
         }else{
             if(((JavaGenFormula)f.arg1()) instanceof JavaNot){
                 return new MUntil(false,
-                        ((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder()){}),
+                        ((JavaGenFormula)f.arg1()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg1()).freeVariablesInOrder())),
                         f.interval(),
-                        ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder()){}),
+                        ((JavaGenFormula)f.arg2()).accept((FormulaVisitor<Mformula>) new Init0(((JavaGenFormula)f.arg2()).freeVariablesInOrder())),
                         new Tuple(fst, snd),
                         new LinkedList<Integer>(),
                         new LinkedList<Triple<Integer, Set<List<Optional<Object>>>, Set<List<Optional<Object>>>>>());
@@ -295,6 +303,61 @@ public class Init0 implements FormulaVisitor<Mformula> {
             return false;
         }
 
+    }
+
+    public static <T> JavaGenFormula<T> convert(GenFormula<T> gf){
+        JavaGenFormula<T> jgf = new JavaGenFormula<T>() {
+            @Override
+            public <T1> T1 accept(FormulaVisitor<T1> v) {
+                return null;
+            }
+
+            @Override
+            public Set<Pred<T>> atoms() {
+                return null;
+            }
+
+            @Override
+            public Set<T> freeVariables() {
+                return null;
+            }
+
+            @Override
+            public List<String> check() {
+                return null;
+            }
+
+            @Override
+            public Seq<Pred<T>> atomsInOrder() {
+                return null;
+            }
+
+            @Override
+            public Seq<T> freeVariablesInOrder() {
+                return null;
+            }
+
+            @Override
+            public String toQTL() {
+                return null;
+            }
+
+            @Override
+            public <W> GenFormula<W> map(VariableMapper<T, W> mapper) {
+                return null;
+            }
+
+            @Override
+            public GenFormula<T> close(boolean neg) {
+                return super.close(neg);
+            }
+
+            @Override
+            public String toQTLString(boolean neg) {
+                return super.toQTLString(neg);
+            }
+        };
+        return jgf;
     }
 
 }

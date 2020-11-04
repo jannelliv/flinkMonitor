@@ -9,10 +9,10 @@ public class MAnd implements Mformula<List<Optional<Object>>> {
     boolean bool;
     Mformula op1;
     Mformula op2;
-    Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> mbuf2;
+    Tuple<LinkedList<HashSet<LinkedList<Optional<Object>>>>, LinkedList<HashSet<LinkedList<Optional<Object>>>>> mbuf2;
 
 
-    public MAnd(Mformula arg1, boolean bool, Mformula arg2, Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> tuple) {
+    public MAnd(Mformula arg1, boolean bool, Mformula arg2, Tuple<LinkedList<HashSet<LinkedList<Optional<Object>>>>, LinkedList<HashSet<LinkedList<Optional<Object>>>>> tuple) {
         this.bool = bool;
         this.op1 = arg1;
         this.op2 = arg2;
