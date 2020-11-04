@@ -1,6 +1,8 @@
 package ch.ethz.infsec.src;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
+
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
@@ -9,11 +11,11 @@ public class MPrev implements Mformula<List<Optional<Object>>> {
     ch.ethz.infsec.policy.Interval interval;
     Mformula formula;
     boolean bool;
-    List<List<List<Optional<Object>>>> tableList;
-    List<Integer> tsList;
+    LinkedList<LinkedList<LinkedList<Optional<Object>>>> tableList;
+    LinkedList<Integer> tsList;
 
-    public MPrev(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, List<Integer> tsList,
-                 List<List<List<Optional<Object>>>> tableList) {
+    public MPrev(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, LinkedList<Integer> tsList,
+                 LinkedList<LinkedList<LinkedList<Optional<Object>>>> tableList) {
         this.interval = interval;
         this.formula = mform;
         this.bool = bool;

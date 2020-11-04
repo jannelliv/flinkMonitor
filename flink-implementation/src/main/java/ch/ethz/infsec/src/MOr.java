@@ -4,15 +4,13 @@ package ch.ethz.infsec.src;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public class MOr implements Mformula<List<Optional<Object>>> {
 
     Mformula op1;
     Mformula op2;
-    Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> mbuf2;
+    Tuple<LinkedList<HashSet<LinkedList<Optional<Object>>>>, LinkedList<HashSet<LinkedList<Optional<Object>>>>> mbuf2;
 
 
     public MOr(Mformula accept, Mformula accept1, Tuple tuple) {

@@ -3,11 +3,7 @@ package ch.ethz.infsec.src;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.util.LinkedList;
-import java.util.List;
-
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 
 public class MSince implements Mformula<List<Optional<Object>>> {
 
@@ -17,10 +13,10 @@ public class MSince implements Mformula<List<Optional<Object>>> {
     Mformula formula2;
     Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> mbuf2;
     List<Integer> tsList;
-    List<Triple<Integer, Set<List<Optional<Object>>>, Set<List<Optional<Object>>>>> muaux;
+    LinkedList<Triple<Integer, HashSet<LinkedList<Optional<Object>>>, HashSet<LinkedList<Optional<Object>>>>> muaux;
 
 
-    public MSince(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval, Mformula accept1, Tuple tuple, LinkedList<Integer> integers, LinkedList<Triple<Integer, Set<List<Optional<Object>>>, Set<List<Optional<Object>>>>> triples) {
+    public MSince(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval, Mformula accept1, Tuple tuple, LinkedList<Integer> integers, LinkedList<Triple<Integer, HashSet<LinkedList<Optional<Object>>>, HashSet<LinkedList<Optional<Object>>>>> triples) {
         this.bool = b;
         this.formula1 = accept;
         this.formula2 = accept1;
