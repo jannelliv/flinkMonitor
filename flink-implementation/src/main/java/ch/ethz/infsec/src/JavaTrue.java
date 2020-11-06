@@ -1,11 +1,12 @@
 package ch.ethz.infsec.src;
 
 import ch.ethz.infsec.policy.True;
+import ch.ethz.infsec.policy.VariableID;
 
 public class JavaTrue<T> extends True<T> implements JavaGenFormula<T> {
 
-    public <T> T accept(FormulaVisitor<T> v) {
-        return v.visit(this);
+    public <R> R accept(FormulaVisitor<R> v) {
+        return v.visit((JavaTrue<VariableID>) this);
     }
 
     @Override

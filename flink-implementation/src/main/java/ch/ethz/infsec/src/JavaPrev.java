@@ -3,8 +3,9 @@ package ch.ethz.infsec.src;
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Interval;
 import ch.ethz.infsec.policy.Prev;
+import ch.ethz.infsec.policy.VariableID;
 
-import static ch.ethz.infsec.src.Init0.convert;
+import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 public class JavaPrev<T> extends Prev<T> implements JavaGenFormula<T> {
 
@@ -12,8 +13,8 @@ public class JavaPrev<T> extends Prev<T> implements JavaGenFormula<T> {
     public JavaPrev(Interval interval, GenFormula<T> arg) {
         super(interval, arg);
     }
-    public <T> T accept(FormulaVisitor<T> v) {
-        return v.visit(this);
+    public <R> R accept(FormulaVisitor<R> v) {
+        return v.visit((JavaPrev<VariableID>) this);
     }
 
     @Override

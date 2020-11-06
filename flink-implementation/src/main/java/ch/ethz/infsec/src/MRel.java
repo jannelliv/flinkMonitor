@@ -14,13 +14,16 @@ public class MRel implements Mformula<List<Optional<Object>>> {
 
     @Override
     public <T> DataStream<List<Optional<Object>>> accept(MformulaVisitor<T> v) {
-        return null;
+        return (DataStream<List<Optional<Object>>>) v.visit(this);
+        //Is it ok that I did the cast here above?
     }
 
 
     @Override
     public void flatMap(List<Optional<Object>> value, Collector<List<Optional<Object>>> out) throws Exception {
-
+        out.collect(value);
+        //MRel is only invoked for JavaTrue and JavaFalse
+        //not sure about this
     }
 
     @Override

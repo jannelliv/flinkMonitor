@@ -21,7 +21,8 @@ public class MNext implements Mformula<List<Optional<Object>>> {
 
     @Override
     public <T> DataStream<List<Optional<Object>>> accept(MformulaVisitor<T> v) {
-        return null;
+        return (DataStream<List<Optional<Object>>>) v.visit(this);
+        //Is it ok that I did the cast here above?
     }
 
 
@@ -32,11 +33,11 @@ public class MNext implements Mformula<List<Optional<Object>>> {
 
     @Override
     public void flatMap1(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
-
+        //probably won't need this
     }
 
     @Override
     public void flatMap2(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
-
+        //probably won't need this
     }
 }

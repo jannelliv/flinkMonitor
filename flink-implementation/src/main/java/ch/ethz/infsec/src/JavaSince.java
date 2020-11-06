@@ -3,16 +3,17 @@ package ch.ethz.infsec.src;
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Interval;
 import ch.ethz.infsec.policy.Since;
+import ch.ethz.infsec.policy.VariableID;
 
-import static ch.ethz.infsec.src.Init0.convert;
+import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 public class JavaSince<T> extends Since<T> implements JavaGenFormula<T> {
 
     public JavaSince(Interval interval, GenFormula<T> arg1, GenFormula<T> arg2) {
         super(interval, arg1, arg2);
     }
-    public <T> T accept(FormulaVisitor<T> v) {
-        return v.visit(this);
+    public <R> R accept(FormulaVisitor<R> v) {
+        return v.visit((JavaSince<VariableID>) this);
     }
 
     @Override

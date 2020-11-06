@@ -1,18 +1,19 @@
 package ch.ethz.infsec.src;
 
 import ch.ethz.infsec.policy.Pred;
+import ch.ethz.infsec.policy.VariableID;
 import scala.collection.Seq;
 
-import static ch.ethz.infsec.src.Init0.convert;
+import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 public class JavaPred<T> extends Pred<T> implements JavaGenFormula<T> {
 
     public JavaPred(String relation, Seq args) {
         super(relation, args);
     }
-    //problem with Seq bein raw here above
-    public <T> T accept(FormulaVisitor<T> v) {
-        return v.visit(this);
+
+    public <R> R accept(FormulaVisitor<R> v) {
+        return v.visit((JavaPred<VariableID>) this);
     }
 
 

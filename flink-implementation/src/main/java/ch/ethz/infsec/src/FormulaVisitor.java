@@ -1,17 +1,19 @@
 package ch.ethz.infsec.src;
 
+import ch.ethz.infsec.policy.VariableID;
+
 public interface FormulaVisitor<T> {
-    T visit(JavaPred f);
-    T visit(JavaNot f);
-    T visit(JavaAnd f);
-    T visit(JavaAll f);
-    T visit(JavaEx f);
-    T visit(JavaFalse f);
-    T visit(JavaTrue f);
-    T visit(JavaNext f);
-    T visit(JavaOr f);
-    T visit(JavaPrev f);
-    T visit(JavaSince f);
-    T visit(JavaUntil f);
+    T visit(JavaPred<VariableID> f);
+    T visit(JavaNot<VariableID> f);
+    T visit(JavaAnd<VariableID> f);
+    T visit(JavaAll<VariableID> f);
+    T visit(JavaEx<VariableID> f);
+    T visit(JavaFalse<VariableID> f);
+    T visit(JavaTrue<VariableID> f);
+    T visit(JavaNext<VariableID> f);
+    T visit(JavaOr<VariableID> f);
+    T visit(JavaPrev<VariableID> f);
+    T visit(JavaSince<VariableID> f);
+    T visit(JavaUntil<VariableID> f);
 
 }

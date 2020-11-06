@@ -7,47 +7,34 @@ import org.apache.flink.util.Collector;
 import scala.collection.Seq;
 import scala.collection.*;
 import java.util.*;
-import java.util.Set;
 import java.util.function.Function;
 
-public class MPred implements Mformula<Fact> {
-    String Mfotlname;
-    List<Term> args;
-    Set<MPred> atoms = null;
+public class MPred implements Mformula<Fact>{
+    String predName;
+    List<Term<VariableID>> args;
     List<VariableID> freeVariablesInOrder;
 
-    public MPred(String Mfotlname, Seq args, List<VariableID> fvio){
+    public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
 
-        this.args = new ArrayList<Term>((Collection<? extends Term>) JavaConverters.seqAsJavaListConverter(args).asJava());
+        this.args = new ArrayList<>(JavaConverters.seqAsJavaList(args));
         //Above, should I have used mfotlTerm instead of Term?
-        this.Mfotlname = Mfotlname;
+        this.predName = predName;
         this.freeVariablesInOrder = fvio;
 
     }
-    public void flatMap(Fact value, Collector<List<Optional<Object>>> out) throws Exception {
-        if(value.getName().equals(f.relation()) && value.getArity() == f.args().size()){
+    public void flatMap(Fact fact, Collector<List<Optional<Object>>> out) throws Exception {
+        if(fact.getName().equals(this.predName) && fact.getArity() == this.args.size()){
             //TODO: remove safe check and put it in the match method
-            Object[] tsArray = f.args().toArray(ClassTag.Object());
+            Object[] tsArray = this.args.toArray();
             List<Object> ts = new ArrayList<>(Arrays.asList(tsArray));
-            List<Object> ys = value.getArguments();
+            List<Object> ys = fact.getArguments();
             Optional<Function<String, Optional<Object>>> result = match(ts, ys);
-            if(result.isPresent()){
-                List<Optional<Object>> list = new LinkedList<Optional<Object>>();
-                //building of satisfaction, from the fact:
-                for(freeVar : formula.freeVariablesInOrder()){
-                    if(!f.freeVariables().contains(freeVar)) {
-                        Optional<Object> none = Optional.empty();
-                        list.add(none);
-                    }else{
-                        List<Object> factArgs = value.getArguments();
-                        for(int i = 0; i < factArgs.size(); i++){
-                            //this is not really efficient, but is it correct?
-                            if(factArgs.get(i).toString().equals(freeVar.toString())){
-                                Optional<Object> satValue = Optional.of(factArgs.get(i));
-                                list.add(satValue);
-                            }
-                        }
-                    }
+            if(result.isPresent()){ //is it necessary to have this if condition?
+                List<Optional<Object>> list = new LinkedList<>();
+                //building of satisfaction, from the free Variables of MPred (this)
+                for(int i = 0; i < this.freeVariablesInOrder.size(); i++){
+                    VariableID freeVarPred = this.freeVariablesInOrder.get(i);
+                    list.add(result.get().apply(freeVarPred.toString()));
                 }
                 out.collect(list);
             }
@@ -69,7 +56,8 @@ public class MPred implements Mformula<Fact> {
 
     @Override
     public <T> DataStream<List<Optional<Object>>> accept(MformulaVisitor<T> v) {
-        return null;
+        return (DataStream<List<Optional<Object>>>) v.visit(this);
+        //Is it ok that I did the cast here above?
     }
 
     public static Optional<Function<String, Optional<Object>>> match(List<Object> ts, List<Object> ys){
@@ -134,5 +122,6 @@ public class MPred implements Mformula<Fact> {
         return Optional.empty();
 
     }
+
 
 }

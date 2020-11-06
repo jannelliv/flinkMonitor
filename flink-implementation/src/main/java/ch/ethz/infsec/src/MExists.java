@@ -17,7 +17,8 @@ public class MExists implements Mformula<List<Optional<Object>>> {
 
     @Override
     public <T> DataStream<List<Optional<Object>>> accept(MformulaVisitor<T> v) {
-        return null;
+        return (DataStream<List<Optional<Object>>>) v.visit(this);
+        //Is it ok that I did the cast here above?
     }
 
 

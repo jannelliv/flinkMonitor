@@ -2,8 +2,9 @@ package ch.ethz.infsec.src;
 
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Not;
+import ch.ethz.infsec.policy.VariableID;
 
-import static ch.ethz.infsec.src.Init0.convert;
+import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 public class JavaNot<T> extends Not<T> implements JavaGenFormula<T> {
 
@@ -11,8 +12,8 @@ public class JavaNot<T> extends Not<T> implements JavaGenFormula<T> {
         super(arg);
     }
 
-    public <T> T accept(FormulaVisitor<T> v) {
-        return v.visit(this);
+    public <R> R accept(FormulaVisitor<R> v) {
+        return v.visit((JavaNot<VariableID>) this);
     }
 
     @Override

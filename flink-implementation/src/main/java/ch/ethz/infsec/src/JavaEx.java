@@ -1,15 +1,12 @@
 package ch.ethz.infsec.src;
 
-import ch.ethz.infsec.policy.Ex;
-import ch.ethz.infsec.policy.GenFormula;
-import ch.ethz.infsec.policy.Pred;
-import ch.ethz.infsec.policy.VariableMapper;
+import ch.ethz.infsec.policy.*;
 import scala.collection.Iterator;
 import scala.collection.Seq;
 import scala.collection.immutable.List;
 import scala.collection.immutable.Set;
 
-import static ch.ethz.infsec.src.Init0.convert;
+import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 public class JavaEx<T> extends Ex<T> implements JavaGenFormula<T> {
 
@@ -17,8 +14,8 @@ public class JavaEx<T> extends Ex<T> implements JavaGenFormula<T> {
         super(variable, arg);
     }
 
-    public <T> T accept(FormulaVisitor<T> v) {
-        return v.visit(this);
+    public <U> U accept(FormulaVisitor<U> v) {
+        return v.visit((JavaEx<VariableID>) this);
     }
 
     @Override

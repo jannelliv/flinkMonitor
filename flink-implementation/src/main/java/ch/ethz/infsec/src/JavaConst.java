@@ -2,9 +2,6 @@ package ch.ethz.infsec.src;
 
 import ch.ethz.infsec.policy.Const;
 
-import static ch.ethz.infsec.src.Init0.convert;
-
-
 public class JavaConst<T> extends Const<T> implements JavaTerm<T> {
 
     public JavaConst(Object value) {

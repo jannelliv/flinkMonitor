@@ -30,6 +30,7 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<List<Opt
     }
 
     public DataStream<List<Optional<Object>>> visit(MAnd f) {
+        //when do I call flatMap1 and flatMap2?
         DataStream<List<Optional<Object>>> input1 = f.accept(new MformulaVisitorFlink(f, f.op1, hmap, mainDataStream));
         DataStream<List<Optional<Object>>> input2 = f.accept(new MformulaVisitorFlink(f, f.op2, hmap, mainDataStream));
         ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);

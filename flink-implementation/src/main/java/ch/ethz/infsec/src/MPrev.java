@@ -14,18 +14,27 @@ public class MPrev implements Mformula<List<Optional<Object>>> {
     LinkedList<LinkedList<LinkedList<Optional<Object>>>> tableList;
     LinkedList<Integer> tsList;
 
-    public MPrev(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, LinkedList<Integer> tsList,
-                 LinkedList<LinkedList<LinkedList<Optional<Object>>>> tableList) {
+    public MPrev(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, LinkedList<Integer> tsList) {
         this.interval = interval;
         this.formula = mform;
         this.bool = bool;
-        this.tableList = tableList;
         this.tsList = tsList;
+
+        Optional<Object> el = Optional.empty();
+        LinkedList<Optional<Object>> listEl = new LinkedList<>();
+        listEl.add(el);
+        LinkedList<LinkedList<Optional<Object>>> listEl2 = new LinkedList<>();
+        listEl2.add(listEl);
+        LinkedList<LinkedList<LinkedList<Optional<Object>>>> listEl3 = new LinkedList<>();
+        listEl3.add(listEl2);
+        this.tableList = listEl3;
+
     }
 
     @Override
     public <T> DataStream<List<Optional<Object>>> accept(MformulaVisitor<T> v) {
-        return null;
+        return (DataStream<List<Optional<Object>>>) v.visit(this);
+        //Is it ok that I did the cast here above?
     }
 
 

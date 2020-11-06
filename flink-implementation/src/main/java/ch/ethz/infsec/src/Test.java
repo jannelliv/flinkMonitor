@@ -23,7 +23,7 @@ import scala.collection.Set;
 import scala.util.Either;
 
 import java.util.*;
-import static ch.ethz.infsec.src.Init0.convert;
+import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 
 public class Test {
