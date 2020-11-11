@@ -10,7 +10,7 @@ import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 public class JavaEx<T> extends Ex<T> implements JavaGenFormula<T> {
 
-    public JavaEx(T variable, GenFormula arg) {
+    public JavaEx(T variable, GenFormula<T> arg) {
         super(variable, arg);
     }
 

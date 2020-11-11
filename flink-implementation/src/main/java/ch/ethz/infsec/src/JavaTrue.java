@@ -24,5 +24,4 @@ public class JavaTrue<T> extends True<T> implements JavaGenFormula<T> {
         return false;
     }
 
-
 }

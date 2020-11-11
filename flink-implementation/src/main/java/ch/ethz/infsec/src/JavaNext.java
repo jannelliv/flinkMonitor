@@ -9,10 +9,10 @@ import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 public class JavaNext<T> extends Next<T> implements JavaGenFormula<T> {
 
-    public JavaNext(Interval interval, GenFormula arg) {
+    public JavaNext(Interval interval, GenFormula<T> arg) {
         super(interval, arg);
     }
-    public <T> T accept(FormulaVisitor<T> v) {
+    public <R> R accept(FormulaVisitor<R> v) {
         return v.visit((JavaNext<VariableID>) this);
     }
 

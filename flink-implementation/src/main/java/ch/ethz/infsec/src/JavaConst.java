@@ -4,22 +4,18 @@ import ch.ethz.infsec.policy.Const;
 
 public class JavaConst<T> extends Const<T> implements JavaTerm<T> {
 
-    public JavaConst(Object value) {
+    public JavaConst(T value) {
         super(value);
     }
 
-    /*@Override
-    public Object value(){
-        return convertTerm(super.value());
-    }*/
 
     @Override
-    public Object accept(FormulaVisitor v) {
-        return null;
+    public <R> R accept(TermVisitor<R> v) {
+        return v.visit(this);
     }
 
     @Override
-    public Object productElement(int n) {
+    public T productElement(int n) {
         return null;
     }
 
@@ -32,4 +28,6 @@ public class JavaConst<T> extends Const<T> implements JavaTerm<T> {
     public boolean canEqual(Object that) {
         return false;
     }
+
+
 }

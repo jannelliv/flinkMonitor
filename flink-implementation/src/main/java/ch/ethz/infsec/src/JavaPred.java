@@ -16,8 +16,6 @@ public class JavaPred<T> extends Pred<T> implements JavaGenFormula<T> {
         return v.visit((JavaPred<VariableID>) this);
     }
 
-
-
     @Override
     public Object productElement(int n) {
         return null;

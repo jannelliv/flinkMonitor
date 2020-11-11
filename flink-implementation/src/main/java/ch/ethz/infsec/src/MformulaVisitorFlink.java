@@ -10,7 +10,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
-public class MformulaVisitorFlink implements MformulaVisitor<DataStream<List<Optional<Object>>>> {
+public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Optional<List<Optional<Object>>>>> {
 
     Mformula formula;
     Mformula subformula;
@@ -24,57 +24,64 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<List<Opt
         this.mainDataStream = mainDataStream;
     }
 
-    public DataStream<List<Optional<Object>>> visit(MPred event) {
-        OutputTag<Fact> factStream = this.hmap.get(event.toString());
-        return this.mainDataStream.getSideOutput(factStream).flatMap(event);
+    public DataStream<Optional<List<Optional<Object>>>> visit(MPred state) {
+        OutputTag<Fact> factStream = this.hmap.get(state.getPredName());
+        return this.mainDataStream.getSideOutput(factStream).flatMap(state );
     }
 
-    public DataStream<List<Optional<Object>>> visit(MAnd f) {
+    public DataStream<Optional<List<Optional<Object>>>> visit(MAnd f) {
         //when do I call flatMap1 and flatMap2?
-        DataStream<List<Optional<Object>>> input1 = f.accept(new MformulaVisitorFlink(f, f.op1, hmap, mainDataStream));
-        DataStream<List<Optional<Object>>> input2 = f.accept(new MformulaVisitorFlink(f, f.op2, hmap, mainDataStream));
-        ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+        DataStream<Optional<List<Optional<Object>>>> input1 = f.accept(new MformulaVisitorFlink(f, f.op1, hmap, mainDataStream));
+        DataStream<Optional<List<Optional<Object>>>> input2 = f.accept(new MformulaVisitorFlink(f, f.op2, hmap, mainDataStream));
+        ConnectedStreams<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> connectedStreams = input1.connect(input2);
         return connectedStreams.flatMap(f);
     }
 
-    public DataStream<List<Optional<Object>>> visit(MExists f) {
-        DataStream<List<Optional<Object>>> input = f.accept(new MformulaVisitorFlink(f, f.subFormula, hmap, mainDataStream));
+    public DataStream<Optional<List<Optional<Object>>>> visit(MExists f) {
+        DataStream<Optional<List<Optional<Object>>>> input = f.accept(new MformulaVisitorFlink(f, f.subFormula, hmap, mainDataStream));
         return input.flatMap(f);
     }
 
-    public DataStream<List<Optional<Object>>> visit(MNext f) {
-        DataStream<List<Optional<Object>>> input = f.accept(new MformulaVisitorFlink(f, f.formula, hmap, mainDataStream));
+    public DataStream<Optional<List<Optional<Object>>>> visit(MNext f) {
+        DataStream<Optional<List<Optional<Object>>>> input = f.accept(new MformulaVisitorFlink(f, f.formula, hmap, mainDataStream));
         return input.flatMap(f);
     }
 
-    public DataStream<List<Optional<Object>>> visit(MOr f) {
-        DataStream<List<Optional<Object>>> input1 = f.accept(new MformulaVisitorFlink(f, f.op1, hmap, mainDataStream));
-        DataStream<List<Optional<Object>>> input2 = f.accept(new MformulaVisitorFlink(f, f.op2, hmap, mainDataStream));
-        ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+    public DataStream<Optional<List<Optional<Object>>>> visit(MOr f) {
+        DataStream<Optional<List<Optional<Object>>>> input1 = f.accept(new MformulaVisitorFlink(f, f.op1, hmap, mainDataStream));
+        DataStream<Optional<List<Optional<Object>>>> input2 = f.accept(new MformulaVisitorFlink(f, f.op2, hmap, mainDataStream));
+        ConnectedStreams<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> connectedStreams = input1.connect(input2);
+        //coflatmap goes from connected streams to data streams --> see below
+        //this flat map below is actually a coflatmap
+
         return connectedStreams.flatMap(f);
+        //flatMap here will be interpreted as a coflatmap because the argumetn it receives is an Or,
+        //which is a binary operator so it receives a coflatmap. This will apply flatMap1 or flatMap2 depending
+        //on the input stream
     }
 
-    public DataStream<List<Optional<Object>>> visit(MPrev f) {
-        DataStream<List<Optional<Object>>> input = f.accept(new MformulaVisitorFlink(f, f.formula, hmap, mainDataStream));
+    public DataStream<Optional<List<Optional<Object>>>> visit(MPrev f) {
+        DataStream<Optional<List<Optional<Object>>>> input = f.accept(new MformulaVisitorFlink(f, f.formula, hmap, mainDataStream));
         return input.flatMap(f);
     }
 
-    public DataStream<List<Optional<Object>>> visit(MSince f) {
-        DataStream<List<Optional<Object>>> input1 = f.accept(new MformulaVisitorFlink(f, f.formula1, hmap, mainDataStream));
-        DataStream<List<Optional<Object>>> input2 = f.accept(new MformulaVisitorFlink(f, f.formula2, hmap, mainDataStream));
-        ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+    public DataStream<Optional<List<Optional<Object>>>> visit(MSince f) {
+        DataStream<Optional<List<Optional<Object>>>> input1 = f.accept(new MformulaVisitorFlink(f, f.formula1, hmap, mainDataStream));
+        DataStream<Optional<List<Optional<Object>>>> input2 = f.accept(new MformulaVisitorFlink(f, f.formula2, hmap, mainDataStream));
+        ConnectedStreams<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> connectedStreams = input1.connect(input2);
         return connectedStreams.flatMap(f);
     }
 
-    public DataStream<List<Optional<Object>>> visit(MUntil f) {
-        DataStream<List<Optional<Object>>> input1 = f.accept(new MformulaVisitorFlink(f, f.formula1, hmap, mainDataStream));
-        DataStream<List<Optional<Object>>> input2 = f.accept(new MformulaVisitorFlink(f, f.formula2, hmap, mainDataStream));
-        ConnectedStreams<List<Optional<Object>>, List<Optional<Object>>> connectedStreams = input1.connect(input2);
+    public DataStream<Optional<List<Optional<Object>>>> visit(MUntil f) {
+        DataStream<Optional<List<Optional<Object>>>> input1 = f.accept(new MformulaVisitorFlink(f, f.formula1, hmap, mainDataStream));
+        DataStream<Optional<List<Optional<Object>>>> input2 = f.accept(new MformulaVisitorFlink(f, f.formula2, hmap, mainDataStream));
+        ConnectedStreams<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> connectedStreams = input1.connect(input2);
         return connectedStreams.flatMap(f);
     }
 
-    public DataStream<List<Optional<Object>>> visit(MRel f) {
-        return null;
+    public DataStream<Optional<List<Optional<Object>>>> visit(MRel f) {
+        OutputTag<Fact> factStream = this.hmap.get("");
+        return this.mainDataStream.getSideOutput(factStream).flatMap(f);
     }
 
     //public abstract DataStream<Fact> visit(JavaFalse f);

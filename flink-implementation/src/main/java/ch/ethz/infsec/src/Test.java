@@ -8,7 +8,7 @@ import ch.ethz.infsec.trace.ParsingFunction;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 //import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 //import org.apache.flink.api.common.functions.FilterFunction;
-import org.apache.flink.api.common.functions.FlatMapFunction;
+//import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -47,15 +47,17 @@ public class Test {
             //The above is the stream from which we have to find the satisfactions!
             //atomic facts should go to operators that handle atoms:
             //ATOMIC OPERATORS
-            HashMap<String, OutputTag<Fact>> hashmap = new HashMap<String, OutputTag<Fact>>();
+            HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
-            Iterator iter = atomSet.iterator();
+            Iterator<Pred<VariableID>> iter = atomSet.iterator();
             OutputTag<Fact> outputTag;
             while(iter.hasNext()) {
-                Pred<VariableID> n = (Pred<VariableID>) iter.next();
-                outputTag = new OutputTag<Fact>(n.toString()) {};
+                Pred<VariableID> n = iter.next();
+                outputTag = new OutputTag<>(n.toString());
                 hashmap.put(n.relation(), outputTag);
             }
+            hashmap.put("", new OutputTag<>("")); //I don't think someone can parse a predicate with an empty string.
+
             SingleOutputStreamOperator<Fact> mainDataStream = facts
                     .process(new ProcessFunction<Fact, Fact>() {
 
@@ -64,16 +66,20 @@ public class Test {
                                 Fact fact,
                                 Context ctx,
                                 Collector<Fact> out) throws Exception {
-                            // emit data to regular output
-                            //out.collect(fact);
 
-                            // emit data to side output
-                            ctx.output(hashmap.get(fact.getName()), fact);
+
+                            if(fact.isTerminator()){
+                                for (String str: hashmap.keySet()){
+                                    ctx.output(hashmap.get(str), fact);
+                                }
+                            }else{
+                                ctx.output(hashmap.get(fact.getName()), fact);
+                            }
                         }
                     });
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             //is it normal that I have to cast here?
-            DataStream<List<Optional<Object>>> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
+            DataStream<Optional<List<Optional<Object>>>> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
             //is the above the correct way to create a sink?
             e.execute();
         }

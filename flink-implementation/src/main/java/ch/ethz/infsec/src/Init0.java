@@ -5,7 +5,7 @@ import scala.collection.Seq;
 import java.util.*;
 
 
-public class Init0 implements FormulaVisitor<ch.ethz.infsec.src.Mformula> {
+public class Init0 implements FormulaVisitor<Mformula> {
 
     ArrayList<VariableID> freeVariablesInOrder;
 
@@ -16,12 +16,12 @@ public class Init0 implements FormulaVisitor<ch.ethz.infsec.src.Mformula> {
     }
 
 
-    public ch.ethz.infsec.src.Mformula visit(JavaPred<VariableID> f){
+    public Mformula visit(JavaPred<VariableID> f){
         return new MPred(f.relation(), f.args(), this.freeVariablesInOrder);
     }
 
 
-    public ch.ethz.infsec.src.Mformula visit(JavaNot<VariableID> f) {
+    public Mformula visit(JavaNot<VariableID> f) {
         if(f.arg() instanceof JavaOr){
             //don't know how to handle Eq
             if(((JavaOr<VariableID>) f.arg()).arg1() instanceof JavaNot){
@@ -52,7 +52,7 @@ public class Init0 implements FormulaVisitor<ch.ethz.infsec.src.Mformula> {
 
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaAnd<VariableID> f) {
+    public Mformula visit(JavaAnd<VariableID> f) {
         JavaGenFormula<VariableID> arg1 = f.arg1();
         JavaGenFormula<VariableID> arg2 = f.arg2();
         if(safe_formula(arg2)){
@@ -71,46 +71,46 @@ public class Init0 implements FormulaVisitor<ch.ethz.infsec.src.Mformula> {
 
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaAll<VariableID> f) {
+    public Mformula visit(JavaAll<VariableID> f) {
         return null;
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaEx<VariableID> f) {
+    public Mformula visit(JavaEx<VariableID> f) {
         VariableID variable = f.variable();
-        //VariableID varScala = new VariableID(variable.toString(), -1);
-        //not sure if the above use of the constructor is correct!
-        //List<VariableID> freeVarsInOrderSubformula = new ArrayList<>((Collection<VariableID>) JavaConverters.seqAsJavaListConverter(f.arg().freeVariablesInOrder()));
-
         this.freeVariablesInOrder.add(0,variable);
         Seq<VariableID> fvios = JavaConverters.asScalaBufferConverter(this.freeVariablesInOrder).asScala().toSeq();
         JavaGenFormula<VariableID> subformula = f.arg();
-        return new MExists(subformula.accept(new Init0(fvios)));
+        return new MExists(subformula.accept(new Init0(fvios)), variable, this.freeVariablesInOrder);
+        //I actually don't think it's necessary to pass variable as an argument here, since we know we can retrieve it
+        //from the front of fvios.
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaFalse<VariableID> f) {
-        HashSet<LinkedList<Optional<Object>>> table = new HashSet<>();
+    public Mformula visit(JavaFalse<VariableID> f) {
+        HashSet<Optional<LinkedList<Optional<Object>>>> table = new HashSet<>();
         LinkedList<Optional<Object>> el = new LinkedList<>();
-        table.add(el);
+        Optional<LinkedList<Optional<Object>>> el1 = Optional.of(el);
+        table.add(el1);
         return new MRel(table); // aka empty table
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaTrue<VariableID> f) {
+    public Mformula visit(JavaTrue<VariableID> f) {
         int n = f.freeVariablesInOrder().size();
-        HashSet<LinkedList<Optional<Object>>> table = new HashSet<>();
+        HashSet<Optional<LinkedList<Optional<Object>>>> table = new HashSet<>();
         LinkedList<Optional<Object>> el = new LinkedList<>();
         for(int i = 0; i < n; i++){
             //not sure if this is efficient
             el.add(Optional.empty());
         }
-        table.add(el);
+        Optional<LinkedList<Optional<Object>>> el1 = Optional.of(el);
+        table.add(el1);
         return new MRel(table);
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaNext<VariableID> f) {
+    public Mformula visit(JavaNext<VariableID> f) {
         return new MNext(f.interval(), f.accept(new Init0(f.freeVariablesInOrder())), true, new LinkedList<>());
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaOr<VariableID> f) {
+    public Mformula visit(JavaOr<VariableID> f) {
 
 
         //NOT SURE IF I HAD TO ADD THE ABOVE ELEMENTS
@@ -118,13 +118,13 @@ public class Init0 implements FormulaVisitor<ch.ethz.infsec.src.Mformula> {
                 (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())));
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaPrev<VariableID> f) {
+    public Mformula visit(JavaPrev<VariableID> f) {
         return new MPrev(f.interval(), f.accept(new Init0(f.freeVariablesInOrder())),
                 true, new LinkedList<>());
 
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaSince<VariableID> f) {
+    public Mformula visit(JavaSince<VariableID> f) {
 
         if(safe_formula(f.arg1())){
             return new MSince(true,
@@ -148,7 +148,7 @@ public class Init0 implements FormulaVisitor<ch.ethz.infsec.src.Mformula> {
 
     }
 
-    public ch.ethz.infsec.src.Mformula visit(JavaUntil<VariableID> f) {
+    public Mformula visit(JavaUntil<VariableID> f) {
 
         if(safe_formula(f.arg1())){
             return new MUntil(true,

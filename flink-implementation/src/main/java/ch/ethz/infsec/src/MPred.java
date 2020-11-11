@@ -2,74 +2,72 @@ package ch.ethz.infsec.src;
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.Term;
 import ch.ethz.infsec.policy.VariableID;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 import scala.collection.Seq;
 import scala.collection.*;
 import java.util.*;
 import java.util.function.Function;
+import static ch.ethz.infsec.src.JavaTerm.convert;
 
-public class MPred implements Mformula<Fact>{
+public class MPred implements Mformula, FlatMapFunction<Fact, Optional<List<Optional<Object>>>> {
     String predName;
-    List<Term<VariableID>> args;
+    ArrayList<JavaTerm<VariableID>> args; // when you assign this now, you will need to convert it
     List<VariableID> freeVariablesInOrder;
+
 
     public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
 
-        this.args = new ArrayList<>(JavaConverters.seqAsJavaList(args));
-        //Above, should I have used mfotlTerm instead of Term?
+        List<Term<VariableID>> argsScala = new ArrayList<>(JavaConverters.seqAsJavaList(args));
+        ArrayList<JavaTerm<VariableID>> argsJava = new ArrayList<>();
+        for (Term<VariableID> variableIDTerm : argsScala) {
+            //is this for loop very bad in terms of efficiency?
+            argsJava.add(convert(variableIDTerm));
+        }
         this.predName = predName;
         this.freeVariablesInOrder = fvio;
+        this.args = argsJava;
 
     }
-    public void flatMap(Fact fact, Collector<List<Optional<Object>>> out) throws Exception {
-        if(fact.getName().equals(this.predName) && fact.getArity() == this.args.size()){
-            //TODO: remove safe check and put it in the match method
-            Object[] tsArray = this.args.toArray();
-            List<Object> ts = new ArrayList<>(Arrays.asList(tsArray));
-            List<Object> ys = fact.getArguments();
-            Optional<Function<String, Optional<Object>>> result = match(ts, ys);
-            if(result.isPresent()){ //is it necessary to have this if condition?
-                List<Optional<Object>> list = new LinkedList<>();
-                //building of satisfaction, from the free Variables of MPred (this)
-                for(int i = 0; i < this.freeVariablesInOrder.size(); i++){
-                    VariableID freeVarPred = this.freeVariablesInOrder.get(i);
-                    list.add(result.get().apply(freeVarPred.toString()));
-                }
-                out.collect(list);
-            }
 
+    public String getPredName(){
+      return predName;
+    }
+
+
+    public void flatMap(Fact fact, Collector<Optional<List<Optional<Object>>>> out) throws Exception {
+        if(fact.isTerminator()){
+            Optional<List<Optional<Object>>> none = Optional.empty();
+            out.collect(none);
+        }
+        assert(fact.getName().equals(this.predName) );
+
+        List<Object> ys = fact.getArguments();
+        Optional<Function<String, Optional<Object>>> result = match(this.args, ys);
+        if(result.isPresent()){
+            List<Optional<Object>> list = new LinkedList<>();
+            //building of satisfaction, from the free Variables of MPred (this)
+            for (VariableID freeVarPred : this.freeVariablesInOrder) {
+                list.add(result.get().apply(freeVarPred.toString()));
+            }
+            Optional<List<Optional<Object>>> assignment = Optional.of(list);
+            out.collect(assignment);
         }
         //if there are no satisfactions, we simply don't put anything in the collector.
 
     }
 
     @Override
-    public void flatMap1(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
-
-    }
-
-    @Override
-    public void flatMap2(List<Optional<Object>> optionals, Collector<List<Optional<Object>>> collector) throws Exception {
-
-    }
-
-    @Override
-    public <T> DataStream<List<Optional<Object>>> accept(MformulaVisitor<T> v) {
-        return (DataStream<List<Optional<Object>>>) v.visit(this);
+    public <T> DataStream<Optional<List<Optional<Object>>>> accept(MformulaVisitor<T> v) {
+        return (DataStream<Optional<List<Optional<Object>>>>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
-    public static Optional<Function<String, Optional<Object>>> match(List<Object> ts, List<Object> ys){
-        if(ts.size() == 0 && ys.size() == 0) {
-            Function<String, Optional<Object>> emptyMap = new Function<String, Optional<Object>>() {
-                @Override
-                public Optional<Object> apply(String s) {
-                    return Optional.empty();
-                }
-            };
-            Optional<Function<String, Optional<Object>>> result = Optional.of(emptyMap);
-            return result;
+    public static Optional<Function<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, List<Object> ys){
+        if(ts.size() != ys.size() || ts.size() == 0 && ys.size() == 0) {
+            Function<String, Optional<Object>> emptyMap = s -> Optional.empty();
+            return Optional.of(emptyMap);
         }else {
             if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaConst)) {
                 if(ts.get(0).equals(ys.get(0))) {
@@ -81,7 +79,7 @@ public class MPred implements Mformula<Fact>{
                     return Optional.empty();
                 }
             }else if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaVar)) {
-                JavaVar x = (JavaVar) ts.remove(0);
+                JavaVar<VariableID> x =  (JavaVar<VariableID>) ts.remove(0);
 
                 Object y = ys.remove(0);
                 Optional<Function<String, Optional<Object>>> recFunction = match(ts, ys);
@@ -90,19 +88,16 @@ public class MPred implements Mformula<Fact>{
                 }else{
                     Function<String, Optional<Object>> f = recFunction.get();
                     if(!(f.apply(x.toString())).isPresent()){
-                        Function<Optional<Object>, Optional<Object>> after = new Function<Optional<Object>, Optional<Object>>() {
-                            @Override
-                            public Optional<Object> apply(Optional<Object> x) {
-                                if(ts.indexOf(x) == 0){
-                                    Optional<Object> yOpt = Optional.of(ys.get(0));
-                                    return yOpt;
-                                }else{
-                                    return  f.apply(x.toString());
-                                }
-
+                        Function<Optional<Object>, Optional<Object>> after = x1 -> {
+                            if(ts.indexOf(x1) == 0){
+                                return Optional.of(ys.get(0));
+                            }else{
+                                return  f.apply(x1.toString());
                             }
+
                         };
                         Function<String, Optional<Object>> mappingFunction = f.andThen(after);
+                        return Optional.of(mappingFunction);
 
                     }else{
                         Object z = f.apply(x.toString()).get();
@@ -119,7 +114,6 @@ public class MPred implements Mformula<Fact>{
                 return Optional.empty();
             }
         }
-        return Optional.empty();
 
     }
 

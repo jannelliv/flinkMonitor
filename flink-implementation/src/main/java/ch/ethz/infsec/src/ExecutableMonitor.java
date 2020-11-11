@@ -12,7 +12,7 @@ public class ExecutableMonitor {
             if(x==y) {
                 return t.unit_table(n);
             }else {
-                Set<List<Optional<Object>>> result = new HashSet<List<Optional<Object>>>();
+                Set<List<Optional<Object>>> result = new HashSet<>();
                 return result;
             }
         }else if(x instanceof MfotlVar && y instanceof MfotlConst) {
@@ -73,42 +73,43 @@ public class ExecutableMonitor {
 
     }
 
-    Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> mbuf2_add(List<Set<List<Optional<Object>>>> xsp,
-                                                                                List<Set<List<Optional<Object>>>> ysp, Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> mbuf2){
-        List<Set<List<Optional<Object>>>> xs = mbuf2.fst();
-        List<Set<List<Optional<Object>>>> ys = mbuf2.snd();
-        List<Set<List<Optional<Object>>>> result1 = new ArrayList<Set<List<Optional<Object>>>>();
+    Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> mbuf2_add(List<Set<Optional<List<Optional<Object>>>>> xsp,
+                                                                                List<Set<Optional<List<Optional<Object>>>>> ysp, Tuple<List<Set<Optional<List<Optional<Object>>>>>,
+                                                                                List<Set<Optional<List<Optional<Object>>>>>> mbuf2){
+        List<Set<Optional<List<Optional<Object>>>>> xs = mbuf2.fst();
+        List<Set<Optional<List<Optional<Object>>>>> ys = mbuf2.snd();
+        List<Set<Optional<List<Optional<Object>>>>> result1 = new ArrayList<>();
         result1.addAll(xs);
         result1.addAll(xsp);
-        List<Set<List<Optional<Object>>>> result2 = new ArrayList<Set<List<Optional<Object>>>>();
+        List<Set<Optional<List<Optional<Object>>>>> result2 = new ArrayList<>();
         result2.addAll(ys);
         result2.addAll(ysp);
 
-        Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> result = new Tuple(result1, result2);
+        Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> result = new Tuple(result1, result2);
         return result;
 
     }
 
-    <U> Tuple<List<U>, Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> > mbuf2_take(BiFunction<Set<List<Optional<Object>>>, Set<List<Optional<Object>>>, U> f,
-                                                                                                      Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> mbuf2){
+    <U> Tuple<List<U>, Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> > mbuf2_take(BiFunction<Set<Optional<List<Optional<Object>>>>, Set<Optional<List<Optional<Object>>>>, U> f,
+                                                                                                      Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> mbuf2){
 
-        List<Set<List<Optional<Object>>>> xs = mbuf2.fst();
-        List<Set<List<Optional<Object>>>> ys = mbuf2.snd();
+        List<Set<Optional<List<Optional<Object>>>>> xs = mbuf2.fst();
+        List<Set<Optional<List<Optional<Object>>>>> ys = mbuf2.snd();
         if(xs.size() >= 1 && ys.size() >= 1) {
-            Set<List<Optional<Object>>> x = xs.remove(0);
-            Set<List<Optional<Object>>> y = ys.remove(0);
-            Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> mbuf2p = new Tuple(xs, ys);
-            Tuple<List<U>, Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> > zsbuf = mbuf2_take(f, mbuf2p);
+            Set<Optional<List<Optional<Object>>>> x = xs.remove(0);
+            Set<Optional<List<Optional<Object>>>> y = ys.remove(0);
+            Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> mbuf2p = new Tuple<>(xs, ys);
+            Tuple<List<U>, Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> > zsbuf = mbuf2_take(f, mbuf2p);
 
-            Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> buf = zsbuf.snd();
+            Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> buf = zsbuf.snd();
             List<U> zs = zsbuf.fst();
             U elem = f.apply(x,y);
             zs.add(0,elem);
-            Tuple<List<U>, Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> > result = new Tuple(zs, buf);
+            Tuple<List<U>, Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> > result = new Tuple(zs, buf);
             return result;
         }else {
-            List<U> res1 = new ArrayList<U>();
-            Tuple<List<U>, Tuple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>> > result = new Tuple(res1, mbuf2);
+            List<U> res1 = new ArrayList<>();
+            Tuple<List<U>, Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> > result = new Tuple(res1, mbuf2);
             return result;
         }
     }

@@ -3,14 +3,13 @@ package ch.ethz.infsec.src;
 
 import ch.ethz.infsec.policy.Var;
 
-
 public class JavaVar<T> extends Var<T> implements JavaTerm<T> {
     public JavaVar(T variable) {
         super(variable);
     }
 
     @Override
-    public <T1> T1 accept(FormulaVisitor<T1> v) {
+    public <T1> T1 accept(TermVisitor<T1> v) {
         return null;
     }
 
@@ -28,4 +27,6 @@ public class JavaVar<T> extends Var<T> implements JavaTerm<T> {
     public boolean canEqual(Object that) {
         return false;
     }
+
+
 }
