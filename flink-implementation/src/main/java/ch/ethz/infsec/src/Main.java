@@ -6,7 +6,7 @@ import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.trace.ParsingFunction;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
-//import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
+import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 //import org.apache.flink.api.common.functions.FilterFunction;
 //import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -26,9 +26,9 @@ import java.util.*;
 import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 
-public class Test {
+public class Main {
     public static void main(String[] args) throws Exception{
-        Either<String, GenFormula<VariableID>> a = Policy.read("(x > 2)");
+        Either<String, GenFormula<VariableID>> a = Policy.read("publish(r) AND approve(r)");
         // See what the input should actually look like! ???
 
         if(a.isLeft()){
@@ -40,9 +40,10 @@ public class Test {
             formula.freeVariables();
 
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
-            DataStream<String> text = e.socketTextStream("127.0.0.1", 5000);
-            //not sure if this hostname and portname make sense!
-            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()));
+            //DataStream<String> text = e.socketTextStream("127.0.0.1", 5000);
+            DataStreamSource<String> text = e.readTextFile(System.getProperty("user.dir")+ "//" + args[1]) ;
+
+            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()));
             //could also be a MonPoly parser, depending on the input --> ?
             //The above is the stream from which we have to find the satisfactions!
             //atomic facts should go to operators that handle atoms:

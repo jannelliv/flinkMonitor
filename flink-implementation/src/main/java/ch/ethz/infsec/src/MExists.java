@@ -6,7 +6,6 @@ import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -14,12 +13,12 @@ public class MExists implements Mformula, FlatMapFunction<Optional<List<Optional
 
     Mformula subFormula;
     VariableID var; //is the way I constructed this from Init0 correct?
-    List<VariableID> varNames;
 
-    public MExists(Mformula subformula, VariableID var, ArrayList<VariableID> varNames){
+
+    public MExists(Mformula subformula, VariableID var){
         this.subFormula = subformula;
         this.var = var;
-        this.varNames = varNames;
+
     }
 
     @Override
@@ -38,8 +37,10 @@ public class MExists implements Mformula, FlatMapFunction<Optional<List<Optional
             out.collect(value);
         }else{
             List<Optional<Object>> satList = value.get();
-            //now we have to find the element corresponding to var (class field) in satList
-
+            satList.remove(0);
+            Optional<List<Optional<Object>>> output = Optional.of(satList);
+            out.collect(output);
+            //check if this implementation of flatMap is correct --> by running something
         }
     }
 

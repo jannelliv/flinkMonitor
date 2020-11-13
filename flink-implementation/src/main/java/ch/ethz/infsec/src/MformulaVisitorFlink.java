@@ -5,7 +5,6 @@ import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.util.OutputTag;
-
 import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;

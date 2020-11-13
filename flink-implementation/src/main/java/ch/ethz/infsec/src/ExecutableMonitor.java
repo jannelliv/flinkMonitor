@@ -6,7 +6,7 @@ import java.util.function.Function;
 
 
 public class ExecutableMonitor {
-    Set<List<Optional<Object>>> eq_rel(int n, MfotlTerm x, MfotlTerm y, Set<List<Optional<Object>>> t){
+    /*Set<List<Optional<Object>>> eq_rel(int n, MfotlTerm x, MfotlTerm y, Set<List<Optional<Object>>> t){
 
         if(x instanceof MfotlConst && y instanceof MfotlConst) {
             if(x==y) {
@@ -24,9 +24,9 @@ public class ExecutableMonitor {
             return null; //"undefined" in Isabelle
         }
 
-    }
+    }*/
 
-    Set<List<Optional<Object>>> neq_rel(int n, MfotlTerm x, MfotlTerm y, Table t){
+    /*Set<List<Optional<Object>>> neq_rel(int n, MfotlTerm x, MfotlTerm y, Table t){
 
         if(x instanceof MfotlConst && y instanceof MfotlConst) {
             if(x==y) {
@@ -45,33 +45,9 @@ public class ExecutableMonitor {
         }else {
             return null; //"undefined" in Isabelle
         }
-    }
+    }*/
 
-    Triple<List<Set<List<Optional<Object>>>>, List<Set<List<Optional<Object>>>>, List<Integer>> mprev_next(Interval i,
-                                                                                                 List<Set<List<Optional<Object>>>> xs, List<Integer> ts){
-        if(xs.size() == 0) {
-            List<Set<List<Optional<Object>>>> fstResult = new ArrayList<Set<List<Optional<Object>>>>();
-            List<Set<List<Optional<Object>>>> sndResult = new ArrayList<Set<List<Optional<Object>>>>();
-            return new Triple(fstResult,sndResult, ts);
-        }else if(ts.size() == 0) {
-            List<Set<List<Optional<Object>>>> fstResult = new ArrayList<Set<List<Optional<Object>>>>();
-            List<Integer> thrdResult = new ArrayList<Integer>();
-            return new Triple(fstResult,xs, thrdResult);
-        }else if(ts.size() == 1) {
-            List<Set<List<Optional<Object>>>> fstResult = new ArrayList<Set<List<Optional<Object>>>>();
-            List<Integer> thrdResult = new ArrayList<Integer>();
-            thrdResult.add(ts.get(0));
-            return new Triple(fstResult,xs, thrdResult);
-        }else if(xs.size() >= 1 && ts.size() >= 2) {
-            Integer t = ts.get(0);
-            Integer tp = ts.get(1);
-            if(i.mem(tp - t)) {
-                //???
-            }
-        }
-        return null;
 
-    }
 
     Tuple<List<Set<Optional<List<Optional<Object>>>>>, List<Set<Optional<List<Optional<Object>>>>>> mbuf2_add(List<Set<Optional<List<Optional<Object>>>>> xsp,
                                                                                 List<Set<Optional<List<Optional<Object>>>>> ysp, Tuple<List<Set<Optional<List<Optional<Object>>>>>,

@@ -7,11 +7,13 @@ import java.util.*;
 
 public class Init0 implements FormulaVisitor<Mformula> {
 
-    ArrayList<VariableID> freeVariablesInOrder;
+    List<VariableID> freeVariablesInOrder;
 
     public Init0(Seq<VariableID> fvio){
-        this.freeVariablesInOrder = new ArrayList<>(JavaConverters.seqAsJavaList(fvio));
-        //If you would use List<VariableID> there, you could avoid the two conversions steps (one before the recursive call and the other in the Init0 constructor).
+        ArrayList<VariableID> temp = new ArrayList<>(JavaConverters.seqAsJavaList(fvio));
+        //If you would use List<VariableID> there, you could avoid the two conversions steps
+        // (one before the recursive call and the other in the Init0 constructor).
+        this.freeVariablesInOrder = tail(temp);
 
     }
 
@@ -77,33 +79,26 @@ public class Init0 implements FormulaVisitor<Mformula> {
 
     public Mformula visit(JavaEx<VariableID> f) {
         VariableID variable = f.variable();
-        this.freeVariablesInOrder.add(0,variable);
-        Seq<VariableID> fvios = JavaConverters.asScalaBufferConverter(this.freeVariablesInOrder).asScala().toSeq();
+        List<VariableID> freeVariablesInOrderCopy = new ArrayList<>(this.freeVariablesInOrder);
+        freeVariablesInOrderCopy.add(0,variable);
+        Seq<VariableID> fvios = JavaConverters.asScalaBufferConverter(freeVariablesInOrderCopy).asScala().toSeq();
         JavaGenFormula<VariableID> subformula = f.arg();
-        return new MExists(subformula.accept(new Init0(fvios)), variable, this.freeVariablesInOrder);
-        //I actually don't think it's necessary to pass variable as an argument here, since we know we can retrieve it
-        //from the front of fvios.
+        return new MExists(subformula.accept(new Init0(fvios)), variable);
+        //when you construct the Mformula with Init0 you start with the list of free variables of the top-level
+        // formula which you pass around and prepend to it bound variables whenever you see JavaExists.
+        // the variable you want to project is always going to be first in the list that you receive from the
+        // upstream operator. So there is no need for indirect indexing -- you just want to pass the tail
+        // of the list downstream.
     }
 
     public Mformula visit(JavaFalse<VariableID> f) {
-        HashSet<Optional<LinkedList<Optional<Object>>>> table = new HashSet<>();
-        LinkedList<Optional<Object>> el = new LinkedList<>();
-        Optional<LinkedList<Optional<Object>>> el1 = Optional.of(el);
-        table.add(el1);
-        return new MRel(table); // aka empty table
+
+        return new MRel(Table.empty()); // aka empty table
     }
 
     public Mformula visit(JavaTrue<VariableID> f) {
         int n = f.freeVariablesInOrder().size();
-        HashSet<Optional<LinkedList<Optional<Object>>>> table = new HashSet<>();
-        LinkedList<Optional<Object>> el = new LinkedList<>();
-        for(int i = 0; i < n; i++){
-            //not sure if this is efficient
-            el.add(Optional.empty());
-        }
-        Optional<LinkedList<Optional<Object>>> el1 = Optional.of(el);
-        table.add(el1);
-        return new MRel(table);
+        return new MRel(Table.one(Assignment.nones(n)));
     }
 
     public Mformula visit(JavaNext<VariableID> f) {
@@ -224,6 +219,18 @@ public class Init0 implements FormulaVisitor<Mformula> {
             return false;
         }
 
+    }
+
+    /**
+     * WARNING: this method doesn’t check the list size, so you better
+     * be sure it contains at least one element.
+     */
+    public static List<VariableID> tail(List<VariableID> xs)
+            throws IndexOutOfBoundsException, IllegalArgumentException {
+        if(xs.size() < 1){
+            return new LinkedList<>();
+        }
+        return xs.subList(1, xs.size());
     }
 
 

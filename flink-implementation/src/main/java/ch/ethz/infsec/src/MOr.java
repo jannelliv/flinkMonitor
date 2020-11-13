@@ -6,8 +6,6 @@ import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 import java.util.*;
 
-import static ch.ethz.infsec.src.Table.join1;
-
 public class MOr implements Mformula, CoFlatMapFunction<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> {
 
     Mformula op1;

@@ -8,9 +8,9 @@ import org.apache.flink.util.Collector;
 import java.util.*;
 
 public class MRel implements Mformula, FlatMapFunction<Fact, Optional<List<Optional<Object>>>> {
-    HashSet<Optional<LinkedList<Optional<Object>>>> table;
+    Table table;
 
-    public MRel(HashSet<Optional<LinkedList<Optional<Object>>>> table){
+    public MRel(Table table){
 
         this.table = table;
     }
