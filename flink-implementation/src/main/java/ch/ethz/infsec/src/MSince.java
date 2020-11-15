@@ -6,20 +6,20 @@ import org.apache.flink.util.Collector;
 
 import java.util.*;
 
-public class MSince implements Mformula, CoFlatMapFunction<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> {
+public class MSince implements Mformula, CoFlatMapFunction<Optional<Assignment>, Optional<Assignment>, Optional<Assignment>> {
 
     boolean bool;
     Mformula formula1;
     ch.ethz.infsec.policy.Interval interval;
     Mformula formula2;
-    Tuple<LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>>, LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>>> mbuf2;
+    Tuple<LinkedList<HashSet<Optional<Assignment>>>, LinkedList<HashSet<Optional<Assignment>>>> mbuf2;
     List<Integer> tsList;
-    LinkedList<Triple<Integer, HashSet<Optional<LinkedList<Optional<Object>>>>, HashSet<Optional<LinkedList<Optional<Object>>>>>> muaux;
+    LinkedList<Triple<Integer, HashSet<Optional<Assignment>>, HashSet<Optional<Assignment>>>> muaux;
 
 
     public MSince(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval, Mformula accept1,
                   LinkedList<Integer> integers, LinkedList<Triple<Integer,
-            HashSet<Optional<LinkedList<Optional<Object>>>>, HashSet<Optional<LinkedList<Optional<Object>>>>>> triples) {
+            HashSet<Optional<Assignment>>, HashSet<Optional<Assignment>>>> triples) {
         this.bool = b;
         this.formula1 = accept;
         this.formula2 = accept1;
@@ -29,13 +29,13 @@ public class MSince implements Mformula, CoFlatMapFunction<Optional<List<Optiona
         this.muaux = triples;
 
         Optional<Object> el = Optional.empty();
-        LinkedList<Optional<Object>> listEl = new LinkedList<>();
-        listEl.add(el);
-        Optional<LinkedList<Optional<Object>>> el1 = Optional.of(listEl);
-        HashSet<Optional<LinkedList<Optional<Object>>>> setEl = new HashSet<>();
+        Assignment listEl = new Assignment();
+        listEl.add(el); //not sure it's correct that I add this
+        Optional<Assignment> el1 = Optional.of(listEl);
+        HashSet<Optional<Assignment>> setEl = new HashSet<>();
         setEl.add(el1);
-        LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>> fst = new LinkedList<>();
-        LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>> snd = new LinkedList<>();
+        LinkedList<HashSet<Optional<Assignment>>> fst = new LinkedList<>();
+        LinkedList<HashSet<Optional<Assignment>>> snd = new LinkedList<>();
         fst.add(setEl);
         snd.add(setEl);
         this.mbuf2 = new Tuple<>(fst, snd);
@@ -43,19 +43,19 @@ public class MSince implements Mformula, CoFlatMapFunction<Optional<List<Optiona
 
 
     @Override
-    public <T> DataStream<Optional<List<Optional<Object>>>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<List<Optional<Object>>>>) v.visit(this);
+    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
+        return (DataStream<Optional<Assignment>>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
     @Override
-    public void flatMap1(Optional<List<Optional<Object>>> optionals, Collector<Optional<List<Optional<Object>>>> collector) throws Exception {
+    public void flatMap1(Optional<Assignment> optionals, Collector<Optional<Assignment>> collector) throws Exception {
 
     }
 
     @Override
-    public void flatMap2(Optional<List<Optional<Object>>> optionals, Collector<Optional<List<Optional<Object>>>> collector) throws Exception {
+    public void flatMap2(Optional<Assignment> optionals, Collector<Optional<Assignment>> collector) throws Exception {
 
     }
 }

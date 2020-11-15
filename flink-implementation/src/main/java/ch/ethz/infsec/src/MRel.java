@@ -7,7 +7,7 @@ import org.apache.flink.util.Collector;
 
 import java.util.*;
 
-public class MRel implements Mformula, FlatMapFunction<Fact, Optional<List<Optional<Object>>>> {
+public class MRel implements Mformula, FlatMapFunction<Fact, Optional<Assignment>> {
     Table table;
 
     public MRel(Table table){
@@ -16,17 +16,17 @@ public class MRel implements Mformula, FlatMapFunction<Fact, Optional<List<Optio
     }
 
     @Override
-    public <T> DataStream<Optional<List<Optional<Object>>>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<List<Optional<Object>>>>) v.visit(this);
+    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
+        return (DataStream<Optional<Assignment>>) v.visit(this);
 
     }
 
 
     @Override
-    public void flatMap(Fact value, Collector<Optional<List<Optional<Object>>>> out) throws Exception {
+    public void flatMap(Fact value, Collector<Optional<Assignment>> out) throws Exception {
         //The stream of Terminators coming from Test.java should contain only Terminators
         assert(value.isTerminator());
-        Optional<List<Optional<Object>>> none = Optional.empty();
+        Optional<Assignment> none = Optional.empty();
         out.collect(none);
 
     }

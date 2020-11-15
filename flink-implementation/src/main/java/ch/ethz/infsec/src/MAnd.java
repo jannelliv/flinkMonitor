@@ -31,8 +31,8 @@ public class MAnd implements Mformula, CoFlatMapFunction<Optional<Assignment>, O
 
     }
     @Override
-    public <T> DataStream<Optional<List<Optional<Object>>>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<List<Optional<Object>>>>) v.visit(this);
+    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
+        return (DataStream<Optional<Assignment>>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 

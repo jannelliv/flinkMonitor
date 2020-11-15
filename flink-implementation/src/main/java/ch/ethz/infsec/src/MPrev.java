@@ -7,7 +7,7 @@ import org.apache.flink.util.Collector;
 import java.util.*;
 
 
-public class MPrev implements Mformula, FlatMapFunction<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> {
+public class MPrev implements Mformula, FlatMapFunction<Optional<Assignment>, Optional<Assignment>> {
     ch.ethz.infsec.policy.Interval interval;
     Mformula formula;
     boolean bool;
@@ -34,14 +34,14 @@ public class MPrev implements Mformula, FlatMapFunction<Optional<List<Optional<O
     }
 
     @Override
-    public <T> DataStream<Optional<List<Optional<Object>>>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<List<Optional<Object>>>>) v.visit(this);
+    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
+        return (DataStream<Optional<Assignment>>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
     @Override
-    public void flatMap(Optional<List<Optional<Object>>> value, Collector<Optional<List<Optional<Object>>>> out) throws Exception {
+    public void flatMap(Optional<Assignment> value, Collector<Optional<Assignment>> out) throws Exception {
 
     }
 

@@ -4,7 +4,6 @@ import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
-import ch.ethz.infsec.trace.ParsingFunction;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 //import org.apache.flink.api.common.functions.FilterFunction;
@@ -80,7 +79,7 @@ public class Main {
                     });
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             //is it normal that I have to cast here?
-            DataStream<Optional<List<Optional<Object>>>> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
+            DataStream<Optional<Assignment>> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
             //is the above the correct way to create a sink?
             e.execute();
         }

@@ -9,36 +9,38 @@ import org.apache.flink.util.Collector;
 import java.util.List;
 import java.util.Optional;
 
-public class MExists implements Mformula, FlatMapFunction<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> {
+public class MExists implements Mformula, FlatMapFunction<Optional<Assignment>, Optional<Assignment>> {
 
     Mformula subFormula;
     VariableID var; //is the way I constructed this from Init0 correct?
 
 
     public MExists(Mformula subformula, VariableID var){
+        //actually the second argument is not necessary
+        //You use the first argument in the second visitor
         this.subFormula = subformula;
         this.var = var;
 
     }
 
     @Override
-    public <T> DataStream<Optional<List<Optional<Object>>>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<List<Optional<Object>>>>) v.visit(this);
+    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
+        return (DataStream<Optional<Assignment>>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
     @Override
-    public void flatMap(Optional<List<Optional<Object>>> value, Collector<Optional<List<Optional<Object>>>> out) throws Exception {
+    public void flatMap(Optional<Assignment> value, Collector<Optional<Assignment>> out) throws Exception {
         //satisfaction list lengths need to be the same for implementations of joins, but they change for quantifier
         //operators. For the existential quantifier operator, the input free-variables array has length n+1 and the
         //output will have length n
         if(!value.isPresent()){
             out.collect(value);
         }else{
-            List<Optional<Object>> satList = value.get();
+            Assignment satList = value.get();
             satList.remove(0);
-            Optional<List<Optional<Object>>> output = Optional.of(satList);
+            Optional<Assignment> output = Optional.of(satList);
             out.collect(output);
             //check if this implementation of flatMap is correct --> by running something
         }

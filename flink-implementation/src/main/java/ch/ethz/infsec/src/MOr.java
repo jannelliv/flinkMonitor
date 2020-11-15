@@ -6,13 +6,13 @@ import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 import java.util.*;
 
-public class MOr implements Mformula, CoFlatMapFunction<Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>, Optional<List<Optional<Object>>>> {
+public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Optional<Assignment>, Optional<Assignment>> {
 
     Mformula op1;
     Mformula op2;
-    Tuple<LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>>, LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>>> mbuf2;
+    Tuple<LinkedList<HashSet<Optional<Assignment>>>, LinkedList<HashSet<Optional<Assignment>>>> mbuf2;
     //in addition to the params used in verimon, we need this to implement the streaming or:
-    List<Set<Optional<List<Optional<Object>>>>> tempOutput;
+    List<Set<Optional<Assignment>>> tempOutput;
     //not sure if the implementation with "contains" is correct
     boolean terminatorLHS;
     boolean terminatorRHS;
@@ -22,23 +22,23 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<List<Optional<O
     public MOr(Mformula accept, Mformula accept1) {
         this.op1 = accept;
         this.op2 = accept1;
-        Optional<Object> el = Optional.empty();
-        LinkedList<Optional<Object>> listEl = new LinkedList<>();
+        Optional<Object> el = Optional.empty(); //not sure if it's correct that I add this to the lists
+        Assignment listEl = new Assignment();
         listEl.add(el);
-        Optional<LinkedList<Optional<Object>>> el1 = Optional.of(listEl);
+        Optional<Assignment> el1 = Optional.of(listEl);
 
-        HashSet<Optional<LinkedList<Optional<Object>>>> setEl = new HashSet<>();
+        HashSet<Optional<Assignment>> setEl = new HashSet<>();
         setEl.add(el1);
-        LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>> fst = new LinkedList<>();
-        LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>> snd = new LinkedList<>();
+        LinkedList<HashSet<Optional<Assignment>>> fst = new LinkedList<>();
+        LinkedList<HashSet<Optional<Assignment>>> snd = new LinkedList<>();
         fst.add(setEl);
         snd.add(setEl);
         this.mbuf2 = new Tuple<>(fst, snd);
         //additional to verilog implementation, necessary for streaming:
         terminatorLHS = false;
         terminatorRHS = false;
-        HashSet<Optional<List<Optional<Object>>>> tempOutputSet = new HashSet<>();
-        List<Set<Optional<List<Optional<Object>>>>> tempOutput = new LinkedList<>();
+        HashSet<Optional<Assignment>> tempOutputSet = new HashSet<>();
+        List<Set<Optional<Assignment>>> tempOutput = new LinkedList<>();
         tempOutput.add(tempOutputSet);
 
         indexlhs = 0;
@@ -46,14 +46,14 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<List<Optional<O
     }
 
     @Override
-    public <T> DataStream<Optional<List<Optional<Object>>>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<List<Optional<Object>>>>) v.visit(this);
+    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
+        return (DataStream<Optional<Assignment>>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
     @Override
-    public void flatMap1(Optional<List<Optional<Object>>> fact, Collector<Optional<List<Optional<Object>>>> collector) throws Exception {
+    public void flatMap1(Optional<Assignment> fact, Collector<Optional<Assignment>> collector) throws Exception {
         if(!fact.isPresent()){
             terminatorLHS = true;
             indexlhs++;
@@ -87,7 +87,7 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<List<Optional<O
     }
 
     @Override
-    public void flatMap2(Optional<List<Optional<Object>>> fact, Collector<Optional<List<Optional<Object>>>> collector) throws Exception {
+    public void flatMap2(Optional<Assignment> fact, Collector<Optional<Assignment>> collector) throws Exception {
         if(!fact.isPresent()){
             terminatorRHS = true;
             indexrhs++;
