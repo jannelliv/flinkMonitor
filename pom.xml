@@ -39,8 +39,10 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
-        <scala.binary.version>2.12</scala.binary.version>
-        <scala.version>2.12.7</scala.version>
+        <scala.binary.version>2.11</scala.binary.version>
+        <!--above: was just: 2.12-->
+        <scala.version>2.11.12</scala.version>
+        <!--above: was just: 2.12.7-->
     </properties>
 
     <dependencyManagement>
@@ -100,15 +102,17 @@
         <dependency>
             <groupId>org.scalatest</groupId>
             <artifactId>scalatest_${scala.binary.version}</artifactId>
-            <version>3.0.7</version>
+            <version>3.2.3</version>
             <scope>test</scope>
         </dependency>
         <dependency>
             <groupId>org.scalacheck</groupId>
             <artifactId>scalacheck_${scala.binary.version}</artifactId>
-            <version>1.14.0</version>
+            <version>1.15.1</version>
             <scope>test</scope>
         </dependency>
+
+
     </dependencies>
 
 

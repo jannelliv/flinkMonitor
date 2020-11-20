@@ -10,6 +10,7 @@ import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
 import org.apache.flink.util.Collector;
 
 class ParsingFunction implements FlatMapFunction<String, Fact>, ListCheckpointed<TraceParser> {
+    //not sure what to do about the "deprecated" above
         TraceParser parser;
     public ParsingFunction(TraceParser tp){
         this.parser = tp;

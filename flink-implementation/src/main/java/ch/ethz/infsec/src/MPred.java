@@ -19,7 +19,8 @@ public class MPred implements Mformula, FlatMapFunction<Fact, Optional<Assignmen
 
     public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
 
-        List<Term<VariableID>> argsScala = new ArrayList<>(JavaConverters.seqAsJavaList(args));
+
+        List<Term<VariableID>> argsScala = new ArrayList(JavaConversions.seqAsJavaList(args));
         ArrayList<JavaTerm<VariableID>> argsJava = new ArrayList<>();
         for (Term<VariableID> variableIDTerm : argsScala) {
             //is this for loop very bad in terms of efficiency?

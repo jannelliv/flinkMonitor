@@ -4,23 +4,17 @@ import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
-import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
+//import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
-//import org.apache.flink.api.common.functions.FilterFunction;
-//import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 //import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
-
 import scala.collection.Iterator;
-
 import scala.collection.Set;
-
 import scala.util.Either;
-
 import java.util.*;
 import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
@@ -28,7 +22,7 @@ import static ch.ethz.infsec.src.JavaGenFormula.convert;
 public class Main {
     public static void main(String[] args) throws Exception{
         Either<String, GenFormula<VariableID>> a = Policy.read("publish(r) AND approve(r)");
-        // See what the input should actually look like! ???
+
 
         if(a.isLeft()){
             throw new ExceptionInInitializerError();

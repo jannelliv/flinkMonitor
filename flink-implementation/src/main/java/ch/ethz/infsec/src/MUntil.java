@@ -27,14 +27,14 @@ public class MUntil implements Mformula, CoFlatMapFunction<Optional<Assignment>,
         this.muaux = triples;
 
         Optional<Object> el = Optional.empty();
-        LinkedList<Optional<Object>> listEl = new LinkedList<>();
+        Assignment listEl = new Assignment();
         listEl.add(el);
 
-        Optional<LinkedList<Optional<Object>>> el1 = Optional.of(listEl);
-        HashSet<Optional<LinkedList<Optional<Object>>>> setEl = new HashSet<>();
+        Optional<Assignment> el1 = Optional.of(listEl);
+        HashSet<Optional<Assignment>> setEl = new HashSet<>();
         setEl.add(el1);
-        LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>> fst = new LinkedList<>();
-        LinkedList<HashSet<Optional<LinkedList<Optional<Object>>>>> snd = new LinkedList<>();
+        LinkedList<HashSet<Optional<Assignment>>> fst = new LinkedList<>();
+        LinkedList<HashSet<Optional<Assignment>>> snd = new LinkedList<>();
         fst.add(setEl);
         snd.add(setEl);
         this.mbuf2 = new Tuple(fst, snd);

@@ -32,36 +32,34 @@ public class MNext implements Mformula, FlatMapFunction<Optional<Assignment>, Op
 
     }
 
-    public static Triple<List<Set<Optional<Assignment>>>, List<Set<Optional<Assignment>>>, List<Integer>> mprev_next(Interval i,
-                                                                                                                                             List<Set<Optional<Assignment>>> xs,
-                                                                                                                                             List<Integer> ts){
+    public static Triple<List<Table>, List<Table>, List<Integer>> mprev_next(Interval i, List<Table> xs,
+                                                                             List<Integer> ts){
         if(xs.size() == 0) {
-            List<Set<Optional<Assignment>>> fstResult = new ArrayList<>();
-            List<Set<Optional<Assignment>>> sndResult = new ArrayList<>();
+            List<Table> fstResult = new ArrayList<>();
+            List<Table> sndResult = new ArrayList<>();
             return new Triple(fstResult,sndResult, ts);
         }else if(ts.size() == 0) {
-            List<Set<Optional<Assignment>>> fstResult = new ArrayList<>();
+            List<Table> fstResult = new ArrayList<>();
             List<Integer> thrdResult = new ArrayList<>();
             return new Triple(fstResult,xs, thrdResult);
         }else if(ts.size() == 1) {
-            List<Set<Optional<Assignment>>> fstResult = new ArrayList<>();
+            List<Table> fstResult = new ArrayList<>();
             List<Integer> thrdResult = new ArrayList<>();
             thrdResult.add(ts.get(0));
             return new Triple(fstResult,xs, thrdResult);
         }else if(xs.size() >= 1 && ts.size() >= 2) {
             Integer t = ts.remove(0);
             Integer tp = ts.get(0);
-            Set<Optional<Assignment>> x = xs.remove(0);
-            Triple<List<Set<Optional<Assignment>>>,
-                    List<Set<Optional<Assignment>>>, List<Integer>> yszs = mprev_next(i, xs, ts);
+            Table x = xs.remove(0);
+            Triple<List<Table>, List<Table>, List<Integer>> yszs = mprev_next(i, xs, ts);
             //above, should return a triple, not a tuple --> problem with verimon
-            List<Set<Optional<Assignment>>> fst = yszs.fst;
-            List<Set<Optional<Assignment>>> snd = yszs.snd;
+            List<Table> fst = yszs.fst;
+            List<Table> snd = yszs.snd;
             List<Integer> thr = yszs.thrd;
             if(mem(tp - t, i)) {
                 fst.add(0, x);
             }else{
-                Set<Optional<Assignment>> empty_table = new HashSet<>();
+                Table empty_table = new Table();
                 fst.add(0, empty_table);
             }
             return new Triple<>(fst, snd, thr);
