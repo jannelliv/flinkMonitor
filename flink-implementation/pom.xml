@@ -6,9 +6,7 @@ regarding copyright ownership.  The ASF licenses this file
 to you under the Apache License, Version 2.0 (the
 "License"); you may not use this file except in compliance
 with the License.  You may obtain a copy of the License at
-
   http://www.apache.org/licenses/LICENSE-2.0
-
 Unless required by applicable law or agreed to in writing,
 software distributed under the License is distributed on an
 "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
@@ -19,9 +17,10 @@ under the License.
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <parent>
-        <artifactId>scalable-online-monitor</artifactId>
         <groupId>ch.ethz.infsec</groupId>
+        <artifactId>scalable-online-monitor</artifactId>
         <version>1.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
     <modelVersion>4.0.0</modelVersion>
 
@@ -37,25 +36,25 @@ under the License.
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <flink.version>1.4.2</flink.version>
         <java.version>1.8</java.version>
-        <scala.binary.version>2.11.12</scala.binary.version>
+
         <!--above: was just: 2.11-->
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
     </properties>
 
-    <repositories>
-        <repository>
-            <id>apache.snapshots</id>
-            <name>Apache Development Snapshot Repository</name>
-            <url>https://repository.apache.org/content/repositories/snapshots/</url>
-            <releases>
-                <enabled>true</enabled>
-            </releases>
-            <snapshots>
-                <enabled>true</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
+    <!--    <repositories>-->
+    <!--        <repository>-->
+    <!--            <id>apache.snapshots</id>-->
+    <!--            <name>Apache Development Snapshot Repository</name>-->
+    <!--            <url>https://repository.apache.org/content/repositories/snapshots/</url>-->
+    <!--            <releases>-->
+    <!--                <enabled>true</enabled>-->
+    <!--            </releases>-->
+    <!--            <snapshots>-->
+    <!--                <enabled>true</enabled>-->
+    <!--            </snapshots>-->
+    <!--        </repository>-->
+    <!--    </repositories>-->
 
     <dependencies>
         <!-- Apache Flink dependencies -->
@@ -91,7 +90,6 @@ under the License.
         <!-- Add connector dependencies here. They must be in the default scope (compile). -->
 
         <!-- Example:
-
 		<dependency>
 			<groupId>org.apache.flink</groupId>
 			<artifactId>flink-connector-kafka-0.10_${scala.binary.version}</artifactId>
@@ -117,7 +115,6 @@ under the License.
             <groupId>ch.ethz.infsec</groupId>
             <artifactId>monitoring-common</artifactId>
             <version>1.0-SNAPSHOT</version>
-            <scope>compile</scope>
         </dependency>
 
     </dependencies>

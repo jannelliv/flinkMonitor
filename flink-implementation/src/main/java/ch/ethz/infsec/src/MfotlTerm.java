@@ -6,6 +6,4 @@ import java.util.Set;
 public class MfotlTerm {
     Set<Object> freeVariables;
     List<Object> freeVariablesInOrder;
-
-
 }

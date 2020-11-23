@@ -6,18 +6,16 @@ import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 import java.util.*;
 
-public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Optional<Assignment>, Optional<Assignment>> {
-
+public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
     Mformula op1;
     Mformula op2;
     Tuple<LinkedList<HashSet<Optional<Assignment>>>, LinkedList<HashSet<Optional<Assignment>>>> mbuf2;
     //in addition to the params used in verimon, we need this to implement the streaming or:
-    List<Set<Optional<Assignment>>> tempOutput;
+    List<Set<Assignment>> tempOutput;
     //not sure if the implementation with "contains" is correct
     boolean terminatorLHS;
     boolean terminatorRHS;
     Integer indexlhs, indexrhs;
-
 
     public MOr(Mformula accept, Mformula accept1) {
         this.op1 = accept;
@@ -46,14 +44,14 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Op
     }
 
     @Override
-    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<Assignment>>) v.visit(this);
+    public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
+        return (DataStream<PipelineEvent>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
     @Override
-    public void flatMap1(Optional<Assignment> fact, Collector<Optional<Assignment>> collector) throws Exception {
+    public void flatMap1(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
         if(!fact.isPresent()){
             terminatorLHS = true;
             indexlhs++;
@@ -69,7 +67,7 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Op
                 this.tempOutput.add(new HashSet<>());
             }
             if(!tempOutput.get(0).contains(fact)){ //check that cointains() works correctly
-                tempOutput.get(0).add(fact);
+                tempOutput.get(0).add(fact.get());
                 collector.collect(fact);
             }
 
@@ -79,7 +77,7 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Op
                 this.tempOutput.add(new HashSet<>());
             }
             if(!tempOutput.get(indexlhs).contains(fact)){ //check that cointains() works correctly
-                tempOutput.get(indexlhs).add(fact);
+                tempOutput.get(indexlhs).add(fact.get());
                 collector.collect(fact);
             }
 
@@ -87,7 +85,7 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Op
     }
 
     @Override
-    public void flatMap2(Optional<Assignment> fact, Collector<Optional<Assignment>> collector) throws Exception {
+    public void flatMap2(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
         if(!fact.isPresent()){
             terminatorRHS = true;
             indexrhs++;
@@ -103,7 +101,7 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Op
                 this.tempOutput.add(new HashSet<>());
             }
             if(!tempOutput.get(0).contains(fact)){ //check that cointains() works correctly
-                tempOutput.get(0).add(fact);
+                tempOutput.get(0).add(fact.get());
                 collector.collect(fact);
             }
 
@@ -113,7 +111,7 @@ public class MOr implements Mformula, CoFlatMapFunction<Optional<Assignment>, Op
                 this.tempOutput.add(new HashSet<>());
             }
             if(!tempOutput.get(indexrhs).contains(fact)){ //check that cointains() works correctly
-                tempOutput.get(indexrhs).add(fact);
+                tempOutput.get(indexrhs).add(fact.get());
                 collector.collect(fact);
             }
 

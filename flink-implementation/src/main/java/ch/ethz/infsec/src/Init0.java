@@ -78,6 +78,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
     }
 
     public Mformula visit(JavaEx<VariableID> f) {
+        //Explain how this procedure avoids using the de Bruijn indices
         VariableID variable = f.variable();
         List<VariableID> freeVariablesInOrderCopy = new ArrayList<>(this.freeVariablesInOrder);
         freeVariablesInOrderCopy.add(0,variable);
@@ -92,7 +93,6 @@ public class Init0 implements FormulaVisitor<Mformula> {
     }
 
     public Mformula visit(JavaFalse<VariableID> f) {
-
         return new MRel(Table.empty()); // aka empty table
     }
 
@@ -125,17 +125,13 @@ public class Init0 implements FormulaVisitor<Mformula> {
             return new MSince(true,
                     (f.arg1()).accept(new Init0((f.arg1()).freeVariablesInOrder())),
                     f.interval(),
-                    (f.arg2()).accept(new Init0(f.arg2().freeVariablesInOrder())),
-                    new LinkedList<>(),
-                    new LinkedList<>());
+                    (f.arg2()).accept(new Init0(f.arg2().freeVariablesInOrder())));
         }else{
             if((f.arg1()) instanceof JavaNot){
                 return new MSince(false,
                         (f.arg1()).accept(new Init0((f.arg1()).freeVariablesInOrder())),
                         f.interval(),
-                        (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())),
-                        new LinkedList<>(),
-                        new LinkedList<>());
+                        (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())));
             }else{
                 return null;
             }
@@ -149,17 +145,13 @@ public class Init0 implements FormulaVisitor<Mformula> {
             return new MUntil(true,
                     (f.arg1()).accept(new Init0((f.arg1()).freeVariablesInOrder())),
                     f.interval(),
-                    (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())),
-                    new LinkedList<>(),
-                    new LinkedList<>());
+                    (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())));
         }else{
             if((f.arg1()) instanceof JavaNot){
                 return new MUntil(false,
                         (f.arg1()).accept(new Init0((f.arg1()).freeVariablesInOrder())),
                         f.interval(),
-                        (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())),
-                        new LinkedList<>(),
-                        new LinkedList<>());
+                        (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())));
             }else{
                 return null;
             }

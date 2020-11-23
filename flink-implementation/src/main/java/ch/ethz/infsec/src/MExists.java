@@ -1,15 +1,12 @@
 package ch.ethz.infsec.src;
-
-
 import ch.ethz.infsec.policy.VariableID;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.util.List;
 import java.util.Optional;
 
-public class MExists implements Mformula, FlatMapFunction<Optional<Assignment>, Optional<Assignment>> {
+public class MExists implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
 
     Mformula subFormula;
     VariableID var; //is the way I constructed this from Init0 correct?
@@ -24,14 +21,14 @@ public class MExists implements Mformula, FlatMapFunction<Optional<Assignment>, 
     }
 
     @Override
-    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<Assignment>>) v.visit(this);
+    public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
+        return (DataStream<PipelineEvent>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
     @Override
-    public void flatMap(Optional<Assignment> value, Collector<Optional<Assignment>> out) throws Exception {
+    public void flatMap(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
         //satisfaction list lengths need to be the same for implementations of joins, but they change for quantifier
         //operators. For the existential quantifier operator, the input free-variables array has length n+1 and the
         //output will have length n
@@ -41,7 +38,11 @@ public class MExists implements Mformula, FlatMapFunction<Optional<Assignment>, 
             Assignment satList = value.get();
             satList.remove(0);
             Optional<Assignment> output = Optional.of(satList);
-            out.collect(output);
+            if(output.isPresent()){
+                //previously, I had omitted this if loop
+                PipelineEvent result = new PipelineEvent(value.getTimestamp(),value.getTimepoint(), false, output.get());
+                out.collect(result);
+            }
             //check if this implementation of flatMap is correct --> by running something
         }
     }

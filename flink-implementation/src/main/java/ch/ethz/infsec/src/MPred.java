@@ -11,7 +11,7 @@ import java.util.*;
 import java.util.function.Function;
 import static ch.ethz.infsec.src.JavaTerm.convert;
 
-public class MPred implements Mformula, FlatMapFunction<Fact, Optional<Assignment>> {
+public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     String predName;
     ArrayList<JavaTerm<VariableID>> args; // when you assign this now, you will need to convert it
     List<VariableID> freeVariablesInOrder;
@@ -37,10 +37,10 @@ public class MPred implements Mformula, FlatMapFunction<Fact, Optional<Assignmen
     }
 
 
-    public void flatMap(Fact fact, Collector<Optional<Assignment>> out) throws Exception {
+    public void flatMap(Fact fact, Collector<PipelineEvent> out) throws Exception {
         if(fact.isTerminator()){
-            Optional<Assignment> none = Optional.empty();
-            out.collect(none);
+            Assignment none = Assignment.nones(2);
+            out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  true, none));
         }
         assert(fact.getName().equals(this.predName) );
 
@@ -52,16 +52,16 @@ public class MPred implements Mformula, FlatMapFunction<Fact, Optional<Assignmen
             for (VariableID freeVarPred : this.freeVariablesInOrder) {
                 list.add(result.get().apply(freeVarPred.toString()));
             }
-            Optional<Assignment> assignment = Optional.of(list);
-            out.collect(assignment);
+
+            out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  false, list));
         }
         //if there are no satisfactions, we simply don't put anything in the collector.
 
     }
 
     @Override
-    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<Assignment>>) v.visit(this);
+    public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
+        return (DataStream<PipelineEvent>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 

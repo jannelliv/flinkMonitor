@@ -6,7 +6,7 @@ import org.apache.flink.util.Collector;
 import java.util.*;
 
 
-public class MUntil implements Mformula, CoFlatMapFunction<Optional<Assignment>, Optional<Assignment>, Optional<Assignment>> {
+public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
 
     boolean bool;
     Mformula formula1;
@@ -18,13 +18,14 @@ public class MUntil implements Mformula, CoFlatMapFunction<Optional<Assignment>,
 
 
 
-    public MUntil(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval, Mformula accept1, LinkedList<Integer> integers, LinkedList<Triple<Integer, HashSet<Optional<Assignment>>, HashSet<Optional<Assignment>>>> triples) {
+    public MUntil(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval,
+                  Mformula accept1) {
         this.bool = b;
         this.formula1 = accept;
         this.formula2 = accept1;
         this.interval = interval;
-        this.tsList = integers;
-        this.muaux = triples;
+        this.tsList = new LinkedList<Integer>();
+        this.muaux = new LinkedList<Triple<Integer, HashSet<Optional<Assignment>>, HashSet<Optional<Assignment>>>>();
 
         Optional<Object> el = Optional.empty();
         Assignment listEl = new Assignment();
@@ -44,20 +45,20 @@ public class MUntil implements Mformula, CoFlatMapFunction<Optional<Assignment>,
 
 
     @Override
-    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<Assignment>>) v.visit(this);
+    public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
+        return (DataStream<PipelineEvent>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
 
     @Override
-    public void flatMap1(Optional<Assignment> optionals, Collector<Optional<Assignment>> collector) throws Exception {
+    public void flatMap1(PipelineEvent optionals, Collector<PipelineEvent> collector) throws Exception {
 
     }
 
     @Override
-    public void flatMap2(Optional<Assignment> optionals, Collector<Optional<Assignment>> collector) throws Exception {
+    public void flatMap2(PipelineEvent optionals, Collector<PipelineEvent> collector) throws Exception {
 
     }
 }

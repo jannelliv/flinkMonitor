@@ -7,7 +7,7 @@ import org.apache.flink.util.Collector;
 
 
 
-public class MAnd implements Mformula, CoFlatMapFunction<Optional<Assignment>, Optional<Assignment>, Optional<Assignment>> {
+public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
     boolean bool;
     Mformula op1;
     Mformula op2;
@@ -31,13 +31,13 @@ public class MAnd implements Mformula, CoFlatMapFunction<Optional<Assignment>, O
 
     }
     @Override
-    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<Assignment>>) v.visit(this);
+    public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
+        return (DataStream<PipelineEvent>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
     @Override
-    public void flatMap1(Optional<Assignment> fact, Collector<Optional<Assignment>> collector) throws Exception {
+    public void flatMap1(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
         if(!fact.isPresent()){
             terminatorLHS = true;
             indexlhs++;
@@ -57,7 +57,8 @@ public class MAnd implements Mformula, CoFlatMapFunction<Optional<Assignment>, O
             for(Assignment rhs : this.mbuf2.snd.get(0)){
                 Optional<Assignment> joinResult = join1(fact.get(), rhs);
                 if(joinResult.isPresent()){
-                    collector.collect(joinResult);
+                    PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(), false, joinResult.get());
+                    collector.collect(result);
                 }
 
             }
@@ -70,14 +71,18 @@ public class MAnd implements Mformula, CoFlatMapFunction<Optional<Assignment>, O
             if(this.mbuf2.snd.get(indexlhs) != null){
                 for(Assignment rhs : this.mbuf2.snd.get(indexlhs)){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
-                    collector.collect(joinResult);
+                    if(joinResult.isPresent()){
+                        //previously, I had omitted this if loop
+                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),false, joinResult.get());
+                        collector.collect(result);
+                    }
                 }
             }
         }
     }
 
     @Override
-    public void flatMap2(Optional<Assignment> fact, Collector<Optional<Assignment>> collector) throws Exception {
+    public void flatMap2(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
         //one terminator fact has to be sent out once it is received on both incoming streams!!
         if(!fact.isPresent()){
             terminatorRHS = true;
@@ -97,7 +102,11 @@ public class MAnd implements Mformula, CoFlatMapFunction<Optional<Assignment>, O
             this.mbuf2.snd.get(0).add(fact.get());
             for(Assignment lhs : this.mbuf2.fst.get(0)){
                 Optional<Assignment> joinResult = join1(lhs, fact.get());
-                collector.collect(joinResult);
+                if(joinResult.isPresent()){
+                    //previously, I had omitted this if loop
+                    PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(), false, joinResult.get());
+                    collector.collect(result);
+                }
             }
         }else{
             if(this.mbuf2.snd.size() < indexrhs + 1){
@@ -109,7 +118,11 @@ public class MAnd implements Mformula, CoFlatMapFunction<Optional<Assignment>, O
             if(this.mbuf2.fst.get(indexrhs) != null){
                 for(Assignment lhs : this.mbuf2.fst.get(indexrhs)){
                     Optional<Assignment> joinResult = join1(lhs, fact.get());
-                    collector.collect(joinResult);
+                    if(joinResult.isPresent()){
+                        //previously, I had omitted this if loop
+                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(), fact.getTimepoint(), false, joinResult.get());
+                        collector.collect(result);
+                    }
                 }
             }
         }

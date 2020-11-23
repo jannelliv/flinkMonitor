@@ -9,7 +9,6 @@ import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-//import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import scala.collection.Iterator;
@@ -73,7 +72,7 @@ public class Main {
                     });
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             //is it normal that I have to cast here?
-            DataStream<Optional<Assignment>> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
+            DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
             //is the above the correct way to create a sink?
             e.execute();
         }

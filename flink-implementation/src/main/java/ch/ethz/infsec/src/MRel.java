@@ -5,9 +5,8 @@ import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.util.*;
 
-public class MRel implements Mformula, FlatMapFunction<Fact, Optional<Assignment>> {
+public class MRel implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     Table table;
 
     public MRel(Table table){
@@ -16,18 +15,19 @@ public class MRel implements Mformula, FlatMapFunction<Fact, Optional<Assignment
     }
 
     @Override
-    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<Assignment>>) v.visit(this);
+    public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
+        return (DataStream<PipelineEvent>) v.visit(this);
 
     }
 
 
     @Override
-    public void flatMap(Fact value, Collector<Optional<Assignment>> out) throws Exception {
+    public void flatMap(Fact value, Collector<PipelineEvent> out) throws Exception {
         //The stream of Terminators coming from Test.java should contain only Terminators
         assert(value.isTerminator());
-        Optional<Assignment> none = Optional.empty();
-        out.collect(none);
+        Assignment none = Assignment.nones(2);
+        //is it important what value I put as the argument of nones above?
+        out.collect(new PipelineEvent(value.getTimestamp(), value.getTimepoint(), true, none));
 
     }
 

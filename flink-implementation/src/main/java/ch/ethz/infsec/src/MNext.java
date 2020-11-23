@@ -7,7 +7,7 @@ import org.apache.flink.util.Collector;
 
 import java.util.*;
 
-public class MNext implements Mformula, FlatMapFunction<Optional<Assignment>, Optional<Assignment>> {
+public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
     ch.ethz.infsec.policy.Interval interval;
     Mformula formula;
     boolean bool;
@@ -21,14 +21,14 @@ public class MNext implements Mformula, FlatMapFunction<Optional<Assignment>, Op
     }
 
     @Override
-    public <T> DataStream<Optional<Assignment>> accept(MformulaVisitor<T> v) {
-        return (DataStream<Optional<Assignment>>) v.visit(this);
+    public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
+        return (DataStream<PipelineEvent>) v.visit(this);
         //Is it ok that I did the cast here above?
     }
 
 
     @Override
-    public void flatMap(Optional<Assignment> value, Collector<Optional<Assignment>> out) throws Exception {
+    public void flatMap(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
 
     }
 

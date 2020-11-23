@@ -2,9 +2,6 @@ package ch.ethz.infsec.src;
 
 import org.apache.flink.streaming.api.datastream.*;
 
-import java.util.List;
-import java.util.Optional;
-
 public abstract class StructFormulaVisitor implements FormulaVisitor {
     public abstract DataStream<Assignment> visit(JavaPred f);
     public abstract DataStream<Assignment> visit(JavaNot f);
