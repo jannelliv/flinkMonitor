@@ -69,7 +69,7 @@ under the License.
             <groupId>org.apache.flink</groupId>
             <artifactId>flink-streaming-java_2.12</artifactId>
             <version>1.11.2</version>
-            <scope>provided</scope>
+<!--            <scope>provided</scope>-->
         </dependency>
         <dependency>
             <groupId>ch.ethz.infsec</groupId>
@@ -102,7 +102,7 @@ under the License.
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-log4j12</artifactId>
-            <version>1.7.7</version>
+            <version>1.7.26</version>
             <scope>runtime</scope>
         </dependency>
         <dependency>
@@ -148,14 +148,14 @@ under the License.
                             <goal>shade</goal>
                         </goals>
                         <configuration>
-                            <artifactSet>
-                                <excludes>
-                                    <exclude>org.apache.flink:force-shading</exclude>
-                                    <exclude>com.google.code.findbugs:jsr305</exclude>
-                                    <exclude>org.slf4j:*</exclude>
-                                    <exclude>log4j:*</exclude>
-                                </excludes>
-                            </artifactSet>
+<!--                            <artifactSet>-->
+<!--                                <excludes>-->
+<!--                                    <exclude>org.apache.flink:force-shading</exclude>-->
+<!--                                    <exclude>com.google.code.findbugs:jsr305</exclude>-->
+<!--                                    <exclude>org.slf4j:*</exclude>-->
+<!--                                    <exclude>log4j:*</exclude>-->
+<!--                                </excludes>-->
+<!--                            </artifactSet>-->
                             <filters>
                                 <filter>
                                     <!-- Do not copy the signatures in the META-INF folder.
@@ -267,10 +267,10 @@ under the License.
                 <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-streaming-java -->
                 <dependency>
                     <groupId>org.apache.flink</groupId>
-                    <artifactId>flink-streaming-java_2.11</artifactId>
+                    <artifactId>flink-streaming-java_2.12</artifactId>
                     <!-- above: was 2.12 -->
                     <version>1.11.2</version>
-                    <scope>provided</scope>
+<!--                    <scope>provided</scope>-->
                 </dependency>
 
             </dependencies>
