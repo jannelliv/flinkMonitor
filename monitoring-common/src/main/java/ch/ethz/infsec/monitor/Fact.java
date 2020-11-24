@@ -34,6 +34,10 @@ public class Fact implements Serializable {
     private long timepoint = -1;
     private List<Object> arguments;
 
+    public Fact(){
+
+    }
+
     private Fact(String name, long timestamp, List<Object> arguments) {
         this.name = name;
         this.timestamp = timestamp;
