@@ -19,6 +19,9 @@ import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
 
 public class Main {
+
+    private static final String TERMINATOR_TAG = "0Terminator";
+
     public static void main(String[] args) throws Exception{
         Either<String, GenFormula<VariableID>> a = Policy.read("publish(r) AND approve(r)");
 
@@ -33,7 +36,7 @@ public class Main {
 
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
             //DataStream<String> text = e.socketTextStream("127.0.0.1", 5000);
-            DataStreamSource<String> text = e.readTextFile(System.getProperty("user.dir")+ "//" + args[1]) ;
+            DataStreamSource<String> text = e.readTextFile(System.getProperty("user.dir")+ "//" + args[0]) ;
 
             DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()));
             //could also be a MonPoly parser, depending on the input --> ?
@@ -46,10 +49,10 @@ public class Main {
             OutputTag<Fact> outputTag;
             while(iter.hasNext()) {
                 Pred<VariableID> n = iter.next();
-                outputTag = new OutputTag<>(n.toString());
+                outputTag = new OutputTag<Fact>(n.toString()){};
                 hashmap.put(n.relation(), outputTag);
             }
-            hashmap.put("", new OutputTag<>("")); //I don't think someone can parse a predicate with an empty string.
+            hashmap.put(TERMINATOR_TAG, new OutputTag<Fact>(TERMINATOR_TAG){}); //I don't think someone can parse a predicate with an empty string.
 
             SingleOutputStreamOperator<Fact> mainDataStream = facts
                     .process(new ProcessFunction<Fact, Fact>() {
@@ -72,7 +75,7 @@ public class Main {
                     });
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             //is it normal that I have to cast here?
-            DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(mformula, mformula, hashmap, mainDataStream));
+            DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
             //is the above the correct way to create a sink?
             e.execute();
         }
