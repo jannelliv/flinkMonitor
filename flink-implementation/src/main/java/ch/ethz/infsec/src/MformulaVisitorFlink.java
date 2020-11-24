@@ -8,14 +8,10 @@ import java.util.HashMap;
 
 public class MformulaVisitorFlink implements MformulaVisitor<DataStream<PipelineEvent>> {
 
-    Mformula formula;
-    Mformula subformula;
     HashMap<String, OutputTag<Fact>> hmap;
     SingleOutputStreamOperator<Fact> mainDataStream;
 
-    public MformulaVisitorFlink(Mformula formula, Mformula subformula, HashMap<String, OutputTag<Fact>> hmap, SingleOutputStreamOperator<Fact> mainDataStream){
-        this.formula = formula;
-        this.subformula = subformula;
+    public MformulaVisitorFlink(HashMap<String, OutputTag<Fact>> hmap, SingleOutputStreamOperator<Fact> mainDataStream){
         this.hmap = hmap;
         this.mainDataStream = mainDataStream;
     }
@@ -27,25 +23,25 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
 
     public DataStream<PipelineEvent> visit(MAnd f) {
         //when do I call flatMap1 and flatMap2?
-        DataStream<PipelineEvent> input1 = f.accept(new MformulaVisitorFlink(f, f.op1, hmap, mainDataStream));
-        DataStream<PipelineEvent> input2 = f.accept(new MformulaVisitorFlink(f, f.op2, hmap, mainDataStream));
+        DataStream<PipelineEvent> input1 = f.op1.accept(this);
+        DataStream<PipelineEvent> input2 = f.op2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
         return connectedStreams.flatMap(f);
     }
 
     public DataStream<PipelineEvent> visit(MExists f) {
-        DataStream<PipelineEvent> input = f.accept(new MformulaVisitorFlink(f, f.subFormula, hmap, mainDataStream));
+        DataStream<PipelineEvent> input = f.subFormula.accept(this);
         return input.flatMap(f);
     }
 
     public DataStream<PipelineEvent> visit(MNext f) {
-        DataStream<PipelineEvent> input = f.accept(new MformulaVisitorFlink(f, f.formula, hmap, mainDataStream));
+        DataStream<PipelineEvent> input = f.formula.accept(this);
         return input.flatMap(f);
     }
 
     public DataStream<PipelineEvent> visit(MOr f) {
-        DataStream<PipelineEvent> input1 = f.accept(new MformulaVisitorFlink(f, f.op1, hmap, mainDataStream));
-        DataStream<PipelineEvent> input2 = f.accept(new MformulaVisitorFlink(f, f.op2, hmap, mainDataStream));
+        DataStream<PipelineEvent> input1 = f.op1.accept(this);
+        DataStream<PipelineEvent> input2 = f.op2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
         //coflatmap goes from connected streams to data streams --> see below
         //this flat map below is actually a coflatmap
@@ -57,20 +53,20 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
     }
 
     public DataStream<PipelineEvent> visit(MPrev f) {
-        DataStream<PipelineEvent> input = f.accept(new MformulaVisitorFlink(f, f.formula, hmap, mainDataStream));
+        DataStream<PipelineEvent> input = f.formula.accept(this);
         return input.flatMap(f);
     }
 
     public DataStream<PipelineEvent> visit(MSince f) {
-        DataStream<PipelineEvent> input1 = f.accept(new MformulaVisitorFlink(f, f.formula1, hmap, mainDataStream));
-        DataStream<PipelineEvent> input2 = f.accept(new MformulaVisitorFlink(f, f.formula2, hmap, mainDataStream));
+        DataStream<PipelineEvent> input1 = f.formula1.accept(this);
+        DataStream<PipelineEvent> input2 = f.formula2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
         return connectedStreams.flatMap(f);
     }
 
     public DataStream<PipelineEvent> visit(MUntil f) {
-        DataStream<PipelineEvent> input1 = f.accept(new MformulaVisitorFlink(f, f.formula1, hmap, mainDataStream));
-        DataStream<PipelineEvent> input2 = f.accept(new MformulaVisitorFlink(f, f.formula2, hmap, mainDataStream));
+        DataStream<PipelineEvent> input1 = f.formula1.accept(this);
+        DataStream<PipelineEvent> input2 = f.formula2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
         return connectedStreams.flatMap(f);
     }
