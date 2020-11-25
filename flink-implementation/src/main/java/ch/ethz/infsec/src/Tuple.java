@@ -1,7 +1,9 @@
 package ch.ethz.infsec.src;
 
 
-public class Tuple<T, U> {
+import java.io.Serializable;
+
+public class Tuple<T, U> implements Serializable {
     public T fst;
     public U snd;
 
