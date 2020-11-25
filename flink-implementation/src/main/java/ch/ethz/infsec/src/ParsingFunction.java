@@ -19,7 +19,7 @@ class ParsingFunction implements FlatMapFunction<String, Fact>, ListCheckpointed
     @Override
     public void flatMap(String line, Collector<Fact> collector) throws Exception {
             //init parser!
-        this.parser.parseLine( x -> {collector.collect(x);}, line);
+        this.parser.parseLine(collector::collect, line);
     }
 
     @Override
