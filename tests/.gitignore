@@ -2,6 +2,5 @@
 monitortesting.cabal
 *~
 monitortesting-exe
-*.log
 AllState.log
 Decider.log
