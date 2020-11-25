@@ -4,16 +4,22 @@ import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
-//import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
+import org.apache.flink.api.common.serialization.SimpleStringEncoder;
+import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import scala.collection.Iterator;
 import scala.collection.Set;
+import scala.io.Codec;
+import scala.io.Source;
 import scala.util.Either;
+
+import java.io.File;
 import java.util.*;
 import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
@@ -23,7 +29,14 @@ public class Main {
     private static final String TERMINATOR_TAG = "0Terminator";
 
     public static void main(String[] args) throws Exception{
-        Either<String, GenFormula<VariableID>> a = Policy.read("publish(r) AND approve(r)");
+
+
+        //TODO: Validate the input arguments
+        String formulaFile = System.getProperty("user.dir")+ "/" + args[0];
+        String logFile = System.getProperty("user.dir")+ "/" + args[1];
+        String outputFile = System.getProperty("user.dir")+ "/" + args[2];
+
+        Either<String, GenFormula<VariableID>> a = Policy.read(Source.fromFile(formulaFile, Codec.fallbackSystemCodec()).mkString());
 
 
         if(a.isLeft()){
@@ -35,10 +48,17 @@ public class Main {
             formula.freeVariables();
 
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
-            //DataStream<String> text = e.socketTextStream("127.0.0.1", 5000);
-            DataStreamSource<String> text = e.readTextFile(System.getProperty("user.dir")+ "//" + args[0]) ;
+            e.setMaxParallelism(1);
+            e.setParallelism(1);
 
-            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()));
+            //TODO: Choose type of input (e.g., file, socket,...)
+            //DataStream<String> text = e.socketTextStream("127.0.0.1", 5000);
+            DataStreamSource<String> text = e.readTextFile(logFile);
+
+            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
+                                         .name("Stream Parser")
+                                         .setParallelism(1)
+                                         .setMaxParallelism(1);
             //could also be a MonPoly parser, depending on the input --> ?
             //The above is the stream from which we have to find the satisfactions!
             //atomic facts should go to operators that handle atoms:
@@ -46,11 +66,9 @@ public class Main {
             HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
-            OutputTag<Fact> outputTag;
             while(iter.hasNext()) {
                 Pred<VariableID> n = iter.next();
-                outputTag = new OutputTag<Fact>(n.toString()){};
-                hashmap.put(n.relation(), outputTag);
+                hashmap.put(n.relation(), new OutputTag<Fact>(n.relation()){});
             }
             hashmap.put(TERMINATOR_TAG, new OutputTag<Fact>(TERMINATOR_TAG){}); //I don't think someone can parse a predicate with an empty string.
 
@@ -69,7 +87,9 @@ public class Main {
                                     ctx.output(hashmap.get(str), fact);
                                 }
                             }else{
-                                ctx.output(hashmap.get(fact.getName()), fact);
+                                if(hashmap.containsKey(fact.getName())) {
+                                    ctx.output(hashmap.get(fact.getName()), fact);
+                                }
                             }
                         }
                     });
@@ -77,6 +97,15 @@ public class Main {
             //is it normal that I have to cast here?
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
             //is the above the correct way to create a sink?
+
+
+            //TODO: Validate the input arguments
+            //TODO: Choose type of output (e.g., file, socket, standard output...)
+            //TODO: Re-implement with non-deprecated sink (see the example code below)
+            sink.writeAsText("file://" + outputFile);
+
+//            DataStream<String> strOutput = output.map(PipelineEvent::toString);
+//            strOutput.addSink(StreamingFileSink.forRowFormat(new Path("file:///tmp/flink/output"), new SimpleStringEncoder<String>("UTF-8")).build());;
             e.execute();
         }
 
