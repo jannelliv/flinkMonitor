@@ -222,7 +222,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
         if(xs.size() < 1){
             return new LinkedList<>();
         }
-        return xs.subList(1, xs.size());
+        return new ArrayList<VariableID>(xs.subList(1, xs.size()));
     }
 
 
