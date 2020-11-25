@@ -41,7 +41,7 @@ public class PipelineEvent  {
     @Override
     public String toString() {
         if (isTerminator()) {
-            return "@" + timestamp;
+            return "@" + timestamp + " : " + timepoint;
         } else {
             return "@" + timestamp + " : " + timepoint + " " + assignment.toString();
         }
