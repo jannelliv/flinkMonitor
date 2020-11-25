@@ -22,8 +22,13 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     boolean bool;
     ArrayList<ArrayList<PipelineEvent>> tableList; //buf --> Verimon
     LinkedList<Long> tsList; //nts --> name used in Verimon
-    LinkedList<Long> tpList;
-    LinkedList<Long> terminators; //timepoints of the databases that have reached a terminator
+
+    HashMap<Long, HashSet<PipelineEvent>> A;
+    HashMap<Long, Long> T;
+    HashMap<Long, Long> TT;
+
+
+    
 
     public MPrev(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, LinkedList<Long> tsList) {
         this.interval = interval;
@@ -59,120 +64,55 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         //the first point. Then you set the flag to false. But while you are passing the first, you check
         //the boolean and return nothing.
 
-        if(!value.isPresent()){
-            //it's a terminator
-            this.terminators.add(value.getTimepoint());
-            long indexPrev = value.getTimepoint() - 1;
-            if(terminators.contains(indexPrev)){
-                //here, before you delete all entries from the prev, you should release all assignments
-                //(which had previously been buffered) from the list at the current timestamp! --> if applicable:
-                for(int i = 0 ; i < tableList.size(); i++){
-                    //maybe create a hashmap with a mapping to avoid the excessive for loops
-                    if(tableList.get(i).get(0) != null && tableList.get(i).get(0).getTimepoint()== value.getTimepoint()){
-                        ArrayList<PipelineEvent> pipeEventList = tableList.get(i);
-                        for(int j = 0; j < pipeEventList.size(); j++){
-                            PipelineEvent currentBufferedEvent = pipeEventList.get(j);
-                            long bufEventTimestamp = currentBufferedEvent.getTimestamp();
-                            ArrayList<PipelineEvent> pipeEventPrev = tableList.get(i + 1); //assume new elem appended at front
-                            for (int k = 0; k < pipeEventPrev.size(); k++){
-                                PipelineEvent prevBufEvent = pipeEventPrev.get(k);
-                                long prevEventTimestamp = prevBufEvent.getTimestamp();
-                                if(mem(bufEventTimestamp - prevEventTimestamp, this.interval)){
-                                    out.collect(currentBufferedEvent);
-                                    break;
-                                }
-
-                            }
-                        }
-                    }
+        //ADD ASSERT: forall i. T.keys().contains(i+1) ==> ! A.keys().contains(i)
+        if(value.isPresent()){
+            //1)
+            if(T.keySet().contains(value.getTimepoint() + 1)){
+                if(mem(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
+                    out.collect(new PipelineEvent(T.get(value.getTimepoint() + 1),
+                            value.getTimepoint() + 1, false,value.get()));
                 }
-                //now you can delete all entries from the prev!
-                for(int i = 0 ; i < tableList.size(); i++){
-                    if(tableList.get(i).get(0) != null && tableList.get(i).get(0).getTimepoint()== indexPrev){
-                        tableList.set(i, new ArrayList<PipelineEvent>());
-                        break;
-                    }
-                }
-            }else{ // !terminators.contains(indexPrev)
-                for(int i = 0 ; i < tableList.size(); i++){
-                    //maybe create a hashmap with a mapping to avoid the excessive for loops
-                    if(tableList.get(i).get(0) != null && tableList.get(i).get(0).getTimepoint()== value.getTimepoint()){
-                        ArrayList<PipelineEvent> pipeEventList = tableList.get(i);
-                        for(int j = 0; j < pipeEventList.size(); j++){
-                            PipelineEvent currentBufferedEvent = pipeEventList.get(j);
-                            long bufEventTimestamp = currentBufferedEvent.getTimestamp();
-                            ArrayList<PipelineEvent> pipeEventPrev = tableList.get(i + 1); //assume new elem appended at front
-                            for (int k = 0; k < pipeEventPrev.size(); k++){
-                                PipelineEvent prevBufEvent = pipeEventPrev.get(k);
-                                long prevEventTimestamp = prevBufEvent.getTimestamp();
-                                if(mem(bufEventTimestamp - prevEventTimestamp, this.interval)){
-                                    out.collect(currentBufferedEvent);
-                                    break;
-                                }
-
-                            }
-                        }
-                    }
-                    //add what you do if you reach the end of the list and don't find a timepoint corresp to curr event
-                    //...
-                    if(i == 0 || i == tableList.size() - 1){
-                        tableList.add(0, new ArrayList<PipelineEvent>());
-                        tableList.get(0).add(0, value);
-                        terminators.add(0, value.getTimepoint());
-                    }
-                }
-
-
+            }else{
+                A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimepoint(),
+                        value.getTimestamp(), false, value.get()));
             }
-        }else{ //condition: value.isPresent()
-            //add element to list for future prev evaluations in the trace
-            for(int i = 0; i< tableList.size(); i++){
-                if(tableList.get(i).get(0) != null && tableList.get(i).get(0).getTimepoint()== value.getTimepoint()){
-                    tableList.get(i).add(0, value);
-                    break;
-                }
-                if(i == tableList.size() - 1 || i == 0 ){
-                    tableList.add(0, new ArrayList<PipelineEvent>());
-                }
+            //2
+            handleBuffered(value, out);
+        }else{
+            if(T.keySet().contains(value.getTimepoint() + 1)){
+                out.collect(new PipelineEvent(value.getTimepoint()+ 1, T.get(value.getTimepoint() + 1),
+                        true, value.get()));
+            }else{
+                TT.put(value.getTimepoint(), value.getTimestamp());
             }
-            //now you can see if it should be output to the collector
-            for(int i = 0 ; i < tableList.size(); i++){
-                //maybe create a hashmap with a mapping to avoid the excessive for loops
-                if(tableList.get(i).get(0) != null && tableList.get(i).get(0).getTimepoint()== value.getTimepoint()){
-                    ArrayList<PipelineEvent> pipeEventList = tableList.get(i);
-                    for(int j = 0; j < pipeEventList.size(); j++){
-                        PipelineEvent currentBufferedEvent = pipeEventList.get(j);
-                        long bufEventTimestamp = currentBufferedEvent.getTimestamp();
-                        ArrayList<PipelineEvent> pipeEventPrev = tableList.get(i + 1); //assume new elem appended at front
-                        for (int k = 0; k < pipeEventPrev.size(); k++){
-                            PipelineEvent prevBufEvent = pipeEventPrev.get(k);
-                            long prevEventTimestamp = prevBufEvent.getTimestamp();
-                            if(mem(bufEventTimestamp - prevEventTimestamp, this.interval)){
-                                out.collect(currentBufferedEvent);
-                                break;
-                            }
-
-                        }
-                    }
-                }
-            }
+            //2
+            handleBuffered(value, out);
         }
 
-        /*if(value.isPresent()){
-            List<Table> bufXS = new ArrayList<>();
-            //a table is a set of assignments
-            Table xs = Table.one(value.get()); //NOT SURE IF THIS IS CORRECT
-            bufXS.add(0,xs);
-            List<Table> bufXsNew = new ArrayList();
-            bufXsNew.addAll(this.tableList);
-            bufXsNew.addAll(bufXS);
-            /////////////////////////////////////
-            List<Integer> mprev_nextSecondArgument = new ArrayList<>();
-            //HOW DO I KNO WHAT THE TIMESTAMP OF value IS????
-            //Triple<List<Table>, List<Table>, List<Integer>> tripleResult = mprev_next(this.interval, bufXsNew, );
-        }*/
+    }
 
+    public void handleBuffered(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
+        if(value.getTimepoint() == 0){
+            //output an EMPTY SET because previous is not satisfied at the first position.
+        }else{
+            T.put(value.getTimepoint(), value.getTimestamp());
+        }
 
+        if(A.keySet().contains(value.getTimepoint() - 1)){
+            HashSet<PipelineEvent> eventsAtPrev = A.get(value.getTimepoint() - 1);
+            for (PipelineEvent buffAss : eventsAtPrev){
+                //Why don't we check the interval condition here?
+                out.collect(new PipelineEvent(value.getTimepoint(),
+                        value.getTimestamp(), false, buffAss.get()));
+            }
+            A.remove(value.getTimepoint() - 1);
+            if(TT.keySet().contains(value.getTimepoint() - 1)){
+                out.collect(new PipelineEvent(value.getTimepoint(),
+                        value.getTimestamp(), true, value.get()));
+                TT.remove(value.getTimepoint() - 1);
+                T.remove(value.getTimepoint());
+            }
+        }
     }
 
     public static Triple<List<Table>, List<Table>, List<Integer>> mprev_next(Interval i, List<Table> xs,

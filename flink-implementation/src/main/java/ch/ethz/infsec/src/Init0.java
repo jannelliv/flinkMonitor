@@ -223,6 +223,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
             return new LinkedList<>();
         }
         return new ArrayList<VariableID>(xs.subList(1, xs.size()));
+        //sublist not serializable, so we have to use an arrayList
     }
 
 
