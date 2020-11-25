@@ -1,5 +1,6 @@
 package ch.ethz.infsec.src;
 
+
 public class PipelineEvent  {
     //does a pipeline event need to have a fact as field?
 
@@ -35,6 +36,19 @@ public class PipelineEvent  {
 
     public long getTimepoint(){
         return this.timepoint;
+    }
+
+    @Override
+    public String toString() {
+        if (isTerminator()) {
+            return "@" + timestamp;
+        } else {
+            return "@" + timestamp + " : " + timepoint + " " + assignment.toString();
+        }
+    }
+
+    private boolean isTerminator() {
+        return isTerminator;
     }
 
     /*public static PipelineEvent nones(int n, long timestamp){

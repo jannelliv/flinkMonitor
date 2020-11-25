@@ -3,6 +3,8 @@ package ch.ethz.infsec.src;
 import ch.ethz.infsec.monitor.Fact;
 
 import java.util.*;
+import java.util.stream.Collectors;
+
 // We need to distinguish btw pure assignments and assignments which we use to encode the trace
 public class Assignment extends LinkedList<Optional<Object>> {
 
@@ -35,6 +37,11 @@ public class Assignment extends LinkedList<Optional<Object>> {
         // so the appropriate static constructor is used
 
     }*/
+
+    @Override
+    public String toString() {
+        return "(" + this.stream().map(Object::toString).collect(Collectors.joining(", ")) + ")";
+    }
 
 }
 
