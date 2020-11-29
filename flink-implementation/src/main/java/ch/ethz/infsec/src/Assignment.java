@@ -1,9 +1,8 @@
 package ch.ethz.infsec.src;
 
-import ch.ethz.infsec.monitor.Fact;
-
 import java.util.*;
 import java.util.stream.Collectors;
+//this and the toString method make the assignment readable in the output
 
 // We need to distinguish btw pure assignments and assignments which we use to encode the trace
 public class Assignment extends LinkedList<Optional<Object>> {

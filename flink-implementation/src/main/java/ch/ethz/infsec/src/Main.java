@@ -5,12 +5,9 @@ import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
-import org.apache.flink.api.common.serialization.SimpleStringEncoder;
-import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
-import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import scala.collection.Iterator;
@@ -19,7 +16,8 @@ import scala.io.Codec;
 import scala.io.Source;
 import scala.util.Either;
 
-import java.io.File;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
 import java.util.*;
 import static ch.ethz.infsec.src.JavaGenFormula.convert;
 
@@ -63,13 +61,19 @@ public class Main {
             //The above is the stream from which we have to find the satisfactions!
             //atomic facts should go to operators that handle atoms:
             //ATOMIC OPERATORS
+            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile + "_debug", true));
             HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
+            writer.write(formula.toString() + "\n");
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
+
             while(iter.hasNext()) {
                 Pred<VariableID> n = iter.next();
                 hashmap.put(n.relation(), new OutputTag<Fact>(n.relation()){});
+
+                writer.write(n.relation() + "\n");
             }
+
             hashmap.put(TERMINATOR_TAG, new OutputTag<Fact>(TERMINATOR_TAG){}); //I don't think someone can parse a predicate with an empty string.
 
             SingleOutputStreamOperator<Fact> mainDataStream = facts
@@ -87,6 +91,7 @@ public class Main {
                                     ctx.output(hashmap.get(str), fact);
                                 }
                             }else{
+                                System.out.println(fact.toString());
                                 if(hashmap.containsKey(fact.getName())) {
                                     ctx.output(hashmap.get(fact.getName()), fact);
                                 }
@@ -107,6 +112,9 @@ public class Main {
 //            DataStream<String> strOutput = output.map(PipelineEvent::toString);
 //            strOutput.addSink(StreamingFileSink.forRowFormat(new Path("file:///tmp/flink/output"), new SimpleStringEncoder<String>("UTF-8")).build());;
             e.execute();
+            //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
+            // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
+            writer.close();
         }
 
     }

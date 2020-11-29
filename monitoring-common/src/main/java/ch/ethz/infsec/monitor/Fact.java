@@ -37,6 +37,14 @@ public class Fact implements Serializable {
     public Fact(){
 
     }
+    //Properties of POJO
+    //
+    //All properties must be public setter and getter methods
+    //All instance variables should be private
+    //Should not Extend prespecified classes.
+    //Should not Implement prespecified interfaces.
+    //Should not contain prespecified annotations.
+    //It may not have any argument constructors
 
     private Fact(String name, long timestamp, List<Object> arguments) {
         this.name = name;
