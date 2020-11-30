@@ -3,11 +3,11 @@ package ch.ethz.infsec.slicer
 import ch.ethz.infsec.TestHelpers
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy.{GenFormula, _}
-import org.scalatest.{FunSuite, Matchers}
-
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable
 
-class DataSlicerTest extends FunSuite with Matchers {
+class DataSlicerTest extends AnyFunSuite with Matchers {
 
   class TestDataSlicer extends DataSlicer {
 

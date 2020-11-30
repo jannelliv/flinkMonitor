@@ -1,9 +1,11 @@
 package ch.ethz.infsec.policy
 
-import org.scalatest.{FunSuite, Matchers}
 import org.scalatest.EitherValues._
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 
-class PolicyTest extends FunSuite with Matchers {
+
+class PolicyTest extends AnyFunSuite with Matchers {
 
   val Px = Pred("P", Var("x"))
   val Py = Pred("P", Var("y"))

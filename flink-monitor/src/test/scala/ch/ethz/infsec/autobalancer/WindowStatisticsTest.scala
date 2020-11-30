@@ -1,10 +1,11 @@
 package ch.ethz.infsec.autobalancer
 
 import ch.ethz.infsec.monitor.Fact
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.funsuite.AnyFunSuite
 
 // TODO(JS): Update tests.
-class WindowStatisticsTest extends FunSuite with Matchers{
+class WindowStatisticsTest extends AnyFunSuite with Matchers{
   test("endmarkers are not added") {
     val ws = new WindowStatistics(5,1.0,4)
     val rec = Fact.terminator(0)

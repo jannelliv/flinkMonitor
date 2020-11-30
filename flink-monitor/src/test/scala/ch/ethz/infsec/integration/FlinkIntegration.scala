@@ -3,14 +3,16 @@ package ch.ethz.infsec.integration
 import java.io.{BufferedReader, BufferedWriter, InputStreamReader, OutputStreamWriter}
 import java.lang.ProcessBuilder.Redirect
 
-import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import org.scalatest.BeforeAndAfterAll
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.funsuite.AnyFunSuite
 
 import scala.collection.JavaConverters
 import scala.collection.mutable.ListBuffer
 import scala.io.Source
 
 
-class FlinkIntegration extends FunSuite with Matchers with BeforeAndAfterAll{
+class FlinkIntegration extends AnyFunSuite with Matchers with BeforeAndAfterAll{
 
   private var ncIN:Process = _
   private var ncOUT:Process = _

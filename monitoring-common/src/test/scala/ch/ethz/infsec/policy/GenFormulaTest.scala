@@ -1,9 +1,11 @@
 package ch.ethz.infsec.policy
 
-import org.scalatest.{FunSuite, Matchers, Inside}
+import org.scalatest.Inside
+import org.scalatest.funsuite.AnyFunSuite
+import org.scalatest.matchers.should.Matchers
 import org.scalatest.enablers.Emptiness
 
-class GenFormulaTest extends FunSuite with Matchers {
+class GenFormulaTest extends AnyFunSuite with Matchers {
   // NOTE(JS): No idea why this is not provided automatically ...
   implicit def emptinessOfSetPrev[V]: Emptiness[Set[Pred[V]]] =
     new Emptiness[Set[Pred[V]]] {

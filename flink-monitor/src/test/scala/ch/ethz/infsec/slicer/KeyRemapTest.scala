@@ -1,8 +1,9 @@
 package ch.ethz.infsec.slicer
 
-import org.scalatest.{FunSuite, Matchers}
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.funsuite.AnyFunSuite
 
-class KeyRemapTest extends FunSuite with Matchers {
+class KeyRemapTest extends AnyFunSuite with Matchers {
 
 
   test("Remap"){

@@ -5,20 +5,26 @@ import ch.ethz.infsec.autobalancer.{ConstantHistogram, SimpleHistogram, StatsHis
 import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy._
 import ch.ethz.infsec.policy.GenFormula
+import org.scalacheck.Prop.forAll
 import org.scalacheck.{Arbitrary, Gen}
-import org.scalatestplus.scalacheck.ScalaCheckPropertyChecks
-import org.scalatest.{FunSuite, Matchers}
-
+import org.scalatest.Assertion
+import org.scalatest.matchers.should.Matchers
+import org.scalatest.funsuite.AnyFunSuite
 import scala.collection.mutable
 import scala.util.Random
 
-class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckPropertyChecks {
+
+
+
+
+class HypercubeSlicerTest extends AnyFunSuite with Matchers {
   val withHeavy: Gen[Int] = Gen.frequency(
     1 -> -1,
     1 -> 0,
     1 -> 2,
     3 -> Arbitrary.arbInt.arbitrary
   )
+
 
   def mkSimpleSlicer(formula: Formula, shares: IndexedSeq[Int], seed: Long = 1234): HypercubeSlicer =
     new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
@@ -35,6 +41,7 @@ class HypercubeSlicerTest extends FunSuite with Matchers with ScalaCheckProperty
     mkSimpleSlicer(GenFormula.resolve(Pred("p", Var("x"))), Array(3)).degree shouldBe 3
     mkSimpleSlicer(GenFormula.resolve(Pred("p", Var("x"), Var("y"))), Array(5, 7)).degree shouldBe 35
   }
+
 
   test("Equal values should be mapped to the same slice") {
     val formula = GenFormula.resolve(And(Pred("p", Var("x")), Pred("q", Var("x"), Var("y"))))
