@@ -34,7 +34,7 @@ under the License.
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <flink.version>1.7.2</flink.version>
+        <flink.version>1.11.2</flink.version>
         <java.version>1.8</java.version>
 
         <!--above: was just: 2.11-->
@@ -57,27 +57,12 @@ under the License.
     <!--    </repositories>-->
 
     <dependencies>
-        <!-- Apache Flink dependencies -->
-        <!-- These dependencies are provided, because they should not be packaged into the JAR file. -->
+        <!-- Local dependencies -->
         <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-clients_2.12</artifactId>
-            <version>1.11.2</version>
-            <!--            <scope>provided</scope>-->
+            <groupId>ch.ethz.infsec</groupId>
+            <artifactId>monitoring-common</artifactId>
+            <version>1.0-SNAPSHOT</version>
         </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-java</artifactId>
-            <version>1.11.2</version>
-        </dependency>
-        <dependency>
-            <groupId>org.apache.flink</groupId>
-            <artifactId>flink-streaming-java_2.12</artifactId>
-            <version>1.11.2</version>
-<!--            <scope>provided</scope>-->
-        </dependency>
-
-
         <dependency>
             <groupId>ch.ethz.infsec</groupId>
             <artifactId>spec-parser</artifactId>
@@ -88,10 +73,62 @@ under the License.
             <artifactId>trace-formats</artifactId>
             <version>${project.version}</version>
         </dependency>
+
+        <!-- Scala dependency -->
         <dependency>
             <groupId>org.scala-lang</groupId>
             <artifactId>scala-library</artifactId>
         </dependency>
+
+
+        <!-- Apache Flink dependencies -->
+        <!-- These dependencies are provided, because they should not be packaged into the JAR file. -->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-clients_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+            <!--            <scope>provided</scope>-->
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-java</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+<!--            <scope>provided</scope>-->
+        </dependency>
+
+        <!-- Flink test dependencies-->
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-test-utils_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-core</artifactId>
+            <version>${flink.version}</version>
+            <scope>test</scope>
+            <type>test-jar</type>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-test-utils-junit</artifactId>
+            <version>${flink.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.flink</groupId>
+            <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
+            <version>${flink.version}</version>
+            <scope>test</scope>
+            <type>test-jar</type>
+        </dependency>
+
+
 
 
         <!-- Add connector dependencies here. They must be in the default scope (compile). -->
@@ -118,11 +155,7 @@ under the License.
             <version>1.2.17</version>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>ch.ethz.infsec</groupId>
-            <artifactId>monitoring-common</artifactId>
-            <version>1.0-SNAPSHOT</version>
-        </dependency>
+
 
     </dependencies>
 
@@ -272,14 +305,14 @@ under the License.
                 <dependency>
                     <groupId>org.apache.flink</groupId>
                     <artifactId>flink-java</artifactId>
-                    <version>1.11.2</version>
+                    <version>${flink.version}</version>
                 </dependency>
                 <!-- https://mvnrepository.com/artifact/org.apache.flink/flink-streaming-java -->
                 <dependency>
                     <groupId>org.apache.flink</groupId>
-                    <artifactId>flink-streaming-java_2.12</artifactId>
+                    <artifactId>flink-streaming-java_${scala.binary.version}</artifactId>
                     <!-- above: was 2.12 -->
-                    <version>1.11.2</version>
+                    <version>${flink.version}</version>
 <!--                    <scope>provided</scope>-->
                 </dependency>
 
