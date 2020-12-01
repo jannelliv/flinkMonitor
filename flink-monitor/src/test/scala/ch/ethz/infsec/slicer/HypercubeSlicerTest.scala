@@ -6,14 +6,13 @@ import ch.ethz.infsec.monitor.Fact
 import ch.ethz.infsec.policy._
 import ch.ethz.infsec.policy.GenFormula
 import org.scalacheck.Prop.forAll
-import org.scalacheck.{Arbitrary, Gen}
-import org.scalatest.Assertion
+import org.scalacheck.{Arbitrary, Gen, Prop}
+import org.scalatest.{Assertion, Assertions, Outcome}
 import org.scalatest.matchers.should.Matchers
 import org.scalatest.funsuite.AnyFunSuite
+
 import scala.collection.mutable
 import scala.util.Random
-
-
 
 
 
@@ -25,6 +24,7 @@ class HypercubeSlicerTest extends AnyFunSuite with Matchers {
     3 -> Arbitrary.arbInt.arbitrary
   )
 
+  implicit def a2p(a:Assertion):Prop = a.isInstanceOf[Outcome] && a.asInstanceOf[Outcome].isSucceeded
 
   def mkSimpleSlicer(formula: Formula, shares: IndexedSeq[Int], seed: Long = 1234): HypercubeSlicer =
     new HypercubeSlicer(formula,Array.fill(formula.freeVariables.size){(-1, Set.empty: Set[Any])},
