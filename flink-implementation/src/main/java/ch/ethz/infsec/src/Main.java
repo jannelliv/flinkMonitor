@@ -1,5 +1,11 @@
 package ch.ethz.infsec.src;
 
+import ch.ethz.infsec.src.formula.*;
+import ch.ethz.infsec.src.formula.visitor.Init0;
+import ch.ethz.infsec.src.monitor.*;
+import ch.ethz.infsec.src.monitor.visitor.MformulaVisitorFlink;
+import ch.ethz.infsec.src.util.*;
+
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Policy;
@@ -19,7 +25,7 @@ import scala.util.Either;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.*;
-import static ch.ethz.infsec.src.JavaGenFormula.convert;
+import static ch.ethz.infsec.src.formula.JavaGenFormula.convert;
 
 
 public class Main {
