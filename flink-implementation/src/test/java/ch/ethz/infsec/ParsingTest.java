@@ -1,7 +1,7 @@
 package ch.ethz.infsec;
 
 import ch.ethz.infsec.monitor.Fact;
-import ch.ethz.infsec.src.ParsingFunction;
+import ch.ethz.infsec.src.util.ParsingFunction;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.operators.StreamFlatMap;

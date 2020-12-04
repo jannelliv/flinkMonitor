@@ -1,6 +1,5 @@
 package ch.ethz.infsec.src;
 
-import ch.ethz.infsec.src.formula.*;
 import ch.ethz.infsec.src.formula.visitor.Init0;
 import ch.ethz.infsec.src.monitor.*;
 import ch.ethz.infsec.src.monitor.visitor.MformulaVisitorFlink;
@@ -11,6 +10,7 @@ import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
+import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -97,7 +97,7 @@ public class Main {
                                     ctx.output(hashmap.get(str), fact);
                                 }
                             }else{
-                                System.out.println(fact.toString());
+                                //System.out.println(fact.toString());
                                 if(hashmap.containsKey(fact.getName())) {
                                     ctx.output(hashmap.get(fact.getName()), fact);
                                 }
