@@ -1,4 +1,4 @@
-package ch.ethz.infsec.src.formula;
+package ch.ethz.infsec.formula;
 
 import ch.ethz.infsec.policy.*;
 import scala.collection.Iterator;
@@ -6,8 +6,8 @@ import scala.collection.Seq;
 import scala.collection.immutable.List;
 import scala.collection.immutable.Set;
 
-import ch.ethz.infsec.src.formula.visitor.FormulaVisitor;
-import static ch.ethz.infsec.src.formula.JavaGenFormula.convert;
+import ch.ethz.infsec.formula.visitor.FormulaVisitor;
+import static ch.ethz.infsec.formula.JavaGenFormula.convert;
 
 public class JavaEx<T> extends Ex<T> implements JavaGenFormula<T> {
 

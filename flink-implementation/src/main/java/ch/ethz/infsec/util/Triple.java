@@ -1,4 +1,4 @@
-package ch.ethz.infsec.src.util;
+package ch.ethz.infsec.util;
 
 public class Triple<T, U, V> {
     public T fst;

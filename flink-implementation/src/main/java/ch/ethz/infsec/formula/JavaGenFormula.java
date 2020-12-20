@@ -1,6 +1,6 @@
-package ch.ethz.infsec.src.formula;
+package ch.ethz.infsec.formula;
 import ch.ethz.infsec.policy.*;
-import ch.ethz.infsec.src.formula.visitor.FormulaVisitor;
+import ch.ethz.infsec.formula.visitor.FormulaVisitor;
 
 public interface JavaGenFormula<T> extends JavaGenFormulaUnsealed<T> {
     <R> R accept(FormulaVisitor<R> v);

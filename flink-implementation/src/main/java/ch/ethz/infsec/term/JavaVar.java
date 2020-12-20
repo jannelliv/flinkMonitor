@@ -1,8 +1,8 @@
-package ch.ethz.infsec.src.term;
+package ch.ethz.infsec.term;
 
 
 import ch.ethz.infsec.policy.Var;
-import ch.ethz.infsec.src.term.visitor.TermVisitor;
+import ch.ethz.infsec.term.visitor.TermVisitor;
 
 public class JavaVar<T> extends Var<T> implements JavaTerm<T> {
     public JavaVar(T variable) {

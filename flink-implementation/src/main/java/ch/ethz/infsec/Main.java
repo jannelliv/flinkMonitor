@@ -1,9 +1,9 @@
-package ch.ethz.infsec.src;
+package ch.ethz.infsec;
 
-import ch.ethz.infsec.src.formula.visitor.Init0;
-import ch.ethz.infsec.src.monitor.*;
-import ch.ethz.infsec.src.monitor.visitor.MformulaVisitorFlink;
-import ch.ethz.infsec.src.util.*;
+import ch.ethz.infsec.formula.visitor.Init0;
+import ch.ethz.infsec.monitor.*;
+import ch.ethz.infsec.monitor.visitor.MformulaVisitorFlink;
+import ch.ethz.infsec.util.*;
 
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.GenFormula;
@@ -25,7 +25,7 @@ import scala.util.Either;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.util.*;
-import static ch.ethz.infsec.src.formula.JavaGenFormula.convert;
+import static ch.ethz.infsec.formula.JavaGenFormula.convert;
 
 
 public class Main {
@@ -97,7 +97,7 @@ public class Main {
                                     ctx.output(hashmap.get(str), fact);
                                 }
                             }else{
-                                //System.out.println(fact.toString());
+                                System.out.println(fact.toString());
                                 if(hashmap.containsKey(fact.getName())) {
                                     ctx.output(hashmap.get(fact.getName()), fact);
                                 }

@@ -1,12 +1,12 @@
-package ch.ethz.infsec.src.monitor;
+package ch.ethz.infsec.monitor;
 import ch.ethz.infsec.policy.VariableID;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
 import java.util.Optional;
-import ch.ethz.infsec.src.util.*;
-import ch.ethz.infsec.src.monitor.visitor.*;
+import ch.ethz.infsec.util.*;
+import ch.ethz.infsec.monitor.visitor.*;
 
 public class MExists implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
 
@@ -38,7 +38,7 @@ public class MExists implements Mformula, FlatMapFunction<PipelineEvent, Pipelin
             out.collect(value);
         }else{
             Assignment satList = value.get();
-            satList.remove(0);
+            satList.remove(0); //so here we are taking the tail of the list
             Optional<Assignment> output = Optional.of(satList);
             if(output.isPresent()){
                 //previously, I had omitted this if loop

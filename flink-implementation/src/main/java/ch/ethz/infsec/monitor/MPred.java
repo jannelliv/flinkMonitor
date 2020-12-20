@@ -1,10 +1,10 @@
-package ch.ethz.infsec.src.monitor;
+package ch.ethz.infsec.monitor;
 import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.Term;
 import ch.ethz.infsec.policy.VariableID;
-import ch.ethz.infsec.src.term.JavaConst;
-import ch.ethz.infsec.src.term.JavaTerm;
-import ch.ethz.infsec.src.term.JavaVar;
+import ch.ethz.infsec.term.JavaConst;
+import ch.ethz.infsec.term.JavaTerm;
+import ch.ethz.infsec.term.JavaVar;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
@@ -12,14 +12,22 @@ import scala.collection.Seq;
 import scala.collection.*;
 import java.util.*;
 import java.util.function.Function;
-import static ch.ethz.infsec.src.term.JavaTerm.convert;
-import ch.ethz.infsec.src.util.*;
-import ch.ethz.infsec.src.monitor.visitor.*;
+import static ch.ethz.infsec.term.JavaTerm.convert;
+import ch.ethz.infsec.util.*;
+import ch.ethz.infsec.monitor.visitor.*;
 
 public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     String predName;
     ArrayList<JavaTerm<VariableID>> args; // when you assign this now, you will need to convert it
     List<VariableID> freeVariablesInOrder;
+    //if you had a formul p(x,y) AND q(z), then at both the p(x,y) predicate and the q(z) predicate you need
+    //to have the same list of free variables in some order, like x,y,z. So to create a pipeline event
+    //you need to iterate over freeVariablesInOrder. Args on the other hand, are the terms of the predicate,
+    //so if you have a predicate p(x,y) then the args would be [x,y]. But if you have a formula where p(x,y) occurs,
+    //like p(x,y) AND q(z), then freeVariablesInOrder will be [x,y,z] and args will be [x,y]. SO somehow at the
+    //predicate level, you need to establish an order of variabels that occur outside of the predicate, this is
+    //why in Init0 we compute the freeVariablesInOrder. But the match has to be done with the args, not the free
+    //variables, because the predicate and the event have corresponding numbers of parameters.
 
 
     public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
@@ -34,8 +42,8 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
         this.freeVariablesInOrder = fvio;
         this.args = argsJava;
         //System.out.println("Predname" + this.predName);
-        //System.out.println("freeVars" + this.freeVariablesInOrder);
-        //System.out.println("arguments" + this.args + ";  arg size: " + this.args.size());
+        System.out.println("freeVars" + this.freeVariablesInOrder);
+        System.out.println("arguments" + this.args + ";  arg size: " + this.args.size());
 
     }
 
@@ -45,7 +53,7 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
 
 
     public void flatMap(Fact fact, Collector<PipelineEvent> out) throws Exception {
-        //System.out.println("fact:  " + fact.toString());
+        System.out.println("fact:  " + fact.toString());
         if(fact.isTerminator()){
             Assignment none = Assignment.nones(2);
             out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  true, none));
@@ -53,20 +61,20 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
             assert(fact.getName().equals(this.predName) );
 
             List<Object> ys = fact.getArguments();
-            //System.out.println("fact Arguments: " + ys.toString());
+            System.out.println("fact Arguments: " + ys.toString());
 
             ArrayList<JavaTerm<VariableID>> argsCopy = new ArrayList<>(this.args);
             Optional<Function<String, Optional<Object>>> result = match(argsCopy, ys);
             if(result.isPresent()){
                 Assignment list = new Assignment();
                 //building of satisfaction, but not from the free Variables of MPred (this) --> ?
-                for (JavaTerm<VariableID> argument : this.args) {
+                for (VariableID argument : this.freeVariablesInOrder) {
                     //remember to iterate ove rthe arguments, not the free variables
                     if(result.get().apply(argument.toString()).isPresent()){
                         list.add(0, result.get().apply(argument.toString()));
                     }
 
-                    //System.out.println("ass. element " + (result.get().apply(argument.toString())).toString());
+                    System.out.println("ass. element " + (result.get().apply(argument.toString())).toString());
                 }
                 out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  false, list));
             }else{
@@ -112,11 +120,11 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
                 }else{
                     Function<String, Optional<Object>> f = recFunction.get();
                     if(!(f.apply(x.toString())).isPresent()){
-                        //System.out.println("reach5");
+                        System.out.println("reach5");
                         //arrives here
                         Function<Optional<Object>, Optional<Object>> after = x1 -> {
                             if(x1.equals(f.apply(x.toString()))){//still not sure if this is the best way to do this
-                                //System.out.println("reachThis");
+                                System.out.println("reachThis");
                                 return Optional.of(y);
                             }else{
                                 return f.apply(x1.toString());

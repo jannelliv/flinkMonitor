@@ -1,6 +1,6 @@
-package ch.ethz.infsec.src.monitor.visitor;
+package ch.ethz.infsec.monitor.visitor;
 
-import ch.ethz.infsec.src.monitor.*;
+import ch.ethz.infsec.monitor.*;
 
 public interface MformulaVisitor<T> {
     T visit(MPred f);

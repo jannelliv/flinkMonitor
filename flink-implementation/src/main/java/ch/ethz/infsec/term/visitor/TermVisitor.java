@@ -1,8 +1,8 @@
-package ch.ethz.infsec.src.term.visitor;
+package ch.ethz.infsec.term.visitor;
 
 
-import ch.ethz.infsec.src.term.JavaConst;
-import ch.ethz.infsec.src.term.JavaVar;
+import ch.ethz.infsec.term.JavaConst;
+import ch.ethz.infsec.term.JavaVar;
 
 public interface TermVisitor<T> {
 	    T visit(JavaVar f);

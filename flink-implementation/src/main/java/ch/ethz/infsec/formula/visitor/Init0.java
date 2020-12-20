@@ -1,11 +1,12 @@
-package ch.ethz.infsec.src.formula.visitor;
+package ch.ethz.infsec.formula.visitor;
+import ch.ethz.infsec.formula.visitor.FormulaVisitor;
 import ch.ethz.infsec.policy.*;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
 import java.util.*;
-import ch.ethz.infsec.src.formula.*;
-import ch.ethz.infsec.src.monitor.*;
-import ch.ethz.infsec.src.util.*;
+import ch.ethz.infsec.formula.*;
+import ch.ethz.infsec.monitor.*;
+import ch.ethz.infsec.util.*;
 
 
 public class Init0 implements FormulaVisitor<Mformula> {
@@ -16,7 +17,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
         ArrayList<VariableID> temp = new ArrayList<>(JavaConverters.seqAsJavaList(fvio));
         //If you would use List<VariableID> there, you could avoid the two conversions steps
         // (one before the recursive call and the other in the Init0 constructor).
-        this.freeVariablesInOrder = tail(temp);
+        this.freeVariablesInOrder = temp;
 
     }
 
@@ -84,7 +85,11 @@ public class Init0 implements FormulaVisitor<Mformula> {
         //Explain how this procedure avoids using the de Bruijn indices
         VariableID variable = f.variable();
         List<VariableID> freeVariablesInOrderCopy = new ArrayList<>(this.freeVariablesInOrder);
+        //we make a copy because Java is pass-by-reference.
+        //It should also be a copy every time you pass this.freeVariablesInOrder! You have to
+        //check this!
         freeVariablesInOrderCopy.add(0,variable);
+        //the visitor for MExists has to extend the list of free variables by 1
         Seq<VariableID> fvios = JavaConverters.asScalaBufferConverter(freeVariablesInOrderCopy).asScala().toSeq();
         JavaGenFormula<VariableID> subformula = f.arg();
         return new MExists(subformula.accept(new Init0(fvios)), variable);

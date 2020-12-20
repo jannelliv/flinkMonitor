@@ -1,4 +1,4 @@
-package ch.ethz.infsec.src.util;
+package ch.ethz.infsec.util;
 
 
 public class PipelineEvent  {

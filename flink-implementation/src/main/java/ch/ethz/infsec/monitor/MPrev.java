@@ -1,15 +1,15 @@
-package ch.ethz.infsec.src.monitor;
+package ch.ethz.infsec.monitor;
 import ch.ethz.infsec.policy.Interval;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 import java.util.*;
-import ch.ethz.infsec.src.util.*;
-import ch.ethz.infsec.src.monitor.visitor.*;
+import ch.ethz.infsec.util.*;
+import ch.ethz.infsec.monitor.visitor.*;
 
 public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
     //Prev tells you the satisfying assignments of the formula for the previous position.
-    //The principle is that you want to delay the assignments that you receive by 1. So
+    //The principle is that you want to delay/postpone the assignments that you receive by 1. So
     //you simply build the state with the first assignment that you receive, but you don't
     // output anything. Then when you receive a terminator, you output it, and this is as if you
     //said false for the "first" position in the trace. While you receive those, you don't output
@@ -24,15 +24,18 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     ArrayList<ArrayList<PipelineEvent>> tableList; //buf --> Verimon
     LinkedList<Long> tsList; //nts --> name used in Verimon
 
-    HashMap<Long, HashSet<PipelineEvent>> A;
-    HashMap<Long, Long> T;
-    HashMap<Long, Long> TT;
+    HashMap<Long, HashSet<PipelineEvent>> A; //mapping from timepoint to set of assignments (set of PEs)
+    HashMap<Long, Long> T; //mapping from timepoint to timestamps for non-terminator events
+    HashMap<Long, Long> TT;//mapping from timepoint to timestamps for terminator events
 
 
     
 
     public MPrev(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, LinkedList<Long> tsList) {
+        //the P.E. value is the satisfaction of the subformula!
         this.interval = interval;
+        //The interval is attached to the formula; it is a property of the formula.
+
         this.formula = mform;
         this.bool = bool;
         this.tsList = tsList;
@@ -46,6 +49,7 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         ArrayList<ArrayList<PipelineEvent>> listEl3 = new ArrayList<ArrayList<PipelineEvent>>();
         //listEl3.add(listEl2);
         this.tableList = listEl3;
+        //we actually don't use this in the below code; even if it WAS used in Verimon
 
     }
 
@@ -67,6 +71,7 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
         //ADD ASSERT: forall i. T.keys().contains(i+1) ==> ! A.keys().contains(i)
         if(value.isPresent()){
+            //i.e. the event we are receiving is NOT a terminator
             //1)
             if(T.keySet().contains(value.getTimepoint() + 1)){
                 if(mem(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
@@ -74,10 +79,15 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                             value.getTimepoint() + 1, false,value.get()));
                 }
             }else{
+                //It might be that you don't know the timestamp, e.g. assuming that you have not
+                //received any tuple from the current timepoint. You will only know the timpestamp
+                //when you receive the first PipelineEvent for our current timepoint. SO if we don't have the
+                //timestamp, then we have to buffer the pipeline evetn
                 A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimepoint(),
                         value.getTimestamp(), false, value.get()));
             }
             //2
+            //as soon as you have received the timestamp, you can process the stored/buffered assignments.
             handleBuffered(value, out);
         }else{
             if(T.keySet().contains(value.getTimepoint() + 1)){
@@ -95,6 +105,9 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     public void handleBuffered(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
         if(value.getTimepoint() == 0){
             //output an EMPTY SET because previous is not satisfied at the first position.
+            //for next we don't need this special case, as we don't realy have a "last"
+            //timepoint, given that traces are infinite.
+            return;
         }else{
             T.put(value.getTimepoint(), value.getTimestamp());
         }
@@ -104,8 +117,9 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             for (PipelineEvent buffAss : eventsAtPrev){
                 //Why don't we check the interval condition here?
                 //Why is it better for performance if the interval condition is checked outside the for looP?
-                if(mem( buffAss.getTimestamp() - value.getTimestamp(), interval)){
-                    assert(buffAss.getTimestamp() - value.getTimestamp() > 0);
+                if(mem( value.getTimestamp() - buffAss.getTimestamp() , interval)){
+                    //Above, we are checking the itnerval cosntraint, i.e. that
+                    //the difference between the timestamps is within the interval.
                     assert(value.getTimestamp() - buffAss.getTimestamp() > 0);
                     //how is it be that both assertions hold?
                     out.collect(new PipelineEvent(value.getTimepoint(),

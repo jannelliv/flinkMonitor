@@ -1,10 +1,10 @@
-package ch.ethz.infsec.src.formula;
+package ch.ethz.infsec.formula;
 
 import ch.ethz.infsec.policy.Pred;
 import ch.ethz.infsec.policy.VariableID;
 import scala.collection.Seq;
 
-import ch.ethz.infsec.src.formula.visitor.FormulaVisitor;
+import ch.ethz.infsec.formula.visitor.FormulaVisitor;
 
 public class JavaPred<T> extends Pred<T> implements JavaGenFormula<T> {
 

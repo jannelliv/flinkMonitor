@@ -1,4 +1,4 @@
-package ch.ethz.infsec.src.monitor.visitor;
+package ch.ethz.infsec.monitor.visitor;
 import ch.ethz.infsec.monitor.Fact;
 import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -6,9 +6,9 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.util.OutputTag;
 import java.util.HashMap;
 
-import ch.ethz.infsec.src.monitor.*;
-import ch.ethz.infsec.src.util.*;
-import static ch.ethz.infsec.src.formula.JavaGenFormula.convert;
+import ch.ethz.infsec.monitor.*;
+import ch.ethz.infsec.util.*;
+import static ch.ethz.infsec.formula.JavaGenFormula.convert;
 
 public class MformulaVisitorFlink implements MformulaVisitor<DataStream<PipelineEvent>> {
 

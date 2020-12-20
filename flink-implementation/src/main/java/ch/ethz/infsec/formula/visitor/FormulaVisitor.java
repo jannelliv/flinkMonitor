@@ -1,8 +1,8 @@
-package ch.ethz.infsec.src.formula.visitor;
+package ch.ethz.infsec.formula.visitor;
 
 import ch.ethz.infsec.policy.VariableID;
 
-import ch.ethz.infsec.src.formula.*;
+import ch.ethz.infsec.formula.*;
 
 public interface FormulaVisitor<T> {
     T visit(JavaPred<VariableID> f);

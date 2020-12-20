@@ -1,12 +1,12 @@
-package ch.ethz.infsec.src.monitor;
+package ch.ethz.infsec.monitor;
 
 
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 import java.util.*;
-import ch.ethz.infsec.src.util.*;
-import ch.ethz.infsec.src.monitor.visitor.*;
+import ch.ethz.infsec.util.*;
+import ch.ethz.infsec.monitor.visitor.*;
 
 public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
     public Mformula op1;

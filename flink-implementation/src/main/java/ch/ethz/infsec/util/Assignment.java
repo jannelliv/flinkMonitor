@@ -1,4 +1,4 @@
-package ch.ethz.infsec.src.util;
+package ch.ethz.infsec.util;
 
 import java.util.*;
 import java.util.stream.Collectors;

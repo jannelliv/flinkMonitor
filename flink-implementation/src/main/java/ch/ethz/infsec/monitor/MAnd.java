@@ -1,12 +1,12 @@
-package ch.ethz.infsec.src.monitor;
+package ch.ethz.infsec.monitor;
 import java.util.*;
 
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 
-import ch.ethz.infsec.src.util.*;
-import ch.ethz.infsec.src.monitor.visitor.*;
+import ch.ethz.infsec.util.*;
+import ch.ethz.infsec.monitor.visitor.*;
 
 
 
@@ -122,7 +122,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 for(Assignment lhs : this.mbuf2.fst.get(indexrhs)){
                     Optional<Assignment> joinResult = join1(lhs, fact.get());
                     if(joinResult.isPresent()){
-                        //previously, I had omitted this if loop
+                        //so if the assignment is not present, nothing is passed upwards in the parsingtree
                         PipelineEvent result = new PipelineEvent(fact.getTimestamp(), fact.getTimepoint(), false, joinResult.get());
                         collector.collect(result);
                     }
@@ -202,6 +202,32 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             }
         }
         return null; //not sure why this is necessary
+
+    }
+
+    public static Set<Assignment> join(Set<Assignment> table, boolean pos, Set<Assignment> table2){
+
+        Set<Assignment> result = new HashSet<>();
+        Iterator<Assignment> it = table.iterator();
+
+        while(it.hasNext()) {
+            Iterator<Assignment> it2 = table2.iterator();
+            while(it2.hasNext()) {
+                Optional<Assignment> tupleRes = join1(it.next(), it2.next());
+                if(tupleRes.isPresent()) {
+                    Assignment tuple = tupleRes.get();
+                    result.add(tuple);
+                }
+            }
+        }
+        if(pos) {
+            return result;
+        }else {
+            //we don't have to do anything here right?
+            table.removeAll(result);
+            return table;
+
+        }
 
     }
 

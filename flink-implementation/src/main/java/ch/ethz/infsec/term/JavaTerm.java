@@ -1,8 +1,8 @@
-package ch.ethz.infsec.src.term;
+package ch.ethz.infsec.term;
 
 
 import ch.ethz.infsec.policy.*;
-import ch.ethz.infsec.src.term.visitor.TermVisitor;
+import ch.ethz.infsec.term.visitor.TermVisitor;
 
 public interface JavaTerm<T> extends JavaTermUnsealed<T> {
     <R> R accept(TermVisitor<R> v);

@@ -1,11 +1,11 @@
-package ch.ethz.infsec.src.monitor;
+package ch.ethz.infsec.monitor;
 
 import ch.ethz.infsec.monitor.Fact;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
-import ch.ethz.infsec.src.util.*;
-import ch.ethz.infsec.src.monitor.visitor.*;
+import ch.ethz.infsec.util.*;
+import ch.ethz.infsec.monitor.visitor.*;
 
 
 public class MRel implements Mformula, FlatMapFunction<Fact, PipelineEvent> {

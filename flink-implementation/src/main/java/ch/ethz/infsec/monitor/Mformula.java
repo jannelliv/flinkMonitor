@@ -1,9 +1,9 @@
-package ch.ethz.infsec.src.monitor;
+package ch.ethz.infsec.monitor;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import java.util.Optional;
 
-import ch.ethz.infsec.src.util.*;
-import ch.ethz.infsec.src.monitor.visitor.*;
+import ch.ethz.infsec.util.*;
+import ch.ethz.infsec.monitor.visitor.*;
 
 
 public interface Mformula {
