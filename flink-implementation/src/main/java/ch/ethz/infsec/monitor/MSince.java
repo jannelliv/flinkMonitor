@@ -135,17 +135,14 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 //initiate meval procedure!!
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
-                                           Long t, Tuple<HashMap<Long, Table>, HashMap<Long, Table>> zsAux) -> {Tuple<Table,
-                        HashMap<Long, Table>> us_result = update_since(r1, r2, t,msaux);
-                    HashMap<Long, Table> intermRes = new HashMap<>(zsAux.fst);Tuple<HashMap<Long, Table>,
-                            HashMap<Long, Table>> funcRes = new Tuple(intermRes.put(t, us_result.fst()), us_result.snd());
-                    return funcRes;};
+                                           Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
+                    HashMap<Long, Table> intermRes = new HashMap<>(zsAux);intermRes.put(t, us_result);
+                    return intermRes;};
                 //LinkedList<Long> tsList_arg = new LinkedList<>(tsList);
-                Tuple<Tuple<HashMap<Long, Table>, HashMap<Long, Table>>,
-                        Tuple<HashMap<Long, Table>, HashMap<Long, Table>>> mbuf2t_take_result = mbuf2t_take(func, new Tuple(new HashMap<Long, Table>(), msaux), mbuf2, event.getTimepoint());
+                HashMap<Long, Table> mbuf2t_take_result = mbuf2t_take(func, new HashMap<Long, Table>(), event.getTimepoint());
 
 
-                HashMap<Long, Table> zs = mbuf2t_take_result.fst.fst;
+                HashMap<Long, Table> zs = mbuf2t_take_result;
                 for(int j = 0; j < zs.size(); j++){
                     Table evalSet = zs.get(j);
                     for(Assignment oa : evalSet){
@@ -192,17 +189,14 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 //initiate meval procedure:
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
-                                           Long t, Tuple<HashMap<Long, Table>, HashMap<Long, Table>> zsAux) -> {Tuple<Table,
-                        HashMap<Long, Table>> us_result = update_since(r1, r2, t,msaux);
-                    HashMap<Long, Table> intermRes = new HashMap<>(zsAux.fst);Tuple<HashMap<Long, Table>,
-                            HashMap<Long, Table>> funcRes = new Tuple(intermRes.put(t, us_result.fst()), us_result.snd());
-                    return funcRes;};
+                                           Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
+                    HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
+                    return intermRes;};
                 //LinkedList<Long> tsList_arg = new LinkedList<>(tsList);
-                Tuple<Tuple<HashMap<Long, Table>, HashMap<Long, Table>>,
-                        Tuple<HashMap<Long, Table>, HashMap<Long, Table>>> mbuf2t_take_result = mbuf2t_take(func, new Tuple(new HashMap<Long, Table>(), msaux), mbuf2, event.getTimepoint());
+                HashMap<Long, Table> mbuf2t_take_result = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
 
 
-                HashMap<Long, Table> zs = mbuf2t_take_result.fst.fst;
+                HashMap<Long, Table> zs = mbuf2t_take_result;
                 for(int j = 0; j < zs.size(); j++){
                     Table evalSet = zs.get(j);
                     for(Assignment oa : evalSet){
@@ -215,15 +209,13 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
     }
 
-    public Tuple<Table,
-            HashMap<Long, Table>> update_since(Table rel1, Table rel2, Long nt, HashMap<Long, Table> aux){
-
+    public Table update_since(Table rel1, Table rel2, Long nt){
         //In the return type, I actually don't need a tuple because in the flink implementation the state is kept by the
         ///java class.
-
+        //nt is a timestamp!!!
         HashMap<Long, Table> auxIntervalList = new HashMap<>();
-        for(Long t : aux.keySet()){
-            Table rel = aux.get(t);
+        for(Long t : msaux.keySet()){
+            Table rel = msaux.get(t);
             if(!interval.upper().isDefined() || (interval.upper().isDefined() && (nt - t <= ((Long) interval.upper().get())))){
                 //is it ok to use "isDefined" here above? And that I had to cast to Long?
 
@@ -255,16 +247,16 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 bigUnion.addAll(rel);
             }
         }
-        return new Tuple<>(bigUnion, auxp);
+        msaux = auxp; //not sure about this: I am trying to set msaux to point to auxp
+        return bigUnion;
     }
 
 
-    public Tuple<Tuple<HashMap<Long, Table>, LinkedList<Triple<Long, Table, Table>>>, //this tuple is the type of "b" in Verimon
-            Tuple<HashMap<Long, Table>, HashMap<Long, Table>>> mbuf2t_take(Mbuf2take_function func,
-                                       Tuple<HashMap<Long, Table>, HashMap<Long, Table>> z,
-                                       Tuple<HashMap<Long, Table>, HashMap<Long, Table>> mbuf2,
+    public HashMap<Long, Table> mbuf2t_take(Mbuf2take_function func,
+                                       HashMap<Long, Table> z,
                                     Long currentTimepoint){
-
+        //!!!Is it ok to assume that we don't need to carry the state through all the methods
+        //since we are using Java classes?
         if(mbuf2.fst().size() > 1 && mbuf2.snd().size() > 1){ //I don't think checking these lengths is necessary
             Table x = mbuf2.fst().get(currentTimepoint);
             Table y = mbuf2.snd().get(currentTimepoint);
@@ -272,17 +264,16 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             //does it make sense to remove these entries here?
             mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
             //Long t = tsList.remove(0);
-            Tuple<HashMap<Long, Table>, HashMap<Long, Table>> fxytz = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
-            return mbuf2t_take(func, fxytz, new Tuple<>(mbuf2.fst(), mbuf2.snd()), currentTimepoint);
+            HashMap<Long, Table> fxytz = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
+            return mbuf2t_take(func, fxytz, currentTimepoint);
         }
         else if(mbuf2.fst().size() == 1 && mbuf2.snd().size() == 1){
-            Tuple<Tuple<HashMap<Long, Table>, LinkedList<Triple<Long, Table, Table>>>,
-                    Tuple<HashMap<Long, Table>, HashMap<Long, Table>>> result = new Tuple(z,mbuf2);
+            HashMap<Long, Table> result = z;
             return result;
         }else{
-            //error!!!
+            //cannot work with mbuf2 if one of the two subformulas corresponds to an empty mbuf2...
+            return null;
         }
-        return null;
     }
 
     public static Optional<Assignment> join1(Assignment a, Assignment b){
@@ -331,7 +322,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 if(!subResult.isPresent()) {
                     return Optional.empty();
                 }else {
-                    if(x==y) { //should enter this clause automatically
+                    if(x==y) {
                         Assignment consList = new Assignment();
                         consList.add(x);
                         consList.addAll(subResult.get());
@@ -383,8 +374,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 }
 
 interface Mbuf2take_function{
-    Tuple<HashMap<Long, Table>,
-            HashMap<Long, Table>> run(Table t1,
-                                 Table t2,
-                                 Long ts, Tuple<HashMap<Long, Table>, HashMap<Long, Table>> b);
+    HashMap<Long, Table> run(Table t1,
+                             Table t2,
+                             Long ts, HashMap<Long, Table> zs);
 }
+
+

@@ -12,6 +12,7 @@ public class Tuple<T, U> implements Serializable {
         this.snd = snd;
     }
 
+
     public T fst() {
         return this.fst;
     }
