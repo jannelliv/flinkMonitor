@@ -29,9 +29,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     //Beware: you will create NEW timepoints to send up the parsing tree, not the ones that correspond
     //to the assignments in mbuf2! SO we need to start taking from the minimum element upward, in the map.
     //So the HashMaps are processed in order of timepoints in the map. And you don't repeat until you have
-    //have exhaused all entries in the HashMap, but rather until you reach an entry which is not full (i.e.
+    //exhausted all entries in the HashMap, but rather until you reach an entry which is not full (i.e.
     //which has not yet received a Terminator.
-    // We need two datastructuctures for the terminator, one for the terminators to the left and one for
+    // We need two data-structures for the terminator, one for the terminators to the left and one for
     //the terminators to the right. If you have both terminators for timepoint 3, you don't have both terminators
     //for timepoint 4 and you do have both terminators for timepoint 5, then you should just call the MSince
     //procedure for timepoint 3. You don't output anything for timepoint 5.
@@ -43,7 +43,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     //of the join was empty, it DIDN'T happen that Optionl<Assignment> were outputted, it was Assignments.
 
     //The length of an Assignment corresponds to the number of free variables that you assign.
-    //you don't need the method mbuf2_add, because you store the incoming PipelienEvents directly into mbuf2
+    //you don't need the method mbuf2_add, because you store the incoming PipelineEvents directly into mbuf2
 
     //In this implementation, we will only call mbuf2t_take when we get a terminator.
     //YOu will initiate the "meval MSince procedure" from one of the two flatMaps, specifically from the one from
@@ -65,13 +65,15 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     HashMap<Long, Table> msaux;//"aux" in Verimon
     //for every timestamp, lists the satisfying assumptions!
 
-    Long smallestCompleteTPleft;
-    Long smallestCompleteTPright;
+    Long largestInOrderTPsub1;
+    Long largestInOrderTPsub2;
     Long smallestFullTimestamp;
     HashMap<Long, Long> timepointToTimestamp;
 
     HashSet<Long> terminLeft;
     HashSet<Long> terminRight;
+
+    Long startEvalTimepoint;
 
 
     public MSince(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval, Mformula accept1) {
@@ -83,9 +85,10 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         //this.tsList = new LinkedList<>();
         this.msaux = new HashMap<>();
         this.timepointToTimestamp = new HashMap<>();
-        this.smallestCompleteTPleft = -1L;
-        this.smallestCompleteTPright = -1L;
+        this.largestInOrderTPsub1 = -1L;
+        this.largestInOrderTPsub2 = -1L;
         this.smallestFullTimestamp = -1L;
+        this.startEvalTimepoint = -1L;
         HashMap<Long, Table> fst = new HashMap<>();
         HashMap<Long, Table> snd = new HashMap<>();
         this.mbuf2 = new Tuple<>(fst, snd);
@@ -125,13 +128,13 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             if(!terminRight.contains(event.getTimepoint())){
                 terminRight.add(event.getTimepoint());
             }else{
-                //error!
+                throw new Exception("Not possible to receive two terminators for the same timepoint.");
             }
-            if(terminRight.contains(smallestCompleteTPright + 1L)){
-                smallestCompleteTPright++;
+            if(terminRight.contains(largestInOrderTPsub2 + 1L)){
+                largestInOrderTPsub2++;
             }
-            if(smallestCompleteTPright.equals(smallestCompleteTPleft)){
-                smallestFullTimestamp = timepointToTimestamp.get(smallestCompleteTPleft);
+            if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint){
+                smallestFullTimestamp = timepointToTimestamp.get(largestInOrderTPsub1);
                 //initiate meval procedure!!
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
@@ -139,18 +142,24 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux);intermRes.put(t, us_result);
                     return intermRes;};
                 //LinkedList<Long> tsList_arg = new LinkedList<>(tsList);
-                HashMap<Long, Table> mbuf2t_take_result = mbuf2t_take(func, new HashMap<Long, Table>(), event.getTimepoint());
+                HashMap<Long, Table> zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
 
-
-                HashMap<Long, Table> zs = mbuf2t_take_result;
-                for(int j = 0; j < zs.size(); j++){
-                    Table evalSet = zs.get(j);
+                for(Long tp : zs.keySet()){
+                    Table evalSet = zs.get(tp);
                     for(Assignment oa : evalSet){
-                        collector.collect(new PipelineEvent(timepointToTimestamp.get(event.getTimepoint()),event.getTimepoint(), false, oa));
+                        collector.collect(new PipelineEvent(tp,tp, false, oa));
                     }
+                    //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
+                    collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, true, Assignment.nones(event.get().size())));
+                    //not sure about the nones(), and the number of free variables
                 }
-                //at the end, we output the terminator! --> is it ok that the assignment is the input assignment?
-                collector.collect(event);
+                if(largestInOrderTPsub1 <= largestInOrderTPsub2){
+                    startEvalTimepoint = largestInOrderTPsub1;
+                }else{
+                    startEvalTimepoint = largestInOrderTPsub2;
+                }
+                //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
+
             }
         }
 
@@ -163,7 +172,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
         //NB: I think you don't actually need tsList
         //but here we are adding the timestamp to it; even if we still have to sort
-        //tsList.add(event.getTimestamp());
         //filling mbuf2 appropriately:
         if(mbuf2.fst().containsKey(event.getTimepoint())){
             mbuf2.fst().get(event.getTimepoint()).add(event.get());
@@ -180,31 +188,40 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             if(!terminLeft.contains(event.getTimepoint())){
                 terminLeft.add(event.getTimepoint());
             }else{
-                //error!
+                throw new Exception("Not possible to receive two terminators for the same timepoint.");
             }
-            if(terminLeft.contains(smallestCompleteTPleft + 1L)){
-                smallestCompleteTPleft++;
+            while(terminLeft.contains(largestInOrderTPsub1 + 1L)){
+                largestInOrderTPsub1++;
             }
-            if(smallestCompleteTPright.equals(smallestCompleteTPleft)){
+            if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint){
                 //initiate meval procedure:
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
                                            Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
                     return intermRes;};
-                //LinkedList<Long> tsList_arg = new LinkedList<>(tsList);
-                HashMap<Long, Table> mbuf2t_take_result = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
-
-
-                HashMap<Long, Table> zs = mbuf2t_take_result;
-                for(int j = 0; j < zs.size(); j++){
-                    Table evalSet = zs.get(j);
+                HashMap<Long, Table> zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
+                for(Long tp : zs.keySet()){
+                    Table evalSet = zs.get(tp);
                     for(Assignment oa : evalSet){
                         collector.collect(new PipelineEvent(timepointToTimestamp.get(event.getTimepoint()),event.getTimepoint(), false, oa));
                     }
+                    //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
+                    collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, true, Assignment.nones(event.get().size())));
+                    //not sure about the nones(), and the number of free variables
                 }
-                //at the end, we output the terminator! --> is it ok that the assignment is the input assignment?
-                collector.collect(event);
+                if(largestInOrderTPsub1 <= largestInOrderTPsub2){
+                    startEvalTimepoint = largestInOrderTPsub1;
+                }else{
+                    startEvalTimepoint = largestInOrderTPsub2;
+                }
+                //Removal of parts from the data-structures in the fields in order to avoid a memory leak:
+                Long startEvalTimestamp = timepointToTimestamp.get(startEvalTimepoint);
+                for(Long ts : msaux.keySet()){
+                    if(ts < startEvalTimestamp){
+                        msaux.remove(ts);
+                    }
+                }
             }
         }
     }
@@ -217,37 +234,33 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         for(Long t : msaux.keySet()){
             Table rel = msaux.get(t);
             if(!interval.upper().isDefined() || (interval.upper().isDefined() && (nt - t <= ((Long) interval.upper().get())))){
-                //is it ok to use "isDefined" here above? And that I had to cast to Long?
-
                 auxIntervalList.put(t, join(rel, pos, rel1));
-                //check that the Optionals in the joins all make sense!
             }
         }
-        HashMap<Long, Table> auxp = new HashMap<>();
+        //HashMap<Long, Table> auxp = new HashMap<>();
         if(auxIntervalList.size() == 0){
-            auxp.put(nt, rel2);
+            msaux.put(nt, rel2);
         }else{
             Table x = auxIntervalList.get(smallestFullTimestamp);
             if(smallestFullTimestamp.equals(nt)){
                 Table unionSet = Table.fromTable(x);
                 unionSet.addAll(rel2);
-                auxp = auxIntervalList;
-                auxp.put(smallestFullTimestamp, unionSet);
+                msaux = auxIntervalList;
+                msaux.put(smallestFullTimestamp, unionSet);
             }else{
                 auxIntervalList.put(smallestFullTimestamp,x);
-                auxp = auxIntervalList;
-                auxp.put(nt, rel2);
+                msaux = auxIntervalList;
+                msaux.put(nt, rel2);
             }
         }
         Table bigUnion = new Table();
         //It also computes the satisfactions by taking the union over all tables in the list that satisfy c element of I.
-        for(Long t : auxp.keySet()){
-            Table rel = auxp.get(t);
+        for(Long t : msaux.keySet()){
+            Table rel = msaux.get(t);
             if(nt - t >= interval.lower()){
                 bigUnion.addAll(rel);
             }
         }
-        msaux = auxp; //not sure about this: I am trying to set msaux to point to auxp
         return bigUnion;
     }
 
@@ -257,22 +270,17 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                                     Long currentTimepoint){
         //!!!Is it ok to assume that we don't need to carry the state through all the methods
         //since we are using Java classes?
-        if(mbuf2.fst().size() > 1 && mbuf2.snd().size() > 1){ //I don't think checking these lengths is necessary
-            Table x = mbuf2.fst().get(currentTimepoint);
+        if(mbuf2.fst().size() >= 1 && mbuf2.snd().size() >= 1 && msaux.keySet().size() >= 1){ //I don't think checking these lengths is necessary
+            Table x = mbuf2.fst().get(currentTimepoint); //THIS COULD FAIL
             Table y = mbuf2.snd().get(currentTimepoint);
             mbuf2.fst().remove(currentTimepoint, mbuf2.fst().get(currentTimepoint));
-            //does it make sense to remove these entries here?
             mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
-            //Long t = tsList.remove(0);
             HashMap<Long, Table> fxytz = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
             return mbuf2t_take(func, fxytz, currentTimepoint);
         }
-        else if(mbuf2.fst().size() == 1 && mbuf2.snd().size() == 1){
-            HashMap<Long, Table> result = z;
-            return result;
-        }else{
+        else{
             //cannot work with mbuf2 if one of the two subformulas corresponds to an empty mbuf2...
-            return null;
+            return z;
         }
     }
 

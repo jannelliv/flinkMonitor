@@ -21,8 +21,6 @@ public class Assignment extends LinkedList<Optional<Object>> {
     public static Assignment someAssignment(List<Optional<Object>> list){
         assert(list != null);
         Assignment el = new Assignment();
-
-        //not sure if this is efficient
         el.addAll(list);
         return el;
     }
@@ -39,7 +37,6 @@ public class Assignment extends LinkedList<Optional<Object>> {
     public String toString() {
         return "(" + this.stream().map(o -> {
             return o.orElseGet(Optional::empty);
-            //check if this is correct
         }).map(Object::toString).collect(Collectors.joining(", ")) + ")";
     }
 

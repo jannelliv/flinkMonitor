@@ -13,7 +13,6 @@ public class PipelineEvent  {
 
 
     public PipelineEvent(long timestamp, long timepoint, boolean isTerminator, Assignment assignment) {
-        //is it ok that this constructor in public?
         //is the fact really necessary if we have both the assignment and the timestamp?
         this.isTerminator = isTerminator;
         this.timestamp = timestamp;
