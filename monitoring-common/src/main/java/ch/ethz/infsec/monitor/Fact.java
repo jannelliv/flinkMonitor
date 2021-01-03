@@ -34,9 +34,7 @@ public class Fact implements Serializable {
     private long timepoint = -1;
     private List<Object> arguments;
 
-    public Fact(){
 
-    }
     //Properties of POJO
     //
     //All properties must be public setter and getter methods
@@ -53,6 +51,14 @@ public class Fact implements Serializable {
     }
 
 
+    private Fact(String name, long timestamp, long timepoint, Object... arguments) {
+        //overloaded method to be able to test correctness of timepoints
+        this.name = name;
+        this.timestamp = timestamp;
+        this.timepoint = timepoint;
+        this.arguments = Arrays.asList(arguments);
+    }
+
     private Fact(String name, long timestamp, Object... arguments) {
         this.name = name;
         this.timestamp = timestamp;
@@ -61,6 +67,10 @@ public class Fact implements Serializable {
 
     public static Fact make(String name, long timestamp, List<Object> arguments) {
         return new Fact(name, timestamp, arguments);
+    }
+
+    public static Fact makeTP(String name, long timestamp, long timepoint, Object... arguments) {
+        return new Fact(name, timestamp, timepoint, arguments);
     }
 
     public static Fact make(String name, long timestamp, Object... arguments) {

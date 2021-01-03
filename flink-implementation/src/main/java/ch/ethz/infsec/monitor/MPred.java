@@ -20,18 +20,18 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     String predName;
     ArrayList<JavaTerm<VariableID>> args; // when you assign this now, you will need to convert it
     List<VariableID> freeVariablesInOrder;
-    //if you had a formul p(x,y) AND q(z), then at both the p(x,y) predicate and the q(z) predicate you need
+    //if you had a formula p(x,y) AND q(z), then at both the p(x,y) predicate and the q(z) predicate you need
     //to have the same list of free variables in some order, like x,y,z. So to create a pipeline event
     //you need to iterate over freeVariablesInOrder. Args on the other hand, are the terms of the predicate,
     //so if you have a predicate p(x,y) then the args would be [x,y]. But if you have a formula where p(x,y) occurs,
     //like p(x,y) AND q(z), then freeVariablesInOrder will be [x,y,z] and args will be [x,y]. SO somehow at the
-    //predicate level, you need to establish an order of variabels that occur outside of the predicate, this is
+    //predicate level, you need to establish an order of variables that occur outside of the predicate, this is
     //why in Init0 we compute the freeVariablesInOrder. But the match has to be done with the args, not the free
     //variables, because the predicate and the event have corresponding numbers of parameters.
 
 
     public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
-
+        System.out.println("Inside the MPred() constructor method");
         List<Term<VariableID>> argsScala = new ArrayList(JavaConverters.seqAsJavaList(args));
         ArrayList<JavaTerm<VariableID>> argsJava = new ArrayList<>();
         for (Term<VariableID> variableIDTerm : argsScala) {
@@ -42,8 +42,8 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
         this.freeVariablesInOrder = fvio;
         this.args = argsJava;
         //System.out.println("Predname" + this.predName);
-        System.out.println("freeVars" + this.freeVariablesInOrder);
-        System.out.println("arguments" + this.args + ";  arg size: " + this.args.size());
+        //System.out.println("freeVars" + this.freeVariablesInOrder);
+        //System.out.println("arguments" + this.args + ";  arg size: " + this.args.size());
 
     }
 
@@ -53,32 +53,36 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
 
 
     public void flatMap(Fact fact, Collector<PipelineEvent> out) throws Exception {
-        System.out.println("fact:  " + fact.toString());
+        //System.out.println("Inside the flatMap() method");
+        //System.out.println("fact:  " + fact.toString());
         if(fact.isTerminator()){
-            Assignment none = Assignment.nones(2);
+            Assignment none = Assignment.nones(0); //why 0?
             out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  true, none));
         }else{
             assert(fact.getName().equals(this.predName) );
 
             List<Object> ys = fact.getArguments();
-            System.out.println("fact Arguments: " + ys.toString());
+
+            //System.out.println("fact Arguments: " + ys.toString());
 
             ArrayList<JavaTerm<VariableID>> argsCopy = new ArrayList<>(this.args);
-            Optional<Function<String, Optional<Object>>> result = match(argsCopy, ys);
+
+            ArrayList<Object> c_ys = new ArrayList<>(ys);
+            Optional<Function<String, Optional<Object>>> result = match(argsCopy, c_ys);
             if(result.isPresent()){
                 Assignment list = new Assignment();
                 //building of satisfaction, but not from the free Variables of MPred (this) --> ?
                 for (VariableID argument : this.freeVariablesInOrder) {
-                    //remember to iterate ove rthe arguments, not the free variables
+                    //remember to iterate over the arguments, not the free variables
                     if(result.get().apply(argument.toString()).isPresent()){
                         list.add(0, result.get().apply(argument.toString()));
                     }
 
-                    System.out.println("ass. element " + (result.get().apply(argument.toString())).toString());
+                    //System.out.println("ass. element " + (result.get().apply(argument.toString())).toString());
                 }
                 out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  false, list));
             }else{
-                System.out.println("result not present :(");
+                //System.out.println("result not present :(");
             }
             //if there are no satisfactions, we simply don't put anything in the collector.
         }
@@ -92,8 +96,8 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
         //Is it ok that I did the cast here above?
     }
 
-    public static Optional<Function<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, List<Object> ys){
-
+    public static Optional<Function<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
+        //System.out.println("Inside the match() method");
         if(ts.size() != ys.size() || ts.size() == 0 && ys.size() == 0) {
             Function<String, Optional<Object>> emptyMap = s -> Optional.empty();
             return Optional.of(emptyMap);
@@ -112,6 +116,10 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
                 //System.out.println("reach2");
                 JavaVar<VariableID> x =  (JavaVar<VariableID>) ts.remove(0);
                 Object y = ys.remove(0);
+                //the above line gave me an error with testPred():
+                //UnsupportedOperationException at java.util.AbstractList.remove(AbstractList.java: 167)
+                //Changed second argument of match() to ArrayList
+                //Not sure why the error was not present with the previous "non-test" input
 
                 Optional<Function<String, Optional<Object>>> recFunction = match(ts, ys);
                 if(!recFunction.isPresent()){
@@ -120,11 +128,11 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
                 }else{
                     Function<String, Optional<Object>> f = recFunction.get();
                     if(!(f.apply(x.toString())).isPresent()){
-                        System.out.println("reach5");
+                        //System.out.println("reach5");
                         //arrives here
                         Function<Optional<Object>, Optional<Object>> after = x1 -> {
                             if(x1.equals(f.apply(x.toString()))){//still not sure if this is the best way to do this
-                                System.out.println("reachThis");
+                                //System.out.println("reachThis");
                                 return Optional.of(y);
                             }else{
                                 return f.apply(x1.toString());

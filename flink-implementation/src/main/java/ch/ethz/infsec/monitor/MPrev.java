@@ -40,16 +40,13 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         this.bool = bool;
         this.tsList = tsList;
 
-        //Optional<Object> el = Optional.empty();
-        //Assignment listEl = new Assignment();
-        //listEl.add(el); Do I have to add an optional empty here?
-        //Optional<Assignment> el1 = Optional.of(listEl);
-        //LinkedList<Optional<Assignment>> listEl2 = new LinkedList<>();
-        //listEl2.add(el1);
-        ArrayList<ArrayList<PipelineEvent>> listEl3 = new ArrayList<ArrayList<PipelineEvent>>();
-        //listEl3.add(listEl2);
-        this.tableList = listEl3;
+
+        this.tableList = new ArrayList<>();
         //we actually don't use this in the below code; even if it WAS used in Verimon
+
+        this.A = new HashMap<>();
+        this.T = new HashMap<>();
+        this.TT = new HashMap<>();
 
     }
 
@@ -82,16 +79,21 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 //It might be that you don't know the timestamp, e.g. assuming that you have not
                 //received any tuple from the current timepoint. You will only know the timpestamp
                 //when you receive the first PipelineEvent for our current timepoint. SO if we don't have the
-                //timestamp, then we have to buffer the pipeline evetn
-                A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimepoint(),
-                        value.getTimestamp(), false, value.get()));
+                //timestamp, then we have to buffer the pipeline event
+                if(A.keySet().contains(value.getTimepoint())){
+                    A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimestamp(), value.getTimepoint(),false, value.get()));
+                }else{
+                    HashSet<PipelineEvent> hspe = new HashSet<>();
+                    hspe.add(new PipelineEvent( value.getTimestamp(), value.getTimepoint(), false, value.get()));
+                    A.put(value.getTimepoint(), hspe);
+                }
             }
             //2
             //as soon as you have received the timestamp, you can process the stored/buffered assignments.
             handleBuffered(value, out);
         }else{
             if(T.keySet().contains(value.getTimepoint() + 1)){
-                out.collect(new PipelineEvent(value.getTimepoint()+ 1, T.get(value.getTimepoint() + 1),
+                out.collect(new PipelineEvent( T.get(value.getTimepoint() + 1),value.getTimepoint()+ 1,
                         true, value.get()));
             }else{
                 TT.put(value.getTimepoint(), value.getTimestamp());
@@ -103,13 +105,18 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     }
 
     public void handleBuffered(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
-        if(value.getTimepoint() == 0){
+        if(!value.isPresent() && value.getTimepoint() == 0){
+            out.collect(new PipelineEvent(value.getTimestamp(), value.getTimepoint(), true, value.get()));
+            return;
+        } else if(value.getTimepoint() == 0){
             //output an EMPTY SET because previous is not satisfied at the first position.
             //for next we don't need this special case, as we don't realy have a "last"
             //timepoint, given that traces are infinite.
             return;
         }else{
-            T.put(value.getTimepoint(), value.getTimestamp());
+            if(value.isPresent() && !T.keySet().contains(value.getTimepoint())){
+                T.put(value.getTimepoint(), value.getTimestamp());
+            }
         }
 
         if(A.keySet().contains(value.getTimepoint() - 1)){
@@ -117,67 +124,30 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             for (PipelineEvent buffAss : eventsAtPrev){
                 //Why don't we check the interval condition here?
                 //Why is it better for performance if the interval condition is checked outside the for looP?
-                if(mem( value.getTimestamp() - buffAss.getTimestamp() , interval)){
+                assert(value.getTimestamp() - buffAss.getTimestamp() > 0);
+                if(mem((value.getTimestamp() - buffAss.getTimestamp()), interval)){
                     //Above, we are checking the itnerval cosntraint, i.e. that
                     //the difference between the timestamps is within the interval.
-                    assert(value.getTimestamp() - buffAss.getTimestamp() > 0);
                     //how is it be that both assertions hold?
-                    out.collect(new PipelineEvent(value.getTimepoint(),
-                            value.getTimestamp(), false, buffAss.get()));
+                    out.collect(new PipelineEvent(value.getTimestamp(), value.getTimepoint(),false, buffAss.get()));
                 }
             }
             A.remove(value.getTimepoint() - 1);
             if(TT.keySet().contains(value.getTimepoint() - 1)){
-                out.collect(new PipelineEvent(value.getTimepoint(),
-                        value.getTimestamp(), true, value.get()));
+                out.collect(new PipelineEvent(value.getTimestamp(), value.getTimepoint(),true, value.get()));
                 TT.remove(value.getTimepoint() - 1);
                 T.remove(value.getTimepoint());
             }
         }
     }
 
-    public static Triple<List<Table>, List<Table>, List<Integer>> mprev_next(Interval i, List<Table> xs,
-                                                                             List<Integer> ts){
-        if(xs.size() == 0) {
-            List<Table> fstResult = new ArrayList<>();
-            List<Table> sndResult = new ArrayList<>();
-            return new Triple(fstResult,sndResult, ts);
-        }else if(ts.size() == 0) {
-            List<Table> fstResult = new ArrayList<>();
-            List<Integer> thrdResult = new ArrayList<>();
-            return new Triple(fstResult,xs, thrdResult);
-        }else if(ts.size() == 1) {
-            List<Table> fstResult = new ArrayList<>();
-            List<Integer> thrdResult = new ArrayList<>();
-            thrdResult.add(ts.get(0));
-            return new Triple(fstResult,xs, thrdResult);
-        }else if(xs.size() >= 1 && ts.size() >= 2) {
-            Integer t = ts.remove(0);
-            Integer tp = ts.get(0);
-            Table x = xs.remove(0);
-            Triple<List<Table>, List<Table>, List<Integer>> yszs = mprev_next(i, xs, ts); //ts includes tp here
-            //above, should return a triple, not a tuple --> problem with verimon
-            List<Table> fst = yszs.fst;
-            List<Table> snd = yszs.snd;
-            List<Integer> thr = yszs.thrd;
-            if(mem(tp - t, i)) {
-                fst.add(0, x);
-            }else{
-                Table empty_table = new Table();
-                fst.add(0, empty_table);
-            }
-            return new Triple<>(fst, snd, thr);
-        }
-        return null;
-
-    }
-
-    public static boolean mem(long n, Interval I){
-        if(I.lower() <= n && (!I.upper().isDefined() || (I.upper().isDefined() && n <= ((long) I.upper().get())))){
+    public static boolean mem(Long n, Interval I){
+        //not sure of I should use the method isDefined or isEmpty below
+        //and I am not sure if it's ok to do the cast (int)I.upper().get()
+        if(I.lower() <= n.intValue() && (!I.upper().isDefined() || (I.upper().isDefined() && n.intValue() <= ((int)I.upper().get())))){
             return true;
         }
         return false;
     }
-
 
 }

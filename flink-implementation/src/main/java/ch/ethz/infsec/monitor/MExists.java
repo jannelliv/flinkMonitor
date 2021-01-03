@@ -11,7 +11,7 @@ import ch.ethz.infsec.monitor.visitor.*;
 public class MExists implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
 
     public Mformula subFormula;
-    VariableID var; //is the way I constructed this from Init0 correct?
+    VariableID var;
 
 
     public MExists(Mformula subformula, VariableID var){
@@ -38,14 +38,13 @@ public class MExists implements Mformula, FlatMapFunction<PipelineEvent, Pipelin
             out.collect(value);
         }else{
             Assignment satList = value.get();
-            satList.remove(0); //so here we are taking the tail of the list
+            satList.remove(0); //here we are taking the front of the list
             Optional<Assignment> output = Optional.of(satList);
             if(output.isPresent()){
                 //previously, I had omitted this if loop
                 PipelineEvent result = new PipelineEvent(value.getTimestamp(),value.getTimepoint(), false, output.get());
                 out.collect(result);
             }
-            //check if this implementation of flatMap is correct --> by running something
         }
     }
 

@@ -17,7 +17,7 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
     //not sure if the implementation with "contains" is correct
     boolean terminatorLHS;
     boolean terminatorRHS;
-    Integer indexlhs, indexrhs;
+    Long indexlhs, indexrhs;
 
     public MOr(Mformula accept, Mformula accept1) {
         this.op1 = accept;
@@ -37,12 +37,12 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
         //additional to verilog implementation, necessary for streaming:
         terminatorLHS = false;
         terminatorRHS = false;
-        HashSet<Optional<Assignment>> tempOutputSet = new HashSet<>();
-        List<Set<Optional<Assignment>>> tempOutput = new LinkedList<>();
+        HashSet<Assignment> tempOutputSet = new HashSet<>();
+        tempOutput = new LinkedList<>();
         tempOutput.add(tempOutputSet);
 
-        indexlhs = 0;
-        indexrhs = 0;
+        indexlhs = -1L;
+        indexrhs = -1L;
     }
 
     @Override
@@ -54,6 +54,8 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
 
     @Override
     public void flatMap1(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
+        System.out.println("Inside the MOr flatMap1() method");
+
         if(!fact.isPresent()){
             terminatorLHS = true;
             indexlhs++;
@@ -78,8 +80,8 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
             if(this.tempOutput.size() < indexlhs + 1){ // not sure about these conditions
                 this.tempOutput.add(new HashSet<>());
             }
-            if(!tempOutput.get(indexlhs).contains(fact)){ //check that cointains() works correctly
-                tempOutput.get(indexlhs).add(fact.get());
+            if(!tempOutput.get(indexlhs.intValue()).contains(fact)){ //check that cointains() works correctly
+                tempOutput.get(indexlhs.intValue()).add(fact.get());
                 collector.collect(fact);
             }
 
@@ -88,6 +90,8 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
 
     @Override
     public void flatMap2(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
+        System.out.println("Inside the MOr flatMap2() method");
+
         if(!fact.isPresent()){
             terminatorRHS = true;
             indexrhs++;
@@ -112,8 +116,8 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
             if(this.tempOutput.size() < indexrhs + 1){ // not sure about these conditions
                 this.tempOutput.add(new HashSet<>());
             }
-            if(!tempOutput.get(indexrhs).contains(fact)){ //check that cointains() works correctly
-                tempOutput.get(indexrhs).add(fact.get());
+            if(!tempOutput.get(indexrhs.intValue()).contains(fact)){ //check that cointains() works correctly
+                tempOutput.get(indexrhs.intValue()).add(fact.get());
                 collector.collect(fact);
             }
 

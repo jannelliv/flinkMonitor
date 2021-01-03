@@ -130,7 +130,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             }else{
                 throw new Exception("Not possible to receive two terminators for the same timepoint.");
             }
-            if(terminRight.contains(largestInOrderTPsub2 + 1L)){
+            while(terminRight.contains(largestInOrderTPsub2 + 1L)){
                 largestInOrderTPsub2++;
             }
             if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint){
@@ -142,21 +142,25 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux);intermRes.put(t, us_result);
                     return intermRes;};
                 //LinkedList<Long> tsList_arg = new LinkedList<>(tsList);
-                HashMap<Long, Table> zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
+                HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
 
-                for(Long tp : zs.keySet()){
-                    Table evalSet = zs.get(tp);
+                for(Long ts : msaux_zs.keySet()){
+                    Table evalSet = msaux_zs.get(ts);
                     for(Assignment oa : evalSet){
-                        collector.collect(new PipelineEvent(tp,tp, false, oa));
+                        //not sure about the timepoint on the line below:
+                        if(oa.size() != 0){
+                            collector.collect(new PipelineEvent(ts, event.getTimepoint(), false, oa));
+                        }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
-                    collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, true, Assignment.nones(event.get().size())));
-                    //not sure about the nones(), and the number of free variables
+                    //not sure about the timepoint on the line below:
+                    collector.collect(new PipelineEvent(ts, event.getTimepoint(), true, Assignment.nones(0)));
+                    //not sure about the nones(), and the  number of free variables
                 }
                 if(largestInOrderTPsub1 <= largestInOrderTPsub2){
-                    startEvalTimepoint = largestInOrderTPsub1;
+                    startEvalTimepoint = largestInOrderTPsub1+1;
                 }else{
-                    startEvalTimepoint = largestInOrderTPsub2;
+                    startEvalTimepoint = largestInOrderTPsub2+1;
                 }
                 //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
 
@@ -200,26 +204,31 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                                            Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
                     return intermRes;};
-                HashMap<Long, Table> zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
-                for(Long tp : zs.keySet()){
-                    Table evalSet = zs.get(tp);
+                HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
+                for(Long ts : msaux_zs.keySet()){
+                    Table evalSet = msaux_zs.get(ts);
                     for(Assignment oa : evalSet){
-                        collector.collect(new PipelineEvent(timepointToTimestamp.get(event.getTimepoint()),event.getTimepoint(), false, oa));
+                        if(oa.size() != 0){
+                            collector.collect(new PipelineEvent(timepointToTimestamp.get(event.getTimepoint()),event.getTimepoint(), false, oa));
+                        }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
-                    collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, true, Assignment.nones(event.get().size())));
+                    collector.collect(new PipelineEvent(ts, event.getTimepoint(), true, Assignment.nones(0)));
                     //not sure about the nones(), and the number of free variables
                 }
                 if(largestInOrderTPsub1 <= largestInOrderTPsub2){
-                    startEvalTimepoint = largestInOrderTPsub1;
+                    startEvalTimepoint = largestInOrderTPsub1+1;
                 }else{
-                    startEvalTimepoint = largestInOrderTPsub2;
+                    startEvalTimepoint = largestInOrderTPsub2+1;
                 }
                 //Removal of parts from the data-structures in the fields in order to avoid a memory leak:
-                Long startEvalTimestamp = timepointToTimestamp.get(startEvalTimepoint);
-                for(Long ts : msaux.keySet()){
-                    if(ts < startEvalTimestamp){
-                        msaux.remove(ts);
+                if(timepointToTimestamp.containsKey(startEvalTimepoint)){
+                    Long startEvalTimestamp = timepointToTimestamp.get(startEvalTimepoint);
+                    //not sure it was such a good idea to put the for loop inside the if loop
+                    for(Long ts : msaux.keySet()){
+                        if(ts < startEvalTimestamp){
+                            msaux.remove(ts);
+                        }
                     }
                 }
             }
@@ -233,7 +242,8 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         HashMap<Long, Table> auxIntervalList = new HashMap<>();
         for(Long t : msaux.keySet()){
             Table rel = msaux.get(t);
-            if(!interval.upper().isDefined() || (interval.upper().isDefined() && (nt - t <= ((Long) interval.upper().get())))){
+            Long subtr = nt - t;
+            if(!interval.upper().isDefined() || (interval.upper().isDefined() && (subtr.intValue() <= ((int) interval.upper().get())))){
                 auxIntervalList.put(t, join(rel, pos, rel1));
             }
         }
@@ -288,71 +298,83 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
         if(a.size() == 0 && b.size() == 0) {
             Assignment emptyList = new Assignment();
-            return Optional.of(emptyList);
+            Optional<Assignment> result = Optional.of(emptyList);
+            return result;
+        }else if(a.size() == 0 || b.size() == 0){
+            Optional<Assignment> result = Optional.empty();
+            return result;
         }else {
             Optional<Object> x = a.remove(0);
             Optional<Object> y = b.remove(0);
             Optional<Assignment> subResult = join1(a, b);
             if(!x.isPresent() && !y.isPresent()) {
-
                 if(!subResult.isPresent()) {
-                    return Optional.empty();
+                    Optional<Assignment> result = Optional.empty();
+                    return result;
                 }else {
                     Assignment consList = new Assignment();
                     consList.add(Optional.empty());
                     consList.addAll(subResult.get());
                     //Problem: get() can only return a value if the wrapped object is not null;
                     //otherwise, it throws a no such element exception
-                    return Optional.of(consList);
+                    Optional<Assignment> result = Optional.of(consList);
+                    return result;
                 }
             }else if(x.isPresent() && !y.isPresent()) {
-
-
                 if(!subResult.isPresent()) {
-                    return Optional.empty();
+                    Optional<Assignment> result = Optional.empty();
+                    return result;
                 }else {
                     Assignment consList = new Assignment();
                     consList.add(x);
                     consList.addAll(subResult.get());
-                    return Optional.of(consList);
+                    Optional<Assignment> result = Optional.of(consList);
+                    return result;
                 }
             }else if(!x.isPresent() && y.isPresent()) {
-
                 if(!subResult.isPresent()) {
-                    return Optional.empty();
+                    Optional<Assignment> result = Optional.empty();
+                    return result;
                 }else {
                     Assignment consList = new Assignment();
                     consList.add(y);
                     consList.addAll(subResult.get());
-                    return Optional.of(consList);
+                    Optional<Assignment> result = Optional.of(consList);
+                    return result;
                 }
-            }else if(x.isPresent() && y.isPresent() || x!=y) {
+            }else if(x.isPresent() && y.isPresent() || x.get().toString() != y.get().toString()) {
+                //is it ok to do things with toString here above?
                 if(!subResult.isPresent()) {
-                    return Optional.empty();
+                    Optional<Assignment> result = Optional.empty();
+                    return result;
                 }else {
-                    if(x==y) {
+                    if(x.get().toString() ==y.get().toString()) { //should enter this clause automatically
+                        //is it ok to do things with toString here above?
                         Assignment consList = new Assignment();
                         consList.add(x);
                         consList.addAll(subResult.get());
-                        return Optional.of(consList);
+                        Optional<Assignment> result = Optional.of(consList);
+                        return result;
                     }
                 }
             }else {
-                return Optional.empty();
+                Optional<Assignment> result = Optional.empty();
+                return result;
             }
         }
-        return Optional.empty(); //not sure why this is necessary
 
+        Optional<Assignment> result = Optional.empty();
+        return result;
     }
 
     public static Table join(java.util.HashSet<Assignment> table, boolean pos, java.util.HashSet<Assignment> table2){
 
         java.util.HashSet<Assignment> result = new java.util.HashSet<>();
-        Iterator<Assignment> it = table.iterator();
+        //eliminated the iterator because it gave a weird exception
 
-        while(it.hasNext()) {
-            for (Assignment optionals : table2) {
-                Optional<Assignment> tupleRes = join1(it.next(), optionals);
+        for(Assignment op1 : table) {
+            for (Assignment optional2 : table2) {
+                Optional<Assignment> tupleRes = join1(op1, optional2);
                 if (tupleRes.isPresent()) {
                     Assignment tuple = tupleRes.get();
                     result.add(tuple);

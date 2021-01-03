@@ -26,19 +26,22 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     public Mformula formula;
     boolean bool;
     LinkedList<Long> tsList; //nts --> name used in Verimon
-
     HashMap<Long, HashSet<PipelineEvent>> A; //mapping from timepoint to set of assignments (set of PEs)
     HashMap<Long, Long> T; //mapping from timepoint to timestamps for non-terminator events
     HashMap<Long, Long> TT;//mapping from timepoint to timestamps for terminator events
-
 
     public MNext(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, LinkedList<Long> tsList) {
         //the P.E. value is the satisfaction of the subformula!
         this.interval = interval;
         //The interval is attached to the formula; it is a property of the formula.
+        //Is it a problem that the interval extremes are expressed as integers, whereas I express timepoints
+        // and timestamps as longs?
         this.formula = mform;
         this.bool = bool;
         this.tsList = tsList;
+        this.A = new HashMap<>();
+        this.T = new HashMap<>();
+        this.TT = new HashMap<>();
     }
 
     @Override
@@ -61,13 +64,15 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         //Understand the above assertion and if it makes sense!
 
         //special case for timepoint 0:
-        if(value.getTimepoint() == 0){
+        //if(value.getTimepoint() == 0){
             //exit if condition to store timestamp for 0 in handleBuffered
             //but you don't need to output or store anything for timepoint 0
             //we ignore both the assignments at zero and the terminators, but then
             //the handleBuffered still has to take place, because we still need to
             //save the timestamp at zero.
-        } else if(value.isPresent()){
+
+
+        if(value.isPresent()){
             //i.e. the event we are receiving is NOT a terminator
             //1)
             if(T.keySet().contains(value.getTimepoint() - 1)){
@@ -75,35 +80,39 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     out.collect(new PipelineEvent(T.get(value.getTimepoint() - 1),
                             value.getTimepoint() - 1, false,value.get()));
                 }
-            }else{
+            }else{ //CHECK WHEN TO UPDATE T
                 //It might be that you don't know the timestamp, e.g. assuming that you have not
                 //received any tuple from the current timepoint. You will only know the timestamp
                 //when you receive the first PipelineEvent for our current timepoint. SO if we don't have the
                 //timestamp, then we have to buffer the pipeline event
-                A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimepoint(),
-                        value.getTimestamp(), false, value.get()));
+                if(A.keySet().contains(value.getTimepoint())){
+                    A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimepoint(),
+                            value.getTimestamp(), false, value.get()));
+                }else{
+                    HashSet<PipelineEvent> hspe = new HashSet<>();
+                    hspe.add(new PipelineEvent(value.getTimepoint(), value.getTimestamp(), false, value.get()));
+                    A.put(value.getTimepoint(), hspe);
+                }
             }
             //2
             //as soon as you have received the timestamp, you can process the stored/buffered assignments.
 
         }else{
-
             if(T.keySet().contains(value.getTimepoint() - 1)){
-                out.collect(new PipelineEvent(value.getTimepoint()- 1, T.get(value.getTimepoint() - 1),
-                        true, value.get()));
+                out.collect(new PipelineEvent(T.get(value.getTimepoint() - 1), value.getTimepoint()- 1, true, value.get()));
             }else{
                 TT.put(value.getTimepoint(), value.getTimestamp());
             }
             //2
-
         }
         handleBuffered(value, out);
-
     }
 
     public void handleBuffered(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
-
-        T.put(value.getTimepoint(), value.getTimestamp());
+        //Added below line, not 100% sure about it:
+        if(value.isPresent() && !T.keySet().contains(value.getTimepoint())){
+            T.put(value.getTimepoint(), value.getTimestamp());
+        }
 
         if(A.keySet().contains(value.getTimepoint() + 1)){
             HashSet<PipelineEvent> eventsAtPrev = A.get(value.getTimepoint() + 1);
@@ -129,48 +138,13 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         }
     }
 
-    public static Triple<List<Table>, List<Table>, List<Integer>> mprev_next(Interval i, List<Table> xs,
-                                                                             List<Integer> ts){
-        if(xs.size() == 0) {
-            List<Table> fstResult = new ArrayList<>();
-            List<Table> sndResult = new ArrayList<>();
-            return new Triple(fstResult,sndResult, ts);
-        }else if(ts.size() == 0) {
-            List<Table> fstResult = new ArrayList<>();
-            List<Integer> thrdResult = new ArrayList<>();
-            return new Triple(fstResult,xs, thrdResult);
-        }else if(ts.size() == 1) {
-            List<Table> fstResult = new ArrayList<>();
-            List<Integer> thrdResult = new ArrayList<>();
-            thrdResult.add(ts.get(0));
-            return new Triple(fstResult,xs, thrdResult);
-        }else if(xs.size() >= 1 && ts.size() >= 2) {
-            Integer t = ts.remove(0);
-            Integer tp = ts.get(0);
-            Table x = xs.remove(0);
-            Triple<List<Table>, List<Table>, List<Integer>> yszs = mprev_next(i, xs, ts); //ts includes tp here
-            //above, should return a triple, not a tuple --> problem with verimon
-            List<Table> fst = yszs.fst;
-            List<Table> snd = yszs.snd;
-            List<Integer> thr = yszs.thrd;
-            if(mem(tp - t, i)) {
-                fst.add(0, x);
-            }else{
-                Table empty_table = new Table();
-                fst.add(0, empty_table);
-            }
-            return new Triple<>(fst, snd, thr);
-        }
-        return null;
-
-    }
-
-    public static boolean mem(long n, Interval I){
-        if(I.lower() <= n && (!I.upper().isDefined() || (I.upper().isDefined() && n <= ((long) I.upper().get())))){
+    public static boolean mem(Long n, Interval I){
+        //not sure of I should use the method isDefined or isEmpty below
+        //and I am not sure if it's ok to do the cast (int)I.upper().get()
+        if(I.lower() <= n.intValue() && (!I.upper().isDefined() || (I.upper().isDefined() && n.intValue() <= ((int)I.upper().get())))){
             return true;
         }
         return false;
     }
-
 
 }

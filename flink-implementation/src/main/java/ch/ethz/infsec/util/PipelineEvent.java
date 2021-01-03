@@ -2,9 +2,7 @@ package ch.ethz.infsec.util;
 
 
 public class PipelineEvent  {
-    //does a pipeline event need to have a fact as field?
 
-    //private final Fact fact;
     private final long timestamp;
     private final long timepoint;
     private final boolean isTerminator;
@@ -13,12 +11,12 @@ public class PipelineEvent  {
 
 
     public PipelineEvent(long timestamp, long timepoint, boolean isTerminator, Assignment assignment) {
-        //is the fact really necessary if we have both the assignment and the timestamp?
+
         this.isTerminator = isTerminator;
         this.timestamp = timestamp;
         this.assignment = assignment;
         this.timepoint = timepoint;
-        //this.fact = fact;
+
     }
 
     public boolean isPresent(){
@@ -35,6 +33,31 @@ public class PipelineEvent  {
 
     public long getTimepoint(){
         return this.timepoint;
+    }
+
+    @Override
+    public boolean equals(Object o){
+        if(o == this){
+            return true;
+        }
+        if(!(o instanceof PipelineEvent)){
+            return false;
+        }
+        PipelineEvent pe = (PipelineEvent) o;
+        if(this.isTerminator != pe.isTerminator){
+            return false;
+        }else{
+            if(!this.isTerminator){
+                return this.timestamp == pe.timestamp
+                        && this.timepoint == pe.timepoint
+                        && this.get().equals(pe.get());
+            }else{
+                return this.timestamp == pe.timestamp
+                        && this.timepoint == pe.timepoint;
+            }
+        }
+
+
     }
 
     @Override

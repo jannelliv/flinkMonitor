@@ -1,5 +1,4 @@
 package ch.ethz.infsec.formula.visitor;
-import ch.ethz.infsec.formula.visitor.FormulaVisitor;
 import ch.ethz.infsec.policy.*;
 import scala.collection.JavaConverters;
 import scala.collection.Seq;
@@ -18,9 +17,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
         //If you would use List<VariableID> there, you could avoid the two conversions steps
         // (one before the recursive call and the other in the Init0 constructor).
         this.freeVariablesInOrder = temp;
-
     }
-
 
     public Mformula visit(JavaPred<VariableID> f){
         return new MPred(f.relation(), f.args(), this.freeVariablesInOrder);
@@ -110,20 +107,17 @@ public class Init0 implements FormulaVisitor<Mformula> {
     }
 
     public Mformula visit(JavaNext<VariableID> f) {
-        return new MNext(f.interval(), f.accept(new Init0(f.freeVariablesInOrder())), true, new LinkedList<>());
+        return new MNext(f.interval(), (f.arg()).accept(new Init0((f.arg()).freeVariablesInOrder())), true, new LinkedList<>());
     }
 
     public Mformula visit(JavaOr<VariableID> f) {
-
-
         //NOT SURE IF I HAD TO ADD THE ABOVE ELEMENTS
         return new MOr((f.arg1()).accept(new Init0((f.arg1()).freeVariablesInOrder())),
                 (f.arg2()).accept(new Init0((f.arg2()).freeVariablesInOrder())));
     }
 
     public Mformula visit(JavaPrev<VariableID> f) {
-        return new MPrev(f.interval(), f.accept(new Init0(f.freeVariablesInOrder())),
-                true, new LinkedList<>());
+        return new MPrev(f.interval(), (f.arg()).accept(new Init0((f.arg()).freeVariablesInOrder())), true, new LinkedList<>());
 
     }
 
