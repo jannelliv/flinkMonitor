@@ -35,8 +35,9 @@ public class ParsingTest {
     //testParsingWithFlink()
     private OneInputStreamOperatorTestHarness<String, Fact> testHarness;
 
-    //testPred()
+    //testPred(), testPred2(),
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred;
+    private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPredConst;
 
     //testRelTrueFalse()
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessRel;
@@ -85,6 +86,13 @@ public class ParsingTest {
         testHarnessPred = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred));
         testHarnessPred.open();
 
+        //testPred2(),
+        Either<String, GenFormula<VariableID>> constPred = Policy.read("publish(163)");
+        GenFormula<VariableID> constPredFormula = constPred.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredConst = (MPred) (convert(constPredFormula)).accept(new Init0(constPredFormula.freeVariablesInOrder()));
+        testHarnessPredConst = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredConst));
+        testHarnessPredConst.open();
+
         //testRelTrueFalse()
         Either<String, GenFormula<VariableID>> b = Policy.read("TRUE");
         GenFormula<VariableID> relFormula = b.right().get();
@@ -98,7 +106,7 @@ public class ParsingTest {
         testHarness.open();
 
         //testPrev()
-        Either<String, GenFormula<VariableID>> pubPred = Policy.read("publish(r)");
+        Either<String, GenFormula<VariableID>> pubPred = Policy.read("publish(r)"); //!!!PROBLEM???
         GenFormula<VariableID> formulaPub = pubPred.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredPrev = (MPred) (convert(formulaPub)).accept(new Init0(formulaPub.freeVariablesInOrder()));
         testHarnessPredPrev = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredPrev));
@@ -110,7 +118,7 @@ public class ParsingTest {
         testHarnessPrev.open();
 
         //testNext()
-        Either<String, GenFormula<VariableID>> pubr = Policy.read("publish(r)");
+        Either<String, GenFormula<VariableID>> pubr = Policy.read("publish(r)"); //!!!PROBLEM???
         GenFormula<VariableID> pubR = pubr.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredNext = (MPred) (convert(pubR)).accept(new Init0(pubR.freeVariablesInOrder()));
         testHarnessPredNext = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredNext));
@@ -168,12 +176,12 @@ public class ParsingTest {
         testHarnessExists.open();
 
         //testSince()
-        Either<String, GenFormula<VariableID>> f1Since = Policy.read("publish(r)");
+        Either<String, GenFormula<VariableID>> f1Since = Policy.read("publish(163)");
         GenFormula<VariableID> formula1Since = f1Since.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1Since = (MPred) (convert(formula1Since)).accept(new Init0(formula1Since.freeVariablesInOrder()));
         testHarnessPred1Since = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred1Since));
         testHarnessPred1Since.open();
-        Either<String, GenFormula<VariableID>> f2Since = Policy.read("approve(r)");
+        Either<String, GenFormula<VariableID>> f2Since = Policy.read("approve(163)");
         GenFormula<VariableID> formula2Since = f2Since.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred2Since = (MPred) (convert(formula2Since)).accept(new Init0(formula2Since.freeVariablesInOrder()));
         testHarnessPred2Since = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred2Since));
@@ -185,12 +193,12 @@ public class ParsingTest {
         testHarnessSince.open();
 
         //testUntil()
-        Either<String, GenFormula<VariableID>> f1Until = Policy.read("publish(r)");
+        Either<String, GenFormula<VariableID>> f1Until = Policy.read("publish(163)");
         GenFormula<VariableID> formula1Until = f1Until.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1Until = (MPred) (convert(formula1Until)).accept(new Init0(formula1Until.freeVariablesInOrder()));
         testHarnessPred1Until = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred1Until));
         testHarnessPred1Until.open();
-        Either<String, GenFormula<VariableID>> f2Until = Policy.read("approve(r)");
+        Either<String, GenFormula<VariableID>> f2Until = Policy.read("approve(163)");
         GenFormula<VariableID> formula2Until = f2Until.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred2Until = (MPred) (convert(formula2Until)).accept(new Init0(formula2Until.freeVariablesInOrder()));
         testHarnessPred2Until = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred2Until));
@@ -252,7 +260,6 @@ public class ParsingTest {
 
     @Test
     public void testSince() throws Exception{
-
         testHarnessPred1Since.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Since.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Since.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
@@ -266,10 +273,8 @@ public class ParsingTest {
         testHarnessPred2Since.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
         testHarnessPred2Since.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
         testHarnessPred2Since.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
-
         List<PipelineEvent> pes1 = testHarnessPred1Since.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         List<PipelineEvent> pes2 = testHarnessPred2Since.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-
         int longer = Math.max(pes1.size(), pes2.size());
         int shorter = Math.min(pes1.size(), pes2.size());
         for(int i = 0; i < longer; i++){
@@ -284,14 +289,16 @@ public class ParsingTest {
         }
         List<PipelineEvent> processedSince = testHarnessSince.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testSince() output:  " + processedSince.toString());
+        //formula being tested against: publish(163) SINCE [0,7d] approve(163)
+        //approve(152) does not even satisfy the predicates, so it should not reach the binary operator for Since!!!
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
                 new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
+                //new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
                 new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(187))),
+                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(187))),
                 new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
+                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
                 new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
         ));
         assertArrayEquals( expectedResults.toArray(), processedSince.toArray());
@@ -299,9 +306,7 @@ public class ParsingTest {
 
     @Test
     public void testExists() throws Exception{
-
         //Not sure if this test makes sense!
-
         testHarnessPredExists.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPredExists.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPredExists.processElement(Fact.makeTP("publish", 1307955600,1L, "163"), 1L);
@@ -310,9 +315,7 @@ public class ParsingTest {
         testHarnessPredExists.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredExists.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
         /////////////////////////////////////////////////////////////////////////////////////////////////////
-
         List<PipelineEvent> pes1 = testHarnessPredExists.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-
         for (PipelineEvent pipelineEvent : pes1) {
             testHarnessExists.processElement(pipelineEvent, 1L);
         }
@@ -549,6 +552,8 @@ public class ParsingTest {
         assert(pe.get(0).get().get(0).get().equals("160"));
     }
 
+
+
     private Collector<PipelineEvent> mock(Class<Collector<PipelineEvent>> collectorClass) {
         return new Collector<PipelineEvent>() {
             @Override
@@ -581,5 +586,16 @@ public class ParsingTest {
         facts.forEach(f -> {assertEquals(f.getTimepoint(),f.getTimestamp());});
     }
 
+    @Test
+    public void testPred2() throws Exception{
+        testHarnessPredConst.processElement(Fact.makeTP("publish", 1L,0L, "163"), 1L);
+        List<PipelineEvent> pe = testHarnessPredConst.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        assert(pe.size()==1);
+        assert(pe.get(0).get().size() == 1);
+        assert(pe.get(0).getTimestamp() == 1L);
+        assert(pe.get(0).getTimepoint() == 0L);
+        assert(pe.get(0).get().get(0).isPresent());
+        assert(pe.get(0).get().get(0).get().equals("163"));
+    }
 
 }

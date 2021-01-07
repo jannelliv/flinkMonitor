@@ -16,9 +16,12 @@ import static ch.ethz.infsec.term.JavaTerm.convert;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
 
-public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
+public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
+    //This is the atomic predicate, with the terms that are its arguments.
     String predName;
     ArrayList<JavaTerm<VariableID>> args; // when you assign this now, you will need to convert it
+    //args corresponds to the arguments of the formula, not of the predicate! These are the arguments that
+    //the predicate is compared against!!
     List<VariableID> freeVariablesInOrder;
     //if you had a formula p(x,y) AND q(z), then at both the p(x,y) predicate and the q(z) predicate you need
     //to have the same list of free variables in some order, like x,y,z. So to create a pipeline event
@@ -30,8 +33,10 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     //variables, because the predicate and the event have corresponding numbers of parameters.
 
 
+    //I AM REALLY NOT SURE ABOUT USING TOSTRING IN THE MATCH METHOD!!
+
+
     public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
-        System.out.println("Inside the MPred() constructor method");
         List<Term<VariableID>> argsScala = new ArrayList(JavaConverters.seqAsJavaList(args));
         ArrayList<JavaTerm<VariableID>> argsJava = new ArrayList<>();
         for (Term<VariableID> variableIDTerm : argsScala) {
@@ -41,10 +46,6 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
         this.predName = predName;
         this.freeVariablesInOrder = fvio;
         this.args = argsJava;
-        //System.out.println("Predname" + this.predName);
-        //System.out.println("freeVars" + this.freeVariablesInOrder);
-        //System.out.println("arguments" + this.args + ";  arg size: " + this.args.size());
-
     }
 
     public String getPredName(){
@@ -53,8 +54,6 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
 
 
     public void flatMap(Fact fact, Collector<PipelineEvent> out) throws Exception {
-        //System.out.println("Inside the flatMap() method");
-        //System.out.println("fact:  " + fact.toString());
         if(fact.isTerminator()){
             Assignment none = Assignment.nones(0); //why 0?
             out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  true, none));
@@ -62,32 +61,24 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
             assert(fact.getName().equals(this.predName) );
 
             List<Object> ys = fact.getArguments();
-
-            //System.out.println("fact Arguments: " + ys.toString());
-
             ArrayList<JavaTerm<VariableID>> argsCopy = new ArrayList<>(this.args);
 
             ArrayList<Object> c_ys = new ArrayList<>(ys);
-            Optional<Function<String, Optional<Object>>> result = match(argsCopy, c_ys);
+            Optional<HashMap<String, Optional<Object>>> result = match(argsCopy, c_ys);
+            //above: changed Function to HashMap as the return type for match().
             if(result.isPresent()){
                 Assignment list = new Assignment();
                 //building of satisfaction, but not from the free Variables of MPred (this) --> ?
-                for (VariableID argument : this.freeVariablesInOrder) {
+                for (JavaTerm<VariableID> argument : this.args) {
                     //remember to iterate over the arguments, not the free variables
-                    if(result.get().apply(argument.toString()).isPresent()){
-                        list.add(0, result.get().apply(argument.toString()));
+                    if(result.get().get(argument.toString()).isPresent()){
+                        list.add(0, result.get().get(argument.toString()));
                     }
-
-                    //System.out.println("ass. element " + (result.get().apply(argument.toString())).toString());
                 }
                 out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  false, list));
-            }else{
-                //System.out.println("result not present :(");
             }
             //if there are no satisfactions, we simply don't put anything in the collector.
         }
-
-
     }
 
     @Override
@@ -96,65 +87,66 @@ public class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
         //Is it ok that I did the cast here above?
     }
 
-    public static Optional<Function<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
-        //System.out.println("Inside the match() method");
+    public static Optional<HashMap<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
+        //ts: arguments of the formula
+        //ys: arguments of the incoming fact
+        //Now I am using a HashMap instead of a Function!
+
         if(ts.size() != ys.size() || ts.size() == 0 && ys.size() == 0) {
-            Function<String, Optional<Object>> emptyMap = s -> Optional.empty();
+            HashMap<String, Optional<Object>> emptyMap = new HashMap<>(); //s -> Optional.empty();
+            //emptyMap.put("all", Optional.empty()); //not necessary???
             return Optional.of(emptyMap);
         }else {
             if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaConst)) {
-                //System.out.println("reach1");
-                if(ts.get(0).equals(ys.get(0))) {
 
-                    ts.remove(0);
-                    ys.remove(0);
-                    return match(ts, ys);
+                if(ts.get(0).toString().equals(ys.get(0).toString())) { //is it ok to do things with toString????
+
+                    JavaTerm<VariableID> t = ts.remove(0); //from formula
+                    Object y = ys.remove(0); //from fact
+
+                    Optional<HashMap<String, Optional<Object>>> partialResult =  match(ts, ys);
+                    partialResult.get().put(t.toString(), Optional.of(y));
+                    return partialResult;
                 }else {
                     return Optional.empty();
                 }
             }else if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaVar)) {
-                //System.out.println("reach2");
+
                 JavaVar<VariableID> x =  (JavaVar<VariableID>) ts.remove(0);
                 Object y = ys.remove(0);
                 //the above line gave me an error with testPred():
                 //UnsupportedOperationException at java.util.AbstractList.remove(AbstractList.java: 167)
                 //Changed second argument of match() to ArrayList
                 //Not sure why the error was not present with the previous "non-test" input
-
-                Optional<Function<String, Optional<Object>>> recFunction = match(ts, ys);
+                Optional<HashMap<String, Optional<Object>>> recFunction = match(ts, ys);
                 if(!recFunction.isPresent()){
-                    //System.out.println("reach4");
                     return Optional.empty();
                 }else{
-                    Function<String, Optional<Object>> f = recFunction.get();
-                    if(!(f.apply(x.toString())).isPresent()){
-                        //System.out.println("reach5");
-                        //arrives here
-                        Function<Optional<Object>, Optional<Object>> after = x1 -> {
+                    HashMap<String, Optional<Object>> f = recFunction.get();
+                    if(!f.containsKey(x.toString()) || !(f.get(x.toString())).isPresent()){
+                        f.put(x.toString(), Optional.of(y));
+                        return Optional.of(f);
+                        /*Function<Optional<Object>, Optional<Object>> after = x1 -> {
                             if(x1.equals(f.apply(x.toString()))){//still not sure if this is the best way to do this
-                                //System.out.println("reachThis");
                                 return Optional.of(y);
                             }else{
                                 return f.apply(x1.toString());
                             }
                         };
                         Function<String, Optional<Object>> mappingFunction = f.andThen(after);
-                        return Optional.of(mappingFunction);
+                        return Optional.of(mappingFunction);*/
                     }else{
-                        //System.out.println("reach6");
-                        Object z = f.apply(x.toString()).get();
-                        Object u = ys.get(0);
-                        if (u.equals(z)){
+                        Object z = f.get(x.toString()).get();
+                        //Object u = ys.get(0); --> NOT TESTED YET!!!
+                        if (y.equals(z)){
                             return Optional.of(f);
                         }else{
-                            //System.out.println("reach7");
                             return Optional.empty();
                         }
 
                     }
                 }
             }else{
-                //System.out.println("reach3");
                 return Optional.empty();
             }
         }

@@ -54,8 +54,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
 
     @Override
     public void flatMap1(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
-        System.out.println("Inside the MOr flatMap1() method");
-
         if(!fact.isPresent()){
             terminatorLHS = true;
             indexlhs++;
@@ -74,7 +72,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
                 tempOutput.get(0).add(fact.get());
                 collector.collect(fact);
             }
-
         }else{
             assert(this.tempOutput.size() != 0);
             if(this.tempOutput.size() < indexlhs + 1){ // not sure about these conditions
@@ -84,14 +81,11 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
                 tempOutput.get(indexlhs.intValue()).add(fact.get());
                 collector.collect(fact);
             }
-
         }
     }
 
     @Override
     public void flatMap2(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
-        System.out.println("Inside the MOr flatMap2() method");
-
         if(!fact.isPresent()){
             terminatorRHS = true;
             indexrhs++;
@@ -110,7 +104,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
                 tempOutput.get(0).add(fact.get());
                 collector.collect(fact);
             }
-
         }else{
             assert(this.tempOutput.size() != 0);
             if(this.tempOutput.size() < indexrhs + 1){ // not sure about these conditions
@@ -120,9 +113,7 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
                 tempOutput.get(indexrhs.intValue()).add(fact.get());
                 collector.collect(fact);
             }
-
         }
     }
-    
 }
 

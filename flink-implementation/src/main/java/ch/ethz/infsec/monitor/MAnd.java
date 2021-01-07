@@ -15,7 +15,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
     boolean bool;
     public Mformula op1;
     public Mformula op2;
-    Tuple<LinkedList<Table>, LinkedList<Table>> mbuf2;
+    Tuple<LinkedList<Table>, LinkedList<Table>> mbuf2; //all binary operators require this data structure
     boolean terminatorLHS;
     boolean terminatorRHS;
     Long indexlhs, indexrhs;
@@ -40,7 +40,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
 
     @Override
     public void flatMap1(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
-        System.out.println("Inside the MAnd flatMap1() method");
         //here we have a streaming implementation. We can produce an output potentially for every event.
         //We don't buffer things, contrary to what the Verimon algorithm does.
         if(!fact.isPresent()){
@@ -87,8 +86,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
 
     @Override
     public void flatMap2(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
-        System.out.println("Inside the MAnd flatMap2() method");
-
         //one terminator fact has to be sent out once it is received on both incoming streams!!
         if(!fact.isPresent()){
             terminatorRHS = true;
