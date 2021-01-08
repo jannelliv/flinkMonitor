@@ -128,7 +128,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     throw new Exception("The mapping from tp to ts should contain at least one of these entries.");
                 }
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
-                for(Long timestamp : muaux_zs.keySet()){ //start from "startEvalTimepoint"
+                for(Long timestamp : muaux_zs.keySet()){ //I'm not starting from "startEvalTimepoint"
                     Table evalSet = muaux_zs.get(timestamp);
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1 && oa.size() !=0){
@@ -151,7 +151,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             }else{
                 startEvalTimepoint = largestInOrderTPsub2 +1; //not sure about the +1
             }
-            //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
+            //TODO: remove parts from the data-structures in the fields in order to avoid a memory leak.
         }
     }
 
@@ -168,7 +168,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
         //filling muaux appropriately:
         if(muaux.containsKey(event.getTimestamp())){
-            //muaux declaration: HashMap<Long, Tuple<Table, Table>> muaux
             muaux.get(event.getTimestamp()).snd().add(event.get());
         }else{
             muaux.put(event.getTimestamp(), new Tuple<>(Table.empty(), Table.one(event.get())));
@@ -181,7 +180,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 throw new Exception("Not possible to receive two terminators for the same timepoint.");
             }
             while(terminSub2.contains(largestInOrderTPsub2 + 1L)){
-                //maybe it's not so efficient to do this each time!!! :(
                 largestInOrderTPsub2++;
             }
             if(largestInOrderTPsub2 >= largestInOrderTPsub1){
@@ -216,9 +214,9 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1L && oa.size() != 0){
                             collector.collect(new PipelineEvent(timestamp, event.getTimepoint(), false, oa));
-                        }else{
-                            //throw new Exception("problem retrieving timepoint");
-                        }
+                        }/*else{
+                            throw new Exception("problem retrieving timepoint");
+                        }*/
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs???
                     /*if(event.getTimepoint() != -1L){
@@ -242,13 +240,9 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
     public void update_until(Long timepoint, HashMap<Long, Table> rel1, HashMap<Long, Table> rel2){
-        //in Verimon, nt is the current timestamp!
-        //this method updates muaux, based on the timestamp!
+        //in Verimon, nt is the current timestamp
+        //this method updates muaux, based on the timestamp
 
-        /*update_until I pos rel1 rel2 nt aux =
-                (map (λx. case x of (t, a1, a2) ⇒ (t, if pos then join a1 True rel1 else a1 ∪ rel1,
-        if mem (nt - t) I then a2 ∪ join rel2 pos a1 else a2)) aux) @
-    [(nt, rel1, if left I = 0 then rel2 else empty_table)]*/
         assert(timepointToTimestamp.keySet().contains(timepoint));
         Long currentTimestamp = timepointToTimestamp.get(timepoint);
         for(Long timestamp : muaux.keySet()){
@@ -264,7 +258,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 assert(rel1.containsKey(timepoint));
                 firstTable.addAll(rel1.get(timepoint));
             }
-            //second table: can timestamp and currentTimestamp have the same value?
+            //second table: timestamp and currentTimestamp can have the same value
             if(mem(currentTimestamp - timestamp, interval)){
                 assert(rel2.containsKey(timepoint));
                 Table rel2a1Join = join(rel2.get(timepoint), pos, tables.fst());
@@ -274,19 +268,19 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             else{
                 a2UnionAfter = tables.snd();
             }
-            muaux.put(timestamp, new Tuple<>(firstTable, a2UnionAfter)); //first I put it in currentTimestamp, which is wrong
+            muaux.put(timestamp, new Tuple<>(firstTable, a2UnionAfter)); //first I put it in currentTimestamp, which was wrong
         }
         Table addedTableForZeroLHS;
         if(interval.lower() == 0L){
             addedTableForZeroLHS = rel2.get(timepoint);
         }else{
             addedTableForZeroLHS = Table.empty();
-        } //below: not sure if it's correct to just "put" a new tuple here --> not the same as @!
+        } //below: not sure if it's correct to just "put" a new tuple here --> not the same as "@" in Isabelle!
         muaux.put(currentTimestamp, new Tuple<>(rel1.get(timepoint), addedTableForZeroLHS));
     }
 
     public HashMap<Long, Table> eval_until(long currentTimestamp){
-        //Translation to Verimon code on afp:
+        //In the Verimon code on afp it holds that:
         //current timestamp: nt;   smallest full timestamp: t
         if(muaux.isEmpty()){
             return new HashMap<>();
@@ -305,7 +299,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 xs.put(smallestFullTimestamp, a1a2.snd());
                 return xs;
             }else{
-                return new HashMap<>(); //pass by reference?
+                return new HashMap<>();
             }
         }
     }
