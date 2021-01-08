@@ -212,7 +212,6 @@ public class ParsingTest {
 
     @Test
     public void testUntil() throws Exception{
-
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
@@ -223,14 +222,11 @@ public class ParsingTest {
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307955600,1L, "163"), 1L);
-
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
-
         List<PipelineEvent> pes1 = testHarnessPred1Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         List<PipelineEvent> pes2 = testHarnessPred2Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-
         int longer = Math.max(pes1.size(), pes2.size());
         int shorter = Math.min(pes1.size(), pes2.size());
         for(int i = 0; i < longer; i++){
@@ -245,14 +241,15 @@ public class ParsingTest {
         }
         List<PipelineEvent> processedUntil = testHarnessUntil.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testUntil() output:  " + processedUntil.toString());
+        //formula under test: publish(163) UNTIL [0,7d] approve(163)
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
                 new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
+                //new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
                 new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(187))),
+                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(187))),
                 new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
+                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
                 new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());

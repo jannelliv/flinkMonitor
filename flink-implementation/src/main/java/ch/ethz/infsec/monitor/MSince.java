@@ -11,60 +11,6 @@ import scala.collection.mutable.HashSet;
 import java.util.*;
 
 public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
-    //msaux and mbuf2 have datastructures which have to be based on Assignments,
-    //not pipelineevents. This is because they don't store terminators. We need an additional structures
-    //to link the associated timestamps to the assignments; this is given by msaux.
-    //In the verimon+ paper, msaux corresponds to the T tables, and mbuf2 corresponds to the tuple (R_alpha, R_beta).
-    //We also need a mechanism to ensure that we handle out of order events and deal with the fact that we
-    //are not receiving whole databases (Verimon receives whole databases at once).
-    //TO achieve this and to handle out-of-order arrival of pipelineEvents, we can use hashmaps within
-    //mbuf2 and msaux in order to associate timepoints (in order) to the correct set of assignments (table), which
-    //are stored in msaux.
-    //The semantics of mbuf2 in Verimon: two buffers, where you have values for each timePOINT.
-    //Mbuf2 is necessary because MSince is a binary operator, so you may get different progress on the
-    //two subformulas. So all binary operators have mbuf2. The left buffer is the buffer for subformula1 (alpha) and
-    //the right buffer is the buffer for subformula2 (beta). We need to keep both buffers sorted with respect to
-    //the timepoint, and the best way to do this is with a HashMap. Operations on mbuf2 in Verimon were
-    //efficient because the list was sorted. Using a HashMap is fine if you know what the minimum entry
-    //is, i.e. the minimum timestamp. But you need to know what the smallest timepoint is in the
-    //domain of the HashMap, such that you can start sorting from that. The minimum timepoint is given by
-    //(tau - b) in the Verimon+ paper.
-
-    //Beware: you will create NEW timepoints to send up the parsing tree, not the ones that correspond
-    //to the assignments in mbuf2! SO we need to start taking from the minimum element upward, in the map.
-    //So the HashMaps are processed in order of timepoints in the map. And you don't repeat until you have
-    //exhausted all entries in the HashMap, but rather until you reach an entry which is not full (i.e.
-    //which has not yet received a Terminator.
-
-    // We need two data-structures for the terminator, one for the terminators to the left and one for
-    //the terminators to the right. If you have both terminators for timepoint 3, you don't have both terminators
-    //for timepoint 4 and you do have both terminators for timepoint 5, then you should just call the MSince
-    //procedure for timepoint 3. You don't output anything for timepoint 5.
-    //I re-transform the Assignments into PipelineEvents using an additional structure from timepoints to
-    //timestamps, which was also used in MPrev and in MNext.
-
-    //Why we use Assignment instead of Optional<Assignment>: If the join used in MAnd resulted in no satisfaction,
-    //then an empty Assignment was outputted and passed to operators higher up in the Parsing tree. When the result
-    //of the join was empty, it DIDN'T happen that Optionl<Assignment> were outputted, it was Assignments.
-
-    //The length of an Assignment corresponds to the number of free variables that you assign.
-    //you don't need the method mbuf2_add, because you store the incoming PipelineEvents directly into mbuf2
-
-    //In this implementation, we will only call mbuf2t_take when we get a terminator.
-    //YOu will initiate the "meval MSince procedure" from one of the two flatMaps, specifically from the one from
-    //which you received a terminator last.
-    //zs in Verimon: a variable to capture the overall output --> It's a list of tables, but you will just be outputting
-    //one table at the time (all elements of the table consecutively), and when you are finished outputting
-    //the single table, we will also output the corresponding terminator.
-
-    //Observation on Verimon+ paper: (tau - a) is larger than (tau - b) and T0 is the most recent table
-    // we have received. This drawing shows the contents of msaux: it's a mapping (Tuple) from the timestamp
-    // to the corresponding table of evaluations. The interval checks in Verimon corresponding to this
-    // scheme happen in update_since. Interval.lower() is a. nt is the current timestamp. When you check
-    // the interval.upper() (aka b), you need to remove things from msaux, but in fact in my flink
-    // implementation I just have a condition for which I remove these parts form a new object. I
-    // also have to check if b = +infinity. If It is, I don't have to remove anything from msaux.
-
 
     boolean pos; //flag indicating whether left subformula is positive (non-negated)
     public Mformula formula1; //left subformula

@@ -123,7 +123,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
                 if(timepointToTimestamp.containsKey(largestInOrderTPsub1 + 1L)){
                     //to write about this in the thesis, see the schemes made during the meeting
-                    evalUntilResult = eval_until(smallestFullTimestamp + 1L);
+                    evalUntilResult = eval_until(smallestFullTimestamp + 1L); //WRONG!!!
                 }else if(timepointToTimestamp.containsKey(largestInOrderTPsub1)){
                     evalUntilResult = eval_until(smallestFullTimestamp);
                 }else{
@@ -222,7 +222,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                         if(event.getTimepoint() != -1L && oa.size() != 0){
                             collector.collect(new PipelineEvent(timestamp, event.getTimepoint(), false, oa));
                         }else{
-                            throw new Exception("problem retrieving timepoint");
+                            //throw new Exception("problem retrieving timepoint");
                         }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs???
@@ -249,6 +249,11 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     public void update_until(Long timepoint, HashMap<Long, Table> rel1, HashMap<Long, Table> rel2){
         //in Verimon, nt is the current timestamp!
         //this method updates muaux, based on the timestamp!
+
+        /*update_until I pos rel1 rel2 nt aux =
+                (map (λx. case x of (t, a1, a2) ⇒ (t, if pos then join a1 True rel1 else a1 ∪ rel1,
+        if mem (nt - t) I then a2 ∪ join rel2 pos a1 else a2)) aux) @
+    [(nt, rel1, if left I = 0 then rel2 else empty_table)]*/
         assert(timepointToTimestamp.keySet().contains(timepoint));
         Long currentTimestamp = timepointToTimestamp.get(timepoint);
         for(Long timestamp : muaux.keySet()){
@@ -274,24 +279,20 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             else{
                 a2UnionAfter = tables.snd();
             }
-            muaux.put(currentTimestamp, new Tuple<>(firstTable, a2UnionAfter));
+            muaux.put(timestamp, new Tuple<>(firstTable, a2UnionAfter)); //first I put it in currentTimestamp, which is wrong
         }
-
         Table addedTableForZeroLHS;
         if(interval.lower() == 0L){
-
             addedTableForZeroLHS = rel2.get(timepoint);
         }else{
             addedTableForZeroLHS = Table.empty();
-        }
+        } //below: not sure if it's correct to just "put" a new tuple here --> not the same as @!
         muaux.put(currentTimestamp, new Tuple<>(rel1.get(timepoint), addedTableForZeroLHS));
     }
 
     public HashMap<Long, Table> eval_until(long currentTimestamp){
         //Translation to Verimon code on afp:
-        //current timestamp: nt
-        //smallest full timestamp: t
-
+        //current timestamp: nt;   smallest full timestamp: t
         if(muaux.isEmpty()){
             return new HashMap<>();
         }else{
@@ -303,6 +304,10 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 //xsAux.fst().put(smallestFullTimestamp, a1a2.snd());
                 xs.put(smallestFullTimestamp, a1a2.snd());
                 //Not sure which of the two above possibilities I should use!
+                return xs;
+            }else if(smallestFullTimestamp == currentTimestamp){
+                HashMap<Long, Table> xs = new HashMap<>();
+                xs.put(smallestFullTimestamp, a1a2.snd());
                 return xs;
             }else{
                 return new HashMap<>(); //pass by reference?
@@ -406,7 +411,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 return result;
             }
         }
-
         Optional<Assignment> result = Optional.empty();
         return result;
     }
@@ -424,11 +428,9 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 }
             }
         }
-
         if(pos) {
             return Table.fromSet(result);
         }else {
-            //we don't have to do anything here right?
             table.removeAll(result);
             return Table.fromSet(table);
         }
