@@ -212,6 +212,9 @@ public class ParsingTest {
 
     @Test
     public void testUntil() throws Exception{
+        //Persisting issue: unable to correctly label publish(163) @1308477599 as a satisfaction!
+        //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
+        //Persisting issue: wrong line of code: evalUntilResult = eval_until(smallestFullTimestamp + 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
@@ -245,11 +248,8 @@ public class ParsingTest {
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
                 new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                //new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
                 new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(187))),
                 new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
                 new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());
@@ -257,6 +257,7 @@ public class ParsingTest {
 
     @Test
     public void testSince() throws Exception{
+        //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
         testHarnessPred1Since.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Since.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Since.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
@@ -287,15 +288,12 @@ public class ParsingTest {
         List<PipelineEvent> processedSince = testHarnessSince.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testSince() output:  " + processedSince.toString());
         //formula being tested against: publish(163) SINCE [0,7d] approve(163)
-        //approve(152) does not even satisfy the predicates, so it should not reach the binary operator for Since!!!
+        //approve(152) does not even satisfy the predicates, so it should not reach the binary operator for Since
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
                 new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                //new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
                 new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(187))),
                 new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
                 new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
         ));
         assertArrayEquals( expectedResults.toArray(), processedSince.toArray());
@@ -303,7 +301,7 @@ public class ParsingTest {
 
     @Test
     public void testExists() throws Exception{
-        //Not sure if this test makes sense!
+        //Persisting issue: Not sure if this test makes sense!
         testHarnessPredExists.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPredExists.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPredExists.processElement(Fact.makeTP("publish", 1307955600,1L, "163"), 1L);
@@ -375,10 +373,10 @@ public class ParsingTest {
 
     @Test
     public void testOr() throws Exception{
-        //We have not really discussed in order/out-of-order assumptions. MOr
+        //Persisting issues: I have not really discussed/tested in order/out-of-order assumptions. MOr
         //releases events out of order. I think this is ok because we can assume operators
-        //(e.g. MSince and MUntil) can receive events out-of-order). You just have to explain well
-        //why it is that the events that are processed by each operator (in this case MOr) release things out-of-order
+        //(e.g. MSince and MUntil) can receive events out-of-order).
+        // TODO explain well why it is that the events that are processed by each operator (in this case MOr) release things out-of-order
         testHarnessPred1Or.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
 
         testHarnessPred1Or.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
@@ -441,7 +439,7 @@ public class ParsingTest {
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
-        //for the last 3 facts, we cannot check the interval condition, because we don't have the timestamp of the next timepoint!'
+        // Persisting issue: for the last 3 facts, we cannot check the interval condition, because we don't have the timestamp of the next timepoint!'
         List<PipelineEvent> pes = testHarnessPredPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         for (PipelineEvent pe : pes) {
             testHarnessPrev.processElement(pe, 1L);
@@ -455,7 +453,6 @@ public class ParsingTest {
                 new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(160))),
                 new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
                 ));
-        //make sure terminators are in the result; they simply have to be sent forward
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
 
@@ -483,7 +480,6 @@ public class ParsingTest {
                 new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(152))),
                 new PipelineEvent(1307955600, 1L, true, Assignment.nones(0))
         ));
-        //make sure terminators are in the result; they simply have to be sent forward
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
 
@@ -518,23 +514,12 @@ public class ParsingTest {
     @Test
     public void testRelTrueFalse() throws Exception{
         testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "160"), 1L);
-        //Problem: Fact.make is a static function... make does not set the timepoints, so you would actually have to
-        //create a fact that sets timepoints, and then pass it to the processElement function, so you may as well just
-        //wrap the processElement into a for loop. Or you can make the Facts first, then put them in an array,
-        //and then iterate through the array with the processElement.
-        //Maybe you want to overload the make method with a version that also expects a timepoint, and then you can just write
-        //the same thing as in testParsingWithFLink().
-        //The method processElement() expects stream records, which force you to write some Flink timestamp (the second argument
-        //that we pass). This is a parameter we don't care about, so we can just put a dummy timestamp. Because processElement
-        //expects a generic Stream Element of Flink which consists of 2 parts: a flink timestamp and the payload (which is
-        //whatever you are passing around through Flink).
         List<PipelineEvent> pe = testHarnessRel.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         assert(pe.size()==1);
         assert(!pe.get(0).isPresent());
         assert(pe.get(0).getTimestamp() == 1L);
         assert(pe.get(0).getTimepoint() == 0L);
         assert(pe.get(0).get().size() == 0);
-        //assert(!pe.get(0).get()....);
     }
 
     @Test

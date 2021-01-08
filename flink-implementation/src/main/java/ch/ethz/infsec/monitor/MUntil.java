@@ -13,13 +13,15 @@ import scala.collection.mutable.HashSet;
 
 public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
 
+
+
     boolean pos;//indicates whether the first subformula is negated or not
     public Mformula formula1;
     ch.ethz.infsec.policy.Interval interval;
     public Mformula formula2;
     Tuple<HashMap<Long, Table>, HashMap<Long, Table>> mbuf2;
     HashMap<Long, Tuple<Table, Table>> muaux;
-    //for muaux, is it ok to have a HashMap with a Tuple in the Range, instead of a set of triples?
+    //for muaux, contrary to the Verimon impl, we have a HashMap with a Tuple in the Range, instead of a set of triples
 
     Long largestInOrderTPsub1;
     Long largestInOrderTPsub2;
@@ -27,7 +29,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     Long startEvalTimepoint; //this gives us the timepoint from which to retrieve the timestamp and corresponding entries
     //in mbuf2 and muaux, in order to process these datastructures from the last entry which was not evaluated, and hence
     //was also not "taken" from the buffer.
-
     //At the end of the flatMap functions, remember to remove the necessary entries from timepointToTimestamp. Otw there
     //may be a memory leak/stack overflow.
 
@@ -35,8 +36,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     HashMap<Long, Long> timepointToTimestamp;
     HashSet<Long> terminSub1;
     HashSet<Long> terminSub2;
-
-
 
     public MUntil(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval,
                   Mformula accept1) {
@@ -69,13 +68,13 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     public void flatMap1(PipelineEvent event, Collector<PipelineEvent> collector) throws Exception {
         //for implementing MUntil there are many options, we chose to go with the simplest one which is to implement
         //it the way it's implemented in Verimon, i.e. buffer everything.
-        //What is the connection between Until and Eventually?
         if(!timepointToTimestamp.containsKey(event.getTimepoint())){
             timepointToTimestamp.put(event.getTimepoint(), event.getTimestamp());
         }
-        //NB: I think you don't actually need tsList
-        //but here we are adding the timestamp to it; even if we still have to sort
-        //filling mbuf2 appropriately:
+        //NB: I think I don't actually need tsList,
+        //because we store the timestamps in msaux, the timepoints in mbuf2, and we have
+        //a specific datastructure which maps timepoints to timestamps
+        //we still have to sort filling mbuf2 appropriately:
         if(mbuf2.fst().containsKey(event.getTimepoint())){
             mbuf2.fst().get(event.getTimepoint()).add(event.get());
         }else{
@@ -83,7 +82,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
         //filling muaux appropriately:
         if(muaux.containsKey(event.getTimestamp())){
-            //muaux declaration: HashMap<Long, Tuple<Table, Table>> muaux
             muaux.get(event.getTimestamp()).fst().add(event.get());
         }else{
             muaux.put(event.getTimestamp(), new Tuple<>(Table.one(event.get()), Table.empty()));
@@ -123,17 +121,14 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
                 if(timepointToTimestamp.containsKey(largestInOrderTPsub1 + 1L)){
                     //to write about this in the thesis, see the schemes made during the meeting
-                    evalUntilResult = eval_until(smallestFullTimestamp + 1L); //WRONG!!!
+                    evalUntilResult = eval_until(smallestFullTimestamp + 1L);
                 }else if(timepointToTimestamp.containsKey(largestInOrderTPsub1)){
                     evalUntilResult = eval_until(smallestFullTimestamp);
                 }else{
                     throw new Exception("The mapping from tp to ts should contain at least one of these entries.");
                 }
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
-                //NB: we didn't double-check if eval_until impl is correct
                 for(Long timestamp : muaux_zs.keySet()){ //start from "startEvalTimepoint"
-                    //not sure if keySet() of zs consists of timestamp or timepoints
-                    //This problem is also present in the body of eval_until
                     Table evalSet = muaux_zs.get(timestamp);
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1 && oa.size() !=0){
