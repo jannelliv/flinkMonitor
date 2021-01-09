@@ -75,6 +75,18 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
         return connectedStreams.flatMap(f);
     }
 
+    @Override
+    public DataStream<PipelineEvent> visit(MOnce f) {
+        DataStream<PipelineEvent> input = f.formula.accept(this);
+        return input.flatMap(f);
+    }
+
+    @Override
+    public DataStream<PipelineEvent> visit(MEventually f) {
+        DataStream<PipelineEvent> input = f.formula.accept(this);
+        return input.flatMap(f);
+    }
+
     public DataStream<PipelineEvent> visit(MRel f) {
         OutputTag<Fact> factStream = this.hmap.get("");
         return this.mainDataStream.getSideOutput(factStream).flatMap(f);

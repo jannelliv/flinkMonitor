@@ -111,8 +111,8 @@ private object PolicyParsers {
   val Formula2Prefix: P[FormulaS] = P(
     unaryTemporal(Token.keyword("PREVIOUS"), Formula2, Prev(_, _)) |
     unaryTemporal(Token.keyword("NEXT"), Formula2, Next(_, _)) |
-    unaryTemporal(Token.Eventually, Formula2, GenFormula.eventually) |
-    unaryTemporal(Token.Once, Formula2, GenFormula.once) |
+    unaryTemporal(Token.keyword("EVENTUALLY"), Formula2, Eventually(_, _)) |
+    unaryTemporal(Token.keyword("ONCE"), Formula2, Once(_, _)) |
     unaryTemporal(Token.Always, Formula2, GenFormula.always) |
     unaryTemporal(Token.Historically, Formula2, GenFormula.historically) |
     quantifier(Token.keyword("EXISTS"), Formula2, Ex(_, _)) |

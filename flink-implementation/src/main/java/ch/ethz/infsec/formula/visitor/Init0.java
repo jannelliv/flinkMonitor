@@ -161,6 +161,18 @@ public class Init0 implements FormulaVisitor<Mformula> {
 
     }
 
+    @Override
+    public Mformula visit(JavaOnce<VariableID> f) {
+        //should we check with safe_formula?
+        return new MOnce(f.interval(), (f.arg()).accept(new Init0(f.arg().freeVariablesInOrder())));
+    }
+
+    @Override
+    public Mformula visit(JavaEventually<VariableID> f) {
+        //should we check with safe_formula?
+        return new MEventually(f.interval(), (f.arg()).accept(new Init0(f.arg().freeVariablesInOrder())));
+    }
+
     public static boolean safe_formula(JavaGenFormula<VariableID> form){
         if(form instanceof JavaPred){
             return true;

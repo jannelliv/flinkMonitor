@@ -5,10 +5,12 @@ import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
 import org.apache.flink.util.Collector;
 
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
-import scala.collection.mutable.HashSet;
+
 
 
 public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
@@ -25,17 +27,19 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     Long largestInOrderTPsub1;
     Long largestInOrderTPsub2;
-
+    //startEvalTimepoint is the timepoint that corresponds to smallestFullTimestamp!
     Long startEvalTimepoint; //this gives us the timepoint from which to retrieve the timestamp and corresponding entries
     //in mbuf2 and muaux, in order to process these datastructures from the last entry which was not evaluated, and hence
     //was also not "taken" from the buffer.
+    Long smallestFullTimestamp;
+
     //At the end of the flatMap functions, remember to remove the necessary entries from timepointToTimestamp. Otw there
     //may be a memory leak/stack overflow.
 
-    Long smallestFullTimestamp;
     HashMap<Long, Long> timepointToTimestamp;
     HashSet<Long> terminSub1;
     HashSet<Long> terminSub2;
+    Boolean fromFlatMap2;
 
     public MUntil(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval,
                   Mformula accept1) {
@@ -49,7 +53,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         this.largestInOrderTPsub1 = -1L;
         this.largestInOrderTPsub2 = -1L;
         this.smallestFullTimestamp = -1L;
-        this.startEvalTimepoint = 0L; //not sure if this should be 0 or -1
+        this.startEvalTimepoint = -1L; //not sure if this should be 0 or -1
         HashMap<Long, Table> fst = new HashMap<>();
         HashMap<Long, Table> snd = new HashMap<>();
         this.mbuf2 = new Tuple<>(fst, snd);
@@ -66,6 +70,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     @Override
     public void flatMap1(PipelineEvent event, Collector<PipelineEvent> collector) throws Exception {
+        this.fromFlatMap2 = false;
         //for implementing MUntil there are many options, we chose to go with the simplest one which is to implement
         //it the way it's implemented in Verimon, i.e. buffer everything.
         if(!timepointToTimestamp.containsKey(event.getTimepoint())){
@@ -121,29 +126,30 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
                 if(timepointToTimestamp.containsKey(largestInOrderTPsub1 + 1L)){
                     //to write about this in the thesis, see the schemes made during the meeting
-                    evalUntilResult = eval_until(smallestFullTimestamp + 1L);
+                    evalUntilResult = eval_until(startEvalTimepoint + 1L);
                 }else if(timepointToTimestamp.containsKey(largestInOrderTPsub1)){
-                    evalUntilResult = eval_until(smallestFullTimestamp);
+                    evalUntilResult = eval_until(startEvalTimepoint);
                 }else{
                     throw new Exception("The mapping from tp to ts should contain at least one of these entries.");
                 }
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
-                for(Long timestamp : muaux_zs.keySet()){ //I'm not starting from "startEvalTimepoint"
-                    Table evalSet = muaux_zs.get(timestamp);
+                for(Long timepoint : muaux_zs.keySet()){ //I'm not starting from "startEvalTimepoint"
+                    Table evalSet = muaux_zs.get(timepoint);
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1 && oa.size() !=0){
-                            collector.collect(new PipelineEvent(timestamp, event.getTimepoint(), false, oa));
+                            collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, false, oa));
                         }else{
                             throw new Exception("problem retrieving timepoint");
                         }
                     }
-                    //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
-                    if(event.getTimepoint() != -1) {
-                        collector.collect(new PipelineEvent(timestamp, event.getTimepoint(), true, Assignment.nones(event.get().size())));
-                        //not sure about the nones(), and the number of free variables
-                    }else{
-                        throw new Exception("problem retrieving timepoint");
-                    }
+                    //at the end, we output the terminator! --> for each of the timepoints in zs
+                    //The terminators are not output as soon as we get them, but only when we are sure that
+                    //we have output all of the satisfying assignments for that timepoint.
+                    //Since Until is a future formula, we can produce assignments for a timepoint even after we have
+                    //received the terminator for that timepoint.
+                    collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, true, Assignment.nones(event.get().size())));
+                    //not sure about the nones(), and the number of free variables
+
                 }
             }
             if(largestInOrderTPsub1 <= largestInOrderTPsub2){
@@ -151,12 +157,14 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             }else{
                 startEvalTimepoint = largestInOrderTPsub2 +1; //not sure about the +1
             }
-            //TODO: remove parts from the data-structures in the fields in order to avoid a memory leak.
+            //TODO: check that method to clear up the data-structures in the fields is correct (see below)
+            //cleanUpDatastructures();
         }
     }
 
     @Override
     public void flatMap2(PipelineEvent event, Collector<PipelineEvent> collector) throws Exception {
+        this.fromFlatMap2 = true;
         if(!timepointToTimestamp.containsKey(event.getTimepoint())){
             timepointToTimestamp.put(event.getTimepoint(), event.getTimestamp());
         }
@@ -207,35 +215,28 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     assert(muaux.containsKey(smallestFullTimestamp));
                     evalUntilResult = eval_until(smallestFullTimestamp);
                 }
-
+                //eval_until will only output something if we are considering a full timepoint.
+                //So we don't need to check anything here.
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
-                for(Long timestamp : muaux_zs.keySet()){
-                    Table evalSet = muaux_zs.get(timestamp);
+                for(Long timepoint : muaux_zs.keySet()){
+                    Table evalSet = muaux_zs.get(timepoint);
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1L && oa.size() != 0){
-                            collector.collect(new PipelineEvent(timestamp, event.getTimepoint(), false, oa));
-                        }/*else{
-                            throw new Exception("problem retrieving timepoint");
-                        }*/
+                            collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, false, oa));
+                        }
                     }
-                    //at the end, we output the terminator! --> for each of the timepoints in zs???
-                    /*if(event.getTimepoint() != -1L){
-                        collector.collect(new PipelineEvent(timestamp, event.getTimepoint(), true, Assignment.nones(event.get().size())));
-                        //not sure about the nones(), and the number of free variables
-                    }else{
-                        throw new Exception("problem retrieving timepoint");
-                    }*/
+                    //at the end, we output the terminator! --> for each of the timepoints in zs
+                    collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, true, Assignment.nones(event.get().size())));
+                    //not sure about the nones(), and the number of free variables
+
                 }
-            }
-            //I have an issue understanding when to output terminators, so I am currently outputting them when I get them.
-            if(terminSub1.contains(event.getTimepoint()) && terminSub2.contains(event.getTimepoint())){
-                collector.collect(event);
             }
             if(largestInOrderTPsub1 <= largestInOrderTPsub2){
                 startEvalTimepoint = largestInOrderTPsub1 +1; //not sure about the +1
             }else{
                 startEvalTimepoint = largestInOrderTPsub2  +1;
             }
+            //cleanUpDatastructures();
         }
     }
 
@@ -280,6 +281,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
     public HashMap<Long, Table> eval_until(long currentTimestamp){
+        //In Verimon, the table built below (xs), is per timepoint, not per timestamp!
         //In the Verimon code on afp it holds that:
         //current timestamp: nt;   smallest full timestamp: t
         if(muaux.isEmpty()){
@@ -289,14 +291,12 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             Tuple<Table, Table> a1a2 = muaux.get(smallestFullTimestamp);
             if(interval.upper().isDefined() && smallestFullTimestamp.intValue() + (int)interval.upper().get() < currentTimestamp){
                 HashMap<Long, Table> xs = eval_until(currentTimestamp);
-                //xsAux.fst().put(currentTimestamp, a1a2.snd());
-                //xsAux.fst().put(smallestFullTimestamp, a1a2.snd());
-                xs.put(smallestFullTimestamp, a1a2.snd());
-                //Not sure which of the two above possibilities I should use!
+                xs.put(startEvalTimepoint, a1a2.snd());
                 return xs;
-            }else if(smallestFullTimestamp == currentTimestamp){
+            }else if(timepointToTimestamp.get(startEvalTimepoint) == currentTimestamp && fromFlatMap2){
+                //TODO: can this "else if" be considered an optimization of the algo, which is even more greedy?
                 HashMap<Long, Table> xs = new HashMap<>();
-                xs.put(smallestFullTimestamp, a1a2.snd());
+                xs.put(startEvalTimepoint, a1a2.snd());
                 return xs;
             }else{
                 return new HashMap<>();
@@ -423,6 +423,15 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             table.removeAll(result);
             return Table.fromSet(table);
         }
+    }
+
+    public void cleanUpDatastructures(){
+        mbuf2.fst.keySet().removeIf(tp -> tp < largestInOrderTPsub1);
+        mbuf2.snd.keySet().removeIf(tp -> tp < largestInOrderTPsub2);
+        muaux.keySet().removeIf(ts -> ts < timepointToTimestamp.get(startEvalTimepoint));
+        timepointToTimestamp.keySet().removeIf(tp -> tp < startEvalTimepoint);
+        terminSub2.removeIf(tp -> tp < startEvalTimepoint);
+        terminSub1.removeIf(tp -> tp < startEvalTimepoint);
     }
 }
 

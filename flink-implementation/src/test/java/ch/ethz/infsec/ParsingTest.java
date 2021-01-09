@@ -42,6 +42,15 @@ public class ParsingTest {
     //testRelTrueFalse()
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessRel;
 
+    //testEventually()
+    private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPredEv;
+    private OneInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent> testHarnessEv;
+
+    //testOnce()
+    private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPredOnce;
+    private OneInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent> testHarnessOnce;
+
+
     //testPrev()
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPredPrev;
     private OneInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent> testHarnessPrev;
@@ -105,8 +114,9 @@ public class ParsingTest {
         testHarness = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunction));
         testHarness.open();
 
+
         //testPrev()
-        Either<String, GenFormula<VariableID>> pubPred = Policy.read("publish(r)"); //!!!PROBLEM???
+        Either<String, GenFormula<VariableID>> pubPred = Policy.read("publish(r)");
         GenFormula<VariableID> formulaPub = pubPred.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredPrev = (MPred) (convert(formulaPub)).accept(new Init0(formulaPub.freeVariablesInOrder()));
         testHarnessPredPrev = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredPrev));
@@ -118,7 +128,7 @@ public class ParsingTest {
         testHarnessPrev.open();
 
         //testNext()
-        Either<String, GenFormula<VariableID>> pubr = Policy.read("publish(r)"); //!!!PROBLEM???
+        Either<String, GenFormula<VariableID>> pubr = Policy.read("publish(r)");
         GenFormula<VariableID> pubR = pubr.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredNext = (MPred) (convert(pubR)).accept(new Init0(pubR.freeVariablesInOrder()));
         testHarnessPredNext = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredNext));
@@ -208,6 +218,83 @@ public class ParsingTest {
         CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> statefulFlatMapFunctionUntil = (MUntil) (convert(untilFormula)).accept(new Init0(untilFormula.freeVariablesInOrder()));
         testHarnessUntil = new TwoInputStreamOperatorTestHarness<>(new CoStreamFlatMap<>(statefulFlatMapFunctionUntil));
         testHarnessUntil.open();
+
+        //testOnce()
+        Either<String, GenFormula<VariableID>> predOnce = Policy.read("publish(163)");
+        GenFormula<VariableID> formulaPredOnce = predOnce.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredOnce = (MPred) (convert(formulaPredOnce)).accept(new Init0(formulaPredOnce.freeVariablesInOrder()));
+        testHarnessPredOnce = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredOnce));
+        testHarnessPredOnce.open();
+        Either<String, GenFormula<VariableID>> onceEitherFormula = Policy.read("ONCE [0,7d] publish(163)");
+        GenFormula<VariableID> onceFormula = onceEitherFormula.right().get();
+        FlatMapFunction<PipelineEvent, PipelineEvent> statefulFlatMapFunctionOnce = (MOnce) (convert(onceFormula)).accept(new Init0(onceFormula.freeVariablesInOrder()));
+        testHarnessOnce = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionOnce));
+        testHarnessOnce.open();
+
+
+        //testEventually()
+        Either<String, GenFormula<VariableID>> predEv = Policy.read("publish(163)");
+        GenFormula<VariableID> formulaPredEv = predEv.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredEv = (MPred) (convert(formulaPredEv)).accept(new Init0(formulaPredEv.freeVariablesInOrder()));
+        testHarnessPredEv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredEv));
+        testHarnessPredEv.open();
+        Either<String, GenFormula<VariableID>> evEitherFormula = Policy.read("EVENTUALLY [0,7d] publish(163)");
+        GenFormula<VariableID> evFormula = evEitherFormula.right().get();
+        FlatMapFunction<PipelineEvent, PipelineEvent> statefulFlatMapFunctionEv = (MEventually) (convert(evFormula)).accept(new Init0(evFormula.freeVariablesInOrder()));
+        testHarnessEv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionEv));
+        testHarnessEv.open();
+    }
+
+    @Test
+    public void testOnce() throws Exception{
+        //formula being tested: ONCE [0,7d] publish(r)
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "159"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        List<PipelineEvent> pes = testHarnessPredOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        for (PipelineEvent pe : pes) {
+            testHarnessOnce.processElement(pe, 1L);
+        }
+        List<PipelineEvent> processedPES = testHarnessOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("testOnce() output:  " + processedPES.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
+                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
+                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
+                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
+                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
+                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+        ));
+        assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
+    }
+
+    @Test
+    public void testEventually() throws Exception{
+        //formula being tested: EVENTUALLY [0,7d] publish(r)
+        testHarnessPredEv.processElement(Fact.makeTP("publish", 1307532861,0L, "159"), 1L);
+        testHarnessPredEv.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
+        testHarnessPredEv.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        testHarnessPredEv.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
+        testHarnessPredEv.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
+        testHarnessPredEv.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        testHarnessPredEv.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        List<PipelineEvent> pes = testHarnessPredEv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        for (PipelineEvent pe : pes) {
+            testHarnessEv.processElement(pe, 1L);
+        }
+        List<PipelineEvent> processedPES = testHarnessEv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("testEventually() output:  " + processedPES.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
+                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(159))),
+                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
+                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+        ));
+        assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
 
     @Test
@@ -216,7 +303,6 @@ public class ParsingTest {
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
         //Persisting issue: wrong line of code: evalUntilResult = eval_until(smallestFullTimestamp + 1L);
         //Persisting issues: at line 130ish, I don't "start from startEvalTimepoint"
-        //Persisting issue: not 10% sure about my "fix" for the interval check
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
@@ -251,7 +337,20 @@ public class ParsingTest {
                 new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
                 new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
                 new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
+                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
+                //We will not consider the above event as we are only contemplating infinite traces.
+                //In the monpoly implementation (online version), it s assumed that there is not enough information to determine
+                //whether we have a satisfaction or a violation.
+                //If one invokes monpoly and say that for the last timepoint we are at the EOF, then the publish(163)
+                //will be detected as a violation. This is done by setting a specific flag. What this flag does is to
+                //insert a new timepoint (after the last timepoint), which has a very high timestamp.
+                //For my thesis, I have to consider that we are working with infinite streams.
+                //For comparison with monpoly, use "-nonewlastts"
+                //Even if the formula is propositional, the MonPoly evaluation is not eager. Verimon/MonPoly will still
+                //wait until all assignments are available, it will not output on the single assignments.
+                //Thesis: talk about the thesis from the point of view of your algorithm. aka what is the progress like
+                //when a streaming implementation is used.
+
                 new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());
@@ -534,22 +633,6 @@ public class ParsingTest {
         assert(pe.get(0).getTimepoint() == 0L);
         assert(pe.get(0).get().get(0).isPresent());
         assert(pe.get(0).get().get(0).get().equals("160"));
-    }
-
-
-
-    private Collector<PipelineEvent> mock(Class<Collector<PipelineEvent>> collectorClass) {
-        return new Collector<PipelineEvent>() {
-            @Override
-            public void collect(PipelineEvent record) {
-                this.collect(record);
-            }
-
-            @Override
-            public void close() {
-                this.close();
-            }
-        };
     }
 
     @Test

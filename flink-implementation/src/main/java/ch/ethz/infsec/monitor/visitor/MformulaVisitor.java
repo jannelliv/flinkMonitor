@@ -12,5 +12,6 @@ public interface MformulaVisitor<T> {
     T visit(MPrev f);
     T visit(MSince f);
     T visit(MUntil f);
-
+    T visit(MOnce f);
+    T visit(MEventually f);
 }

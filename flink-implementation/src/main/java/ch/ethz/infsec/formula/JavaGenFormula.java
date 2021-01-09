@@ -31,6 +31,10 @@ public interface JavaGenFormula<T> extends JavaGenFormulaUnsealed<T> {
             return new JavaSince<>(((Since<T>) gf).interval(), ((Since<T>) gf).arg1(), ((Since<T>) gf).arg2());
         }else if(gf instanceof Until){
             return new JavaUntil<>(((Until<T>) gf).interval(), ((Until<T>) gf).arg1(), ((Until<T>) gf).arg2());
+        }else if(gf instanceof Eventually){
+            return new JavaEventually<>(((Eventually<T>) gf).interval(), ((Eventually<T>) gf).arg());
+        }else if(gf instanceof Once){
+            return new JavaOnce<>(((Once<T>) gf).interval(), ((Once<T>) gf).arg());
         }else{
             return null;
         }

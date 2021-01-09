@@ -17,5 +17,6 @@ public interface FormulaVisitor<T> {
     T visit(JavaPrev<VariableID> f);
     T visit(JavaSince<VariableID> f);
     T visit(JavaUntil<VariableID> f);
-
+    T visit(JavaOnce<VariableID> f);
+    T visit(JavaEventually<VariableID> f);
 }

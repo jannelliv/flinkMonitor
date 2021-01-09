@@ -6,9 +6,11 @@ import org.apache.flink.util.Collector;
 
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
-import scala.collection.mutable.HashSet;
+
 
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
 
@@ -121,7 +123,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     startEvalTimepoint = largestInOrderTPsub2+1;
                 }
                 //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
-
+                cleanUpDatastructures();
             }
         }
 
@@ -163,13 +165,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
                     return intermRes;};
 
-                /*meval n t db (MSince pos φ I ψ buf nts aux) =
-                (let (xs, φ) = meval n t db φ; (ys, ψ) = meval n t db ψ;
-                ((zs, aux), buf, nts) = mbuf2t_take (λr1 r2 t (zs, aux). let (z, aux) = update_since I pos r1 r2 t aux in (zs @ [z], aux))
-                        ([], aux) (mbuf2_add xs ys buf) (nts @ [t])
-                in (zs, MSince pos φ I ψ buf nts aux))*/
-
-
                 HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
                 for(Long ts : msaux_zs.keySet()){
                     Table evalSet = msaux_zs.get(ts);
@@ -198,6 +193,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 }
             }
         }
+
+        //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
+        cleanUpDatastructures();
     }
 
 
@@ -364,23 +362,19 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         if(pos) {
             return Table.fromSet(result);
         }else {
-            //we don't have to do anything here right?
+            //we don't have to do anything here, right?
             table.removeAll(result);
             return Table.fromSet(table);
 
         }
 
     }
-    /*public Tuple<HashMap<Long, Table>,
-            HashMap<Long, Table>> mbuf2_add(Tuple<HashMap<Long, Table>,
-            HashMap<Long, Table>> xsys, HashMap<Long, Table> xsp,
-                                            HashMap<Long, Table> ysp){
-        //I don't actually need this method!!
-        xsys.fst().get(smallestCompleteTPleft).addAll(xsp.get(smallestCompleteTPleft));
-        xsys.snd().get(smallestCompleteTPright).addAll(ysp.get(smallestCompleteTPright));
-        return xsys;
-
-    }*/
+    public void cleanUpDatastructures(){
+        mbuf2.fst.keySet().removeIf(tp -> tp < largestInOrderTPsub1);
+        mbuf2.snd.keySet().removeIf(tp -> tp < largestInOrderTPsub2);
+        msaux.keySet().removeIf(ts -> ts < smallestFullTimestamp);
+        timepointToTimestamp.keySet().removeIf(tp -> tp < startEvalTimepoint);
+    }
 }
 
 interface Mbuf2take_function{

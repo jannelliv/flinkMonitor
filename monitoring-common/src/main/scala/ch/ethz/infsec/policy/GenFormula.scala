@@ -232,6 +232,31 @@ case class Since[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]
   override def toQTL: String = if (!arg1.equals(True())) s"(${arg1.toQTL}) S ${interval.toQTL} (${arg2.toQTL})" else s"P ${interval.toQTL} (${arg2.toQTL})"
 }
 
+
+
+case class Once[V](interval: Interval, arg: GenFormula[V]) extends GenFormula[V] {
+  override lazy val atoms: Set[Pred[V]] = arg.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg.atomsInOrder
+  override lazy val freeVariables: Set[V] = arg.freeVariables
+  override lazy val freeVariablesInOrder: Seq[V] = arg.freeVariablesInOrder
+  override def map[W](mapper: VariableMapper[V, W]): Once[W] = Once(interval, arg.map(mapper))
+  override def check: List[String] = arg.check ++ interval.check
+  override def toString: String = s"ONCE $interval ($arg)"
+  override def toQTL: String = s"(${true}) S ${interval.toQTL} (${arg.toQTL})" //not 100% sure
+}
+
+case class Eventually[V](interval: Interval, arg: GenFormula[V]) extends GenFormula[V] {
+  override lazy val atoms: Set[Pred[V]] = arg.atoms
+  override lazy val atomsInOrder: Seq[Pred[V]] = arg.atomsInOrder
+  override lazy val freeVariables: Set[V] = arg.freeVariables
+  override lazy val freeVariablesInOrder: Seq[V] = arg.freeVariablesInOrder
+  override def map[W](mapper: VariableMapper[V, W]): Eventually[W] = Eventually(interval, arg.map(mapper))
+  override def check: List[String] = arg.check ++ interval.check
+  override def toString: String = s"EVENTUALLY $interval ($arg)"
+  override def toQTL: String = throw new UnsupportedOperationException
+}
+
+
 case class Trigger[V](interval: Interval, arg1: GenFormula[V], arg2: GenFormula[V]) extends GenFormula[V] {
   override lazy val atoms: Set[Pred[V]] = arg1.atoms ++ arg2.atoms
   override lazy val atomsInOrder: Seq[Pred[V]] = arg1.atomsInOrder ++ arg2.atomsInOrder
@@ -270,11 +295,11 @@ object GenFormula {
 
   def equiv[V](arg1: GenFormula[V], arg2: GenFormula[V]): GenFormula[V] = And(implies(arg1, arg2), implies(arg2, arg1))
 
-  def once[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Since(interval, True(), arg)
+  //def once[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Since(interval, True(), arg)
 
   def historically[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Trigger(interval, False(), arg)
 
-  def eventually[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Until(interval, True(), arg)
+  //def eventually[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Until(interval, True(), arg)
 
   def always[V](interval: Interval, arg: GenFormula[V]): GenFormula[V] = Release(interval, False(), arg)
 

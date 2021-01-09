@@ -84,9 +84,9 @@ class PolicyTest extends AnyFunSuite with Matchers {
   test("Temporal formulas should be parsed correctly") {
     Policy.parse("PREVIOUS [3,5) P(x)").right.value shouldBe Prev(Interval(3, Some(5)), Px)
     Policy.parse("NEXT [3,5) P(x)").right.value shouldBe Next(Interval(3, Some(5)), Px)
-    Policy.parse("EVENTUALLY [3,5) P(x)").right.value shouldBe GenFormula.eventually(Interval(3, Some(5)), Px)
-    Policy.parse("SOMETIMES [3,5) P(x)").right.value shouldBe GenFormula.eventually(Interval(3, Some(5)), Px)
-    Policy.parse("ONCE [3,5) P(x)").right.value shouldBe GenFormula.once(Interval(3, Some(5)), Px)
+    Policy.parse("EVENTUALLY [3,5) P(x)").right.value shouldBe Eventually(Interval(3, Some(5)), Px)
+    Policy.parse("SOMETIMES [3,5) P(x)").right.value shouldBe Eventually(Interval(3, Some(5)), Px)
+    Policy.parse("ONCE [3,5) P(x)").right.value shouldBe Once(Interval(3, Some(5)), Px)
     Policy.parse("ALWAYS [3,5) P(x)").right.value shouldBe GenFormula.always(Interval(3, Some(5)), Px)
     Policy.parse("HISTORICALLY [3,5) P(x)").right.value shouldBe GenFormula.historically(Interval(3, Some(5)), Px)
     Policy.parse("PAST_ALWAYS [3,5) P(x)").right.value shouldBe GenFormula.historically(Interval(3, Some(5)), Px)
@@ -98,8 +98,8 @@ class PolicyTest extends AnyFunSuite with Matchers {
     Policy.parse("P(x) AND P(y) UNTIL Q(x, y)").right.value shouldBe Until(Interval.any, And(Px, Py), Qxy)
     Policy.parse("EXISTS x. P(x) SINCE P(y)").right.value shouldBe Since(Interval.any, Ex("x", Px), Py)
     Policy.parse("P(x) IMPLIES ONCE Q(x, y)").right.value shouldBe
-      GenFormula.implies(Px, GenFormula.once(Interval.any, Qxy))
+      GenFormula.implies(Px, Once(Interval.any, Qxy))
     Policy.parse("P(x) IMPLIES ONCE Q(x,y) AND P(x)").right.value shouldBe
-      GenFormula.implies(Px, GenFormula.once(Interval.any, And(Qxy, Px)))
+      GenFormula.implies(Px, Once(Interval.any, And(Qxy, Px)))
   }
 }
