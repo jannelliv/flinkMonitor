@@ -75,6 +75,7 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             //do I have to handle the buffered events also here? Yes
             //Every time I receive an event I have to check if that event helps find a satisfaction in the future
             //so the handleBeffered method should looks for satisfs in the future!
+            handleBuffered(event, out);
         }else{
             //Contrary to the implem of pastBuckets, bufferedEvents should contain terminators
             if(!bufferedEvents.keySet().contains(event.getTimepoint()) ||
@@ -99,7 +100,8 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             }
 
             //Do I also have to check for terminators arriving at the pastBuckets datastructure?
-            //see if I also have to do some form of handleBuffered for the terminators!
+            //When you receive a terminator, you should see if it's time to clean up some entries in pastBuckets
+            //You should do this here.
         }
 
     }
