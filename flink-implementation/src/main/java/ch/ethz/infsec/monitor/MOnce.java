@@ -38,6 +38,7 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             timepointToTimestamp.put(event.getTimepoint(), event.getTimestamp());
         }
         if(event.isPresent()){
+            //pastBuckets doesn't contain any terminators! --> important for when we do mem test
             if(!pastBuckets.containsKey(event.getTimepoint())){
                 HashSet<PipelineEvent> set = new HashSet<>();
                 set.add(event);
@@ -71,9 +72,11 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     bufferedEvents.get(event.getTimepoint()).add(event);
                 }
             }
-            //do I have to handle the buffered events also here?
+            //do I have to handle the buffered events also here? Yes
+            //Every time I receive an event I have to check if that event helps find a satisfaction in the future
+            //so the handleBeffered method should looks for satisfs in the future!
         }else{
-            //STILL HAVE TO HANDLE TERMINATORS
+            //Contrary to the implem of pastBuckets, bufferedEvents should contain terminators
             if(!bufferedEvents.keySet().contains(event.getTimepoint()) ||
                     bufferedEvents.keySet().contains(event.getTimepoint()) && bufferedEvents.get(event.getTimepoint()).isEmpty()){
                 //terminator can be output if none of the events corresponding to its timepoint are buffered
@@ -94,15 +97,41 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     bufferedEvents.put(event.getTimepoint(), set);
                 }
             }
+
+            //Do I also have to check for terminators arriving at the pastBuckets datastructure?
+            //see if I also have to do some form of handleBuffered for the terminators!
         }
 
     }
 
-    public void handleBuffered(PipelineEvent termEvent, Collector<PipelineEvent> out){
-        if(pastBuckets.keySet().contains(termEvent.getTimepoint())){
-            HashSet<PipelineEvent> pastEvents = pastBuckets.get(termEvent.getTimepoint());
-            for(PipelineEvent pe : pastEvents){
-                //...
+    public void handleBuffered(PipelineEvent incomingPastEvent, Collector<PipelineEvent> out){
+        for(Long tp : bufferedEvents.keySet()){
+            if(timepointToTimestamp.get(tp) - incomingPastEvent.getTimestamp() >= 0L){
+                //not sure if this if condition is expressed correctly
+                HashSet<PipelineEvent> bes = bufferedEvents.get(tp);
+                boolean terminatorPresent = false;
+                if(mem(timepointToTimestamp.get(tp) - incomingPastEvent.getTimestamp(), interval)){
+                    for(PipelineEvent be : bes){
+                        if(be.isPresent()){
+                            out.collect(be);
+                            bes.remove(be); //I think this is ok, since PipelineEvent implements equals() method
+                            //Could result in concurrentmodificationexception
+                        }else{
+                            terminatorPresent = true;
+                        }
+                    }
+                    if(terminatorPresent){
+                        //the terminator is output last (after all the other buffered events) and only if it's the last thing
+                        //in the hashset (but I actually think bes.size()==1 will always hold).
+                        if(bes.size() == 1){
+                            for(PipelineEvent pe : bes){
+                                if(!pe.isPresent()){
+                                    out.collect(pe);
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
     }
