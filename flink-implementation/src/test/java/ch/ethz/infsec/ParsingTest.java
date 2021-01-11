@@ -431,6 +431,7 @@ public class ParsingTest {
 
     @Test
     public void testAnd() throws Exception{
+
         testHarnessPred1.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1.processElement(Fact.makeTP("publish", 1307955600,1L, "163"), 1L);
@@ -469,6 +470,50 @@ public class ParsingTest {
                 new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
                 new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
         ));
+        assertArrayEquals(expectedResults.toArray(), processedAnd.toArray());
+    }
+
+    @Test
+    public void testAnd2() throws Exception{
+
+        List<PipelineEvent> p1 = Arrays.asList(
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(160))),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(152))),
+                PipelineEvent.terminator(1308477599, 2L));
+
+        List<PipelineEvent> p2 = Arrays.asList(
+                PipelineEvent.event(1307532861, 0L,Assignment.one(Optional.of(152))),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(187))),
+                PipelineEvent.terminator(1308477599, 2L));
+
+
+        int longer = Math.max(p1.size(), p2.size());
+        int shorter = Math.min(p1.size(), p2.size());
+        for(int i = 0; i < longer; i++){
+            if(i < shorter){
+                testHarnessAnd.processElement1(p1.get(i), 1L);
+                testHarnessAnd.processElement2(p2.get(i), 1L);
+            }else if(p1.size()==longer){
+                testHarnessAnd.processElement1(p1.get(i), 1L);
+            }else{
+                testHarnessAnd.processElement2(p2.get(i), 1L);
+            }
+        }
+        List<PipelineEvent> processedAnd = testHarnessAnd.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("test output:  " + processedAnd.toString());
+        List<PipelineEvent> expectedResults = Arrays.asList(
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.terminator(1308477599, 2L)
+        );
         assertArrayEquals(expectedResults.toArray(), processedAnd.toArray());
     }
 

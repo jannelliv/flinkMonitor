@@ -10,13 +10,23 @@ public class PipelineEvent  {
     //now we have a non-static terminator for checking
 
 
+    //TODO: make private and use only static factory methods below
+    //Once you do that you can uncomment the assertions in the contructor
     public PipelineEvent(long timestamp, long timepoint, boolean isTerminator, Assignment assignment) {
+//        assert(!isTerminator || assignment==null);
+//        assert(isTerminator || assignment!=null);
 
         this.isTerminator = isTerminator;
         this.timestamp = timestamp;
         this.assignment = assignment;
         this.timepoint = timepoint;
+    }
+    public static PipelineEvent terminator(long timestamp, long timepoint) {
+        return new PipelineEvent(timestamp,timepoint,true,null);
+    }
 
+    public static PipelineEvent event(long timestamp, long timepoint, Assignment assignment) {
+        return new PipelineEvent(timestamp,timepoint,false,assignment);
     }
 
     public boolean isPresent(){
