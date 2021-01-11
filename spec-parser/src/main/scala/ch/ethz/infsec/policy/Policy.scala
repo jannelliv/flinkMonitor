@@ -36,6 +36,8 @@ private object PolicyParsers {
 
     def keyword(word: String): P0 = P( word ~ !(NonDigit | Digit) )(sourcecode.Name(s"`$word`"))
 
+    val Prev: P0 = P( keyword("PREV") |  keyword("PREVIOUS") )
+    val Next: P0 = P( keyword("NEXT") )
     val Eventually: P0 = P( keyword("EVENTUALLY") | keyword("SOMETIMES") )
     val Once: P0 = P( keyword("ONCE") )
     val Always: P0 = P( keyword("ALWAYS") )
@@ -109,10 +111,10 @@ private object PolicyParsers {
   val Formula5: P[FormulaS] = P( leftAssoc(Token.keyword("EQUIV"), Formula6, Formula2Prefix, GenFormula.equiv) )
 
   val Formula2Prefix: P[FormulaS] = P(
-    unaryTemporal(Token.keyword("PREVIOUS"), Formula2, Prev(_, _)) |
-    unaryTemporal(Token.keyword("NEXT"), Formula2, Next(_, _)) |
-    unaryTemporal(Token.keyword("EVENTUALLY"), Formula2, Eventually(_, _)) |
-    unaryTemporal(Token.keyword("ONCE"), Formula2, Once(_, _)) |
+    unaryTemporal(Token.Prev, Formula2, Prev(_, _)) |
+    unaryTemporal(Token.Next, Formula2, Next(_, _)) |
+    unaryTemporal(Token.Eventually, Formula2, Eventually(_, _)) |
+    unaryTemporal(Token.Once, Formula2, Once(_, _)) |
     unaryTemporal(Token.Always, Formula2, GenFormula.always) |
     unaryTemporal(Token.Historically, Formula2, GenFormula.historically) |
     quantifier(Token.keyword("EXISTS"), Formula2, Ex(_, _)) |
