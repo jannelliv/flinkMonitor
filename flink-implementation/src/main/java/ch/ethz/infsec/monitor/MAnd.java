@@ -11,13 +11,14 @@ import ch.ethz.infsec.monitor.visitor.*;
 
 
 public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
-    //Problem: I think MAnd assumes ordered pipelineevents in my implementation!
+
     boolean bool;
     public Mformula op1;
     public Mformula op2;
-    Tuple<LinkedList<Table>, LinkedList<Table>> mbuf2; //all binary operators require this data structure
-    boolean terminatorLHS;
-    boolean terminatorRHS;
+    Tuple<HashMap<Long, Table>,HashMap<Long, Table> > mbuf2;
+    HashSet<Long> terminatorLHS;
+    HashSet<Long> terminatorRHS;
+    HashMap<Long, Long> timepointToTimestamp;
     Long indexlhs, indexrhs;
 
     public MAnd(Mformula arg1, boolean bool, Mformula arg2) {
@@ -25,9 +26,9 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
         this.op1 = arg1;
         this.op2 = arg2;
 
-        this.mbuf2 = new Tuple<>(new LinkedList<>(), new LinkedList<>());
-        terminatorLHS = false;
-        terminatorRHS = false;
+        this.mbuf2 = new Tuple<>(new HashMap<>(), new HashMap<>());
+        terminatorLHS = new HashSet<>();
+        terminatorRHS = new HashSet<>();
         indexlhs = -1L;
         indexrhs = -1L;
     }
@@ -41,25 +42,25 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
     @Override
     public void flatMap1(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
         //here we have a streaming implementation. We can produce an output potentially for every event.
-        //We don't buffer things, contrary to what the Verimon algorithm does.
+        //We don't buffer events until we receive a terminator event, contrary to what the Verimon algorithm does.
         if(!fact.isPresent()){
-            terminatorLHS = true;
+            terminatorLHS.add(fact.getTimepoint());
             indexlhs++;
-            if(terminatorRHS){
-                this.mbuf2.fst.remove(0);
-                this.mbuf2.snd.remove(0);
-                collector.collect(fact);
-                terminatorRHS = false;
-                terminatorLHS = false;
+            if(terminatorRHS.contains(fact.getTimepoint())){
+                this.mbuf2.fst.remove(fact.getTimepoint());
+                this.mbuf2.snd.remove(fact.getTimepoint()); //????
+                collector.collect(fact); //?????
+                terminatorRHS.remove(fact.getTimepoint());
+                terminatorLHS.remove(fact.getTimepoint());
             }
-        }else if(!terminatorLHS){
-            if(this.mbuf2.fst.size() == 0){
-                this.mbuf2.fst.add(Table.empty());
+        }else if(!terminatorLHS.contains(fact.getTimepoint())){
+            if(!this.mbuf2.fst.containsKey(fact.getTimepoint())){
+                this.mbuf2.fst.put(fact.getTimepoint(), Table.empty());
             }
-            this.mbuf2.fst.get(0).add(fact.get());
+            this.mbuf2.fst.get(fact.getTimepoint()).add(fact.get());
 
-            if(this.mbuf2.snd.size()>0){
-                for(Assignment rhs : this.mbuf2.snd.get(0)){
+            if(mbuf2.snd.containsKey(fact.getTimepoint()) &&  !this.mbuf2.snd.get(fact.getTimepoint()).isEmpty()){ //maybe it only contains a terminator :(
+                for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
                     if(joinResult.isPresent()){
                         PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(), false, joinResult.get());
@@ -68,12 +69,14 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 }
             }
         }else{
-            if(this.mbuf2.fst.size() < indexlhs + 1){
+            this.mbuf2.fst.get(fact.getTimepoint()).add(fact.get());
+            ///
+            /*if(this.mbuf2.fst.size() < indexlhs + 1){
                 this.mbuf2.fst.add(Table.empty());
-            }
-            this.mbuf2.fst.get(indexlhs.intValue()).add(fact.get());
-            if(this.mbuf2.snd.get(indexlhs.intValue()) != null){
-                for(Assignment rhs : this.mbuf2.snd.get(indexlhs.intValue())){
+            }*/
+            //this.mbuf2.fst.get(indexlhs.intValue()).add(fact.get());
+            if(mbuf2.snd.containsKey(fact.getTimepoint()) &&  !this.mbuf2.snd.get(fact.getTimepoint()).isEmpty()){
+                for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
                     if(joinResult.isPresent()){
                         PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),false, joinResult.get());
@@ -88,23 +91,24 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
     public void flatMap2(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
         //one terminator fact has to be sent out once it is received on both incoming streams!!
         if(!fact.isPresent()){
-            terminatorRHS = true;
+            terminatorRHS.add(fact.getTimepoint());
             indexrhs++;
-            if(terminatorLHS){
-                this.mbuf2.fst.remove(0);
-                this.mbuf2.snd.remove(0);
-                collector.collect(fact);
-                terminatorRHS = false;
-                terminatorLHS = false;
+            if(terminatorLHS.contains(fact.getTimepoint())){
+                this.mbuf2.fst.remove(fact.getTimepoint());
+                this.mbuf2.snd.remove(fact.getTimepoint());
+                collector.collect(fact); //Only one terminator needs to be output, not both of them
+                terminatorRHS.remove(fact.getTimepoint());
+                terminatorLHS.remove(fact.getTimepoint());
             }
-        }else if(!terminatorRHS){
-            if(this.mbuf2.snd.size() == 0){
-                this.mbuf2.snd.add(Table.empty());
+        }else if(!terminatorRHS.contains(fact.getTimepoint())){
+            if(!this.mbuf2.snd.containsKey(fact.getTimepoint())){
+                this.mbuf2.snd.put(fact.getTimepoint(), Table.empty());
             }
-            this.mbuf2.snd.get(0).add(fact.get());
-            if(this.mbuf2.fst.size()>0){
-                for(Assignment lhs : this.mbuf2.fst.get(0)){
-                    Optional<Assignment> joinResult = join1(lhs, fact.get());
+            this.mbuf2.snd.get(fact.getTimepoint()).add(fact.get());
+
+            if(mbuf2.fst.containsKey(fact.getTimepoint()) && !this.mbuf2.fst.get(fact.getTimepoint()).isEmpty()){ //maybe it only contains a terminator :(
+                for(Assignment lhs : this.mbuf2.fst.get(fact.getTimepoint())){
+                    Optional<Assignment> joinResult = join1(fact.get(), lhs);
                     if(joinResult.isPresent()){
                         PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(), false, joinResult.get());
                         collector.collect(result);
@@ -113,18 +117,17 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             }
 
         }else{
-            if(this.mbuf2.snd.size() < indexrhs + 1){
-                //to make sure that there is something to get() here
-                this.mbuf2.snd.add(Table.empty());
-                //YOU CAN ALSO GET MORE THAN 1 TERMINATOR ON ONE SIDE!!
-            }
-            this.mbuf2.snd.get(indexrhs.intValue()).add(fact.get());
-            if(this.mbuf2.fst.get(indexrhs.intValue()) != null){
-                for(Assignment lhs : this.mbuf2.fst.get(indexrhs.intValue())){
-                    Optional<Assignment> joinResult = join1(lhs, fact.get());
+            this.mbuf2.snd.get(fact.getTimepoint()).add(fact.get());
+            ///
+            /*if(this.mbuf2.fst.size() < indexlhs + 1){
+                this.mbuf2.fst.add(Table.empty());
+            }*/
+            //this.mbuf2.fst.get(indexlhs.intValue()).add(fact.get());
+            if(mbuf2.fst.containsKey(fact.getTimepoint()) && !this.mbuf2.fst.get(fact.getTimepoint()).isEmpty()){
+                for(Assignment rhs : this.mbuf2.fst.get(fact.getTimepoint())){
+                    Optional<Assignment> joinResult = join1(fact.get(), rhs);
                     if(joinResult.isPresent()){
-                        //so if the assignment is not present, nothing is passed upwards in the parsingtree
-                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(), fact.getTimepoint(), false, joinResult.get());
+                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),false, joinResult.get());
                         collector.collect(result);
                     }
                 }
@@ -180,14 +183,13 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                     Optional<Assignment> result = Optional.of(consList);
                     return result;
                 }
-            }else if(x.isPresent() && y.isPresent() || x.get().toString() != y.get().toString()) {
+            }else if(x.isPresent() && y.isPresent() || x.get().equals(y.get())) {
                 //is it ok to do things with toString here above?
                 if(!subResult.isPresent()) {
                     Optional<Assignment> result = Optional.empty();
                     return result;
                 }else {
-                    if(x.get().toString() ==y.get().toString()) { //should enter this clause automatically
-                        //is it ok to do things with toString here above?
+                    if(x.get().equals(y.get())) {
                         Assignment consList = new Assignment();
                         consList.add(x);
                         consList.addAll(subResult.get());

@@ -97,7 +97,7 @@ public class Main {
                                     ctx.output(hashmap.get(str), fact);
                                 }
                             }else{
-                                System.out.println(fact.toString());
+                                //System.out.println(fact.toString());
                                 if(hashmap.containsKey(fact.getName())) {
                                     ctx.output(hashmap.get(fact.getName()), fact);
                                 }

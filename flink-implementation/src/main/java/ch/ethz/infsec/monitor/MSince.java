@@ -320,14 +320,13 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     Optional<Assignment> result = Optional.of(consList);
                     return result;
                 }
-            }else if(x.isPresent() && y.isPresent() || x.get().toString() != y.get().toString()) {
+            }else if(x.isPresent() && y.isPresent() || x.get().equals(y.get())) {
                 //is it ok to do things with toString here above?
                 if(!subResult.isPresent()) {
                     Optional<Assignment> result = Optional.empty();
                     return result;
                 }else {
-                    if(x.get().toString() ==y.get().toString()) { //should enter this clause automatically
-                        //is it ok to do things with toString here above?
+                    if(x.get().equals(y.get())) {
                         Assignment consList = new Assignment();
                         consList.add(x);
                         consList.addAll(subResult.get());

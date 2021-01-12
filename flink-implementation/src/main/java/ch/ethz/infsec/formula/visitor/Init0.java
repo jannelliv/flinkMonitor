@@ -34,7 +34,6 @@ public class Init0 implements FormulaVisitor<Mformula> {
                 ArrayList<Object> freeVarsInOrder2 = new ArrayList<>(JavaConverters.seqAsJavaList(((JavaOr<VariableID>) f.arg()).arg2().freeVariablesInOrder()));
                 boolean isSubset = freeVarsInOrder1.containsAll(freeVarsInOrder2);
                 if(isSubset && safe_formula(((JavaOr<VariableID>) f.arg()).arg2())){
-
                     return new MAnd((((JavaOr<VariableID>)f.arg()).arg1()).accept(new Init0((((JavaOr<VariableID>) f.arg()).arg1()).freeVariablesInOrder())),
                             false, (((JavaOr<VariableID>) f.arg()).arg2()).accept(new Init0((((JavaOr<VariableID>)f.arg()).arg2()).freeVariablesInOrder())));
                 }else{
@@ -79,7 +78,6 @@ public class Init0 implements FormulaVisitor<Mformula> {
     }
 
     public Mformula visit(JavaEx<VariableID> f) {
-        //Explain how this procedure avoids using the de Bruijn indices
         VariableID variable = f.variable();
         List<VariableID> freeVariablesInOrderCopy = new ArrayList<>(this.freeVariablesInOrder);
         //we make a copy because Java is pass-by-reference.
@@ -90,11 +88,6 @@ public class Init0 implements FormulaVisitor<Mformula> {
         Seq<VariableID> fvios = JavaConverters.asScalaBufferConverter(freeVariablesInOrderCopy).asScala().toSeq();
         JavaGenFormula<VariableID> subformula = f.arg();
         return new MExists(subformula.accept(new Init0(fvios)), variable);
-        //when you construct the Mformula with Init0 you start with the list of free variables of the top-level
-        // formula which you pass around and prepend to it bound variables whenever you see JavaExists.
-        // the variable you want to project is always going to be first in the list that you receive from the
-        // upstream operator. So there is no need for indirect indexing -- you just want to pass the tail
-        // of the list downstream.
     }
 
     public Mformula visit(JavaFalse<VariableID> f) {

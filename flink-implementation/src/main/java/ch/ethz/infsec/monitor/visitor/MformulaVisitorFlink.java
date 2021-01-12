@@ -22,11 +22,10 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
 
     public DataStream<PipelineEvent> visit(MPred state) {
         OutputTag<Fact> factStream = this.hmap.get(state.getPredName());
-        return this.mainDataStream.getSideOutput(factStream).flatMap(state );
+        return this.mainDataStream.getSideOutput(factStream).flatMap(state);
     }
 
     public DataStream<PipelineEvent> visit(MAnd f) {
-        //when do I call flatMap1 and flatMap2?
         DataStream<PipelineEvent> input1 = f.op1.accept(this);
         DataStream<PipelineEvent> input2 = f.op2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
@@ -47,9 +46,6 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
         DataStream<PipelineEvent> input1 = f.op1.accept(this);
         DataStream<PipelineEvent> input2 = f.op2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
-        //coflatmap goes from connected streams to data streams --> see below
-        //this flat map below is actually a coflatmap
-
         return connectedStreams.flatMap(f);
         //flatMap here will be interpreted as a coflatmap because the argumetn it receives is an Or,
         //which is a binary operator so it receives a coflatmap. This will apply flatMap1 or flatMap2 depending

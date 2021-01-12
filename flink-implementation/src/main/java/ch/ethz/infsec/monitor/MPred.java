@@ -1,5 +1,4 @@
 package ch.ethz.infsec.monitor;
-import ch.ethz.infsec.monitor.Fact;
 import ch.ethz.infsec.policy.Term;
 import ch.ethz.infsec.policy.VariableID;
 import ch.ethz.infsec.term.JavaConst;
@@ -11,26 +10,14 @@ import org.apache.flink.util.Collector;
 import scala.collection.Seq;
 import scala.collection.*;
 import java.util.*;
-import java.util.function.Function;
 import static ch.ethz.infsec.term.JavaTerm.convert;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
 
 public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
-    //This is the atomic predicate, with the terms that are its arguments.
     String predName;
-    ArrayList<JavaTerm<VariableID>> args; // when you assign this now, you will need to convert it
-    //args corresponds to the arguments of the formula, not of the predicate! These are the arguments that
-    //the predicate is compared against!!
-    List<VariableID> freeVariablesInOrder;
-    //if you had a formula p(x,y) AND q(z), then at both the p(x,y) predicate and the q(z) predicate you need
-    //to have the same list of free variables in some order, like x,y,z. So to create a pipeline event
-    //you need to iterate over freeVariablesInOrder. Args on the other hand, are the terms of the predicate,
-    //so if you have a predicate p(x,y) then the args would be [x,y]. But if you have a formula where p(x,y) occurs,
-    //like p(x,y) AND q(z), then freeVariablesInOrder will be [x,y,z] and args will be [x,y]. SO somehow at the
-    //predicate level, you need to establish an order of variables that occur outside of the predicate, this is
-    //why in Init0 we compute the freeVariablesInOrder. But the match has to be done with the args, not the free
-    //variables, because the predicate and the event have corresponding numbers of parameters.
+    ArrayList<JavaTerm<VariableID>> args;
+    List<VariableID> freeVariablesInOrder; //I DON'T ACTUALLY USE THIS! :/
 
 
     //I AM REALLY NOT SURE ABOUT USING TOSTRING IN THE MATCH METHOD!!
@@ -40,7 +27,6 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
         List<Term<VariableID>> argsScala = new ArrayList(JavaConverters.seqAsJavaList(args));
         ArrayList<JavaTerm<VariableID>> argsJava = new ArrayList<>();
         for (Term<VariableID> variableIDTerm : argsScala) {
-            //is this for loop very bad in terms of efficiency?
             argsJava.add(convert(variableIDTerm));
         }
         this.predName = predName;
@@ -61,10 +47,10 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
             assert(fact.getName().equals(this.predName) );
 
             List<Object> ys = fact.getArguments();
-            ArrayList<JavaTerm<VariableID>> argsCopy = new ArrayList<>(this.args);
+            ArrayList<JavaTerm<VariableID>> argsFormula = new ArrayList<>(this.args);
 
-            ArrayList<Object> c_ys = new ArrayList<>(ys);
-            Optional<HashMap<String, Optional<Object>>> result = match(argsCopy, c_ys);
+            ArrayList<Object> argsEvent = new ArrayList<>(ys);
+            Optional<HashMap<String, Optional<Object>>> result = match(argsFormula, argsEvent);
             //above: changed Function to HashMap as the return type for match().
             if(result.isPresent()){
                 Assignment list = new Assignment();
