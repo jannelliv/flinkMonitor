@@ -42,7 +42,7 @@ public class MExists implements Mformula, FlatMapFunction<PipelineEvent, Pipelin
             Optional<Assignment> output = Optional.of(satList);
             if(output.isPresent()){
                 //previously, I had omitted this if loop
-                PipelineEvent result = new PipelineEvent(value.getTimestamp(),value.getTimepoint(), false, output.get());
+                PipelineEvent result = PipelineEvent.event(value.getTimestamp(),value.getTimepoint(), output.get());
                 out.collect(result);
             }
         }

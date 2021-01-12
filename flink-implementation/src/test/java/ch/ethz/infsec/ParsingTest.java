@@ -262,12 +262,12 @@ public class ParsingTest {
         List<PipelineEvent> processedPES = testHarnessOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testOnce() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(160))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(152))),
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
@@ -289,10 +289,10 @@ public class ParsingTest {
         List<PipelineEvent> processedPES = testHarnessEv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testEventually() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(159))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(159))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
@@ -334,9 +334,9 @@ public class ParsingTest {
         System.out.println("testUntil() output:  " + processedUntil.toString());
         //formula under test: publish(163) UNTIL [0,7d] approve(163)
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
                 //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
                 //We will not consider the above event as we are only contemplating infinite traces.
                 //In the monpoly implementation (online version), it s assumed that there is not enough information to determine
@@ -351,7 +351,7 @@ public class ParsingTest {
                 //Thesis: talk about the thesis from the point of view of your algorithm. aka what is the progress like
                 //when a streaming implementation is used.
 
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());
     }
@@ -391,11 +391,11 @@ public class ParsingTest {
         //formula being tested against: publish(163) SINCE [0,7d] approve(163)
         //approve(152) does not even satisfy the predicates, so it should not reach the binary operator for Since
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedSince.toArray());
     }
@@ -418,13 +418,13 @@ public class ParsingTest {
         List<PipelineEvent> processedExists = testHarnessExists.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testExists() output:  " + processedExists.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one()),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one()),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one()),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one()),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals(expectedResults.toArray(), processedExists.toArray());
     }
@@ -465,10 +465,10 @@ public class ParsingTest {
         List<PipelineEvent> processedAnd = testHarnessAnd.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("test output:  " + processedAnd.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals(expectedResults.toArray(), processedAnd.toArray());
     }
@@ -519,9 +519,6 @@ public class ParsingTest {
 
     @Test
     public void testOr() throws Exception{
-        //Persisting issues: I have not really discussed/tested in order/out-of-order assumptions. MOr
-        //releases events out of order. I think this is ok because we can assume operators
-        //(e.g. MSince and MUntil) can receive events out-of-order).
         // TODO explain well why it is that the events that are processed by each operator (in this case MOr) release things out-of-order
         testHarnessPred1Or.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
 
@@ -560,17 +557,17 @@ public class ParsingTest {
         List<PipelineEvent> processedOr = testHarnessOr.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("test output:  " + processedOr.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, false, Assignment.one(Optional.of(152))),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
+                PipelineEvent.event(1307532861, 0L,  Assignment.one(Optional.of(152))),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(160))),
+                PipelineEvent.terminator(1307532861, 0L),
                 //Problem: there is a duplicate between the below two satisfactions
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(187))),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(187))),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(152))),
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedOr.toArray());
     }
@@ -593,11 +590,11 @@ public class ParsingTest {
         List<PipelineEvent> processedPES = testHarnessPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testPrev() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(159))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(160))),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(159))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(160))),
+                PipelineEvent.terminator(1308477599, 2L)
                 ));
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
@@ -620,11 +617,11 @@ public class ParsingTest {
         List<PipelineEvent> processedPES = testHarnessNext.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testNext() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, false, Assignment.one(Optional.of(160))),
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(152))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0))
+                PipelineEvent.event(1307532861, 0L,  Assignment.one(Optional.of(160))),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(152))),
+                PipelineEvent.terminator(1307955600, 1L)
         ));
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
@@ -643,13 +640,13 @@ public class ParsingTest {
 
         List<PipelineEvent> pes = testHarnessPred.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                new PipelineEvent(1307532861, 0L, true, Assignment.nones(0)),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(160))),
-                new PipelineEvent(1307955600, 1L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1307955600, 1L, true, Assignment.nones(0)),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(152))),
-                new PipelineEvent(1308477599, 2L, true, Assignment.nones(0))
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(160))),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(152))),
+                PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals(expectedResults.toArray(), pes.toArray());
         //assertEquals(expectedResults, pes);
@@ -700,6 +697,7 @@ public class ParsingTest {
 
     @Test
     public void testPred2() throws Exception{
+        //formula: publish(163)
         testHarnessPredConst.processElement(Fact.makeTP("publish", 1L,0L, "163"), 1L);
         List<PipelineEvent> pe = testHarnessPredConst.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         assert(pe.size()==1);
@@ -708,6 +706,39 @@ public class ParsingTest {
         assert(pe.get(0).getTimepoint() == 0L);
         assert(pe.get(0).get().get(0).isPresent());
         assert(pe.get(0).get().get(0).get().equals("163"));
+    }
+
+    @Test
+    public void testAndFreeVariables() throws Exception{
+
+        testHarnessPred1.processElement(Fact.makeTP("publish", 1307955600,1L, "1"), 1L);
+        testHarnessPred1.processElement(Fact.makeTP("publish", 1307955600,1L, "2"), 1L);
+        testHarnessPred1.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
+
+        testHarnessPred2.processElement(Fact.makeTP("approve", 1307955600,1L, "3"), 1L);
+        testHarnessPred2.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
+
+        List<PipelineEvent> pes1 = testHarnessPred1.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        List<PipelineEvent> pes2 = testHarnessPred2.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+
+        int longer = Math.max(pes1.size(), pes2.size());
+        int shorter = Math.min(pes1.size(), pes2.size());
+        for(int i = 0; i < longer; i++){
+            if(i < shorter){
+                testHarnessAnd.processElement1(pes1.get(i), 1L);
+                testHarnessAnd.processElement2(pes2.get(i), 1L);
+            }else if(pes1.size()==longer){
+                testHarnessAnd.processElement1(pes1.get(i), 1L);
+            }else{
+                testHarnessAnd.processElement2(pes2.get(i), 1L);
+            }
+        }
+        List<PipelineEvent> processedAnd = testHarnessAnd.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("test output:  " + processedAnd.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L)));
+        assertArrayEquals(expectedResults.toArray(), processedAnd.toArray());
     }
 
 }

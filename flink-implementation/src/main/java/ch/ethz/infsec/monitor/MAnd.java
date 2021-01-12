@@ -15,11 +15,9 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
     boolean bool;
     public Mformula op1;
     public Mformula op2;
-    Tuple<HashMap<Long, Table>,HashMap<Long, Table> > mbuf2;
+    Tuple<HashMap<Long, Table>,HashMap<Long, Table>> mbuf2;
     HashSet<Long> terminatorLHS;
     HashSet<Long> terminatorRHS;
-    HashMap<Long, Long> timepointToTimestamp;
-    Long indexlhs, indexrhs;
 
     public MAnd(Mformula arg1, boolean bool, Mformula arg2) {
         this.bool = bool;
@@ -29,8 +27,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
         this.mbuf2 = new Tuple<>(new HashMap<>(), new HashMap<>());
         terminatorLHS = new HashSet<>();
         terminatorRHS = new HashSet<>();
-        indexlhs = -1L;
-        indexrhs = -1L;
     }
 
     @Override
@@ -45,7 +41,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
         //We don't buffer events until we receive a terminator event, contrary to what the Verimon algorithm does.
         if(!fact.isPresent()){
             terminatorLHS.add(fact.getTimepoint());
-            indexlhs++;
             if(terminatorRHS.contains(fact.getTimepoint())){
                 this.mbuf2.fst.remove(fact.getTimepoint());
                 this.mbuf2.snd.remove(fact.getTimepoint()); //????
@@ -63,7 +58,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
                     if(joinResult.isPresent()){
-                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(), false, joinResult.get());
+                        PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
                     }
                 }
@@ -79,7 +74,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
                     if(joinResult.isPresent()){
-                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),false, joinResult.get());
+                        PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
                     }
                 }
@@ -92,7 +87,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
         //one terminator fact has to be sent out once it is received on both incoming streams!!
         if(!fact.isPresent()){
             terminatorRHS.add(fact.getTimepoint());
-            indexrhs++;
             if(terminatorLHS.contains(fact.getTimepoint())){
                 this.mbuf2.fst.remove(fact.getTimepoint());
                 this.mbuf2.snd.remove(fact.getTimepoint());
@@ -110,7 +104,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 for(Assignment lhs : this.mbuf2.fst.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), lhs);
                     if(joinResult.isPresent()){
-                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(), false, joinResult.get());
+                        PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
                     }
                 }
@@ -127,7 +121,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 for(Assignment rhs : this.mbuf2.fst.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
                     if(joinResult.isPresent()){
-                        PipelineEvent result = new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),false, joinResult.get());
+                        PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
                     }
                 }
@@ -135,8 +129,9 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
         }
     }
 
-    public static Optional<Assignment> join1(Assignment a, Assignment b){
-
+    public static Optional<Assignment> join1(Assignment aOriginal, Assignment bOriginal){
+        Assignment a = Assignment.someAssignment(aOriginal);
+        Assignment b = Assignment.someAssignment(bOriginal);
         if(a.size() == 0 && b.size() == 0) {
             Assignment emptyList = new Assignment();
             Optional<Assignment> result = Optional.of(emptyList);

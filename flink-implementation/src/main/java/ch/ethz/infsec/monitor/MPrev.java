@@ -72,8 +72,8 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             //1)
             if(T.keySet().contains(value.getTimepoint() + 1)){
                 if(mem(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
-                    out.collect(new PipelineEvent(T.get(value.getTimepoint() + 1),
-                            value.getTimepoint() + 1, false,value.get()));
+                    out.collect(PipelineEvent.event(T.get(value.getTimepoint() + 1),
+                            value.getTimepoint() + 1, value.get()));
                 }
             }else{
                 //It might be that you don't know the timestamp, e.g. assuming that you have not
@@ -81,10 +81,10 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 //when you receive the first PipelineEvent for our current timepoint. SO if we don't have the
                 //timestamp, then we have to buffer the pipeline event
                 if(A.keySet().contains(value.getTimepoint())){
-                    A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimestamp(), value.getTimepoint(),false, value.get()));
+                    A.get(value.getTimepoint()).add(PipelineEvent.event(value.getTimestamp(), value.getTimepoint(), value.get()));
                 }else{
                     HashSet<PipelineEvent> hspe = new HashSet<>();
-                    hspe.add(new PipelineEvent( value.getTimestamp(), value.getTimepoint(), false, value.get()));
+                    hspe.add(PipelineEvent.event( value.getTimestamp(), value.getTimepoint(), value.get()));
                     A.put(value.getTimepoint(), hspe);
                 }
             }
@@ -93,8 +93,7 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             handleBuffered(value, out);
         }else{
             if(T.keySet().contains(value.getTimepoint() + 1)){
-                out.collect(new PipelineEvent( T.get(value.getTimepoint() + 1),value.getTimepoint()+ 1,
-                        true, value.get()));
+                out.collect(PipelineEvent.terminator( T.get(value.getTimepoint() + 1),value.getTimepoint()+ 1));
             }else{
                 TT.put(value.getTimepoint(), value.getTimestamp());
             }
@@ -106,7 +105,7 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
     public void handleBuffered(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
         if(!value.isPresent() && value.getTimepoint() == 0){
-            out.collect(new PipelineEvent(value.getTimestamp(), value.getTimepoint(), true, value.get()));
+            out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
             return;
         } else if(value.getTimepoint() == 0){
             //output an EMPTY SET because previous is not satisfied at the first position.
@@ -129,12 +128,12 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     //Above, we are checking the itnerval cosntraint, i.e. that
                     //the difference between the timestamps is within the interval.
                     //how is it be that both assertions hold?
-                    out.collect(new PipelineEvent(value.getTimestamp(), value.getTimepoint(),false, buffAss.get()));
+                    out.collect(PipelineEvent.event(value.getTimestamp(), value.getTimepoint(), buffAss.get()));
                 }
             }
             A.remove(value.getTimepoint() - 1);
             if(TT.keySet().contains(value.getTimepoint() - 1)){
-                out.collect(new PipelineEvent(value.getTimestamp(), value.getTimepoint(),true, value.get()));
+                out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
                 TT.remove(value.getTimepoint() - 1);
                 T.remove(value.getTimepoint());
             }

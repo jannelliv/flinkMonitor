@@ -100,11 +100,11 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     for(Assignment oa : evalSet){
                         //not sure about the timepoint on the line below:
                         if(oa.size() != 0){
-                            collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, false, oa));
+                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(tp), tp, oa));
                         }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
-                    collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, true, Assignment.nones(0)));
+                    collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(tp), tp));
                 }
                 if(largestInOrderTPsub1 <= largestInOrderTPsub2){
                     startEvalTimepoint = largestInOrderTPsub1+1;
@@ -159,11 +159,11 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     Table evalSet = msaux_zs.get(ts);
                     for(Assignment oa : evalSet){
                         if(oa.size() != 0){
-                            collector.collect(new PipelineEvent(timepointToTimestamp.get(event.getTimepoint()),event.getTimepoint(), false, oa));
+                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(event.getTimepoint()),event.getTimepoint(), oa));
                         }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
-                    collector.collect(new PipelineEvent(ts, event.getTimepoint(), true, Assignment.nones(0)));
+                    collector.collect(PipelineEvent.terminator(ts, event.getTimepoint()));
                     //not sure about the nones(), and the number of free variables
                 }
                 if(largestInOrderTPsub1 <= largestInOrderTPsub2){
@@ -259,8 +259,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
 
-    public static Optional<Assignment> join1(Assignment a, Assignment b){
-
+    public static Optional<Assignment> join1(Assignment aOriginal, Assignment bOriginal){
+        Assignment a = Assignment.someAssignment(aOriginal);
+        Assignment b = Assignment.someAssignment(bOriginal);
         if(a.size() == 0 && b.size() == 0) {
             Assignment emptyList = new Assignment();
             Optional<Assignment> result = Optional.of(emptyList);

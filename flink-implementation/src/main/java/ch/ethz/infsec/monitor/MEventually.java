@@ -64,7 +64,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                     }
                     //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
                     if(terminators.containsKey(tp)){
-                        out.collect(new PipelineEvent(terminators.get(tp), tp, true, Assignment.nones(0)));
+                        out.collect(PipelineEvent.terminator(terminators.get(tp), tp));
                         buckets.remove(tp);  //I think it's safe to do this --> but: COncurrentModException
                         terminators.remove(tp);  //and this
                     }else{

@@ -118,7 +118,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     Table evalSet = muaux_zs.get(timepoint);
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1 && oa.size() !=0){
-                            collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, false, oa));
+                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
                         }else{
                             throw new Exception("problem retrieving timepoint");
                         }
@@ -128,7 +128,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     //we have output all of the satisfying assignments for that timepoint.
                     //Since Until is a future formula, we can produce assignments for a timepoint even after we have
                     //received the terminator for that timepoint.
-                    collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, true, Assignment.nones(0)));
+                    collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(timepoint), timepoint));
 
                 }
             }
@@ -188,11 +188,11 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     Table evalSet = muaux_zs.get(timepoint);
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1L && oa.size() != 0){
-                            collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, false, oa));
+                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
                         }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs
-                    collector.collect(new PipelineEvent(timepointToTimestamp.get(timepoint), timepoint, true, Assignment.nones(event.get().size())));
+                    collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(timepoint), timepoint));
                     //not sure about the nones(), and the number of free variables
 
                 }
@@ -296,8 +296,9 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         return false;
     }
 
-    public static Optional<Assignment> join1(Assignment a, Assignment b){
-
+    public static Optional<Assignment> join1(Assignment aOriginal, Assignment bOriginal){
+        Assignment a = Assignment.someAssignment(aOriginal);
+        Assignment b = Assignment.someAssignment(bOriginal);
         if(a.size() == 0 && b.size() == 0) {
             Assignment emptyList = new Assignment();
             Optional<Assignment> result = Optional.of(emptyList);

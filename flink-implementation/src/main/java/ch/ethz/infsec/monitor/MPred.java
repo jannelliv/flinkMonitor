@@ -17,7 +17,7 @@ import ch.ethz.infsec.monitor.visitor.*;
 public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     String predName;
     ArrayList<JavaTerm<VariableID>> args;
-    List<VariableID> freeVariablesInOrder; //I DON'T ACTUALLY USE THIS! :/
+    List<VariableID> freeVariablesInOrder;
 
 
     //I AM REALLY NOT SURE ABOUT USING TOSTRING IN THE MATCH METHOD!!
@@ -41,8 +41,7 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
 
     public void flatMap(Fact fact, Collector<PipelineEvent> out) throws Exception {
         if(fact.isTerminator()){
-            Assignment none = Assignment.nones(0); //why 0?
-            out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  true, none));
+            out.collect(PipelineEvent.terminator(fact.getTimestamp(),fact.getTimepoint()));
         }else{
             assert(fact.getName().equals(this.predName) );
 
@@ -53,15 +52,23 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
             Optional<HashMap<String, Optional<Object>>> result = match(argsFormula, argsEvent);
             //above: changed Function to HashMap as the return type for match().
             if(result.isPresent()){
+
                 Assignment list = new Assignment();
-                //building of satisfaction, but not from the free Variables of MPred (this) --> ?
+                //args --> ArrayList<JavaTerm<VariableID>>
+                //freeVariablesInOrder --> List<VariableID>
                 for (JavaTerm<VariableID> argument : this.args) {
                     //remember to iterate over the arguments, not the free variables
                     if(result.get().get(argument.toString()).isPresent()){
                         list.add(0, result.get().get(argument.toString()));
                     }
                 }
-                out.collect(new PipelineEvent(fact.getTimestamp(),fact.getTimepoint(),  false, list));
+
+                /*for (VariableID formulaVariable : this.freeVariablesInOrder) {
+                    if(!result.get().get(formulaVariable.toString()).isPresent()){
+                        list.add(0, Optional.empty());                          //NOT AT ALL SURE ABOUT THIS
+                    }
+                }*/
+                out.collect(PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), list));
             }
             //if there are no satisfactions, we simply don't put anything in the collector.
         }
@@ -70,7 +77,6 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
     @Override
     public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
         return (DataStream<PipelineEvent>) v.visit(this);
-        //Is it ok that I did the cast here above?
     }
 
     public static Optional<HashMap<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
@@ -79,8 +85,7 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
         //Now I am using a HashMap instead of a Function!
 
         if(ts.size() != ys.size() || ts.size() == 0 && ys.size() == 0) {
-            HashMap<String, Optional<Object>> emptyMap = new HashMap<>(); //s -> Optional.empty();
-            //emptyMap.put("all", Optional.empty()); //not necessary???
+            HashMap<String, Optional<Object>> emptyMap = new HashMap<>();
             return Optional.of(emptyMap);
         }else {
             if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaConst)) {

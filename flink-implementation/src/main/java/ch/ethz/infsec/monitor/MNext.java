@@ -77,8 +77,8 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             //1)
             if(T.keySet().contains(value.getTimepoint() - 1)){
                 if(mem(value.getTimestamp() - T.get(value.getTimepoint() - 1), interval)){
-                    out.collect(new PipelineEvent(T.get(value.getTimepoint() - 1),
-                            value.getTimepoint() - 1, false,value.get()));
+                    out.collect(PipelineEvent.event(T.get(value.getTimepoint() - 1),
+                            value.getTimepoint() - 1, value.get()));
                 }
             }else{ //CHECK WHEN TO UPDATE T
                 //It might be that you don't know the timestamp, e.g. assuming that you have not
@@ -86,11 +86,11 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 //when you receive the first PipelineEvent for our current timepoint. SO if we don't have the
                 //timestamp, then we have to buffer the pipeline event
                 if(A.keySet().contains(value.getTimepoint())){
-                    A.get(value.getTimepoint()).add(new PipelineEvent(value.getTimepoint(),
-                            value.getTimestamp(), false, value.get()));
+                    A.get(value.getTimepoint()).add(PipelineEvent.event(value.getTimepoint(),
+                            value.getTimestamp(), value.get()));
                 }else{
                     HashSet<PipelineEvent> hspe = new HashSet<>();
-                    hspe.add(new PipelineEvent(value.getTimepoint(), value.getTimestamp(), false, value.get()));
+                    hspe.add(PipelineEvent.event(value.getTimepoint(), value.getTimestamp(),  value.get()));
                     A.put(value.getTimepoint(), hspe);
                 }
             }
@@ -99,7 +99,7 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
         }else{
             if(T.keySet().contains(value.getTimepoint() - 1)){
-                out.collect(new PipelineEvent(T.get(value.getTimepoint() - 1), value.getTimepoint()- 1, true, value.get()));
+                out.collect(PipelineEvent.terminator(T.get(value.getTimepoint() - 1), value.getTimepoint()- 1));
             }else{
                 TT.put(value.getTimepoint(), value.getTimestamp());
             }
@@ -124,14 +124,13 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     //the difference between the timestamps is within the interval.
                     assert(buffAss.getTimestamp() - value.getTimestamp() > 0);
                     //how is it be that both assertions hold?
-                    out.collect(new PipelineEvent(value.getTimepoint(),
-                            value.getTimestamp(), false, buffAss.get()));
+                    out.collect(PipelineEvent.event(value.getTimepoint(),
+                            value.getTimestamp(),  buffAss.get()));
                 }
             }
             A.remove(value.getTimepoint() + 1);
             if(TT.keySet().contains(value.getTimepoint() + 1)){
-                out.collect(new PipelineEvent(value.getTimepoint(),
-                        value.getTimestamp(), true, value.get()));
+                out.collect(PipelineEvent.terminator(value.getTimepoint(), value.getTimestamp()));
                 TT.remove(value.getTimepoint() + 1);
                 T.remove(value.getTimepoint());
             }
