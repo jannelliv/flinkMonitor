@@ -116,7 +116,7 @@ public class ParsingTest {
 
 
         //testPrev()
-        Either<String, GenFormula<VariableID>> pubPred = Policy.read("publish(r)");
+        Either<String, GenFormula<VariableID>> pubPred = Policy.read("publish(160)");
         GenFormula<VariableID> formulaPub = pubPred.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPredPrev = (MPred) (convert(formulaPub)).accept(new Init0(formulaPub.freeVariablesInOrder()));
         testHarnessPredPrev = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPredPrev));

@@ -104,17 +104,17 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 //LinkedList<Long> tsList_arg = new LinkedList<>(tsList);
                 HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
                 //debugging --> go here for second termonator of timepoint 0!
-                for(Long ts : msaux_zs.keySet()){
-                    Table evalSet = msaux_zs.get(ts);
+                for(Long tp : msaux_zs.keySet()){
+                    Table evalSet = msaux_zs.get(tp);
                     for(Assignment oa : evalSet){
                         //not sure about the timepoint on the line below:
                         if(oa.size() != 0){
-                            collector.collect(new PipelineEvent(ts, event.getTimepoint(), false, oa));
+                            collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, false, oa));
                         }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
-                    //not sure about the timepoint on the line below:
-                    collector.collect(new PipelineEvent(ts, event.getTimepoint(), true, Assignment.nones(0)));
+                    //BELOW IS WRONG. IT HAS NOTHING TO DO WITH THE CURRENT EVENT!
+                    collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, true, Assignment.nones(0)));
                     //not sure about the nones(), and the  number of free variables
                 }
                 if(largestInOrderTPsub1 <= largestInOrderTPsub2){
@@ -272,6 +272,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
     }
 
+
     public static Optional<Assignment> join1(Assignment a, Assignment b){
 
         if(a.size() == 0 && b.size() == 0) {
@@ -343,6 +344,8 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         Optional<Assignment> result = Optional.empty();
         return result;
     }
+
+
 
     public static Table join(java.util.HashSet<Assignment> table, boolean pos, java.util.HashSet<Assignment> table2){
 
