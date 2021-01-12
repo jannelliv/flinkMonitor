@@ -299,10 +299,10 @@ public class ParsingTest {
 
     @Test
     public void testUntil() throws Exception{
-        //Persisting issue: unable to correctly label publish(163) @1308477599 as a satisfaction!
+        //TODO: check more extensively that cleanDatastructures() does not mess up the functionality of the algorithm
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
         //Persisting issue: wrong line of code: evalUntilResult = eval_until(smallestFullTimestamp + 1L);
-        //Persisting issues: at line 130ish, I don't "start from startEvalTimepoint"
+        //Persisting issues: I don't "start from startEvalTimepoint"
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);

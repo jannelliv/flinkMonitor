@@ -6,11 +6,7 @@ import org.apache.flink.util.Collector;
 
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
-
-
 import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
 
@@ -26,7 +22,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     Long largestInOrderTPsub1;
     Long largestInOrderTPsub2;
-    Long smallestFullTimestamp;
     HashSet<Long> terminLeft;
     HashSet<Long> terminRight;
 
@@ -46,7 +41,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         this.timepointToTimestamp = new HashMap<>();
         this.largestInOrderTPsub1 = -1L;
         this.largestInOrderTPsub2 = -1L;
-        this.smallestFullTimestamp = -1L;
         this.startEvalTimepoint = -1L;
         HashMap<Long, Table> fst = new HashMap<>();
         HashMap<Long, Table> snd = new HashMap<>();
@@ -59,7 +53,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     @Override
     public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
         return (DataStream<PipelineEvent>) v.visit(this);
-        //Is it ok that I did the cast here above?
     }
 
     @Override
@@ -93,8 +86,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 largestInOrderTPsub2++;
             }
             if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint){
-                smallestFullTimestamp = timepointToTimestamp.get(largestInOrderTPsub1);
-                //initiate meval procedure:
+                //smallestFullTimestamp = timepointToTimestamp.get(largestInOrderTPsub1);
 
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
@@ -103,7 +95,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     return intermRes;};
                 //LinkedList<Long> tsList_arg = new LinkedList<>(tsList);
                 HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
-                //debugging --> go here for second termonator of timepoint 0!
                 for(Long tp : msaux_zs.keySet()){
                     Table evalSet = msaux_zs.get(tp);
                     for(Assignment oa : evalSet){
@@ -113,9 +104,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                         }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
-                    //BELOW IS WRONG. IT HAS NOTHING TO DO WITH THE CURRENT EVENT!
                     collector.collect(new PipelineEvent(timepointToTimestamp.get(tp), tp, true, Assignment.nones(0)));
-                    //not sure about the nones(), and the  number of free variables
                 }
                 if(largestInOrderTPsub1 <= largestInOrderTPsub2){
                     startEvalTimepoint = largestInOrderTPsub1+1;
@@ -123,7 +112,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     startEvalTimepoint = largestInOrderTPsub2+1;
                 }
                 //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
-                cleanUpDatastructures();
+                //cleanUpDatastructures();
             }
         }
 
@@ -195,10 +184,8 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
 
         //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
-        cleanUpDatastructures();
+        //cleanUpDatastructures();
     }
-
-
 
     public Table update_since(Table rel1, Table rel2, Long nt){
         //In the return type, I actually don't need a tuple because in the flink implementation the state is kept by the
@@ -217,12 +204,12 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
            msaux.put(nt, rel2);
             //msaux.putIfAbsent(nt,rel2);
         }else{
-            Table x = auxIntervalList.get(smallestFullTimestamp);
-            if(smallestFullTimestamp.equals(nt)){
+            Table x = auxIntervalList.get(timepointToTimestamp.get(startEvalTimepoint));
+            if(timepointToTimestamp.get(startEvalTimepoint).equals(nt)){
                 Table unionSet = Table.fromTable(x);
                 unionSet.addAll(rel2);
                 //msaux = auxIntervalList;
-                auxIntervalList.put(smallestFullTimestamp, unionSet);
+                auxIntervalList.put(timepointToTimestamp.get(startEvalTimepoint), unionSet);
                 msaux = new HashMap<>(auxIntervalList);
             }else{
                 //auxIntervalList.put(smallestFullTimestamp,x); --> this line was wrong
@@ -239,7 +226,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             [] ⇒ [(nt, rel2)]
             | x # aux'' ⇒ (if fst x = nt then (fst x, snd x ∪ rel2) # aux'' else (nt, rel2) # x # aux''))
         in (foldr (∪) [rel. (t, rel) ← aux, left I ≤ nt - t] {}, aux))*/
-
 
         Table bigUnion = new Table();
         //It also computes the satisfactions by taking the union over all tables in the list that satisfy c element of I.
@@ -263,7 +249,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             Table y = mbuf2.snd().get(currentTimepoint);
             mbuf2.fst().remove(currentTimepoint, mbuf2.fst().get(currentTimepoint));
             mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
-            HashMap<Long, Table> fxytz = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
+            HashMap<Long, Table> fxytz = func.run(x,y,currentTimepoint,z);                  //TIMEPOINT OR TIMESTAMP??
             return mbuf2t_take(func, fxytz, currentTimepoint);
         }
         else{
@@ -374,9 +360,12 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     public void cleanUpDatastructures(){
         mbuf2.fst.keySet().removeIf(tp -> tp < largestInOrderTPsub1);
         mbuf2.snd.keySet().removeIf(tp -> tp < largestInOrderTPsub2);
-        msaux.keySet().removeIf(ts -> ts < smallestFullTimestamp);
+        if(timepointToTimestamp.containsKey(startEvalTimepoint)){
+            msaux.keySet().removeIf(ts -> ts < timepointToTimestamp.get(startEvalTimepoint));
+        }
         timepointToTimestamp.keySet().removeIf(tp -> tp < startEvalTimepoint);
     }
+
 }
 
 interface Mbuf2take_function{

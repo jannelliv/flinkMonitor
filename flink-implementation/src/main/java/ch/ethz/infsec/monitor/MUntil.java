@@ -48,7 +48,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         this.timepointToTimestamp = new HashMap<>();
         this.largestInOrderTPsub1 = -1L;
         this.largestInOrderTPsub2 = -1L;
-        //this.smallestFullTimestamp = -1L;
         this.startEvalTimepoint = -1L;
         HashMap<Long, Table> fst = new HashMap<>();
         HashMap<Long, Table> snd = new HashMap<>();
@@ -94,20 +93,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 largestInOrderTPsub1++;
             }
 
-            /*if(largestInOrderTPsub2 >= largestInOrderTPsub1){
-                if(largestInOrderTPsub1 > -1){
-                    //smallestFullTimestamp = timepointToTimestamp.get(startEvalTimepoint);
-                }else{
-                    timepointToTimestamp.put(startEvalTimepoint, -1L);
-                }
-            }else{
-                if(largestInOrderTPsub2 > -1){
-                    //smallestFullTimestamp = timepointToTimestamp.get(startEvalTimepoint);
-                }else{
-                    timepointToTimestamp.put(startEvalTimepoint, -1L);
-                    //smallestFullTimestamp = -1L;
-                }
-            }*/
             if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint && startEvalTimepoint != -1L){
                 //initiate meval procedure:
                 Mbuf2take_function_Until func = this::update_until;
@@ -121,13 +106,12 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
                 HashMap<Long, Table> evalUntilResult;
 
-                if(timepointToTimestamp.containsKey(largestInOrderTPsub1 + 1L)){
-                    evalUntilResult = eval_until(startEvalTimepoint + 1L);      //not 100% sure about this
-                }else if(timepointToTimestamp.containsKey(largestInOrderTPsub1)){
-                    evalUntilResult = eval_until(startEvalTimepoint);
+                if(!muaux.containsKey(timepointToTimestamp.get(startEvalTimepoint))){
+                    evalUntilResult = eval_until(event.getTimestamp());
                 }else{
-                    throw new Exception("The mapping from tp to ts should contain at least one of these entries.");
+                    evalUntilResult = eval_until(timepointToTimestamp.get(startEvalTimepoint));
                 }
+
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
                 //Long timepoint = startEvalTimepoint;
                 for(Long timepoint : muaux_zs.keySet()){    //I'm not starting from "startEvalTimepoint"
@@ -154,7 +138,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 startEvalTimepoint = largestInOrderTPsub2 +1; //not sure about the +1
             }
             //TODO: check that method to clear up the data-structures in the fields is correct (see below)
-            //cleanUpDatastructures();
+            cleanUpDatastructures();
         }
     }
 
@@ -186,34 +170,18 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             while(terminSub2.contains(largestInOrderTPsub2 + 1L)){
                 largestInOrderTPsub2++;
             }
-            /*if(largestInOrderTPsub2 >= largestInOrderTPsub1){
-                if(largestInOrderTPsub1 > -1){
-                    //smallestFullTimestamp = timepointToTimestamp.get(startEvalTimepoint);
-                }else{
-                    timepointToTimestamp.put(startEvalTimepoint, -1L);
-                    //smallestFullTimestamp = -1L;
-                }
-            }else{
-                if(largestInOrderTPsub2 > -1){
-                    //smallestFullTimestamp = timepointToTimestamp.get(startEvalTimepoint);
-                }else{
-                    timepointToTimestamp.put(startEvalTimepoint, -1L);
-                    //smallestFullTimestamp = -1L;
-                }
-            }*/
             if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint && startEvalTimepoint != -1L){
                 //not 100% sure about above condition
                 Mbuf2take_function_Until func = this::update_until;
                 mbuf2t_take(func, startEvalTimepoint);
                 HashMap<Long, Table> evalUntilResult;
 
-                if(muaux.keySet().size() == 0){
+                if(!muaux.containsKey(timepointToTimestamp.get(startEvalTimepoint))){
                     evalUntilResult = eval_until(event.getTimestamp());
                 }else{
-                    assert(muaux.containsKey(timepointToTimestamp.get(startEvalTimepoint)));
                     evalUntilResult = eval_until(timepointToTimestamp.get(startEvalTimepoint));
                 }
-                //eval_until will only output something if we are considering a full timepoint.
+                //eval_until will only output something if we are considering a full timepoint. ---> MAKE SURE THIS IS ENFORCED
                 //So we don't need to check anything here.
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
                 for(Long timepoint : muaux_zs.keySet()){
@@ -234,7 +202,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             }else{
                 startEvalTimepoint = largestInOrderTPsub2  +1;
             }
-            //cleanUpDatastructures();
+            cleanUpDatastructures();
         }
     }
 
@@ -422,9 +390,11 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
     public void cleanUpDatastructures(){
-        mbuf2.fst.keySet().removeIf(tp -> tp < largestInOrderTPsub1);
-        mbuf2.snd.keySet().removeIf(tp -> tp < largestInOrderTPsub2);
-        muaux.keySet().removeIf(ts -> ts < timepointToTimestamp.get(startEvalTimepoint));
+        mbuf2.fst.keySet().removeIf(tp -> tp < startEvalTimepoint);
+        mbuf2.snd.keySet().removeIf(tp -> tp < startEvalTimepoint);
+        if(timepointToTimestamp.containsKey(startEvalTimepoint)){
+            muaux.keySet().removeIf(ts -> ts < timepointToTimestamp.get(startEvalTimepoint));
+        }
         timepointToTimestamp.keySet().removeIf(tp -> tp < startEvalTimepoint);
         terminSub2.removeIf(tp -> tp < startEvalTimepoint);
         terminSub1.removeIf(tp -> tp < startEvalTimepoint);
