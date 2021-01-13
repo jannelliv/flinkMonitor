@@ -273,7 +273,8 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     public void mbuf2t_take(Mbuf2take_function_Until func, Long tp){
         //do nothing with mbuf2 if one of the two subformulas corresponds to an empty mbuf2 --> skip if condition
-        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) && muaux.containsKey(timepointToTimestamp.get(tp))){
+        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) && muaux.containsKey(timepointToTimestamp.get(tp)) &&
+        terminSub1.contains(tp) && terminSub2.contains(tp)){
 
             ///HAS TO CONTAIN THE TERMINATOR!
 
@@ -405,4 +406,3 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 interface Mbuf2take_function_Until{
     void run(Long timepoint, HashMap<Long, Table> rel1, HashMap<Long, Table> rel2);
 }
-
