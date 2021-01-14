@@ -62,7 +62,11 @@ public class ParsingTest {
     //testAnd()
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred1;
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred2;
+    private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred1fv;
+    private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred2fv;
     private TwoInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent, PipelineEvent> testHarnessAnd;
+    private TwoInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent, PipelineEvent> testHarnessAndFV;
+
 
     //testOr()
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred1Or;
@@ -155,6 +159,26 @@ public class ParsingTest {
         CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> statefulFlatMapFunctionAnd = (MAnd) (convert(andFormula)).accept(new Init0(andFormula.freeVariablesInOrder()));
         testHarnessAnd = new TwoInputStreamOperatorTestHarness<>(new CoStreamFlatMap<>(statefulFlatMapFunctionAnd));
         testHarnessAnd.open();
+
+
+        //testAnd()
+        Either<String, GenFormula<VariableID>> f1fv = Policy.read("publish(r)");
+        GenFormula<VariableID> formula1fv = f1fv.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1fv = (MPred) (convert(formula1fv)).accept(new Init0(formula1fv.freeVariablesInOrder()));
+        testHarnessPred1fv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred1fv));
+        testHarnessPred1fv.open();
+        Either<String, GenFormula<VariableID>> f2fv = Policy.read("approve(q)");
+        GenFormula<VariableID> formula2fv = f2fv.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred2fv = (MPred) (convert(formula2fv)).accept(new Init0(formula2fv.freeVariablesInOrder()));
+        testHarnessPred2fv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred2fv));
+        testHarnessPred2fv.open();
+        Either<String, GenFormula<VariableID>> andFfv = Policy.read("approve(q) AND publish(r)");
+        GenFormula<VariableID> andFormulafv = andFfv.right().get();
+        CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> statefulFlatMapFunctionAndfv = (MAnd) (convert(andFormulafv)).accept(new Init0(andFormulafv.freeVariablesInOrder()));
+        testHarnessAndFV = new TwoInputStreamOperatorTestHarness<>(new CoStreamFlatMap<>(statefulFlatMapFunctionAndfv));
+        testHarnessAndFV.open();
+
+
 
         //testOr()
         Either<String, GenFormula<VariableID>> f1Or = Policy.read("publish(r)");
@@ -249,8 +273,8 @@ public class ParsingTest {
     public void testUntil() throws Exception{
         //TODO: check more extensively that cleanDatastructures() does not mess up the functionality of the algorithm
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
-        //Persisting issue: wrong line of code: evalUntilResult = eval_until(smallestFullTimestamp + 1L);
         //Persisting issues: I don't "start from startEvalTimepoint"
+        //formula being tested: publish(163) UNTIL [0,7d] approve(163)
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
@@ -282,7 +306,7 @@ public class ParsingTest {
         System.out.println("testUntil() output:  " + processedUntil.toString());
         //formula under test: publish(163) UNTIL [0,7d] approve(163)
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.terminator(1307532861, 0L),
+                //PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
                 PipelineEvent.terminator(1307955600, 1L),
                 //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
@@ -604,13 +628,13 @@ public class ParsingTest {
 
     @Test
     public void testRelTrueFalse() throws Exception{
-        testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "160"), 1L);
+        testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "163"), 1L);
         List<PipelineEvent> pe = testHarnessRel.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         assert(pe.size()==1);
         assert(!pe.get(0).isPresent());
         assert(pe.get(0).getTimestamp() == 1L);
         assert(pe.get(0).getTimepoint() == 0L);
-        assert(pe.get(0).get().size() == 0);
+        assert(pe.get(0).get()==null);
     }
 
     @Test
@@ -659,29 +683,29 @@ public class ParsingTest {
     @Test
     public void testAndFreeVariables() throws Exception{
 
-        testHarnessPred1.processElement(Fact.makeTP("publish", 1307955600,1L, "1"), 1L);
-        testHarnessPred1.processElement(Fact.makeTP("publish", 1307955600,1L, "2"), 1L);
-        testHarnessPred1.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
+        testHarnessPred1fv.processElement(Fact.makeTP("publish", 1307955600,1L, "1"), 1L);
+        testHarnessPred1fv.processElement(Fact.makeTP("publish", 1307955600,1L, "2"), 1L);
+        testHarnessPred1fv.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
 
-        testHarnessPred2.processElement(Fact.makeTP("approve", 1307955600,1L, "3"), 1L);
-        testHarnessPred2.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
+        testHarnessPred2fv.processElement(Fact.makeTP("approve", 1307955600,1L, "3"), 1L);
+        testHarnessPred2fv.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
 
-        List<PipelineEvent> pes1 = testHarnessPred1.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        List<PipelineEvent> pes2 = testHarnessPred2.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        List<PipelineEvent> pes1 = testHarnessPred1fv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        List<PipelineEvent> pes2 = testHarnessPred2fv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
 
         int longer = Math.max(pes1.size(), pes2.size());
         int shorter = Math.min(pes1.size(), pes2.size());
         for(int i = 0; i < longer; i++){
             if(i < shorter){
-                testHarnessAnd.processElement1(pes1.get(i), 1L);
-                testHarnessAnd.processElement2(pes2.get(i), 1L);
+                testHarnessAndFV.processElement1(pes1.get(i), 1L);
+                testHarnessAndFV.processElement2(pes2.get(i), 1L);
             }else if(pes1.size()==longer){
-                testHarnessAnd.processElement1(pes1.get(i), 1L);
+                testHarnessAndFV.processElement1(pes1.get(i), 1L);
             }else{
-                testHarnessAnd.processElement2(pes2.get(i), 1L);
+                testHarnessAndFV.processElement2(pes2.get(i), 1L);
             }
         }
-        List<PipelineEvent> processedAnd = testHarnessAnd.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        List<PipelineEvent> processedAnd = testHarnessAndFV.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("test output:  " + processedAnd.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),

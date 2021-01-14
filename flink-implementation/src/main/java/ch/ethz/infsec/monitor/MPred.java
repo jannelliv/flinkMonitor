@@ -50,12 +50,9 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
 
             ArrayList<Object> argsEvent = new ArrayList<>(ys);
             Optional<HashMap<String, Optional<Object>>> result = match(argsFormula, argsEvent);
-            //above: changed Function to HashMap as the return type for match().
             if(result.isPresent()){
 
                 Assignment list = new Assignment();
-                //args --> ArrayList<JavaTerm<VariableID>>
-                //freeVariablesInOrder --> List<VariableID>
                 for (JavaTerm<VariableID> argument : this.args) {
                     //remember to iterate over the arguments, not the free variables
                     if(result.get().get(argument.toString()).isPresent()){
@@ -63,9 +60,13 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
                     }
                 }
 
+
+                //Assignment list = new Assignment();
                 /*for (VariableID formulaVariable : this.freeVariablesInOrder) {
                     if(!result.get().get(formulaVariable.toString()).isPresent()){
-                        list.add(0, Optional.empty());                          //NOT AT ALL SURE ABOUT THIS
+                        list.addLast(Optional.empty());                          //NOT AT ALL SURE ABOUT THIS
+                    }else{
+                        list.addLast(result.get().get(formulaVariable.toString()));
                     }
                 }*/
                 out.collect(PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), list));
@@ -78,6 +79,56 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
     public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
         return (DataStream<PipelineEvent>) v.visit(this);
     }
+
+    /*public static Optional<HashMap<VariableID, Optional<Object>>> matchFV(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
+        //ts: arguments of the formula
+        //ys: arguments of the incoming fact
+        //Now I am using a HashMap instead of a Function!
+
+        if(ts.size() != ys.size() || ts.size() == 0 && ys.size() == 0) {
+            HashMap<VariableID, Optional<Object>> emptyMap = new HashMap<>();
+            return Optional.of(emptyMap);
+        }else {
+            if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaConst)) {
+
+                if(ts.get(0).equals(ys.get(0))) {
+
+                    JavaTerm<VariableID> t = ts.remove(0); //from formula
+                    Object y = ys.remove(0); //from fact
+                    Optional<HashMap<VariableID, Optional<Object>>> partialResult =  matchFV(ts, ys);
+                    partialResult.get().put(t, Optional.of(y));
+                    return partialResult;
+                }else {
+                    return Optional.empty();
+                }
+            }else if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaVar)) {
+
+                JavaVar<VariableID> x =  (JavaVar<VariableID>) ts.remove(0);
+                Object y = ys.remove(0);
+
+                Optional<HashMap<VariableID, Optional<Object>>> recFunction = matchFV(ts, ys);
+                if(!recFunction.isPresent()){
+                    return Optional.empty();
+                }else{
+                    HashMap<VariableID, Optional<Object>> f = recFunction.get();
+                    if(!f.containsKey(x) || !(f.get(x)).isPresent()){
+                        f.put(x, Optional.of(y));
+                        return Optional.of(f);
+                    }else{
+                        Object z = f.get(x).get();
+                        if (y.equals(z)){
+                            return Optional.of(f);
+                        }else{
+                            return Optional.empty();
+                        }
+                    }
+                }
+            }else{
+                return Optional.empty();
+            }
+        }
+
+    }*/
 
     public static Optional<HashMap<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
         //ts: arguments of the formula
@@ -143,6 +194,8 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
         }
 
     }
+
+
 
 
 }

@@ -36,12 +36,11 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         this.formula2 = accept1;
         this.interval = interval;
 
-        //this.tsList = new LinkedList<>();
         this.msaux = new HashMap<>();
         this.timepointToTimestamp = new HashMap<>();
         this.largestInOrderTPsub1 = -1L;
         this.largestInOrderTPsub2 = -1L;
-        this.startEvalTimepoint = -1L;
+        this.startEvalTimepoint = -0L;
         HashMap<Long, Table> fst = new HashMap<>();
         HashMap<Long, Table> snd = new HashMap<>();
         this.mbuf2 = new Tuple<>(fst, snd);
@@ -63,19 +62,21 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
         //NB: I think you don't actually need tsList
         //but here we are adding the timestamp to it; even if we still have to sort
-        //tsList.add(event.getTimestamp());
-        //filling mbuf2 appropriately:
-        if(mbuf2.snd().containsKey(event.getTimepoint())){
-            mbuf2.snd().get(event.getTimepoint()).add(event.get());
-        }else{
-            mbuf2.snd().put(event.getTimepoint(), Table.one(event.get()));
+        if(event.isPresent()){
+            //filling mbuf2 appropriately:
+            if(mbuf2.snd().containsKey(event.getTimepoint())){
+                mbuf2.snd().get(event.getTimepoint()).add(event.get());
+            }else{
+                mbuf2.snd().put(event.getTimepoint(), Table.one(event.get()));
+            }
+            //filling msaux appropriately:
+            if(msaux.containsKey(event.getTimestamp())){
+                msaux.get(event.getTimestamp()).add(event.get());
+            }else{
+                msaux.put(event.getTimestamp(), Table.one(event.get()));
+            }
         }
-        //filling msaux appropriately:
-        if(msaux.containsKey(event.getTimestamp())){
-            msaux.get(event.getTimestamp()).add(event.get());
-        }else{
-            msaux.put(event.getTimestamp(), Table.one(event.get()));
-        }
+
         if(!event.isPresent()){ //if we have a terminator
             if(!terminRight.contains(event.getTimepoint())){
                 terminRight.add(event.getTimepoint());
@@ -86,8 +87,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 largestInOrderTPsub2++;
             }
             if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint){
-                //smallestFullTimestamp = timepointToTimestamp.get(largestInOrderTPsub1);
-
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
                                            Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
@@ -123,21 +122,20 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         if(!timepointToTimestamp.containsKey(event.getTimepoint())){
             timepointToTimestamp.put(event.getTimepoint(), event.getTimestamp());
         }
-        //NB: I think you don't actually need tsList
-        //but here we are adding the timestamp to it; even if we still have to sort
-        //filling mbuf2 appropriately:
-        if(mbuf2.fst().containsKey(event.getTimepoint())){
-            mbuf2.fst().get(event.getTimepoint()).add(event.get());
-        }else{
-            mbuf2.fst().put(event.getTimepoint(), Table.one(event.get()));
-        }
-        //filling msaux appropriately:
-        if(msaux.containsKey(event.getTimestamp())){
-            msaux.get(event.getTimestamp()).add(event.get());
-        }else{
-            msaux.put(event.getTimestamp(), Table.one(event.get()));
-        }
-        if(!event.isPresent()){ //if we have a terminator
+        if(event.isPresent()){
+            //filling mbuf2 appropriately:
+            if(mbuf2.fst().containsKey(event.getTimepoint())){
+                mbuf2.fst().get(event.getTimepoint()).add(event.get());
+            }else{
+                mbuf2.fst().put(event.getTimepoint(), Table.one(event.get()));
+            }
+            //filling msaux appropriately:
+            if(msaux.containsKey(event.getTimestamp())){
+                msaux.get(event.getTimestamp()).add(event.get());
+            }else{
+                msaux.put(event.getTimestamp(), Table.one(event.get()));
+            }
+        }else{ //if we have a terminator
             if(!terminLeft.contains(event.getTimepoint())){
                 terminLeft.add(event.getTimepoint());
             }else{
@@ -146,7 +144,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             while(terminLeft.contains(largestInOrderTPsub1 + 1L)){
                 largestInOrderTPsub1++;
             }
-            if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint){
+            if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint ){
                 //initiate meval procedure:
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
@@ -242,18 +240,17 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     public HashMap<Long, Table> mbuf2t_take(Mbuf2take_function func,
                                        HashMap<Long, Table> z,
                                     Long currentTimepoint){
-        //!!!Is it ok to assume that we don't need to carry the state through all the methods
-        //since we are using Java classes?
-        if(mbuf2.fst().size() >= 1 && mbuf2.snd().size() >= 1 && msaux.keySet().size() >= 1){ //I don't think checking these lengths is necessary
-            Table x = mbuf2.fst().get(currentTimepoint); //THIS COULD FAIL
+        if(mbuf2.fst().containsKey(currentTimepoint) && mbuf2.snd().containsKey(currentTimepoint) && msaux.containsKey(timepointToTimestamp.get(currentTimepoint)) &&
+                terminLeft.contains(currentTimepoint) && terminRight.contains(currentTimepoint)){
+            Table x = mbuf2.fst().get(currentTimepoint);
             Table y = mbuf2.snd().get(currentTimepoint);
             mbuf2.fst().remove(currentTimepoint, mbuf2.fst().get(currentTimepoint));
             mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
             HashMap<Long, Table> fxytz = func.run(x,y,currentTimepoint,z);                  //TIMEPOINT OR TIMESTAMP??
+            currentTimepoint++; //double check!
             return mbuf2t_take(func, fxytz, currentTimepoint);
         }
         else{
-            //cannot work with mbuf2 if one of the two subformulas corresponds to an empty mbuf2...
             return z;
         }
     }
@@ -337,7 +334,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     public static Table join(java.util.HashSet<Assignment> table, boolean pos, java.util.HashSet<Assignment> table2){
 
         java.util.HashSet<Assignment> result = new java.util.HashSet<>();
-        //eliminated the iterator because it gave a weird exception
 
         for(Assignment op1 : table) {
             for (Assignment optional2 : table2) {
@@ -351,7 +347,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         if(pos) {
             return Table.fromSet(result);
         }else {
-            //we don't have to do anything here, right?
             table.removeAll(result);
             return Table.fromSet(table);
 
