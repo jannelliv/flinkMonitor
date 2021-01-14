@@ -218,7 +218,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             Tuple<Table, Table> tables = muaux.get(timepointMuaux);
             Table a2UnionAfter;
             Table firstTable;
-            //first table:
             if(this.pos){
                 assert(rel1.containsKey(timepoint));
                 firstTable = join(tables.fst(), true, rel1.get(timepoint));
@@ -227,7 +226,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 assert(rel1.containsKey(timepoint));
                 firstTable.addAll(rel1.get(timepoint));
             }
-            //second table: timestamp and currentTimestamp can have the same value
             if(mem(currentTimestamp - timepointToTimestamp.get(timepointMuaux), interval)){
                 assert(rel2.containsKey(timepoint));
                 Table rel2a1Join = join(rel2.get(timepoint), pos, tables.fst());
@@ -266,7 +264,8 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     }
                 }
                 if(nextSmallest != Long.MAX_VALUE){
-                    //startEvalMuauxTP = nextSmallest;
+                    startEvalMuauxTP = nextSmallest;
+                    muaux.remove(startEvalMuaux);       //double check these 2 lines
                     HashMap<Long, Table> xs = eval_until(currentTimestamp, nextSmallest);
                     xs.put(startEvalTimepoint, a1a2.snd());
                     return xs;
@@ -284,7 +283,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     public void mbuf2t_take(Mbuf2take_function_Until func, Long tp){
         if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) && muaux.containsKey(tp) &&
-        terminSub1.contains(tp) && terminSub2.contains(tp)){
+        terminSub1.contains(tp) && terminSub2.contains(tp)){            ///PROBLEM -> SEE TEST
 
             func.run(tp, mbuf2.fst(),mbuf2.snd());
             mbuf2.fst().remove(tp);

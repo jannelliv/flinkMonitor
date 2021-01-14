@@ -121,10 +121,8 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         if(A.keySet().contains(value.getTimepoint() - 1)){
             HashSet<PipelineEvent> eventsAtPrev = A.get(value.getTimepoint() - 1);
             for (PipelineEvent buffAss : eventsAtPrev){
-                //Why don't we check the interval condition here?
-                //Why is it better for performance if the interval condition is checked outside the for looP?
-                assert(value.getTimestamp() - buffAss.getTimestamp() > 0);
                 if(mem((value.getTimestamp() - buffAss.getTimestamp()), interval)){
+                    assert(value.getTimestamp() - buffAss.getTimestamp() >= 0);
                     //Above, we are checking the itnerval cosntraint, i.e. that
                     //the difference between the timestamps is within the interval.
                     //how is it be that both assertions hold?
@@ -132,11 +130,12 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 }
             }
             A.remove(value.getTimepoint() - 1);
-            if(TT.keySet().contains(value.getTimepoint() - 1)){
-                out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
-                TT.remove(value.getTimepoint() - 1);
-                T.remove(value.getTimepoint());
-            }
+
+        }
+        if(TT.keySet().contains(value.getTimepoint() - 1)){
+            out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
+            TT.remove(value.getTimepoint() - 1);
+            T.remove(value.getTimepoint());
         }
     }
 

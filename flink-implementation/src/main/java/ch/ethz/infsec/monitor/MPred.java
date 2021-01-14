@@ -13,14 +13,13 @@ import java.util.*;
 import static ch.ethz.infsec.term.JavaTerm.convert;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
+import scala.util.Either;
 
 public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     String predName;
     ArrayList<JavaTerm<VariableID>> args;
     List<VariableID> freeVariablesInOrder;
 
-
-    //I AM REALLY NOT SURE ABOUT USING TOSTRING IN THE MATCH METHOD!!
 
 
     public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
@@ -49,26 +48,28 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
             ArrayList<JavaTerm<VariableID>> argsFormula = new ArrayList<>(this.args);
 
             ArrayList<Object> argsEvent = new ArrayList<>(ys);
-            Optional<HashMap<String, Optional<Object>>> result = match(argsFormula, argsEvent);
+            Optional<HashMap<VariableID, Optional<Object>>> result = matchFV(argsFormula, argsEvent);
             if(result.isPresent()){
 
-                Assignment list = new Assignment();
+                /*Assignment list = new Assignment();
                 for (JavaTerm<VariableID> argument : this.args) {
                     //remember to iterate over the arguments, not the free variables
                     if(result.get().get(argument.toString()).isPresent()){
                         list.add(0, result.get().get(argument.toString()));
                     }
+                }*/
+
+
+                Assignment list = new Assignment();
+                  for (VariableID formulaVariable : this.freeVariablesInOrder) {
+                    if(!result.get().get(formulaVariable).isPresent()){
+                        list.addLast(Optional.empty());
+                    }else{
+                        list.addLast(result.get().get(formulaVariable));
+                    }
                 }
 
 
-                //Assignment list = new Assignment();
-                /*for (VariableID formulaVariable : this.freeVariablesInOrder) {
-                    if(!result.get().get(formulaVariable.toString()).isPresent()){
-                        list.addLast(Optional.empty());                          //NOT AT ALL SURE ABOUT THIS
-                    }else{
-                        list.addLast(result.get().get(formulaVariable.toString()));
-                    }
-                }*/
                 out.collect(PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), list));
             }
             //if there are no satisfactions, we simply don't put anything in the collector.
@@ -80,23 +81,25 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
         return (DataStream<PipelineEvent>) v.visit(this);
     }
 
-    /*public static Optional<HashMap<VariableID, Optional<Object>>> matchFV(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
+    public static Optional<HashMap<VariableID, Optional<Object>>> matchFV(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
         //ts: arguments of the formula
         //ys: arguments of the incoming fact
-        //Now I am using a HashMap instead of a Function!
-
-        if(ts.size() != ys.size() || ts.size() == 0 && ys.size() == 0) {
+        //I am using a HashMap instead of a Function, which is what is used in Verimon
+        //I added the below if condition, which is not present in the Verimon implementation
+        if(ts.size() != ys.size()){
+            return Optional.empty();
+        }else if(ts.size() == 0 && ys.size() == 0) {
             HashMap<VariableID, Optional<Object>> emptyMap = new HashMap<>();
             return Optional.of(emptyMap);
         }else {
             if(ts.size() > 0 && ys.size() > 0 && (ts.get(0) instanceof JavaConst)) {
 
-                if(ts.get(0).equals(ys.get(0))) {
+                if(ts.get(0).toString().equals(ys.get(0).toString())) {
 
                     JavaTerm<VariableID> t = ts.remove(0); //from formula
                     Object y = ys.remove(0); //from fact
                     Optional<HashMap<VariableID, Optional<Object>>> partialResult =  matchFV(ts, ys);
-                    partialResult.get().put(t, Optional.of(y));
+                    //partialResult.get().put(t, Optional.of(y)); --> doesn't have to be added if it's a constant!
                     return partialResult;
                 }else {
                     return Optional.empty();
@@ -112,7 +115,7 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
                 }else{
                     HashMap<VariableID, Optional<Object>> f = recFunction.get();
                     if(!f.containsKey(x) || !(f.get(x)).isPresent()){
-                        f.put(x, Optional.of(y));
+                        f.put(x.variable(), Optional.of(y));
                         return Optional.of(f);
                     }else{
                         Object z = f.get(x).get();
@@ -128,7 +131,7 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
             }
         }
 
-    }*/
+    }
 
     public static Optional<HashMap<String, Optional<Object>>> match(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
         //ts: arguments of the formula

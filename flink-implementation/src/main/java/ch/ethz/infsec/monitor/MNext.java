@@ -109,31 +109,27 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     }
 
     public void handleBuffered(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
-        //Added below line, not 100% sure about it:
         if(value.isPresent() && !T.keySet().contains(value.getTimepoint())){
             T.put(value.getTimepoint(), value.getTimestamp());
         }
-
         if(A.keySet().contains(value.getTimepoint() + 1)){
             HashSet<PipelineEvent> eventsAtPrev = A.get(value.getTimepoint() + 1);
             for (PipelineEvent buffAss : eventsAtPrev){
-                //Why don't we check the interval condition here?
-                //Why is it better for performance if the interval condition is checked outside the for looP?
                 if(mem( buffAss.getTimestamp() - value.getTimestamp(), interval)){
                     //Above, we are checking the interval constraint, i.e. that
                     //the difference between the timestamps is within the interval.
-                    assert(buffAss.getTimestamp() - value.getTimestamp() > 0);
-                    //how is it be that both assertions hold?
+                    assert(buffAss.getTimestamp() - value.getTimestamp() >= 0);
+
                     out.collect(PipelineEvent.event(value.getTimepoint(),
                             value.getTimestamp(),  buffAss.get()));
                 }
             }
             A.remove(value.getTimepoint() + 1);
-            if(TT.keySet().contains(value.getTimepoint() + 1)){
-                out.collect(PipelineEvent.terminator(value.getTimepoint(), value.getTimestamp()));
-                TT.remove(value.getTimepoint() + 1);
-                T.remove(value.getTimepoint());
-            }
+        }
+        if(TT.keySet().contains(value.getTimepoint() + 1)){
+            out.collect(PipelineEvent.terminator(value.getTimepoint(), value.getTimestamp()));
+            TT.remove(value.getTimepoint() + 1);
+            T.remove(value.getTimepoint());
         }
     }
 
