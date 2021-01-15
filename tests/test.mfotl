@@ -1,1 +1,1 @@
-(PREVIOUS [0,7] publish(160))
+publish(1) UNTIL [0,7d] approve(163)

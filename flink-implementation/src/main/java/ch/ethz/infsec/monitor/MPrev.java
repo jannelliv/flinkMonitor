@@ -149,6 +149,9 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
         }
         if(TT.keySet().contains(value.getTimepoint() - 1)){
+            if(value.getTimepoint() - 1 == 0L){
+                out.collect(PipelineEvent.terminator(TT.get(0L), value.getTimepoint() - 1));
+            }
             out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
             TT.remove(value.getTimepoint() - 1);
             T.remove(value.getTimepoint());

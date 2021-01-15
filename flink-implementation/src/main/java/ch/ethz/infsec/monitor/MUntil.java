@@ -123,8 +123,10 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     for(Assignment oa : evalSet){
                         if(event.getTimepoint() != -1 && oa.size() !=0){
                             collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
-                        }else{
+                        }else if(event.getTimepoint() == -1 ){
                             throw new Exception("problem retrieving timepoint");
+                        }else{
+                            throw new Exception("size zero");
                         }
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs

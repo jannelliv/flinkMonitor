@@ -271,6 +271,55 @@ public class TestFreeVariables {
     }
 
     @Test
+    public void testOrFV() throws Exception{
+        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,0L, "1"), 1L);
+        testHarnessPred2Or.processElement(Fact.makeTP("approve", 1L,0L, "50"), 1L);
+        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,0L, "1"), 1L);
+        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,0L, "1"), 1L);
+        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,1L, "2"), 1L);
+        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,1L, "2"), 1L);
+        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,1L, "2"), 1L);
+        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,2L, "160"), 1L);
+        testHarnessPred2Or.processElement(Fact.makeTP("approve", 1L,2L, "160"), 1L);
+        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,2L, "160"), 1L);
+        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,2L, "160"), 1L);
+        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,3L, "3"), 1L);
+        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,3L, "3"), 1L);
+        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,3L, "3"), 1L);
+
+        List<PipelineEvent> pes1 = testHarnessPred1Or.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        List<PipelineEvent> pes2 = testHarnessPred2Or.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+
+        int longer = Math.max(pes1.size(), pes2.size());
+        int shorter = Math.min(pes1.size(), pes2.size());
+        for(int i = 0; i < longer; i++){
+            if(i < shorter){
+                testHarnessOr.processElement1(pes1.get(i), 1L);
+                testHarnessOr.processElement2(pes2.get(i), 1L);
+            }else if(pes1.size()==longer){
+                testHarnessOr.processElement1(pes1.get(i), 1L);
+            }else{
+                testHarnessOr.processElement2(pes2.get(i), 1L);
+            }
+        }
+        List<PipelineEvent> processedOr = testHarnessOr.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("test output:  " + processedOr.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                PipelineEvent.event(1307532861, 0L,  Assignment.one(Optional.of(152))),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(160))),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(187))),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(152))),
+                PipelineEvent.terminator(1308477599, 2L)
+        ));
+        assertArrayEquals( expectedResults.toArray(), processedOr.toArray());
+    }
+
+    @Test
     public void testRelTrueFalse() throws Exception{
         testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "163"), 1L);
         List<PipelineEvent> pe = testHarnessRel.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());

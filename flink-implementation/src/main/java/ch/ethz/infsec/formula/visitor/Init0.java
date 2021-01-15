@@ -106,9 +106,8 @@ public class Init0 implements FormulaVisitor<Mformula> {
     }
 
     public Mformula visit(JavaOr<VariableID> f) {
-        //NOT SURE IF I HAD TO ADD THE ABOVE ELEMENTS
-        return new MOr((f.arg1()).accept(new Init0(f.freeVariablesInOrder())),
-                (f.arg2()).accept(new Init0(f.freeVariablesInOrder())));
+        return new MOr((f.arg1()).accept(new Init0(f.arg1().freeVariablesInOrder())),
+                (f.arg2()).accept(new Init0(f.arg2().freeVariablesInOrder())));
     }
 
     public Mformula visit(JavaPrev<VariableID> f) {
