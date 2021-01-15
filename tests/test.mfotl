@@ -1,1 +1,1 @@
-publish(r) OR approve(q)
+(PREVIOUS [0,7] publish(160))

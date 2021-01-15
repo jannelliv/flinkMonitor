@@ -20,10 +20,10 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
     HashSet<Long> terminatorRHS;
 
     public MOr(Mformula arg1, Mformula arg2) {
-        this.op1 = arg1;
-        this.op2 = arg2;
+        op1 = arg1;
+        op2 = arg2;
 
-        this.mbuf2 = new Tuple<>(new HashMap<>(), new HashMap<>());
+        mbuf2 = new Tuple<>(new HashMap<>(), new HashMap<>());
         terminatorLHS = new HashSet<>();
         terminatorRHS = new HashSet<>();
         outputted = new HashMap<>();

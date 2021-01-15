@@ -86,3 +86,26 @@ approve
 (publish(r1)) OR (approve(q0))
 publish
 approve
+EXISTS xbound. publish(xbound)
+publish
+(PREVIOUS [0,8) (publish(163))) AND (approve(187))
+publish
+approve
+publish(163)
+publish
+PREVIOUS [0,8) (publish(160))
+publish
+PREVIOUS [0,8) (publish(160))
+publish
+PREVIOUS [0,8) (publish(160))
+publish
+approve(130)
+approve
+(PREVIOUS [0,8) (publish(160))) AND (approve(130))
+publish
+approve
+(PREVIOUS [0,8) (publish(160))) AND (approve(r0))
+publish
+approve
+approve(r0)
+approve

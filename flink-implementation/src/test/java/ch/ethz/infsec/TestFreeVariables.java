@@ -355,6 +355,39 @@ public class TestFreeVariables {
         assertArrayEquals(expectedResults.toArray(), pesPrev.toArray());
     }
 
+
+    @Test
+    public void testPrev3() throws Exception{
+        //@1307532861 approve (152)
+        //@1307955600 approve (163) publish (160) (163)
+        //@1308477599 approve (187) publish (163) (152)
+        //@1308478000
+        testHarnessPredPrev.processElement(Fact.makeTP(null, 7532861L,0L, "3"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP("publish", 7955600L,1L, "160"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP("publish", 7955600L,1L, "163"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP(null, 7955600L,1L, "163"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP("publish", 8477599L,2L, "163"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP("publish", 8477599L,2L, "152"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP(null, 8477599L,2L, "163"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP(null, 8478000L,3L, "3"), 1L);
+
+
+        List<PipelineEvent> pes = testHarnessPredPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        for(PipelineEvent pe : pes){
+            testHarnessPrev.processElement(pe, 1L);
+        }
+        List<PipelineEvent> pesPrev = testHarnessPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+
+        System.out.println("testPrev3 output:  " + pesPrev.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                //PipelineEvent.terminator(1, 0L),
+                PipelineEvent.event(1, 3L, Assignment.one()),
+                PipelineEvent.terminator(1, 3L),
+                PipelineEvent.terminator(1, 2L),
+                PipelineEvent.terminator(1, 1L)));
+        assertArrayEquals(expectedResults.toArray(), pesPrev.toArray());
+    }
+
     @Test
     public void testNext() throws Exception{
         testHarnessPredNext.processElement(Fact.makeTP("publish", 1L,0L, "1"), 1L);
@@ -381,8 +414,6 @@ public class TestFreeVariables {
         assertArrayEquals(expectedResults.toArray(), pesPrev.toArray());
     }
 
-
-
     @Test
     public void testPred2() throws Exception{
         //formula: publish(163)
@@ -393,8 +424,6 @@ public class TestFreeVariables {
         assert(pe.get(0).getTimestamp() == 1L);
         assert(pe.get(0).getTimepoint() == 0L);
     }
-
-
 
 
 
