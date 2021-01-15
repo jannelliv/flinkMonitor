@@ -74,3 +74,15 @@ publish(r0)
 publish
 publish(r0)
 publish
+(publish(r1)) AND (approve(q0))
+publish
+approve
+(publish(r1)) AND (approve(q0))
+publish
+approve
+(publish(r1)) AND (approve(q0))
+publish
+approve
+(publish(r1)) OR (approve(q0))
+publish
+approve

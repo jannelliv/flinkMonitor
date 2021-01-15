@@ -62,7 +62,7 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
 
                 Assignment list = new Assignment();
                   for (VariableID formulaVariable : this.freeVariablesInOrder) {
-                    if(!result.get().get(formulaVariable).isPresent()){
+                    if(!result.get().containsKey(formulaVariable) || !result.get().get(formulaVariable).isPresent()){
                         list.addLast(Optional.empty());
                     }else{
                         list.addLast(result.get().get(formulaVariable));
