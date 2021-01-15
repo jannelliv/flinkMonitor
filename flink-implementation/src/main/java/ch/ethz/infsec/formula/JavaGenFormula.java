@@ -1,4 +1,5 @@
 package ch.ethz.infsec.formula;
+import ch.ethz.infsec.formula.visitor.Init0;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.formula.visitor.FormulaVisitor;
 
@@ -39,6 +40,7 @@ public interface JavaGenFormula<T> extends JavaGenFormulaUnsealed<T> {
             return null;
         }
     }
+
 
 }
 

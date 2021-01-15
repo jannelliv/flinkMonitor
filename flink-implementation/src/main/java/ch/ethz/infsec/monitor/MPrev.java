@@ -68,14 +68,27 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
         //ADD ASSERT: forall i. T.keys().contains(i+1) ==> ! A.keys().contains(i)
         if(value.isPresent()){
+            if(!T.containsKey(value.getTimepoint())){
+                T.put(value.getTimepoint(), value.getTimestamp());
+            }
             //i.e. the event we are receiving is NOT a terminator
             //1)
-            if(T.keySet().contains(value.getTimepoint() + 1)){
-                if(mem(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
-                    out.collect(PipelineEvent.event(T.get(value.getTimepoint() + 1),
-                            value.getTimepoint() + 1, value.get()));
+            if(T.keySet().contains(value.getTimepoint() + 1) || TT.containsKey(value.getTimepoint() + 1)){
+                //added second condition on top
+                if(T.keySet().contains(value.getTimepoint() + 1)){
+                    if(mem(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
+                        out.collect(PipelineEvent.event(T.get(value.getTimepoint() + 1),
+                                value.getTimepoint() + 1, value.get()));
+                    }
+                }else{
+                    if(mem(TT.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
+                        out.collect(PipelineEvent.event(TT.get(value.getTimepoint() + 1),
+                                value.getTimepoint() + 1, value.get()));
+                    }
                 }
+
             }else{
+
                 //It might be that you don't know the timestamp, e.g. assuming that you have not
                 //received any tuple from the current timepoint. You will only know the timpestamp
                 //when you receive the first PipelineEvent for our current timepoint. SO if we don't have the
@@ -92,8 +105,11 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             //as soon as you have received the timestamp, you can process the stored/buffered assignments.
             handleBuffered(value, out);
         }else{
-            if(T.keySet().contains(value.getTimepoint() + 1)){
-                out.collect(PipelineEvent.terminator( T.get(value.getTimepoint() + 1),value.getTimepoint()+ 1));
+
+            if(TT.keySet().contains(value.getTimepoint() + 1)){
+                out.collect(PipelineEvent.terminator( TT.get(value.getTimepoint() + 1),value.getTimepoint()+ 1));
+                TT.put(value.getTimepoint(), value.getTimestamp());
+                TT.remove(value.getTimepoint() + 1); //double check
             }else{
                 TT.put(value.getTimepoint(), value.getTimestamp());
             }
@@ -104,10 +120,10 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     }
 
     public void handleBuffered(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
-        if(!value.isPresent() && value.getTimepoint() == 0){
+        /*if(!value.isPresent() && value.getTimepoint() == 0){
             out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
             return;
-        } else if(value.getTimepoint() == 0){
+        } else*/ if(value.getTimepoint() == 0){
             //output an EMPTY SET because previous is not satisfied at the first position.
             //for next we don't need this special case, as we don't realy have a "last"
             //timepoint, given that traces are infinite.
@@ -118,7 +134,7 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             }
         }
 
-        if(A.keySet().contains(value.getTimepoint() - 1)){
+        if(A.keySet().contains(value.getTimepoint() - 1)){ //controllo valori precedenti
             HashSet<PipelineEvent> eventsAtPrev = A.get(value.getTimepoint() - 1);
             for (PipelineEvent buffAss : eventsAtPrev){
                 if(mem((value.getTimestamp() - buffAss.getTimestamp()), interval)){

@@ -161,7 +161,7 @@ public class TestFreeVariables {
         testHarnessAnd.open();
 
 
-        //testAnd()
+        //testAndFreeVariables()
         Either<String, GenFormula<VariableID>> f1fv = Policy.read("publish(r)");
         GenFormula<VariableID> formula1fv = f1fv.right().get();
         FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1fv = (MPred) (convert(formula1fv)).accept(new Init0(formula1fv.freeVariablesInOrder()));
@@ -319,7 +319,7 @@ public class TestFreeVariables {
 
         System.out.println("testPrev output:  " + pesPrev.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.terminator(1, 0L),
+                //PipelineEvent.terminator(1, 0L),
                 PipelineEvent.terminator(1, 1L),
                 PipelineEvent.terminator(1, 2L),
                 PipelineEvent.event(1, 3L, Assignment.one()),
@@ -329,27 +329,28 @@ public class TestFreeVariables {
 
     @Test
     public void testPrev2() throws Exception{
-        testHarnessPredPrev.processElement(Fact.makeTP("publish", 1L,0L, "1"), 1L);
-        testHarnessPredPrev.processElement(Fact.makeTP(null, 1L,0L, "1"), 1L);
-        testHarnessPredPrev.processElement(Fact.makeTP("publish", 1L,1L, "2"), 1L);
-        testHarnessPredPrev.processElement(Fact.makeTP(null, 1L,1L, "2"), 1L);
-        testHarnessPredPrev.processElement(Fact.makeTP("publish", 1L,2L, "160"), 1L);
-        testHarnessPredPrev.processElement(Fact.makeTP(null, 1L,2L, "160"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 1L,3L, "3"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP(null, 1L,3L, "3"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP("publish", 1L,0L, "1"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP(null, 1L,0L, "1"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP("publish", 1L,2L, "160"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP(null, 1L,2L, "160"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP("publish", 1L,1L, "2"), 1L);
+        testHarnessPredPrev.processElement(Fact.makeTP(null, 1L,1L, "2"), 1L);
+
         List<PipelineEvent> pes = testHarnessPredPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         for(PipelineEvent pe : pes){
             testHarnessPrev.processElement(pe, 1L);
         }
         List<PipelineEvent> pesPrev = testHarnessPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
 
-        System.out.println("testPrev output:  " + pesPrev.toString());
+        System.out.println("testPrev2 output:  " + pesPrev.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.terminator(1, 0L),
-                PipelineEvent.terminator(1, 1L),
-                PipelineEvent.terminator(1, 2L),
+                //PipelineEvent.terminator(1, 0L),
                 PipelineEvent.event(1, 3L, Assignment.one()),
-                PipelineEvent.terminator(1, 3L)));
+                PipelineEvent.terminator(1, 3L),
+                PipelineEvent.terminator(1, 2L),
+                PipelineEvent.terminator(1, 1L)));
         assertArrayEquals(expectedResults.toArray(), pesPrev.toArray());
     }
 
@@ -374,8 +375,8 @@ public class TestFreeVariables {
                 PipelineEvent.terminator(1, 0L),
                 PipelineEvent.event(1, 1L, Assignment.one()),
                 PipelineEvent.terminator(1, 1L),
-                PipelineEvent.terminator(1, 2L),
-                PipelineEvent.terminator(1, 3L)));
+                PipelineEvent.terminator(1, 2L)));
+                //PipelineEvent.terminator(1, 3L)));
         assertArrayEquals(expectedResults.toArray(), pesPrev.toArray());
     }
 
@@ -436,7 +437,7 @@ public class TestFreeVariables {
             }
         }
         List<PipelineEvent> processedAnd = testHarnessAndFV.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        System.out.println("test output:  " + processedAnd.toString());
+        System.out.println("testAndFreeVariables() output:  " + processedAnd.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
                 PipelineEvent.terminator(1307955600, 1L)));

@@ -11,12 +11,14 @@ import ch.ethz.infsec.util.*;
 public class Init0 implements FormulaVisitor<Mformula> {
 
     List<VariableID> freeVariablesInOrder;
+    Seq<VariableID> fvio;
 
     public Init0(Seq<VariableID> fvio){
         ArrayList<VariableID> temp = new ArrayList<>(JavaConverters.seqAsJavaList(fvio));
         //If you would use List<VariableID> there, you could avoid the two conversions steps
         // (one before the recursive call and the other in the Init0 constructor).
         this.freeVariablesInOrder = temp;
+        this.fvio = fvio;
     }
 
     public Mformula visit(JavaPred<VariableID> f){

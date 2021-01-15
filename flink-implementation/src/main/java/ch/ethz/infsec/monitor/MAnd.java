@@ -43,8 +43,8 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             terminatorLHS.add(fact.getTimepoint());
             if(terminatorRHS.contains(fact.getTimepoint())){
                 this.mbuf2.fst.remove(fact.getTimepoint());
-                this.mbuf2.snd.remove(fact.getTimepoint()); //????
-                collector.collect(fact); //?????
+                this.mbuf2.snd.remove(fact.getTimepoint());
+                collector.collect(fact);
                 terminatorRHS.remove(fact.getTimepoint());
                 terminatorLHS.remove(fact.getTimepoint());
             }

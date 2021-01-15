@@ -73,13 +73,23 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
 
         if(value.isPresent()){
-            //i.e. the event we are receiving is NOT a terminator
+            if(!T.containsKey(value.getTimepoint())){
+                T.put(value.getTimepoint(), value.getTimestamp());
+            }
             //1)
-            if(T.keySet().contains(value.getTimepoint() - 1)){
-                if(mem(value.getTimestamp() - T.get(value.getTimepoint() - 1), interval)){
-                    out.collect(PipelineEvent.event(T.get(value.getTimepoint() - 1),
-                            value.getTimepoint() - 1, value.get()));
+            if(T.keySet().contains(value.getTimepoint() - 1) || TT.containsKey(value.getTimepoint() - 1)){
+                if(T.containsKey(value.getTimepoint() - 1)){
+                    if(mem(value.getTimestamp() - T.get(value.getTimepoint() - 1), interval)){
+                        out.collect(PipelineEvent.event(T.get(value.getTimepoint() - 1),
+                                value.getTimepoint() - 1, value.get()));
+                    }
+                }else{
+                    if(mem(value.getTimestamp() - TT.get(value.getTimepoint() - 1), interval)){
+                        out.collect(PipelineEvent.event(TT.get(value.getTimepoint() - 1),
+                                value.getTimepoint() - 1, value.get()));
+                    }
                 }
+
             }else{ //CHECK WHEN TO UPDATE T
                 //It might be that you don't know the timestamp, e.g. assuming that you have not
                 //received any tuple from the current timepoint. You will only know the timestamp
@@ -98,8 +108,10 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             //as soon as you have received the timestamp, you can process the stored/buffered assignments.
 
         }else{
-            if(T.keySet().contains(value.getTimepoint() - 1)){
-                out.collect(PipelineEvent.terminator(T.get(value.getTimepoint() - 1), value.getTimepoint()- 1));
+            if(TT.keySet().contains(value.getTimepoint() - 1)){
+                out.collect(PipelineEvent.terminator(TT.get(value.getTimepoint() - 1), value.getTimepoint()- 1));
+                TT.put(value.getTimepoint(), value.getTimestamp());
+                TT.remove(value.getTimepoint() - 1); //double check
             }else{
                 TT.put(value.getTimepoint(), value.getTimestamp());
             }
