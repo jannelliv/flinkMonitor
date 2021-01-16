@@ -107,7 +107,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 mbuf2t_take(func, startEvalTimepoint);
                 //update_until accepts a timepoint, but then within the method, we retrieve the timestamp
                 //and work with that!
-                // On the other hand, eval_until accepts a timestamp
 
                 HashMap<Long, Table> evalUntilResult;
 
@@ -210,27 +209,27 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
     }
 
-    public void update_until(Long timepoint, HashMap<Long, Table> rel1, HashMap<Long, Table> rel2){
+    public void update_until(Long timepointToIndexRels, HashMap<Long, Table> rel1, HashMap<Long, Table> rel2){
         //in Verimon, nt is the current timestamp
         //this method updates muaux, based on the timestamp
 
-        assert(timepointToTimestamp.containsKey(timepoint));
-        Long currentTimestamp = timepointToTimestamp.get(timepoint);                                   //not 100% sure about this
+        Long currentTimestamp = timepointToTimestamp.get(startEvalTimepoint); //OR IS IT: timepointToIndexRels
+
         for(Long timepointMuaux : muaux.keySet()){
             Tuple<Table, Table> tables = muaux.get(timepointMuaux);
             Table a2UnionAfter;
             Table firstTable;
             if(this.pos){
-                assert(rel1.containsKey(timepoint));
-                firstTable = join(tables.fst(), true, rel1.get(timepoint));
+                assert(rel1.containsKey(timepointToIndexRels));
+                firstTable = join(tables.fst(), true, rel1.get(timepointToIndexRels));
             }else{
                 firstTable = Table.fromTable(tables.fst());
-                assert(rel1.containsKey(timepoint));
-                firstTable.addAll(rel1.get(timepoint));
+                assert(rel1.containsKey(timepointToIndexRels));
+                firstTable.addAll(rel1.get(timepointToIndexRels));
             }
             if(mem(currentTimestamp - timepointToTimestamp.get(timepointMuaux), interval)){
-                assert(rel2.containsKey(timepoint));
-                Table rel2a1Join = join(rel2.get(timepoint), pos, tables.fst());
+                assert(rel2.containsKey(timepointToIndexRels));
+                Table rel2a1Join = join(rel2.get(timepointToIndexRels), pos, tables.fst());
                 a2UnionAfter = Table.fromTable(tables.snd());
                 a2UnionAfter.addAll(rel2a1Join);
             }
@@ -241,11 +240,11 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
         Table addedTableForZeroLHS;
         if(interval.lower() == 0L){
-            addedTableForZeroLHS = rel2.get(timepoint);
+            addedTableForZeroLHS = rel2.get(timepointToIndexRels);
         }else{
             addedTableForZeroLHS = Table.empty();
         }
-        muaux.put(timepoint, new Tuple<>(rel1.get(timepoint), addedTableForZeroLHS));
+        muaux.put(startEvalTimepoint, new Tuple<>(rel1.get(timepointToIndexRels), addedTableForZeroLHS));
     }
 
     public HashMap<Long, Table> eval_until(long currentTimestamp, long startEvalMuaux){
@@ -258,7 +257,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             assert(muaux.containsKey(startEvalMuaux));
             Tuple<Table, Table> a1a2 = muaux.get(startEvalMuaux);
             //Question: I think I can remove this entry after I have evaluated it
-            if(interval.upper().isDefined() && startEvalMuaux + (int)interval.upper().get() < currentTimestamp){
+            if(interval.upper().isDefined() && timepointToTimestamp.get(startEvalMuaux) + (int)interval.upper().get() < currentTimestamp){
                 Long nextSmallest = Long.MAX_VALUE;
                 for(Long time : muaux.keySet()){
                     if(time > startEvalMuaux && time < nextSmallest){
@@ -266,14 +265,14 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     }
                 }
                 if(nextSmallest != Long.MAX_VALUE){
-                    startEvalMuauxTP = nextSmallest;
-                    muaux.remove(startEvalMuaux);       //double check these 2 lines
+                    //startEvalMuauxTP = nextSmallest;         //not sure about this
+                    //muaux.remove(startEvalMuaux);       //double check these 2 lines
                     HashMap<Long, Table> xs = eval_until(currentTimestamp, nextSmallest);
-                    xs.put(startEvalTimepoint, a1a2.snd());
+                    xs.put(startEvalMuaux, a1a2.snd());
                     return xs;
                 }else{
                     HashMap<Long, Table> xs = new HashMap<>();
-                    xs.put(startEvalTimepoint, a1a2.snd());
+                    xs.put(startEvalMuaux, a1a2.snd()); //first argument used to be startEvalTImepoint
                     return xs;
                 }
             }else{
@@ -282,14 +281,13 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
     }
 
-
     public void mbuf2t_take(Mbuf2take_function_Until func, Long tp){
         if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) && muaux.containsKey(tp) &&
         terminSub1.contains(tp) && terminSub2.contains(tp)){            ///PROBLEM -> SEE TEST
 
             func.run(tp, mbuf2.fst(),mbuf2.snd());
-            mbuf2.fst().remove(tp);
-            mbuf2.snd().remove(tp);
+            //mbuf2.fst().remove(tp);
+            //mbuf2.snd().remove(tp);
             tp++; //gets incremented and method is called recursively until one of the two HashMaps in
             //mbuf2 becomes empty.
             mbuf2t_take(func, tp);
@@ -372,7 +370,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 return result;
             }
         }
-
         Optional<Assignment> result = Optional.empty();
         return result;
     }

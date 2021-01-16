@@ -546,7 +546,6 @@ public class ParsingTest {
 
     @Test
     public void testPrev() throws Exception{
-        //try a test where you remove below line
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 1307532861,0L, "159"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
@@ -554,7 +553,6 @@ public class ParsingTest {
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
-        // Persisting issue: for the last 3 facts, we cannot check the interval condition, because we don't have the timestamp of the next timepoint!'
         List<PipelineEvent> pes = testHarnessPredPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         for (PipelineEvent pe : pes) {
             testHarnessPrev.processElement(pe, 1L);
@@ -563,9 +561,8 @@ public class ParsingTest {
         System.out.println("testPrev() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(159))),
                 PipelineEvent.terminator(1307955600, 1L),
-                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(160))),
+                PipelineEvent.event(1308477599, 2L, Assignment.one()),
                 PipelineEvent.terminator(1308477599, 2L)
                 ));
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());

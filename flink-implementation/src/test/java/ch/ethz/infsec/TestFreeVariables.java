@@ -161,7 +161,7 @@ public class TestFreeVariables {
         testHarnessAnd.open();
 
 
-        //testAndFreeVariables()
+        //testAndFreeVariables()   --> try approve(r) and publish(r)
 
         Either<String, GenFormula<VariableID>> andFfv = Policy.read("approve(q) AND publish(r)");
         GenFormula<VariableID> andFormulafv = andFfv.right().get();
@@ -182,21 +182,22 @@ public class TestFreeVariables {
 
 
         //testOr()
-        Either<String, GenFormula<VariableID>> f1Or = Policy.read("publish(r)");
-        GenFormula<VariableID> formula1Or = f1Or.right().get();
-        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1Or = (MPred) (convert(formula1Or)).accept(new Init0(formula1Or.freeVariablesInOrder()));
-        testHarnessPred1Or = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred1Or));
-        testHarnessPred1Or.open();
-        Either<String, GenFormula<VariableID>> f2Or = Policy.read("approve(r)");
-        GenFormula<VariableID> formula2Or = f2Or.right().get();
-        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred2Or = (MPred) (convert(formula2Or)).accept(new Init0(formula2Or.freeVariablesInOrder()));
-        testHarnessPred2Or = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred2Or));
-        testHarnessPred2Or.open();
         Either<String, GenFormula<VariableID>> orF = Policy.read("approve(r) OR publish(r)");
         GenFormula<VariableID> orFormula = orF.right().get();
         CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> statefulFlatMapFunctionOr = (MOr) (convert(orFormula)).accept(new Init0(orFormula.freeVariablesInOrder()));
         testHarnessOr = new TwoInputStreamOperatorTestHarness<>(new CoStreamFlatMap<>(statefulFlatMapFunctionOr));
         testHarnessOr.open();
+        Either<String, GenFormula<VariableID>> f1Or = Policy.read("publish(r)");
+        GenFormula<VariableID> formula1Or = f1Or.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1Or = (MPred) (convert(formula1Or)).accept(new Init0(orFormula.freeVariablesInOrder()));
+        testHarnessPred1Or = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred1Or));
+        testHarnessPred1Or.open();
+        Either<String, GenFormula<VariableID>> f2Or = Policy.read("approve(r)");
+        GenFormula<VariableID> formula2Or = f2Or.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred2Or = (MPred) (convert(formula2Or)).accept(new Init0(orFormula.freeVariablesInOrder()));
+        testHarnessPred2Or = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred2Or));
+        testHarnessPred2Or.open();
+
 
         //testExists()
         Either<String, GenFormula<VariableID>> f1Ex = Policy.read("publish(x)");
@@ -271,6 +272,54 @@ public class TestFreeVariables {
     }
 
     @Test
+    public void testUntil() throws Exception{
+        //TODO: check more extensively that cleanDatastructures() does not mess up the functionality of the algorithm
+        //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
+        //Persisting issues: I don't "start from startEvalTimepoint"
+        //formula being tested: publish(163) UNTIL [0,7d] approve(163)
+        testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        //////////////////////////////////////////////////////////////////////////////////////////////////
+        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307955600,1L, "163"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        List<PipelineEvent> pes1 = testHarnessPred1Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        List<PipelineEvent> pes2 = testHarnessPred2Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        int longer = Math.max(pes1.size(), pes2.size());
+        int shorter = Math.min(pes1.size(), pes2.size());
+        for(int i = 0; i < longer; i++){
+            if(i < shorter){
+                testHarnessUntil.processElement1(pes1.get(i), 1L);
+                testHarnessUntil.processElement2(pes2.get(i), 1L);
+            }else if(pes1.size()==longer){
+                testHarnessUntil.processElement1(pes1.get(i), 1L);
+            }else{
+                testHarnessUntil.processElement2(pes2.get(i), 1L);
+            }
+        }
+        List<PipelineEvent> processedUntil = testHarnessUntil.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("testUntil() output:  " + processedUntil.toString());
+        //formula under test: publish(163) UNTIL [0,7d] approve(163)
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307955600, 1L),
+                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
+                //We will not consider the above event as we are only contemplating infinite traces.
+                PipelineEvent.terminator(1308477599, 2L)
+        ));
+        assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());
+    }
+
+
+    /*@Test
     public void testOrFV() throws Exception{
         testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,0L, "1"), 1L);
         testHarnessPred2Or.processElement(Fact.makeTP("approve", 1L,0L, "50"), 1L);
@@ -317,7 +366,7 @@ public class TestFreeVariables {
                 PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedOr.toArray());
-    }
+    }*/
 
     @Test
     public void testRelTrueFalse() throws Exception{
@@ -369,7 +418,7 @@ public class TestFreeVariables {
 
         System.out.println("testPrev output:  " + pesPrev.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                //PipelineEvent.terminator(1, 0L),
+                PipelineEvent.terminator(1, 0L),
                 PipelineEvent.terminator(1, 1L),
                 PipelineEvent.terminator(1, 2L),
                 PipelineEvent.event(1, 3L, Assignment.one()),
@@ -396,10 +445,10 @@ public class TestFreeVariables {
 
         System.out.println("testPrev2 output:  " + pesPrev.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                //PipelineEvent.terminator(1, 0L),
                 PipelineEvent.event(1, 3L, Assignment.one()),
                 PipelineEvent.terminator(1, 3L),
                 PipelineEvent.terminator(1, 2L),
+                PipelineEvent.terminator(1, 0L),
                 PipelineEvent.terminator(1, 1L)));
         assertArrayEquals(expectedResults.toArray(), pesPrev.toArray());
     }
@@ -407,10 +456,6 @@ public class TestFreeVariables {
 
     @Test
     public void testPrev3() throws Exception{
-        //@1307532861 approve (152)
-        //@1307955600 approve (163) publish (160) (163)
-        //@1308477599 approve (187) publish (163) (152)
-        //@1308478000
         testHarnessPredPrev.processElement(Fact.makeTP(null, 7532861L,0L, "3"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 7955600L,1L, "160"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 7955600L,1L, "163"), 1L);
@@ -419,8 +464,6 @@ public class TestFreeVariables {
         testHarnessPredPrev.processElement(Fact.makeTP("publish", 8477599L,2L, "152"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP(null, 8477599L,2L, "163"), 1L);
         testHarnessPredPrev.processElement(Fact.makeTP(null, 8478000L,3L, "3"), 1L);
-
-
         List<PipelineEvent> pes = testHarnessPredPrev.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         for(PipelineEvent pe : pes){
             testHarnessPrev.processElement(pe, 1L);
@@ -429,11 +472,10 @@ public class TestFreeVariables {
 
         System.out.println("testPrev3 output:  " + pesPrev.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                //PipelineEvent.terminator(1, 0L),
-                PipelineEvent.event(1, 3L, Assignment.one()),
-                PipelineEvent.terminator(1, 3L),
-                PipelineEvent.terminator(1, 2L),
-                PipelineEvent.terminator(1, 1L)));
+                PipelineEvent.terminator(7532861, 0L),
+                PipelineEvent.terminator(7955600, 1L),
+                PipelineEvent.terminator(8477599, 2L),
+                PipelineEvent.terminator(8478000, 3L)));
         assertArrayEquals(expectedResults.toArray(), pesPrev.toArray());
     }
 

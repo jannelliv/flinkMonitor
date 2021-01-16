@@ -124,3 +124,6 @@ approve
 (publish(q0)) OR (approve(q0))
 publish
 approve
+(publish(r0)) OR (approve(r0))
+publish
+approve

@@ -40,7 +40,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         this.timepointToTimestamp = new HashMap<>();
         this.largestInOrderTPsub1 = -1L;
         this.largestInOrderTPsub2 = -1L;
-        this.startEvalTimepoint = -0L;
+        this.startEvalTimepoint = 0L;
         HashMap<Long, Table> fst = new HashMap<>();
         HashMap<Long, Table> snd = new HashMap<>();
         this.mbuf2 = new Tuple<>(fst, snd);
@@ -97,14 +97,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
                     collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(tp), tp));
+                    startEvalTimepoint += msaux_zs.size();
                 }
-                if(largestInOrderTPsub1 <= largestInOrderTPsub2){
-                    startEvalTimepoint = largestInOrderTPsub1+1;
-                }else{
-                    startEvalTimepoint = largestInOrderTPsub2+1;
-                }
-                //you should remove parts from the data-structures in the fields in order to avoid a memory leak.
-                //cleanUpDatastructures();
+
             }
         }
 
@@ -153,14 +148,10 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs.
                     collector.collect(PipelineEvent.terminator(ts, event.getTimepoint()));
+
+                    startEvalTimepoint += msaux_zs.size();
                 }
-                if(largestInOrderTPsub1 <= largestInOrderTPsub2){
-                    startEvalTimepoint = largestInOrderTPsub1+1;
-                }else{
-                    startEvalTimepoint = largestInOrderTPsub2+1;
-                }
-                //Removal of parts from the data-structures in the fields in order to avoid a memory leak:
-                //call method cleanUpDatastructures();
+
             }
         }
     }
@@ -169,7 +160,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         //In the return type, I actually don't need a tuple because in the flink implementation the state is kept by the
         ///java class.
         //nt is a timestamp!!!
+        HashMap<Long, Table> auxResult = new HashMap<>();
         HashMap<Long, Table> auxIntervalList = new HashMap<>();
+
         for(Long t : msaux.keySet()){
             Table rel = msaux.get(t);
             Long subtr = nt - t;
@@ -177,48 +170,60 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 auxIntervalList.put(t, join(rel, pos, rel1));
             }
         }
+        HashMap<Long, Table> auxIntervalList2 = new HashMap<>(auxIntervalList);
         if(auxIntervalList.size() == 0){
-           msaux.put(nt, rel2);
+           //msaux.put(nt, rel2);
+            auxResult.put(nt, rel2);
+            auxIntervalList2.put(nt,rel2);
         }else{
             Table x = auxIntervalList.get(timepointToTimestamp.get(startEvalTimepoint));
             if(timepointToTimestamp.get(startEvalTimepoint).equals(nt)){
                 Table unionSet = Table.fromTable(x);
                 unionSet.addAll(rel2);
-                auxIntervalList.put(timepointToTimestamp.get(startEvalTimepoint), unionSet);
-                msaux = new HashMap<>(auxIntervalList);
+                auxIntervalList2.put(timepointToTimestamp.get(startEvalTimepoint), unionSet);
+                //auxResult = new HashMap<>(auxIntervalList2);
             }else{
-                auxIntervalList.put(nt,x);
-                auxIntervalList.put(nt, rel2);
-                msaux = new HashMap<>(auxIntervalList);
+                auxIntervalList2.put(timepointToTimestamp.get(startEvalTimepoint),x);
+                auxIntervalList2.put(nt, rel2);
+                //auxResult = new HashMap<>(auxIntervalList2);
             }
-        }
-
-        //update_since I pos rel1 rel2 nt aux =
-        /*        (let aux = (case [(t, join rel pos rel1). (t, rel) ← aux, nt - t ≤ right I] of
+            //update_since I pos rel1 rel2 nt aux =
+            /*(let aux = (case [(t, join rel pos rel1). (t, rel) ← aux, nt - t ≤ right I] of
             [] ⇒ [(nt, rel2)]
             | x # aux'' ⇒ (if fst x = nt then (fst x, snd x ∪ rel2) # aux'' else (nt, rel2) # x # aux''))
-        in (foldr (∪) [rel. (t, rel) ← aux, left I ≤ nt - t] {}, aux))*/
+                in (foldr (∪) [rel. (t, rel) ← aux, left I ≤ nt - t] {}, aux))*/
+
+            /*meval n t db (MSince pos φ I ψ buf nts aux) =
+            (let (xs, φ) = meval n t db φ; (ys, ψ) = meval n t db ψ;
+            ((zs, aux), buf, nts) = mbuf2t_take (λr1 r2 t (zs, aux).
+                            let (z, aux) = update_since I pos r1 r2 t aux
+                    in (zs @ [z], aux)) ([], aux) (mbuf2_add xs ys buf) (nts @ [t])
+            in (zs, MSince pos φ I ψ buf nts aux))*/
+        }
 
         Table bigUnion = new Table();
         //It also computes the satisfactions by taking the union over all tables in the list that satisfy c element of I.
-        for(Long t : msaux.keySet()){
-            Table rel = msaux.get(t);
+        for(Long t : auxIntervalList2.keySet()){
+            Table rel = auxIntervalList2.get(t);
             if(nt - t >= interval.lower()){
                 bigUnion.addAll(rel);
             }
         }
+        msaux = new HashMap<>(auxIntervalList2);
         return bigUnion;
     }
+
+
     public HashMap<Long, Table> mbuf2t_take(Mbuf2take_function func,
                                        HashMap<Long, Table> z,
                                     Long currentTimepoint){
-        if(mbuf2.fst().containsKey(currentTimepoint) && mbuf2.snd().containsKey(currentTimepoint) && msaux.containsKey(timepointToTimestamp.get(currentTimepoint)) &&
+        if(mbuf2.fst().containsKey(currentTimepoint) && mbuf2.snd().containsKey(currentTimepoint) &&
                 terminLeft.contains(currentTimepoint) && terminRight.contains(currentTimepoint)){
             Table x = mbuf2.fst().get(currentTimepoint);
             Table y = mbuf2.snd().get(currentTimepoint);
             mbuf2.fst().remove(currentTimepoint, mbuf2.fst().get(currentTimepoint));
             mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
-            HashMap<Long, Table> fxytz = func.run(x,y,currentTimepoint,z);                  //TIMEPOINT OR TIMESTAMP??
+            HashMap<Long, Table> fxytz = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
             currentTimepoint++; //double check!
             return mbuf2t_take(func, fxytz, currentTimepoint);
         }

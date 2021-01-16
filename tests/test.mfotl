@@ -1,1 +1,1 @@
-publish(1) UNTIL [0,7d] approve(163)
+publish(r) OR approve(r)
