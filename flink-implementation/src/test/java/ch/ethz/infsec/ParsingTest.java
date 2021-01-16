@@ -331,19 +331,19 @@ public class ParsingTest {
     @Test
     public void testSince() throws Exception{
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,0L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,1L, "163"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP("publish", 1,2L, "163"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,2L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,3L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,4L, "152"), 1L);
         //////////////////////////////////////////////////////////////////////////////////////////////////
-        testHarnessPred2Since.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP("approve", 1307955600,1L, "163"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,0L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP("approve", 1,1L, "163"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,1L, "163"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,2L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,3L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,4L, "152"), 1L);
         List<PipelineEvent> pes1 = testHarnessPred1Since.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         List<PipelineEvent> pes2 = testHarnessPred2Since.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         int longer = Math.max(pes1.size(), pes2.size());
@@ -364,9 +364,9 @@ public class ParsingTest {
         //approve(152) does not even satisfy the predicates, so it should not reach the binary operator for Since
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
-                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
                 PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedSince.toArray());

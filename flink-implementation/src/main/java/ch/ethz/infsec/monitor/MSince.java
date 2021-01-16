@@ -87,11 +87,11 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                                            Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux);intermRes.put(t, us_result);
                     return intermRes;};
-                HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
+                HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), startEvalTimepoint); //WAS:event.getTimepoint()
                 for(Long tp : msaux_zs.keySet()){
                     Table evalSet = msaux_zs.get(tp);
                     for(Assignment oa : evalSet){
-                        if(oa.size() != 0){
+                        if(oa != null && oa.size() != 0){
                             collector.collect(PipelineEvent.event(timepointToTimestamp.get(tp), tp, oa));
                         }
                     }
@@ -110,6 +110,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         if(!timepointToTimestamp.containsKey(event.getTimepoint())){
             timepointToTimestamp.put(event.getTimepoint(), event.getTimestamp());
         }
+
         if(event.isPresent()){
             if(mbuf2.fst().containsKey(event.getTimepoint())){
                 mbuf2.fst().get(event.getTimepoint()).add(event.get());
@@ -138,17 +139,16 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
                     return intermRes;};
 
-                HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint());
-                for(Long ts : msaux_zs.keySet()){
-                    Table evalSet = msaux_zs.get(ts);
+                HashMap<Long, Table> msaux_zs = mbuf2t_take(func,new HashMap<>(), startEvalTimepoint); //WAS: event.getTimepoint()
+                for(Long tp : msaux_zs.keySet()){
+                    Table evalSet = msaux_zs.get(tp);
                     for(Assignment oa : evalSet){
                         if(oa.size() != 0){
-                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(event.getTimepoint()),event.getTimepoint(), oa));
+                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(tp), tp, oa));
                         }
                     }
-                    //at the end, we output the terminator! --> for each of the timepoints in zs.
-                    collector.collect(PipelineEvent.terminator(ts, event.getTimepoint()));
-
+                    //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
+                    collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(tp), tp));
                     startEvalTimepoint += msaux_zs.size();
                 }
 
@@ -221,11 +221,11 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 terminLeft.contains(currentTimepoint) && terminRight.contains(currentTimepoint)){
             Table x = mbuf2.fst().get(currentTimepoint);
             Table y = mbuf2.snd().get(currentTimepoint);
-            mbuf2.fst().remove(currentTimepoint, mbuf2.fst().get(currentTimepoint));
-            mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
-            HashMap<Long, Table> fxytz = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
+            //mbuf2.fst().remove(currentTimepoint, mbuf2.fst().get(currentTimepoint));
+            //mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
+            HashMap<Long, Table> mbuf2t_output = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
             currentTimepoint++; //double check!
-            return mbuf2t_take(func, fxytz, currentTimepoint);
+            return mbuf2t_take(func, mbuf2t_output, currentTimepoint);
         }
         else{
             return z;
