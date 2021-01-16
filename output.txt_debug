@@ -127,3 +127,10 @@ approve
 (publish(r0)) OR (approve(r0))
 publish
 approve
+(approve(r1)) AND (publish(q0))
+approve
+publish
+(TRUE) OR (publish(q0))
+publish
+(TRUE) OR (approve(q0))
+approve

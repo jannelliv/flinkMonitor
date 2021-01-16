@@ -84,7 +84,7 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
     }
 
     public DataStream<PipelineEvent> visit(MRel f) {
-        OutputTag<Fact> factStream = this.hmap.get("");
+        OutputTag<Fact> factStream = this.hmap.get("0Terminator");
         return this.mainDataStream.getSideOutput(factStream).flatMap(f);
     }
 

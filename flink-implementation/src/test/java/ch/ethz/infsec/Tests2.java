@@ -643,19 +643,6 @@ public class Tests2 {
     }
 
     @Test
-    public void testPred2() throws Exception{
-        //formula: publish(163)
-        testHarnessPredConst.processElement(Fact.makeTP("publish", 1L,0L, "163"), 1L);
-        List<PipelineEvent> pe = testHarnessPredConst.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        assert(pe.size()==1);
-        assert(pe.get(0).get().size() == 1);
-        assert(pe.get(0).getTimestamp() == 1L);
-        assert(pe.get(0).getTimepoint() == 0L);
-        assert(pe.get(0).get().get(0).isPresent());
-        assert(pe.get(0).get().get(0).get().equals("163"));
-    }
-
-    @Test
     public void testAndFreeVariables() throws Exception{
 
         testHarnessPred1.processElement(Fact.makeTP("publish", 1307955600,1L, "1"), 1L);
@@ -683,7 +670,7 @@ public class Tests2 {
         List<PipelineEvent> processedAnd = testHarnessAnd.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("test output:  " + processedAnd.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1307955600, 1L, Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L)));
         assertArrayEquals(expectedResults.toArray(), processedAnd.toArray());
     }

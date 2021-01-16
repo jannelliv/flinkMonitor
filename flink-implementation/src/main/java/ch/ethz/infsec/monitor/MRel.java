@@ -31,6 +31,13 @@ public class MRel implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
             none = Assignment.nones(table.stream().findAny().get().size());
         }*/
         //no matter what i put above the size of none is always zero because freeVariablesInOrder has size zero for T&F
+        if(!this.table.isEmpty()){
+            for(Assignment as : table){
+                out.collect(PipelineEvent.event(value.getTimestamp(), value.getTimepoint(), as));
+            }
+        }else{
+
+        }
         out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
     }
 

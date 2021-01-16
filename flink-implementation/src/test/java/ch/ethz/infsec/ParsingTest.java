@@ -161,22 +161,23 @@ public class ParsingTest {
         testHarnessAnd.open();
 
 
-        //testAnd()
-        Either<String, GenFormula<VariableID>> f1fv = Policy.read("publish(r)");
-        GenFormula<VariableID> formula1fv = f1fv.right().get();
-        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1fv = (MPred) (convert(formula1fv)).accept(new Init0(formula1fv.freeVariablesInOrder()));
-        testHarnessPred1fv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred1fv));
-        testHarnessPred1fv.open();
-        Either<String, GenFormula<VariableID>> f2fv = Policy.read("approve(q)");
-        GenFormula<VariableID> formula2fv = f2fv.right().get();
-        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred2fv = (MPred) (convert(formula2fv)).accept(new Init0(formula2fv.freeVariablesInOrder()));
-        testHarnessPred2fv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred2fv));
-        testHarnessPred2fv.open();
+        //testAndFV()
         Either<String, GenFormula<VariableID>> andFfv = Policy.read("approve(q) AND publish(r)");
         GenFormula<VariableID> andFormulafv = andFfv.right().get();
         CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> statefulFlatMapFunctionAndfv = (MAnd) (convert(andFormulafv)).accept(new Init0(andFormulafv.freeVariablesInOrder()));
         testHarnessAndFV = new TwoInputStreamOperatorTestHarness<>(new CoStreamFlatMap<>(statefulFlatMapFunctionAndfv));
         testHarnessAndFV.open();
+        Either<String, GenFormula<VariableID>> f1fv = Policy.read("publish(r)");
+        GenFormula<VariableID> formula1fv = f1fv.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred1fv = (MPred) (convert(formula1fv)).accept(new Init0(andFormulafv.freeVariablesInOrder()));
+        testHarnessPred1fv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred1fv));
+        testHarnessPred1fv.open();
+        Either<String, GenFormula<VariableID>> f2fv = Policy.read("approve(q)");
+        GenFormula<VariableID> formula2fv = f2fv.right().get();
+        FlatMapFunction<Fact, PipelineEvent> statefulFlatMapFunctionPred2fv = (MPred) (convert(formula2fv)).accept(new Init0(andFormulafv.freeVariablesInOrder()));
+        testHarnessPred2fv = new OneInputStreamOperatorTestHarness<>(new StreamFlatMap<>(statefulFlatMapFunctionPred2fv));
+        testHarnessPred2fv.open();
+
 
 
 
@@ -670,11 +671,8 @@ public class ParsingTest {
         testHarnessPredConst.processElement(Fact.makeTP("publish", 1L,0L, "163"), 1L);
         List<PipelineEvent> pe = testHarnessPredConst.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         assert(pe.size()==1);
-        assert(pe.get(0).get().size() == 1);
         assert(pe.get(0).getTimestamp() == 1L);
         assert(pe.get(0).getTimepoint() == 0L);
-        assert(pe.get(0).get().get(0).isPresent());
-        assert(pe.get(0).get().get(0).get().equals("163"));
     }
 
     @Test

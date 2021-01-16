@@ -7,6 +7,12 @@ public class Table extends HashSet<Assignment> {
     public static Table empty(){
         return new Table();
     }
+
+    @Override
+    public boolean isEmpty() {
+        return super.isEmpty();
+    }
+
     public static Table one(Assignment a){
         Table t = new Table();
         t.add(a);

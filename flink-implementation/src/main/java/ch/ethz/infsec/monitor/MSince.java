@@ -87,7 +87,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                                            Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux);intermRes.put(t, us_result);
                     return intermRes;};
-                HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), startEvalTimepoint); //WAS:event.getTimepoint()
+                HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), event.getTimepoint()); //WAS:event.getTimepoint()
                 for(Long tp : msaux_zs.keySet()){
                     Table evalSet = msaux_zs.get(tp);
                     for(Assignment oa : evalSet){
@@ -139,7 +139,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
                     return intermRes;};
 
-                HashMap<Long, Table> msaux_zs = mbuf2t_take(func,new HashMap<>(), startEvalTimepoint); //WAS: event.getTimepoint()
+                HashMap<Long, Table> msaux_zs = mbuf2t_take(func,new HashMap<>(), event.getTimepoint()); //WAS: event.getTimepoint()
                 for(Long tp : msaux_zs.keySet()){
                     Table evalSet = msaux_zs.get(tp);
                     for(Assignment oa : evalSet){
@@ -172,7 +172,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
         HashMap<Long, Table> auxIntervalList2 = new HashMap<>(auxIntervalList);
         if(auxIntervalList.size() == 0){
-           //msaux.put(nt, rel2);
+            //msaux.put(nt, rel2);
             auxResult.put(nt, rel2);
             auxIntervalList2.put(nt,rel2);
         }else{
@@ -215,8 +215,8 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
 
     public HashMap<Long, Table> mbuf2t_take(Mbuf2take_function func,
-                                       HashMap<Long, Table> z,
-                                    Long currentTimepoint){
+                                            HashMap<Long, Table> z,
+                                            Long currentTimepoint){
         if(mbuf2.fst().containsKey(currentTimepoint) && mbuf2.snd().containsKey(currentTimepoint) &&
                 terminLeft.contains(currentTimepoint) && terminRight.contains(currentTimepoint)){
             Table x = mbuf2.fst().get(currentTimepoint);
@@ -308,6 +308,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
 
     public static Table join(java.util.HashSet<Assignment> table, boolean pos, java.util.HashSet<Assignment> table2){
+        if(table.isEmpty() || table2.isEmpty()){
+            return new Table();
+        }
 
         java.util.HashSet<Assignment> result = new java.util.HashSet<>();
 
