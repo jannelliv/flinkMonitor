@@ -283,21 +283,8 @@ public class Tests2 {
         //formula under test: publish(163) UNTIL [0,7d] approve(163)
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 //PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1307955600, 1L, Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
-                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                //We will not consider the above event as we are only contemplating infinite traces.
-                //In the monpoly implementation (online version), it s assumed that there is not enough information to determine
-                //whether we have a satisfaction or a violation.
-                //If one invokes monpoly and say that for the last timepoint we are at the EOF, then the publish(163)
-                //will be detected as a violation. This is done by setting a specific flag. What this flag does is to
-                //insert a new timepoint (after the last timepoint), which has a very high timestamp.
-                //For my thesis, I have to consider that we are working with infinite streams.
-                //For comparison with monpoly, use "-nonewlastts"
-                //Even if the formula is propositional, the MonPoly evaluation is not eager. Verimon/MonPoly will still
-                //wait until all assignments are available, it will not output on the single assignments.
-                //Thesis: talk about the thesis from the point of view of your algorithm. aka what is the progress like
-                //when a streaming implementation is used.
                 PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());

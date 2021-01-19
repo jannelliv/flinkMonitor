@@ -82,6 +82,9 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             }
             if(muaux.containsKey(event.getTimepoint())){
                 muaux.get(event.getTimepoint()).fst().add(event.get());
+                if(startEvalMuauxTP == -1L || event.getTimepoint() < startEvalMuauxTP){
+                    startEvalMuauxTP = event.getTimepoint();
+                }
 
             }else{
                 muaux.put(event.getTimepoint(), new Tuple<>(Table.one(event.get()), Table.empty()));
@@ -92,6 +95,16 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
 
         if(!event.isPresent()){
+            if(!mbuf2.fst().containsKey(event.getTimepoint())){
+                mbuf2.fst().put(event.getTimepoint(), Table.empty());
+            }
+            if(!muaux.containsKey(event.getTimepoint())){
+                //not 100% sure
+                muaux.put(event.getTimepoint(), new Tuple<>(Table.empty(), Table.empty()));
+                if(startEvalMuauxTP == -1L || event.getTimepoint() < startEvalMuauxTP){
+                    startEvalMuauxTP = event.getTimepoint();
+                }
+            }
             if(!terminSub1.contains(event.getTimepoint())){
                 terminSub1.add(event.getTimepoint());
             }else{
@@ -120,13 +133,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 for(Long timepoint : muaux_zs.keySet()){    //I'm not starting from "startEvalTimepoint"
                     Table evalSet = muaux_zs.get(timepoint);
                     for(Assignment oa : evalSet){
-                        if(event.getTimepoint() != -1 && oa.size() !=0){
-                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
-                        }else if(event.getTimepoint() == -1 ){
-                            throw new Exception("problem retrieving timepoint");
-                        }else{
-                            throw new Exception("size zero");
-                        }
+                        collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs
                     //The terminators are not output as soon as we get them, but only when we are sure that
@@ -158,6 +165,9 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 }
                 if(muaux.containsKey(event.getTimepoint())){
                     muaux.get(event.getTimepoint()).snd().add(event.get());
+                    if(startEvalMuauxTP == -1L || event.getTimepoint() < startEvalMuauxTP){
+                        startEvalMuauxTP = event.getTimepoint();
+                    }
                 }else{
                     muaux.put(event.getTimepoint(), new Tuple<>(Table.empty(), Table.one(event.get())));
                     if(startEvalMuauxTP == -1L || event.getTimepoint() < startEvalMuauxTP){
@@ -167,6 +177,16 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             }
 
         }else{
+            if(!mbuf2.snd().containsKey(event.getTimepoint())){
+                mbuf2.snd().put(event.getTimepoint(), Table.empty());
+            }
+            if(!muaux.containsKey(event.getTimepoint())){
+                //not 100% sure
+                muaux.put(event.getTimepoint(), new Tuple<>(Table.empty(), Table.empty()));
+                if(startEvalMuauxTP == -1L || event.getTimepoint() < startEvalMuauxTP){
+                    startEvalMuauxTP = event.getTimepoint();
+                }
+            }
             if(!terminSub2.contains(event.getTimepoint())){
                 terminSub2.add(event.getTimepoint());
             }else{
@@ -193,9 +213,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 for(Long timepoint : muaux_zs.keySet()){
                     Table evalSet = muaux_zs.get(timepoint);
                     for(Assignment oa : evalSet){
-                        if(event.getTimepoint() != -1L && oa.size() != 0){
-                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
-                        }
+                        collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs
                     collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(timepoint), timepoint));
@@ -282,7 +300,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
     public void mbuf2t_take(Mbuf2take_function_Until func, Long tp){
-        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) && muaux.containsKey(tp) &&
+        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) &&
         terminSub1.contains(tp) && terminSub2.contains(tp)){            ///PROBLEM -> SEE TEST
 
             func.run(tp, mbuf2.fst(),mbuf2.snd());

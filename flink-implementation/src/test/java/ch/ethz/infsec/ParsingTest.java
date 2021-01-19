@@ -272,10 +272,8 @@ public class ParsingTest {
 
     @Test
     public void testUntil() throws Exception{
-        //TODO: check more extensively that cleanDatastructures() does not mess up the functionality of the algorithm
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
         //Persisting issues: I don't "start from startEvalTimepoint"
-        //formula being tested: publish(163) UNTIL [0,7d] approve(163)
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
@@ -307,23 +305,9 @@ public class ParsingTest {
         System.out.println("testUntil() output:  " + processedUntil.toString());
         //formula under test: publish(163) UNTIL [0,7d] approve(163)
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                //PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L, Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
-                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                //We will not consider the above event as we are only contemplating infinite traces.
-                //In the monpoly implementation (online version), it s assumed that there is not enough information to determine
-                //whether we have a satisfaction or a violation.
-                //If one invokes monpoly and say that for the last timepoint we are at the EOF, then the publish(163)
-                //will be detected as a violation. This is done by setting a specific flag. What this flag does is to
-                //insert a new timepoint (after the last timepoint), which has a very high timestamp.
-                //For my thesis, I have to consider that we are working with infinite streams.
-                //For comparison with monpoly, use "-nonewlastts"
-                //Even if the formula is propositional, the MonPoly evaluation is not eager. Verimon/MonPoly will still
-                //wait until all assignments are available, it will not output on the single assignments.
-                //Thesis: talk about the thesis from the point of view of your algorithm. aka what is the progress like
-                //when a streaming implementation is used.
-
                 PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());
@@ -332,19 +316,19 @@ public class ParsingTest {
     @Test
     public void testSince() throws Exception{
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,0L, "152"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,1L, "163"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP("publish", 1,2L, "163"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,2L, "152"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,3L, "152"), 1L);
-        testHarnessPred1Since.processElement(Fact.makeTP(null, 1,4L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 14,0L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 14,1L, "163"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP("publish", 14,2L, "163"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 14,2L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 14,3L, "152"), 1L);
+        testHarnessPred1Since.processElement(Fact.makeTP(null, 14,4L, "152"), 1L);
         //////////////////////////////////////////////////////////////////////////////////////////////////
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,0L, "152"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP("approve", 1,1L, "163"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,1L, "163"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,2L, "152"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,3L, "152"), 1L);
-        testHarnessPred2Since.processElement(Fact.makeTP(null, 1,4L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 14,0L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP("approve", 14,1L, "163"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 14,1L, "163"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 14,2L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 14,3L, "152"), 1L);
+        testHarnessPred2Since.processElement(Fact.makeTP(null, 14,4L, "152"), 1L);
         List<PipelineEvent> pes1 = testHarnessPred1Since.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         List<PipelineEvent> pes2 = testHarnessPred2Since.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         int longer = Math.max(pes1.size(), pes2.size());
@@ -364,11 +348,15 @@ public class ParsingTest {
         //formula being tested against: publish(163) SINCE [0,7d] approve(163)
         //approve(152) does not even satisfy the predicates, so it should not reach the binary operator for Since
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
-                PipelineEvent.terminator(1307955600, 1L),
-                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
-                PipelineEvent.terminator(1308477599, 2L)
+                PipelineEvent.terminator(14, 0L),
+                PipelineEvent.event(14, 1L,  Assignment.one()),
+                PipelineEvent.terminator(14, 1L),
+                PipelineEvent.event(14, 2L,  Assignment.one()),
+                PipelineEvent.terminator(14, 2L),
+                PipelineEvent.terminator(14, 3L),
+                PipelineEvent.terminator(14, 4L)
+
+
         ));
         assertArrayEquals( expectedResults.toArray(), processedSince.toArray());
     }

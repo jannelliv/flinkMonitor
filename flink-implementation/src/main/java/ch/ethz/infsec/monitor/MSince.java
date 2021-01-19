@@ -96,8 +96,11 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     return intermRes;};
                 HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), startEvalTimepoint); //WAS:event.getTimepoint()
                 Long outResultTP = startEvalTimepoint;
-                while(msaux_zs.containsKey(timepointToTimestamp.get(outResultTP))){
+                HashSet<Long> alreadyVisitedTS = new HashSet<>();
+                while(msaux_zs.containsKey(timepointToTimestamp.get(outResultTP)) &&
+                        !alreadyVisitedTS.contains(timepointToTimestamp.get(outResultTP))){
                     Table evalSet = msaux_zs.get(timepointToTimestamp.get(outResultTP));
+                    alreadyVisitedTS.add(timepointToTimestamp.get(outResultTP));
                     for(Assignment oa : evalSet){
 
                         collector.collect(PipelineEvent.event(timepointToTimestamp.get(outResultTP), outResultTP, oa));
