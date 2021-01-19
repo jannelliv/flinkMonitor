@@ -339,9 +339,9 @@ public class Tests2 {
         //approve(152) does not even satisfy the predicates, so it should not reach the binary operator for Since
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
-                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(163))),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
                 PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedSince.toArray());

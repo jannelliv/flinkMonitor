@@ -15,7 +15,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
     public Mformula op1;
     public Mformula op2;
     Tuple<HashMap<Long, Table>,HashMap<Long, Table>> mbuf2;
-    HashMap<Long, Table> outputted;
     HashSet<Long> terminatorLHS;
     HashSet<Long> terminatorRHS;
 
@@ -26,7 +25,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
         mbuf2 = new Tuple<>(new HashMap<>(), new HashMap<>());
         terminatorLHS = new HashSet<>();
         terminatorRHS = new HashSet<>();
-        outputted = new HashMap<>();
     }
 
     @Override
@@ -46,26 +44,10 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
                 collector.collect(fact);
                 terminatorRHS.remove(fact.getTimepoint());
                 terminatorLHS.remove(fact.getTimepoint());
-                outputted.remove(fact.getTimepoint());
             }
         }else{
-            if(!outputted.containsKey(fact.getTimepoint())){
-                outputted.put(fact.getTimepoint(), Table.one(fact.get()));
-                collector.collect(fact);
-            }else{
-                /*boolean released = false;
-                for(Assignment assig : outputted.get(fact.getTimepoint())){
-                    if(assig.equals(fact.get())){
-                        released = true;
-                    }
-                }
-                if(!released){
-                    collector.collect(fact);
-                    outputted.get(fact.getTimepoint()).add(fact.get());
-                }*/
-                outputted.get(fact.getTimepoint()).add(fact.get());
-                collector.collect(fact);
-            }
+            collector.collect(fact);
+
         }
 
     }
@@ -81,26 +63,10 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
                 collector.collect(fact);
                 terminatorRHS.remove(fact.getTimepoint());
                 terminatorLHS.remove(fact.getTimepoint());
-                outputted.remove(fact.getTimepoint());
             }
         }else{
-            if(!outputted.containsKey(fact.getTimepoint())){
-                outputted.put(fact.getTimepoint(), Table.one(fact.get()));
-                collector.collect(fact);
-            }else{
-                /*boolean released = false;
-                for(Assignment assig : outputted.get(fact.getTimepoint())){
-                    if(assig.equals(fact.get())){
-                        released = true;
-                    }
-                }
-                if(!released){
-                    collector.collect(fact);
-                    outputted.get(fact.getTimepoint()).add(fact.get());
-                }*/
-                outputted.get(fact.getTimepoint()).add(fact.get());
-                collector.collect(fact);
-            }
+            collector.collect(fact);
+
         }
     }
 

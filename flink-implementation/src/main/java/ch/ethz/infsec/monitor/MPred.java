@@ -13,7 +13,6 @@ import java.util.*;
 import static ch.ethz.infsec.term.JavaTerm.convert;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
-import scala.util.Either;
 
 public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
     String predName;
