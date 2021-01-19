@@ -91,16 +91,13 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     !(largestInOrderTPsub2 == -1 || largestInOrderTPsub1 == -1)){
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
-                                           Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
+                                           Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, timepointToTimestamp.get(t));
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux);intermRes.put(t, us_result);
                     return intermRes;};
                 HashMap<Long, Table> msaux_zs = mbuf2t_take(func, new HashMap<>(), startEvalTimepoint); //WAS:event.getTimepoint()
                 Long outResultTP = startEvalTimepoint;
-                HashSet<Long> alreadyVisitedTS = new HashSet<>();
-                while(msaux_zs.containsKey(timepointToTimestamp.get(outResultTP)) &&
-                        !alreadyVisitedTS.contains(timepointToTimestamp.get(outResultTP))){
-                    Table evalSet = msaux_zs.get(timepointToTimestamp.get(outResultTP));
-                    alreadyVisitedTS.add(timepointToTimestamp.get(outResultTP));
+                while(msaux_zs.containsKey(outResultTP)){
+                    Table evalSet = msaux_zs.get(outResultTP);
                     for(Assignment oa : evalSet){
 
                         collector.collect(PipelineEvent.event(timepointToTimestamp.get(outResultTP), outResultTP, oa));
@@ -154,15 +151,15 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     !(largestInOrderTPsub2 == -1 || largestInOrderTPsub1 == -1)){
                 Mbuf2take_function func = (Table r1,
                                            Table r2,
-                                           Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, t);
+                                           Long t, HashMap<Long, Table> zsAux) -> {Table us_result = update_since(r1, r2, timepointToTimestamp.get(t));
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
                     return intermRes;};
 
                 HashMap<Long, Table> msaux_zs = mbuf2t_take(func,new HashMap<>(), startEvalTimepoint); //WAS: event.getTimepoint()
 
                 Long outResultTP = startEvalTimepoint;
-                while(msaux_zs.containsKey(timepointToTimestamp.get(outResultTP))){
-                    Table evalSet = msaux_zs.get(timepointToTimestamp.get(outResultTP));
+                while(msaux_zs.containsKey(outResultTP)){
+                    Table evalSet = msaux_zs.get(outResultTP);
                     for(Assignment oa : evalSet){
 
                         collector.collect(PipelineEvent.event(timepointToTimestamp.get(outResultTP), outResultTP, oa));
@@ -230,9 +227,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 terminLeft.contains(currentTimepoint) && terminRight.contains(currentTimepoint)){ //check timestamps!!!
             Table x = mbuf2.fst().get(currentTimepoint);
             Table y = mbuf2.snd().get(currentTimepoint);
-            //mbuf2.fst().remove(currentTimepoint, mbuf2.fst().get(currentTimepoint));
-            //mbuf2.snd().remove(currentTimepoint, mbuf2.snd().get(currentTimepoint));
-            HashMap<Long, Table> mbuf2t_output = func.run(x,y,timepointToTimestamp.get(currentTimepoint),z);
+            HashMap<Long, Table> mbuf2t_output = func.run(x,y,currentTimepoint,z);
             currentTimepoint++; //double check!
             return mbuf2t_take(func, mbuf2t_output, currentTimepoint);
         }
