@@ -161,9 +161,9 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 while(msaux_zs.containsKey(timepointToTimestamp.get(outResultTP))){
                     Table evalSet = msaux_zs.get(timepointToTimestamp.get(outResultTP));
                     for(Assignment oa : evalSet){
-                        if(oa.size() != 0){
-                            collector.collect(PipelineEvent.event(timepointToTimestamp.get(outResultTP), outResultTP, oa));
-                        }
+
+                        collector.collect(PipelineEvent.event(timepointToTimestamp.get(outResultTP), outResultTP, oa));
+
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
                     collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(outResultTP), outResultTP));
