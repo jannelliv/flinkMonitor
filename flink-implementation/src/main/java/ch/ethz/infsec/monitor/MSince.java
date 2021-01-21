@@ -111,7 +111,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
             }
         }
-
+        //cleanUpDatastructures();
     }
 
     @Override
@@ -172,6 +172,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 startEvalTimepoint += msaux_zs.size();
             }
         }
+        //cleanUpDatastructures();
     }
 
     public Table update_since(Table rel1, Table rel2, Long nt){
@@ -333,8 +334,8 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     }
     public void cleanUpDatastructures(){
-        mbuf2.fst.keySet().removeIf(tp -> tp < largestInOrderTPsub1);
-        mbuf2.snd.keySet().removeIf(tp -> tp < largestInOrderTPsub2);
+        mbuf2.fst.keySet().removeIf(tp -> tp < startEvalTimepoint);
+        mbuf2.snd.keySet().removeIf(tp -> tp < startEvalTimepoint);
         if(timepointToTimestamp.containsKey(startEvalTimepoint)){
             msaux.keySet().removeIf(ts -> ts < timepointToTimestamp.get(startEvalTimepoint));
         }

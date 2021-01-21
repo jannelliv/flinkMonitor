@@ -230,9 +230,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     public void update_until(Long timepointToIndexRels, HashMap<Long, Table> rel1, HashMap<Long, Table> rel2){
         //in Verimon, nt is the current timestamp
         //this method updates muaux, based on the timestamp
-
-        Long currentTimestamp = timepointToTimestamp.get(startEvalTimepoint); //OR IS IT: timepointToIndexRels
-
+        Long currentTimestamp = timepointToTimestamp.get(timepointToIndexRels); //OR IS IT:  startEvalTimepoint
         for(Long timepointMuaux : muaux.keySet()){
             Tuple<Table, Table> tables = muaux.get(timepointMuaux);
             Table a2UnionAfter;
@@ -300,7 +298,7 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
     public void mbuf2t_take(Mbuf2take_function_Until func, Long tp){
-        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) &&
+        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) && //unnecessary conditions!!!
         terminSub1.contains(tp) && terminSub2.contains(tp)){            ///PROBLEM -> SEE TEST
 
             func.run(tp, mbuf2.fst(),mbuf2.snd());
