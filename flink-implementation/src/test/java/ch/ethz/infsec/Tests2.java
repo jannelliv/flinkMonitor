@@ -247,23 +247,24 @@ public class Tests2 {
 
     @Test
     public void testUntil() throws Exception{
-        //TODO: check more extensively that cleanDatastructures() does not mess up the functionality of the algorithm
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
-        //Persisting issue: wrong line of code: evalUntilResult = eval_until(smallestFullTimestamp + 1L);
         //Persisting issues: I don't "start from startEvalTimepoint"
+        //formula under test: publish(163) UNTIL [0,7d] approve(163)
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
-        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "163"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP(null, 1408477599,3L, "152"), 1L);
         //////////////////////////////////////////////////////////////////////////////////////////////////
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
-        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307955600,1L, "163"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "163"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP(null, 1408477599,3L, "152"), 1L);
         List<PipelineEvent> pes1 = testHarnessPred1Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         List<PipelineEvent> pes2 = testHarnessPred2Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         int longer = Math.max(pes1.size(), pes2.size());
@@ -280,11 +281,11 @@ public class Tests2 {
         }
         List<PipelineEvent> processedUntil = testHarnessUntil.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testUntil() output:  " + processedUntil.toString());
-        //formula under test: publish(163) UNTIL [0,7d] approve(163)
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                //PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.event(1307955600, 1L, Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.event(1308477599, 2L, Assignment.one()),
                 PipelineEvent.terminator(1308477599, 2L)
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());

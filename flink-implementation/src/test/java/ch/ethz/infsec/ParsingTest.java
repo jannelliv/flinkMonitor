@@ -274,12 +274,14 @@ public class ParsingTest {
     public void testUntil() throws Exception{
         //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
         //Persisting issues: I don't "start from startEvalTimepoint"
+        //formula: publish(163) UNTIL [0,7d] approve(163)
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPred1Until.processElement(Fact.makeTP(null, 1408477599,3L, "152"), 1L);
         //////////////////////////////////////////////////////////////////////////////////////////////////
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
@@ -287,6 +289,7 @@ public class ParsingTest {
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPred2Until.processElement(Fact.makeTP(null, 1408477599,3L, "152"), 1L);
         List<PipelineEvent> pes1 = testHarnessPred1Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         List<PipelineEvent> pes2 = testHarnessPred2Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         int longer = Math.max(pes1.size(), pes2.size());
@@ -299,6 +302,7 @@ public class ParsingTest {
                 testHarnessUntil.processElement1(pes1.get(i), 1L);
             }else{
                 testHarnessUntil.processElement2(pes2.get(i), 1L);
+                //terminator for 3 not output!
             }
         }
         List<PipelineEvent> processedUntil = testHarnessUntil.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
