@@ -47,6 +47,8 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
             ArrayList<JavaTerm<VariableID>> argsFormula = new ArrayList<>(this.args);
 
             ArrayList<Object> argsEvent = new ArrayList<>(ys);
+            //Events are parametrized by data values. Two events are said to match if the
+            //corresponding data values are equal.
             Optional<HashMap<VariableID, Optional<Object>>> result = matchFV(argsFormula, argsEvent);
             if(result.isPresent()){
 

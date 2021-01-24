@@ -56,8 +56,14 @@ public class Main {
             e.setParallelism(1);
 
             //TODO: Choose type of input (e.g., file, socket,...)
-            //DataStream<String> text = e.socketTextStream("127.0.0.1", 5000);
-            DataStreamSource<String> text = e.readTextFile(logFile);
+            DataStream<String> text = e.socketTextStream("127.0.0.1", 10101);
+            //Pass these two above parameters as input. Instead of passing a log, you pass a socket
+            //specification --> the address and the port and then you pass these two things here.
+            //And then in the experiments we call our monitor, we pass the socket on which our replayer
+            //is writing. In the replayer there is the option to write to a socket, and you do wrteTo(same
+            //address and socket that you gave as an input to your monitor. When the replayer starts writing events,
+            //specify this address and this port number! So your monitor will start receiving those events.
+            //DataStreamSource<String> text = e.readTextFile(logFile);
 
             DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
                                          .name("Stream Parser")

@@ -16,6 +16,8 @@ KAFKA_CONFIG_FILE="$ROOT_DIR/kafka/config/server.properties"
 
 TRACE_TRANSFORMER_JAR="$PROJECT_DIR/trace-transformer/target/trace-transformer-1.0-SNAPSHOT.jar"
 MONITOR_JAR="$PROJECT_DIR/flink-monitor/target/flink-monitor-1.0-SNAPSHOT.jar"
+MONITOR_WHITEBOX_JAR="$PROJECT_DIR/flink-monitor/target/flink-implementation-1.0-SNAPSHOT.jar"
+
 REPLAYER_JAR="$PROJECT_DIR/replayer/target/replayer-1.0-SNAPSHOT.jar"
 TOOL_JAR="$PROJECT_DIR/trace-generator/target/trace-generator-1.0-SNAPSHOT.jar"
 DEJAVU_EXE="$PROJECT_DIR/evaluation/dejavu/dejavu"
@@ -30,7 +32,7 @@ STATE_DIR="$ROOT_DIR/state"
 
 TIME_COMMAND=/usr/bin/time
 
-REPETITIONS=1
+REPETITIONS=5
 FLINK_QUEUE=256
 REPLAYER_QUEUE=2000
 
