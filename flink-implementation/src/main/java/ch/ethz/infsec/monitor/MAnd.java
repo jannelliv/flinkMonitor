@@ -53,7 +53,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 this.mbuf2.fst.put(fact.getTimepoint(), Table.empty());
             }
             this.mbuf2.fst.get(fact.getTimepoint()).add(fact.get());
-
             if(mbuf2.snd.containsKey(fact.getTimepoint()) &&  !this.mbuf2.snd.get(fact.getTimepoint()).isEmpty()){ //maybe it only contains a terminator :(
                 for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
@@ -65,11 +64,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             }
         }else{
             this.mbuf2.fst.get(fact.getTimepoint()).add(fact.get());
-            ///
-            /*if(this.mbuf2.fst.size() < indexlhs + 1){
-                this.mbuf2.fst.add(Table.empty());
-            }*/
-            //this.mbuf2.fst.get(indexlhs.intValue()).add(fact.get());
             if(mbuf2.snd.containsKey(fact.getTimepoint()) &&  !this.mbuf2.snd.get(fact.getTimepoint()).isEmpty()){
                 for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);
@@ -112,11 +106,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
 
         }else{
             this.mbuf2.snd.get(fact.getTimepoint()).add(fact.get());
-            ///
-            /*if(this.mbuf2.fst.size() < indexlhs + 1){
-                this.mbuf2.fst.add(Table.empty());
-            }*/
-            //this.mbuf2.fst.get(indexlhs.intValue()).add(fact.get());
             if(mbuf2.fst.containsKey(fact.getTimepoint()) && !this.mbuf2.fst.get(fact.getTimepoint()).isEmpty()){
                 for(Assignment rhs : this.mbuf2.fst.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), rhs);

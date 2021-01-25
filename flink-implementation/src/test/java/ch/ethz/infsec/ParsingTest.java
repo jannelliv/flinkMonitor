@@ -616,16 +616,6 @@ public class ParsingTest {
         //comparison with pes.
     }
 
-    @Test
-    public void testRelTrueFalse() throws Exception{
-        testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "163"), 1L);
-        List<PipelineEvent> pe = testHarnessRel.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        assert(pe.size()==1);
-        assert(!pe.get(0).isPresent());
-        assert(pe.get(0).getTimestamp() == 1L);
-        assert(pe.get(0).getTimepoint() == 0L);
-        assert(pe.get(0).get()==null);
-    }
 
     @Test
     public void testPred() throws Exception{
@@ -665,39 +655,6 @@ public class ParsingTest {
         assert(pe.size()==1);
         assert(pe.get(0).getTimestamp() == 1L);
         assert(pe.get(0).getTimepoint() == 0L);
-    }
-
-    @Test
-    public void testAndFreeVariables() throws Exception{
-
-        testHarnessPred1fv.processElement(Fact.makeTP("publish", 1307955600,1L, "1"), 1L);
-        testHarnessPred1fv.processElement(Fact.makeTP("publish", 1307955600,1L, "2"), 1L);
-        testHarnessPred1fv.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
-
-        testHarnessPred2fv.processElement(Fact.makeTP("approve", 1307955600,1L, "3"), 1L);
-        testHarnessPred2fv.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
-
-        List<PipelineEvent> pes1 = testHarnessPred1fv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        List<PipelineEvent> pes2 = testHarnessPred2fv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-
-        int longer = Math.max(pes1.size(), pes2.size());
-        int shorter = Math.min(pes1.size(), pes2.size());
-        for(int i = 0; i < longer; i++){
-            if(i < shorter){
-                testHarnessAndFV.processElement1(pes1.get(i), 1L);
-                testHarnessAndFV.processElement2(pes2.get(i), 1L);
-            }else if(pes1.size()==longer){
-                testHarnessAndFV.processElement1(pes1.get(i), 1L);
-            }else{
-                testHarnessAndFV.processElement2(pes2.get(i), 1L);
-            }
-        }
-        List<PipelineEvent> processedAnd = testHarnessAndFV.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        System.out.println("test output:  " + processedAnd.toString());
-        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
-                PipelineEvent.terminator(1307955600, 1L)));
-        assertArrayEquals(expectedResults.toArray(), processedAnd.toArray());
     }
 
     @Test

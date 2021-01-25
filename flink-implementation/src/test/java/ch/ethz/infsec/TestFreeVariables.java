@@ -278,17 +278,17 @@ public class TestFreeVariables {
         //Persisting issues: I don't "start from startEvalTimepoint"
         //formula being tested: publish(163) UNTIL [0,7d] approve(163)
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
-        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        //testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
-        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        //testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPred1Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
         //////////////////////////////////////////////////////////////////////////////////////////////////
-        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
+        //testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307955600,1L, "163"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
-        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
+        //testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
         testHarnessPred2Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
         List<PipelineEvent> pes1 = testHarnessPred1Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         List<PipelineEvent> pes2 = testHarnessPred2Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
@@ -306,7 +306,6 @@ public class TestFreeVariables {
         }
         List<PipelineEvent> processedUntil = testHarnessUntil.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testUntil() output:  " + processedUntil.toString());
-        //formula under test: publish(163) UNTIL [0,7d] approve(163)
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
@@ -317,66 +316,15 @@ public class TestFreeVariables {
         ));
         assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());
     }
-
-
-    /*@Test
-    public void testOrFV() throws Exception{
-        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,0L, "1"), 1L);
-        testHarnessPred2Or.processElement(Fact.makeTP("approve", 1L,0L, "50"), 1L);
-        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,0L, "1"), 1L);
-        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,0L, "1"), 1L);
-        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,1L, "2"), 1L);
-        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,1L, "2"), 1L);
-        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,1L, "2"), 1L);
-        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,2L, "160"), 1L);
-        testHarnessPred2Or.processElement(Fact.makeTP("approve", 1L,2L, "160"), 1L);
-        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,2L, "160"), 1L);
-        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,2L, "160"), 1L);
-        testHarnessPred1Or.processElement(Fact.makeTP("publish", 1L,3L, "3"), 1L);
-        testHarnessPred1Or.processElement(Fact.makeTP(null, 1L,3L, "3"), 1L);
-        testHarnessPred2Or.processElement(Fact.makeTP(null, 1L,3L, "3"), 1L);
-
-        List<PipelineEvent> pes1 = testHarnessPred1Or.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        List<PipelineEvent> pes2 = testHarnessPred2Or.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-
-        int longer = Math.max(pes1.size(), pes2.size());
-        int shorter = Math.min(pes1.size(), pes2.size());
-        for(int i = 0; i < longer; i++){
-            if(i < shorter){
-                testHarnessOr.processElement1(pes1.get(i), 1L);
-                testHarnessOr.processElement2(pes2.get(i), 1L);
-            }else if(pes1.size()==longer){
-                testHarnessOr.processElement1(pes1.get(i), 1L);
-            }else{
-                testHarnessOr.processElement2(pes2.get(i), 1L);
-            }
-        }
-        List<PipelineEvent> processedOr = testHarnessOr.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        System.out.println("test output:  " + processedOr.toString());
-        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.event(1307532861, 0L,  Assignment.one(Optional.of(152))),
-                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(160))),
-                PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
-                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(163))),
-                PipelineEvent.terminator(1307955600, 1L),
-                PipelineEvent.event(1308477599, 2L, Assignment.one(Optional.of(163))),
-                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(187))),
-                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(152))),
-                PipelineEvent.terminator(1308477599, 2L)
-        ));
-        assertArrayEquals( expectedResults.toArray(), processedOr.toArray());
-    }*/
-
     @Test
     public void testRelTrueFalse() throws Exception{
         testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "163"), 1L);
         List<PipelineEvent> pe = testHarnessRel.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        assert(pe.size()==1);
-        assert(!pe.get(0).isPresent());
+        assert(pe.size()==2);
+        assert(pe.get(0).isPresent());
         assert(pe.get(0).getTimestamp() == 1L);
         assert(pe.get(0).getTimepoint() == 0L);
-        assert(pe.get(0).get()==null);
+        assert(pe.get(1).get()==null);
     }
 
     @Test

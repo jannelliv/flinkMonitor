@@ -19,8 +19,6 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
     ArrayList<JavaTerm<VariableID>> args;
     List<VariableID> freeVariablesInOrder;
 
-
-
     public MPred(String predName, Seq<Term<VariableID>> args, List<VariableID> fvio){
         List<Term<VariableID>> argsScala = new ArrayList(JavaConverters.seqAsJavaList(args));
         ArrayList<JavaTerm<VariableID>> argsJava = new ArrayList<>();
@@ -43,9 +41,10 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
         }else{
             assert(fact.getName().equals(this.predName) );
 
-            List<Object> ys = fact.getArguments();
+
             ArrayList<JavaTerm<VariableID>> argsFormula = new ArrayList<>(this.args);
 
+            List<Object> ys = fact.getArguments();
             ArrayList<Object> argsEvent = new ArrayList<>(ys);
             //Events are parametrized by data values. Two events are said to match if the
             //corresponding data values are equal.
