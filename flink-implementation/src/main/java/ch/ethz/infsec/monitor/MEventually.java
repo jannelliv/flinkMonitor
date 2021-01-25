@@ -16,6 +16,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
     HashMap<Long, Long> timepointToTimestamp;
     HashMap<Long, Long> terminators;
     Long largestInOrderTP;
+    Long largestInOrderTS;
 
     public MEventually(ch.ethz.infsec.policy.Interval interval, Mformula mform) {
         this.formula = mform;
@@ -25,6 +26,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         this.timepointToTimestamp = new HashMap<>();
         this.terminators = new HashMap<>();
         largestInOrderTP = -1L;
+        largestInOrderTS = -1L;
     }
 
     @Override
@@ -56,6 +58,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             }
             while(terminators.containsKey(largestInOrderTP + 1L)){
                 largestInOrderTP++;
+                largestInOrderTS = terminators.get(largestInOrderTP);
             }
         }
 
@@ -88,10 +91,10 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             HashSet<Long> toRemove = new HashSet<>();
             for(Long term : terminators.keySet()){
                 if(mem(event.getTimestamp() - terminators.get(term), interval)){
-                    out.collect(PipelineEvent.event(terminators.get(term), term, event.get())); //???
+                    out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
                     out.collect(PipelineEvent.terminator(terminators.get(term), term));
                     toRemove.add(term);
-                }else if(event.getTimepoint() > term){
+                }else if(event.getTimepoint() > term){ //not so sure about this --> can't we get a satisf from another event?
                     out.collect(PipelineEvent.terminator(terminators.get(term), term));
                     toRemove.add(term);
                 }
@@ -107,14 +110,18 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
     }
 
     public void handleBuffered(Collector collector){
+        HashSet<Long> toRemove = new HashSet<>();
         for(Long term : terminators.keySet()){
             //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
-            if(terminators.get(term).intValue() + interval.lower() <= terminators.get(largestInOrderTP).intValue() &&
+            if(terminators.get(term).intValue() + interval.lower() <= largestInOrderTS.intValue() &&
                     interval.upper().isDefined()
-                    && terminators.get(term).intValue() + (int)interval.upper().get() <= terminators.get(largestInOrderTP).intValue()){
+                    && terminators.get(term).intValue() + (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
+                toRemove.add(term);
             }
-
+        }
+        for(Long tp : toRemove){
+            terminators.remove(tp);
         }
     }
 

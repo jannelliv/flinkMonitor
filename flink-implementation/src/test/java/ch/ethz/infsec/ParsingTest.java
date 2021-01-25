@@ -700,16 +700,18 @@ public class ParsingTest {
         assertArrayEquals(expectedResults.toArray(), processedAnd.toArray());
     }
 
-    /*@Test
+    @Test
     public void testOnce() throws Exception{
         //formula being tested: ONCE [0,7d] publish(r)
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "159"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308978000,3L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
         List<PipelineEvent> pes = testHarnessPredOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         for (PipelineEvent pe : pes) {
             testHarnessOnce.processElement(pe, 1L);
@@ -718,14 +720,16 @@ public class ParsingTest {
         System.out.println("testOnce() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L,  Assignment.one(Optional.of(160))),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
-                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(163))),
-                PipelineEvent.event(1308477599, 2L,  Assignment.one(Optional.of(152))),
-                PipelineEvent.terminator(1308477599, 2L)
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.terminator(1308477599, 2L),
+                PipelineEvent.terminator(1308978000, 3L),
+                PipelineEvent.terminator(1309478000, 4L)
         ));
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
-    }*/
+    }
 
     @Test
     public void testEventually() throws Exception{
