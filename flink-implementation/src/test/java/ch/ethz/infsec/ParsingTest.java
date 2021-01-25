@@ -719,11 +719,109 @@ public class ParsingTest {
         List<PipelineEvent> processedPES = testHarnessOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testOnce() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                PipelineEvent.event(1307532861, 0L,  Assignment.one()),
                 PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.event(1307955600, 1L,  Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
                 PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.terminator(1308477599, 2L),
+                PipelineEvent.event(1308978000, 3L,  Assignment.one()),
+                PipelineEvent.terminator(1308978000, 3L),
+                PipelineEvent.terminator(1309478000, 4L)
+        ));
+        assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
+    }
+
+    @Test
+    public void testOnce2() throws Exception{
+        //formula being tested: ONCE [0,7d] publish(r)
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308978000,3L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
+        List<PipelineEvent> pes = testHarnessPredOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        for (PipelineEvent pe : pes) {
+            testHarnessOnce.processElement(pe, 1L);
+        }
+        List<PipelineEvent> processedPES = testHarnessOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("testOnce() output:  " + processedPES.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                PipelineEvent.event(1307532861, 0L,  Assignment.one()),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
+                PipelineEvent.terminator(1307955600, 1L),
                 PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.terminator(1308477599, 2L),
+                PipelineEvent.event(1308978000, 3L,  Assignment.one()),
+                PipelineEvent.terminator(1308978000, 3L),
+                PipelineEvent.terminator(1309478000, 4L)
+        ));
+        assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
+    }
+
+    @Test
+    public void testOnce3() throws Exception{
+        //formula being tested: ONCE [0,7d] publish(r)
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308978000,3L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
+        List<PipelineEvent> pes = testHarnessPredOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        for (PipelineEvent pe : pes) {
+            testHarnessOnce.processElement(pe, 1L);
+        }
+        List<PipelineEvent> processedPES = testHarnessOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("testOnce() output:  " + processedPES.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                PipelineEvent.event(1307532861, 0L,  Assignment.one()),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.event(1308978000, 3L,  Assignment.one()),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
+                PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.terminator(1308477599, 2L),
+                PipelineEvent.terminator(1308978000, 3L),
+                PipelineEvent.terminator(1309478000, 4L)
+        ));
+        assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
+    }
+
+    @Test
+    public void testOnce4() throws Exception{
+        //formula being tested: ONCE [0,7d] publish(r)
+        //change with respect to testOnce3 is only in the below line. timepoint 1 has publish(163)
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1308978000,3L, "152"), 1L);
+        testHarnessPredOnce.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
+        List<PipelineEvent> pes = testHarnessPredOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        for (PipelineEvent pe : pes) {
+            testHarnessOnce.processElement(pe, 1L);
+        }
+        List<PipelineEvent> processedPES = testHarnessOnce.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
+        System.out.println("testOnce4() output:  " + processedPES.toString());
+        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
+                PipelineEvent.event(1307532861, 0L,  Assignment.one()),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.event(1308978000, 3L,  Assignment.one()),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
+                PipelineEvent.terminator(1307955600, 1L),
                 PipelineEvent.terminator(1308477599, 2L),
                 PipelineEvent.terminator(1308978000, 3L),
                 PipelineEvent.terminator(1309478000, 4L)
@@ -734,12 +832,9 @@ public class ParsingTest {
     @Test
     public void testEventually() throws Exception{
         //formula being tested: EVENTUALLY [0,7d] publish(r)
-        //testHarnessPredEv.processElement(Fact.makeTP("publish", 1307532861,0L, "159"), 1L);
         testHarnessPredEv.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
-        //testHarnessPredEv.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPredEv.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
         testHarnessPredEv.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
-        //testHarnessPredEv.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredEv.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
         testHarnessPredEv.processElement(Fact.makeTP(null, 1308978000,3L, "152"), 1L);
         testHarnessPredEv.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
@@ -752,10 +847,10 @@ public class ParsingTest {
         List<PipelineEvent> processedPES = testHarnessEv.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
         System.out.println("testEventually() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
-                PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.event(1307955600, 1L,  Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
+                PipelineEvent.terminator(1307532861, 0L),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
                 PipelineEvent.terminator(1308477599, 2L)
 
         ));

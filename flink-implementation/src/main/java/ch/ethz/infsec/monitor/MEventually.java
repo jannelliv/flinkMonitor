@@ -3,6 +3,8 @@ import ch.ethz.infsec.policy.Interval;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
+
+import java.nio.channels.Pipe;
 import java.util.*;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
@@ -12,15 +14,17 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
     ch.ethz.infsec.policy.Interval interval;
     public Mformula formula;
 
-    HashMap<Long, HashSet<PipelineEvent>> buckets; //maybe you can make these assignments instead of PipelineEvents!
+    HashMap<Long, HashSet<Assignment>> buckets; //maybe you can make these assignments instead of PipelineEvents!
     HashMap<Long, Long> timepointToTimestamp;
     HashMap<Long, Long> terminators;
     Long largestInOrderTP;
     Long largestInOrderTS;
+    HashMap<Long, Assignment> outputted;
 
     public MEventually(ch.ethz.infsec.policy.Interval interval, Mformula mform) {
         this.formula = mform;
         this.interval = interval;
+        outputted = new HashMap<>();
 
         this.buckets = new HashMap<>();
         this.timepointToTimestamp = new HashMap<>();
@@ -43,11 +47,11 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                 timepointToTimestamp.put(event.getTimepoint(), event.getTimestamp());
             }
             if(!buckets.containsKey(event.getTimepoint())){
-                HashSet<PipelineEvent> set = new HashSet<>();
-                set.add(event);
+                HashSet<Assignment> set = new HashSet<>();
+                set.add(event.get());
                 buckets.put(event.getTimepoint(), set);
             }else{
-                buckets.get(event.getTimepoint()).add(event);
+                buckets.get(event.getTimepoint()).add(event.get());
             }
 
         }else{
@@ -63,38 +67,12 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         }
 
         if(event.isPresent()){
-            HashSet<Long> toRemove1 = new HashSet<>();
-            for(Long tp : buckets.keySet()){
-                if(mem(event.getTimestamp() - timepointToTimestamp.get(tp), interval)){
-                    HashSet<PipelineEvent> satisfEvents = buckets.get(tp);
-                    for(PipelineEvent pe : satisfEvents){
-                        if(pe.isPresent()){
-                            out.collect(pe);
-                            //satisfEvents.remove(pe); //might get ConcurrentModificationException here
-                        }
-                    }
-                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
-                    if(terminators.containsKey(tp)){
-                        out.collect(PipelineEvent.terminator(terminators.get(tp), tp));
-                        toRemove1.add(tp);
-                        terminators.remove(tp);  //the order of the terminators is anyway stored in largestInOrderTP
-                    }else{
-                        //do nothing
-                    }
-                }
-            }
-            for(Long elem : toRemove1){
-                buckets.remove(elem);
-            }
-
 
             HashSet<Long> toRemove = new HashSet<>();
             for(Long term : terminators.keySet()){
-                if(mem(event.getTimestamp() - terminators.get(term), interval)){
+                if(mem(event.getTimestamp() - terminators.get(term) , interval)){
                     out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
-                    out.collect(PipelineEvent.terminator(terminators.get(term), term));
-                    toRemove.add(term);
-                }else if(event.getTimepoint() > term){ //not so sure about this --> can't we get a satisf from another event?
+                    outputted.put(term, event.get());
                     out.collect(PipelineEvent.terminator(terminators.get(term), term));
                     toRemove.add(term);
                 }
@@ -106,22 +84,44 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             //TERMINATOR CASE
         }
         handleBuffered(out);
-
     }
 
     public void handleBuffered(Collector collector){
         HashSet<Long> toRemove = new HashSet<>();
+        HashSet<Long> toRemoveTerm = new HashSet<>();
         for(Long term : terminators.keySet()){
+            HashSet<Long> toRemove1 = new HashSet<>();
+            for(Long tp : buckets.keySet()){
+                if(mem(timepointToTimestamp.get(tp) - terminators.get(term), interval)){
+                    HashSet<Assignment> satisfEvents = buckets.get(tp);
+                    for(Assignment pe : satisfEvents){
+                        if(!outputted.containsKey(term) || outputted.containsKey(term) && !(outputted.get(term).equals(pe))){
+                            //== returns true if two objects point to the same thing in the memory heap!
+                            collector.collect(PipelineEvent.event(terminators.get(term), term, pe));
+                            outputted.put(term, pe);
+                        }
+                    }
+                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
+
+                }
+            }
+
+
             //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
-            if(terminators.get(term).intValue() + interval.lower() <= largestInOrderTS.intValue() &&
+            if(terminators.containsKey(term) && terminators.get(term).intValue() + interval.lower() <= largestInOrderTS.intValue() &&
                     interval.upper().isDefined()
                     && terminators.get(term).intValue() + (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
                 toRemove.add(term);
             }
+
         }
         for(Long tp : toRemove){
             terminators.remove(tp);
+        }
+
+        for(Long elem : toRemoveTerm){
+            terminators.remove(elem);
         }
     }
 
