@@ -103,7 +103,8 @@ fi
 
 #TODO: add relaxed rescaling release for Flink 1.7
 flink_dir="$target_dir/flink"
-flink_url="https://archive.apache.org/dist/flink/flink-1.7.2/flink-1.7.2-bin-hadoop28-scala_2.12.tgz"
+#flink_url="https://archive.apache.org/dist/flink/flink-1.7.2/flink-1.7.2-bin-hadoop28-scala_2.12.tgz"
+flink_url="https://archive.apache.org/dist/flink/flink-1.11.2/flink-1.11.2-bin-scala_2.12.tgz"
 if [[ -d "$flink_dir" ]]; then
     info "Flink directory exists, skipping"
     info "delete $flink_dir to reinstall"
@@ -116,33 +117,33 @@ else
     rm "$flink_archive"
 fi
 
-kafka_dir="$target_dir/kafka"
-kafka_url="https://archive.apache.org/dist/kafka/0.11.0.3/kafka_2.12-0.11.0.3.tgz"
-if [[ -d "$kafka_dir" ]]; then
-    info "Kafka directory exists, skipping"
-    info "delete $kafka_dir to reinstall"
-else
-    info "downloading Kafka"
-    kafka_archive="$target_dir/kafka.tar.gz"
-    [[ ! -a "$kafka_archive" ]] || fatal_error "would overwrite kafka.tar.gz"
-    curl -fLR# -o "$kafka_archive" "$kafka_url" || fatal_error "could not download Kafka"
-    (cd "$target_dir" && tar -xzf "$kafka_archive" && mv kafka_2.12-0.11.0.3 kafka) || fatal_error "could not extract Kafka archive"
-    rm "$kafka_archive"
-fi
+#kafka_dir="$target_dir/kafka"
+#kafka_url="https://archive.apache.org/dist/kafka/0.11.0.3/kafka_2.12-0.11.0.3.tgz"
+#if [[ -d "$kafka_dir" ]]; then
+#    info "Kafka directory exists, skipping"
+#    info "delete $kafka_dir to reinstall"
+#else
+#    info "downloading Kafka"
+#    kafka_archive="$target_dir/kafka.tar.gz"
+#    [[ ! -a "$kafka_archive" ]] || fatal_error "would overwrite kafka.tar.gz"
+#    curl -fLR# -o "$kafka_archive" "$kafka_url" || fatal_error "could not download Kafka"
+#    (cd "$target_dir" && tar -xzf "$kafka_archive" && mv kafka_2.12-0.11.0.3 kafka) || fatal_error "could not extract Kafka archive"
+#    rm "$kafka_archive"
+#fi
 
-zookeeper_dir="$target_dir/zookeeper"
-zookeeper_url="https://archive.apache.org/dist/zookeeper/zookeeper-3.5.6/apache-zookeeper-3.5.6-bin.tar.gz"
-if [[ -d "$zookeeper_dir" ]]; then
-    info "Zookeeper directory exists, skipping"
-    info "delete $zookeeper_dir to reinstall"
-else
-    info "downloading Zookeeper"
-    zookeeper_archive="$target_dir/zookeeper.tar.gz"
-    [[ ! -a "$zookeeper_archive" ]] || fatal_error "would overwrite zookeeper.tar.gz"
-    curl -fLR# -o "$zookeeper_archive" "$zookeeper_url" || fatal_error "could not download Zookeeper"
-    (cd "$target_dir" && tar -xzf "$zookeeper_archive" && mv apache-zookeeper-3.5.6-bin zookeeper) || fatal_error "could not extract Zookeeper archive"
-    rm "$zookeeper_archive"
-fi
+#zookeeper_dir="$target_dir/zookeeper"
+#zookeeper_url="https://archive.apache.org/dist/zookeeper/zookeeper-3.5.6/apache-zookeeper-3.5.6-bin.tar.gz"
+#if [[ -d "$zookeeper_dir" ]]; then
+#    info "Zookeeper directory exists, skipping"
+#    info "delete $zookeeper_dir to reinstall"
+#else
+#    info "downloading Zookeeper"
+#    zookeeper_archive="$target_dir/zookeeper.tar.gz"
+#    [[ ! -a "$zookeeper_archive" ]] || fatal_error "would overwrite zookeeper.tar.gz"
+#    curl -fLR# -o "$zookeeper_archive" "$zookeeper_url" || fatal_error "could not download Zookeeper"
+#    (cd "$target_dir" && tar -xzf "$zookeeper_archive" && mv apache-zookeeper-3.5.6-bin zookeeper) || fatal_error "could not extract Zookeeper archive"
+#    rm "$zookeeper_archive"
+#fi
 
 # Configuration
 info "replacing the Flink configuration"
@@ -160,32 +161,32 @@ fi
 
 ### Nokia log #################################################################
 
-ldcc_file="$target_dir/ldcc.csv"
-ldcc_url="http://sourceforge.net/projects/monpoly/files/ldcc.tar"
-if [[ -a "$ldcc_file" ]]; then
-    info "nokia log file exists, skipping"
-else
-    info "downloading the nokia log file"
-    ldcc_archive="$target_dir/ldcc.tar"
-    [[ ! -a "$ldcc_archive" ]] || fatal_error "would overwrite ldcc.tar"
-    [[ ! -a "$ldcc_file.gz" ]] || fatal_error "would overwrite $ldcc_file.gz"
-    curl -fLR# -o "$ldcc_archive" "$ldcc_url" || fatal_error "could not download the nokia log"
-    info "extracting the nokia log file"
-    (tar -xOf "$ldcc_archive" ldcc.csv.gz > "$ldcc_file.gz" && gunzip "$ldcc_file.gz") || fatal_error "could not extract the nokia log"
-    rm "$ldcc_archive"
-    chmod a-w "$ldcc_file"
-fi
+#ldcc_file="$target_dir/ldcc.csv"
+#ldcc_url="http://sourceforge.net/projects/monpoly/files/ldcc.tar"
+#if [[ -a "$ldcc_file" ]]; then
+#    info "nokia log file exists, skipping"
+#else
+#    info "downloading the nokia log file"
+#    ldcc_archive="$target_dir/ldcc.tar"
+#    [[ ! -a "$ldcc_archive" ]] || fatal_error "would overwrite ldcc.tar"
+#    [[ ! -a "$ldcc_file.gz" ]] || fatal_error "would overwrite $ldcc_file.gz"
+#    curl -fLR# -o "$ldcc_archive" "$ldcc_url" || fatal_error "could not download the nokia log"
+#    info "extracting the nokia log file"
+#    (tar -xOf "$ldcc_archive" ldcc.csv.gz > "$ldcc_file.gz" && gunzip "$ldcc_file.gz") || fatal_error "could not extract the nokia log"
+#    rm "$ldcc_archive"
+#    chmod a-w "$ldcc_file"
+#fi
 
-ldcc_sample="$target_dir/ldcc_sample.csv"
-ldcc_sample_past="$target_dir/ldcc_sample_past.csv"
-if [[ (! -a "$ldcc_sample") || (! -a "$ldcc_sample_past") || "$monitor_dir/evaluation/nokia/cut_log.py" -nt "$ldcc_sample" ]]; then
-    info "cutting the Nokia log file"
-    rm -f "$ldcc_sample" "$ldcc_sample_past"
-    if ! "$monitor_dir/evaluation/nokia/cut_log.py" "$ldcc_file" "$ldcc_sample_past" "$ldcc_sample"; then
-        rm -f "$ldcc_sample" "$ldcc_sample_past"
-        fatal_error "could not cut the Nokia log"
-    fi
-fi
+#ldcc_sample="$target_dir/ldcc_sample.csv"
+#ldcc_sample_past="$target_dir/ldcc_sample_past.csv"
+#if [[ (! -a "$ldcc_sample") || (! -a "$ldcc_sample_past") || "$monitor_dir/evaluation/nokia/cut_log.py" -nt "$ldcc_sample" ]]; then
+#    info "cutting the Nokia log file"
+#    rm -f "$ldcc_sample" "$ldcc_sample_past"
+#    if ! "$monitor_dir/evaluation/nokia/cut_log.py" "$ldcc_file" "$ldcc_sample_past" "$ldcc_sample"; then
+#        rm -f "$ldcc_sample" "$ldcc_sample_past"
+#        fatal_error "could not cut the Nokia log"
+#    fi
+#fi
 
 ### Working and output directories ############################################
 
