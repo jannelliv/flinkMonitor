@@ -3,6 +3,10 @@ package ch.ethz.infsec;
 import ch.ethz.infsec.formula.visitor.Init0;
 import ch.ethz.infsec.monitor.*;
 import ch.ethz.infsec.monitor.visitor.MformulaVisitorFlink;
+import ch.ethz.infsec.tools.EndPoint;
+import ch.ethz.infsec.tools.FileEndPoint;
+import ch.ethz.infsec.tools.SocketEndpoint;
+import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.util.*;
 
 import ch.ethz.infsec.monitor.Fact;
@@ -11,12 +15,20 @@ import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import org.apache.flink.api.common.functions.FilterFunction;
+import org.apache.flink.api.common.serialization.SimpleStringEncoder;
+import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
+import org.apache.flink.streaming.api.functions.sink.SinkFunction;
+import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
+import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
+import scala.Option;
 import scala.collection.Iterator;
+import scala.collection.Seq;
 import scala.collection.Set;
 import scala.io.Codec;
 import scala.io.Source;
@@ -34,46 +46,46 @@ public class Main {
 
     public static void main(String[] args) throws Exception{
 
+        ParameterTool p = ParameterTool.fromArgs(args);
 
-        //TODO: Validate the input arguments
-        String formulaFile = System.getProperty("user.dir")+ "/" + args[0];
-        String logFile = System.getProperty("user.dir")+ "/" + args[1];
-        String outputFile = System.getProperty("user.dir")+ "/" + args[2];
+        Option<EndPoint> inputSource = StreamMonitoring.parseEndpointArg(p.get("in"));
+        Option<EndPoint> outputFile = StreamMonitoring.parseEndpointArg(p.get("out"));
+        //for the above two, I had to add a maven dependency to flink-monitor!!
+        String commandString = p.get("command");
+        String[] command = commandString.split(" ");    //NOT SURE ABOUT THIS
+        String formulaFile = p.get("formula");
+        int numProcessors = p.getInt("processors");
+        String jobName = p.get("job");
+
+        if(inputSource.isDefined()){
+            if(!(inputSource.get() instanceof SocketEndpoint)){
+                throw new RuntimeException("NOT SUPPORTED!");
+            }
+        }else{
+            throw new RuntimeException("Cannot parse the input argument (white-box main method)");
+        }
 
         Either<String, GenFormula<VariableID>> a = Policy.read(Source.fromFile(formulaFile, Codec.fallbackSystemCodec()).mkString());
-
-
         if(a.isLeft()){
             throw new ExceptionInInitializerError();
         }else{
-            //the following is the formula that we have to verify!
             GenFormula<VariableID> formula = a.right().get();
             formula.atoms();
             formula.freeVariables();
-
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
-            e.setMaxParallelism(1);
-            e.setParallelism(1);
+            e.setMaxParallelism(numProcessors);
+            e.setParallelism(numProcessors);
 
-            //TODO: Choose type of input (e.g., file, socket,...)
-            DataStream<String> text = e.socketTextStream("127.0.0.1", 10101);
-            //Pass these two above parameters as input. Instead of passing a log, you pass a socket
-            //specification --> the address and the port and then you pass these two things here.
-            //And then in the experiments we call our monitor, we pass the socket on which our replayer
-            //is writing. In the replayer there is the option to write to a socket, and you do wrteTo(same
-            //address and socket that you gave as an input to your monitor. When the replayer starts writing events,
-            //specify this address and this port number! So your monitor will start receiving those events.
-            //DataStreamSource<String> text = e.readTextFile(logFile);
+            // Disable automatic latency tracking, since we inject latency markers ourselves.
+            e.getConfig().setLatencyTrackingInterval(-1);
 
-            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
-                                         .name("Stream Parser")
-                                         .setParallelism(1)
-                                         .setMaxParallelism(1);
-            //could also be a MonPoly parser, depending on the input --> ?
-            //The above is the stream from which we have to find the satisfactions!
-            //atomic facts should go to operators that handle atoms:
-            //ATOMIC OPERATORS
-            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile + "_debug", true));
+            DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
+
+            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()))
+                                         .name(jobName)
+                                         .setParallelism(numProcessors)
+                                         .setMaxParallelism(numProcessors);
+            BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
             HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
             writer.write(formula.toString() + "\n");
@@ -103,7 +115,6 @@ public class Main {
                                     ctx.output(hashmap.get(str), fact);
                                 }
                             }else{
-                                //System.out.println(fact.toString());
                                 if(hashmap.containsKey(fact.getName())) {
                                     ctx.output(hashmap.get(fact.getName()), fact);
                                 }
@@ -111,19 +122,17 @@ public class Main {
                         }
                     });
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
-            //is it normal that I have to cast here?
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
-            //is the above the correct way to create a sink?
 
-
-            //TODO: Validate the input arguments
-            //TODO: Choose type of output (e.g., file, socket, standard output...)
             //TODO: Re-implement with non-deprecated sink (see the example code below)
-            sink.writeAsText("file://" + outputFile);
+            //sink.writeAsText(outputFile);
+            //here I omitted : "file://" + ...outputFile
 
-//            DataStream<String> strOutput = output.map(PipelineEvent::toString);
-//            strOutput.addSink(StreamingFileSink.forRowFormat(new Path("file:///tmp/flink/output"), new SimpleStringEncoder<String>("UTF-8")).build());;
-            e.execute();
+            DataStream<String> strOutput = sink.map(PipelineEvent::toString);
+            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()), new SimpleStringEncoder<String>("UTF-8")).build());;
+
+
+                    e.execute(jobName);
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
             // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
             writer.close();
