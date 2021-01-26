@@ -51,8 +51,6 @@ public class Main {
         Option<EndPoint> inputSource = StreamMonitoring.parseEndpointArg(p.get("in"));
         Option<EndPoint> outputFile = StreamMonitoring.parseEndpointArg(p.get("out"));
         //for the above two, I had to add a maven dependency to flink-monitor!!
-        String commandString = p.get("command");
-        String[] command = commandString.split(" ");    //NOT SURE ABOUT THIS
         String formulaFile = p.get("formula");
         int numProcessors = p.getInt("processors");
         String jobName = p.get("job");
