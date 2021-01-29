@@ -44,15 +44,18 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
+    public static int numberProcessors;
+
     public static void main(String[] args) throws Exception{
 
         ParameterTool p = ParameterTool.fromArgs(args);
 
         Option<EndPoint> inputSource = StreamMonitoring.parseEndpointArg(p.get("in"));
         Option<EndPoint> outputFile = StreamMonitoring.parseEndpointArg(p.get("out"));
-        //for the above two, I had to add a maven dependency to flink-monitor!!
+        //for the above two, I had to add a maven dependency to flink-monitor
+        // TODO: avoid maven dependency and implement this separately
         String formulaFile = p.get("formula");
-        int numProcessors = p.getInt("processors");
+        numberProcessors = p.getInt("processors");
         String jobName = p.get("job");
 
         if(inputSource.isDefined()){
@@ -71,18 +74,16 @@ public class Main {
             formula.atoms();
             formula.freeVariables();
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
-            e.setMaxParallelism(numProcessors);
-            e.setParallelism(numProcessors);
+            e.setMaxParallelism(1);
+            e.setParallelism(1);
 
-            // Disable automatic latency tracking, since we inject latency markers ourselves.
-            e.getConfig().setLatencyTrackingInterval(-1);
 
             DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
 
             DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()))
                                          .name(jobName)
-                                         .setParallelism(numProcessors)
-                                         .setMaxParallelism(numProcessors);
+                                         .setParallelism(1)
+                                         .setMaxParallelism(1);
             BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
             HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
@@ -96,7 +97,7 @@ public class Main {
                 writer.write(n.relation() + "\n");
             }
 
-            hashmap.put(TERMINATOR_TAG, new OutputTag<Fact>(TERMINATOR_TAG){}); //I don't think someone can parse a predicate with an empty string.
+            hashmap.put(TERMINATOR_TAG, new OutputTag<Fact>(TERMINATOR_TAG){});
 
             SingleOutputStreamOperator<Fact> mainDataStream = facts
                     .process(new ProcessFunction<Fact, Fact>() {
@@ -129,8 +130,7 @@ public class Main {
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()), new SimpleStringEncoder<String>("UTF-8")).build());;
 
-
-                    e.execute(jobName);
+            e.execute(jobName);
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
             // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
             writer.close();

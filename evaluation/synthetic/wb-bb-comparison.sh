@@ -63,7 +63,7 @@ for procs in $PROCESSORS; do
                         if [[ "$acc" = "0" ]]; then
 
                             INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                            JOB_NAME="gen_flink_monpoly_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                            JOB_NAME="gen_flink_bb_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
                             TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                             BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
                             JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
@@ -72,6 +72,14 @@ for procs in $PROCESSORS; do
                             "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT  --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                             wait
 
+                            JOB_NAME="gen_flink_wb_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                            DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                            TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                            BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                            JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+
+                            rm -r "$VERDICT_FILE" 2> /dev/null
+                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
                             "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor-whitebox.sh" --in localhost:$STREAM_PORT --out "$VERDICT_FILE" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
 			    wait
   
@@ -79,7 +87,7 @@ for procs in $PROCESSORS; do
                         else
 
                             INPUT_FILE="$OUTPUT_DIR/gen_${formula}_${er}_${ir}.csv"
-                            JOB_NAME="gen_flink_monpoly_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                            JOB_NAME="gen_flink_bb_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
                             DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
                             TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
                             BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
@@ -89,6 +97,15 @@ for procs in $PROCESSORS; do
                             taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
                             "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor.sh" --in localhost:$STREAM_PORT --format csv --out "$VERDICT_FILE" --monitor monpoly --command "$TIME_COMMAND -f %e;%M -o $TIME_REPORT $MONPOLY_EXE -nonewlastts $NEGATE" --sig "$WORK_DIR/synthetic/synth.sig" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --queueSize "$FLINK_QUEUE" --job "$JOB_NAME" > "$JOB_REPORT"
                             wait
+
+                            JOB_NAME="gen_flink_wb_${numcpus}_${formula}_${er}_${ir}_${acc}_${i}"
+                            DELAY_REPORT="$REPORT_DIR/${JOB_NAME}_delay.txt"
+                            TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time_{ID}.txt"
+                            BATCH_TIME_REPORT="$REPORT_DIR/${JOB_NAME}_time.txt"
+                            JOB_REPORT="$REPORT_DIR/${JOB_NAME}_job.txt"
+
+                            rm -r "$VERDICT_FILE" 2> /dev/null
+                            taskset -c $AUX_CPU_LIST "$WORK_DIR/replayer.sh" -v -a $acc -q $REPLAYER_QUEUE -i csv -f csv -t 1000 -o localhost:$STREAM_PORT "$INPUT_FILE" 2> "$DELAY_REPORT" &
                             "$TIME_COMMAND" -f "%e;%M" -o "$BATCH_TIME_REPORT" "$WORK_DIR/monitor-whitebox.sh" --in localhost:$STREAM_PORT --out "$VERDICT_FILE" --formula "$WORK_DIR/synthetic/$formula.mfotl" --processors $numcpus --job "$JOB_NAME" > "$JOB_REPORT"
 			    wait
 
@@ -187,8 +204,8 @@ done
 
 end_time=$(date +%Y-%m-%dT%H:%M:%S.%3NZ --utc)
 
-echo
-echo "Scraping metrics from $start_time to $end_time ..."
+#echo
+#echo "Scraping metrics from $start_time to $end_time ..."
 (cd "$REPORT_DIR" && "$WORK_DIR/scrape.sh" $start_time $end_time gen2)
 
 echo

@@ -1,4 +1,5 @@
 package ch.ethz.infsec.monitor.visitor;
+import ch.ethz.infsec.Main;
 import ch.ethz.infsec.monitor.Fact;
 import org.apache.flink.streaming.api.datastream.ConnectedStreams;
 import org.apache.flink.streaming.api.datastream.DataStream;
@@ -22,31 +23,31 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
 
     public DataStream<PipelineEvent> visit(MPred state) {
         OutputTag<Fact> factStream = this.hmap.get(state.getPredName());
-        return this.mainDataStream.getSideOutput(factStream).flatMap(state);
+        return this.mainDataStream.getSideOutput(factStream).flatMap(state).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MAnd f) {
         DataStream<PipelineEvent> input1 = f.op1.accept(this);
         DataStream<PipelineEvent> input2 = f.op2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
-        return connectedStreams.flatMap(f);
+        return connectedStreams.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MExists f) {
         DataStream<PipelineEvent> input = f.subFormula.accept(this);
-        return input.flatMap(f);
+        return input.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MNext f) {
         DataStream<PipelineEvent> input = f.formula.accept(this);
-        return input.flatMap(f);
+        return input.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MOr f) {
         DataStream<PipelineEvent> input1 = f.op1.accept(this);
         DataStream<PipelineEvent> input2 = f.op2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
-        return connectedStreams.flatMap(f);
+        return connectedStreams.flatMap(f).setParallelism(Main.numberProcessors);
         //flatMap here will be interpreted as a coflatmap because the argumetn it receives is an Or,
         //which is a binary operator so it receives a coflatmap. This will apply flatMap1 or flatMap2 depending
         //on the input stream
@@ -54,38 +55,38 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
 
     public DataStream<PipelineEvent> visit(MPrev f) {
         DataStream<PipelineEvent> input = f.formula.accept(this);
-        return input.flatMap(f);
+        return input.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MSince f) {
         DataStream<PipelineEvent> input1 = f.formula1.accept(this);
         DataStream<PipelineEvent> input2 = f.formula2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
-        return connectedStreams.flatMap(f);
+        return connectedStreams.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MUntil f) {
         DataStream<PipelineEvent> input1 = f.formula1.accept(this);
         DataStream<PipelineEvent> input2 = f.formula2.accept(this);
         ConnectedStreams<PipelineEvent, PipelineEvent> connectedStreams = input1.connect(input2);
-        return connectedStreams.flatMap(f);
+        return connectedStreams.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     @Override
     public DataStream<PipelineEvent> visit(MOnce f) {
         DataStream<PipelineEvent> input = f.formula.accept(this);
-        return input.flatMap(f);
+        return input.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     @Override
     public DataStream<PipelineEvent> visit(MEventually f) {
         DataStream<PipelineEvent> input = f.formula.accept(this);
-        return input.flatMap(f);
+        return input.flatMap(f).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MRel f) {
         OutputTag<Fact> factStream = this.hmap.get("0Terminator");
-        return this.mainDataStream.getSideOutput(factStream).flatMap(f);
+        return this.mainDataStream.getSideOutput(factStream).flatMap(f).setParallelism(Main.numberProcessors);
     }
 
 }
