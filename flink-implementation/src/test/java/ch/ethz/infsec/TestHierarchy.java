@@ -97,7 +97,7 @@ public class TestHierarchy {
 
     @Test
     public void testMain2() throws Exception{
-        String logFile = System.getProperty("user.dir")+ "\\" + "test.log";
+        String logFile = System.getProperty("user.dir")+ "\\" + "test2.log"; //Attention: test2.log is empty
         ////((ONCE[0,10) A(a,b)) AND B(a,c)) AND EVENTUALLY[0,10) C(a,d)
         Either<String, GenFormula<VariableID>> a = Policy.read("((ONCE[0,10) A(a,b)) AND B(a,c)) AND EVENTUALLY[0,10) C(a,d)");
         if(a.isLeft()){
