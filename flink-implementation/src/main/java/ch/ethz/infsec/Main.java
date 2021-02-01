@@ -58,7 +58,7 @@ public class Main {
         // TODO: avoid maven dependency and implement this separately
         String formulaFile = p.get("formula");
         if(true){
-            throw new RuntimeException("formulaFile");
+            throw new RuntimeException(formulaFile);
 
         }
         numberProcessors = p.getInt("processors");
