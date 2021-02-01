@@ -15,8 +15,6 @@ public class MExists implements Mformula, FlatMapFunction<PipelineEvent, Pipelin
 
 
     public MExists(Mformula subformula, VariableID var){
-        //actually the second argument is not necessary
-        //You use the first argument in the second visitor
         this.subFormula = subformula;
         this.var = var;
 
@@ -41,7 +39,6 @@ public class MExists implements Mformula, FlatMapFunction<PipelineEvent, Pipelin
             satList.remove(0); //here we are taking the front of the list
             Optional<Assignment> output = Optional.of(satList);
             if(output.isPresent()){
-                //previously, I had omitted this if loop
                 PipelineEvent result = PipelineEvent.event(value.getTimestamp(),value.getTimepoint(), output.get());
                 out.collect(result);
             }

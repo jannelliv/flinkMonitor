@@ -90,7 +90,6 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         HashSet<Long> toRemove = new HashSet<>();
         HashSet<Long> toRemoveTerm = new HashSet<>();
         for(Long term : terminators.keySet()){
-            HashSet<Long> toRemove1 = new HashSet<>();
             for(Long tp : buckets.keySet()){
                 if(mem(terminators.get(term) - timepointToTimestamp.get(tp), interval)){
                     HashSet<Assignment> satisfEvents = buckets.get(tp);

@@ -155,7 +155,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     HashMap<Long, Table> intermRes = new HashMap<>(zsAux); intermRes.put(t, us_result);
                     return intermRes;};
 
-                HashMap<Long, Table> msaux_zs = mbuf2t_take(func,new HashMap<>(), startEvalTimepoint); //WAS: event.getTimepoint()
+                HashMap<Long, Table> msaux_zs = mbuf2t_take(func,new HashMap<>(), startEvalTimepoint);
 
                 Long outResultTP = startEvalTimepoint;
                 while(msaux_zs.containsKey(outResultTP)){
@@ -167,7 +167,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     }
                     //at the end, we output the terminator! --> for each of the timepoints in zs. See line below:
                     collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(outResultTP), outResultTP));
-                    outResultTP++; //not sure we should increment by 1 here --> NOT SURE ABOUT THIS!!!!!
+                    outResultTP++;
                 }
                 startEvalTimepoint += msaux_zs.size();
             }

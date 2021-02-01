@@ -191,6 +191,10 @@ public class Init0 implements FormulaVisitor<Mformula> {
             return safe_formula(((JavaPrev<VariableID>) form).arg());
         }else if(form instanceof JavaNext){
             return safe_formula(((JavaNext<VariableID>) form).arg());
+        }else if(form instanceof JavaOnce){
+            return safe_formula(((JavaOnce<VariableID>) form).arg());
+        }else if(form instanceof JavaEventually){
+            return safe_formula(((JavaEventually<VariableID>) form).arg());
         }else if(form instanceof JavaSince){
             ArrayList<Object> freeVarsInOrder1 = new ArrayList<>(JavaConverters.seqAsJavaList(((JavaSince<VariableID>) form).arg1().freeVariablesInOrder()));
             ArrayList<Object> freeVarsInOrder2 = new ArrayList<>(JavaConverters.seqAsJavaList(((JavaSince<VariableID>) form).arg2().freeVariablesInOrder()));

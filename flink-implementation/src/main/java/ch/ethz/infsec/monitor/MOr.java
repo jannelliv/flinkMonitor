@@ -14,7 +14,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
 
     public Mformula op1;
     public Mformula op2;
-    Tuple<HashMap<Long, Table>,HashMap<Long, Table>> mbuf2;
     HashSet<Long> terminatorLHS;
     HashSet<Long> terminatorRHS;
 
@@ -22,7 +21,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
         op1 = arg1;
         op2 = arg2;
 
-        mbuf2 = new Tuple<>(new HashMap<>(), new HashMap<>());
         terminatorLHS = new HashSet<>();
         terminatorRHS = new HashSet<>();
     }
@@ -39,8 +37,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
         if(!fact.isPresent()){
             terminatorLHS.add(fact.getTimepoint());
             if(terminatorRHS.contains(fact.getTimepoint())){
-                this.mbuf2.fst.remove(fact.getTimepoint());
-                this.mbuf2.snd.remove(fact.getTimepoint());
                 collector.collect(fact);
                 terminatorRHS.remove(fact.getTimepoint());
                 terminatorLHS.remove(fact.getTimepoint());
@@ -58,8 +54,6 @@ public class MOr implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineE
         if(!fact.isPresent()){
             terminatorRHS.add(fact.getTimepoint());
             if(terminatorLHS.contains(fact.getTimepoint())){
-                this.mbuf2.snd.remove(fact.getTimepoint());
-                this.mbuf2.fst.remove(fact.getTimepoint());
                 collector.collect(fact);
                 terminatorRHS.remove(fact.getTimepoint());
                 terminatorLHS.remove(fact.getTimepoint());
