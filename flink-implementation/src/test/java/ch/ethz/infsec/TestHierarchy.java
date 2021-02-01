@@ -57,6 +57,8 @@ import ch.ethz.infsec.policy.Policy;
 
 public class TestHierarchy {
 
+    public static HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
+
     //testParsingWithFlink()
     private OneInputStreamOperatorTestHarness<String, Fact> testHarness;
 
@@ -112,16 +114,14 @@ public class TestHierarchy {
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
             e.setMaxParallelism(1);
             e.setParallelism(1);
-
-
             DataStream<String> text = e.readTextFile(logFile);
 
-            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()))
+            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
                     .name("dummy")
                     .setParallelism(1)
                     .setMaxParallelism(1);
             BufferedWriter writer = new BufferedWriter(new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
-            HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
+            //HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
             writer.write(formula.toString() + "\n");
             Iterator<Pred<VariableID>> iter = atomSet.iterator();

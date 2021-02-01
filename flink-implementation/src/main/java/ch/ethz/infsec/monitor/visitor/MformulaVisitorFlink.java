@@ -21,9 +21,9 @@ public class MformulaVisitorFlink implements MformulaVisitor<DataStream<Pipeline
         this.mainDataStream = mainDataStream;
     }
 
-    public DataStream<PipelineEvent> visit(MPred state) {
-        OutputTag<Fact> factStream = this.hmap.get(state.getPredName());
-        return this.mainDataStream.getSideOutput(factStream).flatMap(state).setParallelism(Main.numberProcessors);
+    public DataStream<PipelineEvent> visit(MPred pred) {
+        OutputTag<Fact> factStream = this.hmap.get(pred.getPredName());
+        return this.mainDataStream.getSideOutput(factStream).flatMap(pred).setParallelism(Main.numberProcessors);
     }
 
     public DataStream<PipelineEvent> visit(MAnd f) {

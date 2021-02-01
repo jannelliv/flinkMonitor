@@ -44,7 +44,7 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
-    public static int numberProcessors;
+    public static int numberProcessors = 1;
 
     public static void main(String[] args) throws Exception{
 
@@ -80,7 +80,7 @@ public class Main {
 
             DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
 
-            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()))
+            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
                                          .name(jobName)
                                          .setParallelism(1)
                                          .setMaxParallelism(1);
