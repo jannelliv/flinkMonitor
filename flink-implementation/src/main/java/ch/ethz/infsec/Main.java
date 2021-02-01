@@ -46,7 +46,7 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
-    public static int numberProcessors = 1;
+    public static int numberProcessors;
 
     public static void main(String[] args) throws Exception{
 
@@ -56,7 +56,8 @@ public class Main {
         Option<EndPoint> outputFile = StreamMonitoring.parseEndpointArg(p.get("out"));
         //for the above two, I had to add a maven dependency to flink-monitor
         // TODO: avoid maven dependency and implement this separately
-        String formulaFile = p.get("formulaaaaa");
+        String formulaFile = p.get("formula");
+        System.out.println(formulaFile);
         numberProcessors = p.getInt("processors");
         String jobName = p.get("job");
 
