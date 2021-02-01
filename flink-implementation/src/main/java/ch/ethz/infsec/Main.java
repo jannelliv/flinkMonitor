@@ -123,7 +123,6 @@ public class Main {
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
-            //TODO: Re-implement with non-deprecated sink (see the example code below)
             //sink.writeAsText(outputFile);
             //here I omitted : "file://" + ...outputFile
 
