@@ -123,9 +123,6 @@ public class Main {
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
-            //sink.writeAsText(outputFile);
-            //here I omitted : "file://" + ...outputFile
-
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()), new SimpleStringEncoder<String>("UTF-8")).build());;
 

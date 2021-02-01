@@ -76,9 +76,6 @@ public class TestHierarchy {
     //testOnce()
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPredOnce;
     private OneInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent> testHarnessOnce;
-
-
-
     //testAnd()
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred1;
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred2;
@@ -92,8 +89,6 @@ public class TestHierarchy {
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred1Or;
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred2Or;
     private TwoInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent, PipelineEvent> testHarnessOr;
-
-
 
     @Before
     public void setUp() throws Exception{
@@ -121,7 +116,6 @@ public class TestHierarchy {
                     .setParallelism(1)
                     .setMaxParallelism(1);
             BufferedWriter writer = new BufferedWriter(new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
-            //HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
             writer.write(formula.toString() + "\n");
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
@@ -143,7 +137,6 @@ public class TestHierarchy {
                                 Fact fact,
                                 Context ctx,
                                 Collector<Fact> out) throws Exception {
-
 
                             if(fact.isTerminator()){
                                 for (String str: hashmap.keySet()){
