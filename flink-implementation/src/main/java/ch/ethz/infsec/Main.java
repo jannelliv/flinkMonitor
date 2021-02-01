@@ -57,7 +57,10 @@ public class Main {
         //for the above two, I had to add a maven dependency to flink-monitor
         // TODO: avoid maven dependency and implement this separately
         String formulaFile = p.get("formula");
-        System.out.println(formulaFile);
+        if(true){
+            throw new RuntimeException("formulaFile");
+
+        }
         numberProcessors = p.getInt("processors");
         String jobName = p.get("job");
 
