@@ -42,6 +42,8 @@ import static ch.ethz.infsec.formula.JavaGenFormula.convert;
 
 public class Main {
 
+    public static HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
+
     private static final String TERMINATOR_TAG = "0Terminator";
 
     public static int numberProcessors = 1;
@@ -85,7 +87,7 @@ public class Main {
                                          .setParallelism(1)
                                          .setMaxParallelism(1);
             BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
-            HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
+            //HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
             writer.write(formula.toString() + "\n");
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
