@@ -128,14 +128,14 @@ public class Main {
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()), new SimpleStringEncoder<String>("UTF-8")).build());;
-
+            writer.write("done."+ "\n");
             e.execute(jobName);
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
             // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
             writer.close();
 
             //TODO: instead of star-neg, have a predicate formula, and then in the output log you should have all of the positions
-            //recompile to avoid printing the formuas and the predicates in the outptu
+
             //where the predicate occurs--> final confirmation that things work.
 
             //also: generate longer logs
