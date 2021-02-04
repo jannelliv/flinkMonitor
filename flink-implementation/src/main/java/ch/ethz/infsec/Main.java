@@ -127,24 +127,16 @@ public class Main {
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
-            //final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build();
-            //strOutput.addSink(sinkk);
+            final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build();
+            strOutput.addSink(sinkk);
             strOutput.addSink(new SinkFunction<String>() {
                 @Override
                 public void invoke(String value, SinkFunction.Context context) throws Exception {
                     try {
-                        File myObj = new File(((FileEndPoint)outputFile.get()).file_path());
-                        if (myObj.createNewFile()) {
-                            BufferedWriter out = new BufferedWriter(
-                                    new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
-                            out.write(value);
-                            out.close();
-                        } else {
-                            BufferedWriter out = new BufferedWriter(
-                                    new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
-                            out.write(value);
-                            out.close();
-                        }
+                        BufferedWriter out = new BufferedWriter(
+                                new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
+                        out.write(value);
+                        out.close();
                     } catch (IOException e) {
                         e.printStackTrace();
                     }
