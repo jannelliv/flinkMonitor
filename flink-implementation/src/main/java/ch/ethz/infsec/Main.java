@@ -53,7 +53,7 @@ public class Main {
     private static final String TERMINATOR_TAG = "0Terminator";
 
     public static Integer checkpointInterval = 10000;
-    public static String checkpointUri = "file://home/valeriaj/scalable-online-monitor/evaluation/synthesis/../../checkpoints";
+    public static String checkpointUri = "file://home/valeriaj/checkpoints";
     public static Integer restarts = 0;
 
     public static int numberProcessors = 1;
