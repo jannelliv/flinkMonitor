@@ -18,6 +18,7 @@ import org.apache.flink.api.common.functions.FilterFunction;
 import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringEncoder;
 import org.apache.flink.api.java.utils.ParameterTool;
+import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -51,6 +52,7 @@ public class Main {
     private static final String TERMINATOR_TAG = "0Terminator";
 
     public static Integer checkpointInterval = 10000;
+    public static String checkpointUri = "file://home/valeriaj/scalable-online-monitor/evaluation/synthesis/../../checkpoints";
 
     public static int numberProcessors = 1;
 
@@ -85,7 +87,9 @@ public class Main {
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
             e.setMaxParallelism(1);
             e.setParallelism(1);
+            e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
+
 
 
             DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
