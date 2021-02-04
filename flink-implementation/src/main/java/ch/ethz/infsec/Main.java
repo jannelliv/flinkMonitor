@@ -82,7 +82,6 @@ public class Main {
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
             e.setMaxParallelism(1);
             e.setParallelism(1);
-            e.enableCheckpointing(500);
 
 
             DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
@@ -92,7 +91,6 @@ public class Main {
                                          .setParallelism(1)
                                          .setMaxParallelism(1);
             BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
-            //HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
@@ -129,12 +127,11 @@ public class Main {
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
-            final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),
-                    new SimpleStringEncoder<String>("UTF-8")).build();
-            strOutput.addSink(sinkk);
+            //final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build();
+            //strOutput.addSink(sinkk);
             strOutput.addSink(new SinkFunction<String>() {
                 @Override
-                public void invoke(String value) throws Exception {
+                public void invoke(String value, SinkFunction.Context context) throws Exception {
                     try {
                         File myObj = new File(((FileEndPoint)outputFile.get()).file_path());
                         if (myObj.createNewFile()) {
@@ -143,29 +140,27 @@ public class Main {
                             out.write(value);
                             out.close();
                         } else {
-                            System.out.println("File already exists.");
                             BufferedWriter out = new BufferedWriter(
                                     new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
                             out.write(value);
                             out.close();
                         }
                     } catch (IOException e) {
-                        System.out.println("An error occurred.");
                         e.printStackTrace();
                     }
                 }
             });
             writer.write("done."+ "\n");
             e.execute(jobName);
+            writer.close();
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
             // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
-            writer.close();
+
             //strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
 
             //TODO: instead of star-neg, have a predicate formula, and then in the output log you should have all of the positions
             //where the predicate occurs--> final confirmation that things work.
             //also: generate longer logs
-
             //run tests
         }
 

@@ -61,7 +61,7 @@ import ch.ethz.infsec.policy.Policy;
 public class TestHierarchy {
 
     public static HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
-    BufferedWriter writer;
+    BufferedWriter writer = new BufferedWriter(new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
 
     //testParsingWithFlink()
     private OneInputStreamOperatorTestHarness<String, Fact> testHarness;
@@ -94,6 +94,9 @@ public class TestHierarchy {
     private OneInputStreamOperatorTestHarness<Fact, PipelineEvent> testHarnessPred2Or;
     private TwoInputStreamOperatorTestHarness<PipelineEvent, PipelineEvent, PipelineEvent> testHarnessOr;
 
+    public TestHierarchy() throws IOException {
+    }
+
     @Before
     public void setUp() throws Exception{
 
@@ -119,7 +122,7 @@ public class TestHierarchy {
                     .name("dummy")
                     .setParallelism(1)
                     .setMaxParallelism(1);
-            writer = new BufferedWriter(new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
+            //writer = new BufferedWriter(new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
@@ -162,7 +165,7 @@ public class TestHierarchy {
 
             strOutput.addSink(new SinkFunction<String>() {
                 @Override
-                public void invoke(String value) throws Exception {
+                public void invoke(String value, SinkFunction.Context context) throws Exception {
                     try {
                         File myObj = new File(System.getProperty("user.dir")+ "\\" + "output.txt");
                         if (myObj.createNewFile()) {
