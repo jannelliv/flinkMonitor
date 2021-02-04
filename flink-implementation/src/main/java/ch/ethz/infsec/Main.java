@@ -26,6 +26,7 @@ import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
+import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
@@ -53,6 +54,7 @@ public class Main {
 
     public static Integer checkpointInterval = 10000;
     public static String checkpointUri = "file://home/valeriaj/scalable-online-monitor/evaluation/synthesis/../../checkpoints";
+    public static Integer restarts = 0;
 
     public static int numberProcessors = 1;
 
@@ -87,8 +89,11 @@ public class Main {
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
             e.setMaxParallelism(1);
             e.setParallelism(1);
+
             e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
+            RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
+            e.setRestartStrategy(restartStrategy);
 
 
 
