@@ -36,6 +36,7 @@ import scala.io.Source;
 import scala.util.Either;
 
 import java.io.BufferedWriter;
+import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
@@ -135,11 +136,19 @@ public class Main {
                 @Override
                 public void invoke(String value) throws Exception {
                     try {
-                        BufferedWriter out = new BufferedWriter(
-                                new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
-                        out.write(value);
-                        out.close();
-
+                        File myObj = new File(((FileEndPoint)outputFile.get()).file_path());
+                        if (myObj.createNewFile()) {
+                            BufferedWriter out = new BufferedWriter(
+                                    new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
+                            out.write(value);
+                            out.close();
+                        } else {
+                            System.out.println("File already exists.");
+                            BufferedWriter out = new BufferedWriter(
+                                    new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
+                            out.write(value);
+                            out.close();
+                        }
                     } catch (IOException e) {
                         System.out.println("An error occurred.");
                         e.printStackTrace();
