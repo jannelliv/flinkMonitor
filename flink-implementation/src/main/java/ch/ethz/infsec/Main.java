@@ -15,6 +15,7 @@ import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import org.apache.flink.api.common.functions.FilterFunction;
+import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringEncoder;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.core.fs.Path;
@@ -129,12 +130,19 @@ public class Main {
             final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),
                     new SimpleStringEncoder<String>("UTF-8")).build();
             strOutput.addSink(sinkk);
-            //strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
+            strOutput.flatMap(new FlatMapFunction<String, String>() {
+                @Override
+                public void flatMap(String value, Collector<String> out)
+                        throws Exception {
+                    writer.write(value);
+                }
+            });
             writer.write("done."+ "\n");
             e.execute(jobName);
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
             // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
             writer.close();
+            //strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
 
             //TODO: instead of star-neg, have a predicate formula, and then in the output log you should have all of the positions
             //where the predicate occurs--> final confirmation that things work.
