@@ -90,14 +90,12 @@ public class Main {
             BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
             //HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
-            //writer.write(formula.toString() + "\n");
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
             while(iter.hasNext()) {
                 Pred<VariableID> n = iter.next();
                 hashmap.put(n.relation(), new OutputTag<Fact>(n.relation()){});
 
-                //writer.write(n.relation() + "\n");
             }
 
             hashmap.put(TERMINATOR_TAG, new OutputTag<Fact>(TERMINATOR_TAG){});
@@ -127,7 +125,10 @@ public class Main {
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
-            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()), new SimpleStringEncoder<String>("UTF-8")).build());;
+            final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),
+                    new SimpleStringEncoder<String>("UTF-8")).build();
+            strOutput.addSink(sinkk);
+            strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path());
             writer.write("done."+ "\n");
             e.execute(jobName);
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
@@ -135,9 +136,7 @@ public class Main {
             writer.close();
 
             //TODO: instead of star-neg, have a predicate formula, and then in the output log you should have all of the positions
-
             //where the predicate occurs--> final confirmation that things work.
-
             //also: generate longer logs
 
             //run tests
