@@ -37,6 +37,7 @@ import scala.util.Either;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.*;
 import static ch.ethz.infsec.formula.JavaGenFormula.convert;
 
@@ -47,7 +48,7 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
-    public static int numberProcessors;
+    public static int numberProcessors = 1;
 
     public static void main(String[] args) throws Exception{
 
@@ -130,11 +131,19 @@ public class Main {
             final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),
                     new SimpleStringEncoder<String>("UTF-8")).build();
             strOutput.addSink(sinkk);
-            strOutput.flatMap(new FlatMapFunction<String, String>() {
+            strOutput.addSink(new SinkFunction<String>() {
                 @Override
-                public void flatMap(String value, Collector<String> out)
-                        throws Exception {
-                    writer.write(value);
+                public void invoke(String value) throws Exception {
+                    try {
+                        BufferedWriter out = new BufferedWriter(
+                                new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
+                        out.write(value);
+                        out.close();
+
+                    } catch (IOException e) {
+                        System.out.println("An error occurred.");
+                        e.printStackTrace();
+                    }
                 }
             });
             writer.write("done."+ "\n");

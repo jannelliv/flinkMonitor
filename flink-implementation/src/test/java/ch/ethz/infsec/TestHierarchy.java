@@ -21,6 +21,7 @@ import org.apache.flink.streaming.api.datastream.SingleOutputStreamOperator;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.co.CoFlatMapFunction;
+import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
 import org.apache.flink.streaming.api.operators.StreamFlatMap;
 import org.apache.flink.streaming.api.operators.co.CoStreamFlatMap;
@@ -41,6 +42,7 @@ import scala.util.Either;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -58,6 +60,7 @@ import ch.ethz.infsec.policy.Policy;
 public class TestHierarchy {
 
     public static HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
+    BufferedWriter writer;
 
     //testParsingWithFlink()
     private OneInputStreamOperatorTestHarness<String, Fact> testHarness;
@@ -99,7 +102,7 @@ public class TestHierarchy {
     public void testMain2() throws Exception{
         String logFile = System.getProperty("user.dir")+ "\\" + "test2.log"; //Attention: test2.log is empty
         ////((ONCE[0,10) A(a,b)) AND B(a,c)) AND EVENTUALLY[0,10) C(a,d)
-        Either<String, GenFormula<VariableID>> a = Policy.read("((ONCE[0,10) A(a,b)) AND B(a,c)) AND EVENTUALLY[0,10) C(a,d)");
+        Either<String, GenFormula<VariableID>> a = Policy.read("B(a,c)");
         if(a.isLeft()){
             throw new ExceptionInInitializerError();
         }else{
@@ -115,16 +118,14 @@ public class TestHierarchy {
                     .name("dummy")
                     .setParallelism(1)
                     .setMaxParallelism(1);
-            BufferedWriter writer = new BufferedWriter(new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
+            writer = new BufferedWriter(new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
             Set<Pred<VariableID>> atomSet = formula.atoms();
-            writer.write(formula.toString() + "\n");
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
             while(iter.hasNext()) {
                 Pred<VariableID> n = iter.next();
                 hashmap.put(n.relation(), new OutputTag<Fact>(n.relation()){});
 
-                writer.write(n.relation() + "\n");
             }
 
             hashmap.put("0Terminator", new OutputTag<Fact>("0Terminator"){});
@@ -151,10 +152,32 @@ public class TestHierarchy {
                     });
             Mformula mformula = (convert(formula)).accept(new Init0(formula.freeVariablesInOrder()));
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
+
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
+            final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(System.getProperty("user.dir")+ "\\" + "test2.log"),
+                    new SimpleStringEncoder<String>("UTF-8")).build();
+            strOutput.addSink(sinkk);
 
-            e.execute("dummy");
 
+            strOutput.addSink(new SinkFunction<String>() {
+                @Override
+                public void invoke(String value) throws Exception {
+                    try {
+                        BufferedWriter out = new BufferedWriter(
+                        new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
+                        out.write(value);
+                        out.close();
+
+                    } catch (IOException e) {
+                        System.out.println("An error occurred.");
+                        e.printStackTrace();
+                    }
+                }
+            });
+
+
+            writer.write("done."+ "\n");
+            //e.execute("dummy");
             writer.close();
         }
 
