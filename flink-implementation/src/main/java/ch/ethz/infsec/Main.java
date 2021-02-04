@@ -128,7 +128,7 @@ public class Main {
             final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),
                     new SimpleStringEncoder<String>("UTF-8")).build();
             strOutput.addSink(sinkk);
-            strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path());
+            strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
             writer.write("done."+ "\n");
             e.execute(jobName);
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
