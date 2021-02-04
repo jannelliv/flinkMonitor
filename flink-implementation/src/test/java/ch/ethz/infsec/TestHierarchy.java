@@ -169,7 +169,6 @@ public class TestHierarchy {
                     try {
                         File myObj = new File(System.getProperty("user.dir")+ "\\" + "output.txt");
                         if (myObj.createNewFile()) {
-                            //System.out.println("File created: " + myObj.getName());
                             BufferedWriter out = new BufferedWriter(
                                     new FileWriter(System.getProperty("user.dir")+ "\\" + "output.txt", true));
                             out.write(value);

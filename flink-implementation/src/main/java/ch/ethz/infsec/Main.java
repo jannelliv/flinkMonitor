@@ -19,6 +19,7 @@ import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringEncoder;
 import org.apache.flink.api.java.utils.ParameterTool;
 import org.apache.flink.core.fs.Path;
+import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -48,6 +49,8 @@ public class Main {
     public static HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
 
     private static final String TERMINATOR_TAG = "0Terminator";
+
+    public static Integer checkpointInterval = 10000;
 
     public static int numberProcessors = 1;
 
@@ -82,6 +85,7 @@ public class Main {
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
             e.setMaxParallelism(1);
             e.setParallelism(1);
+            e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
 
 
             DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
@@ -129,19 +133,6 @@ public class Main {
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             final StreamingFileSink<String> sinkk = StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build();
             strOutput.addSink(sinkk);
-            strOutput.addSink(new SinkFunction<String>() {
-                @Override
-                public void invoke(String value, SinkFunction.Context context) throws Exception {
-                    try {
-                        BufferedWriter out = new BufferedWriter(
-                                new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
-                        out.write(value);
-                        out.close();
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                    }
-                }
-            });
             writer.write("done."+ "\n");
             e.execute(jobName);
             writer.close();
@@ -150,10 +141,7 @@ public class Main {
 
             //strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
 
-            //TODO: instead of star-neg, have a predicate formula, and then in the output log you should have all of the positions
-            //where the predicate occurs--> final confirmation that things work.
-            //also: generate longer logs
-            //run tests
+            
         }
 
     }
