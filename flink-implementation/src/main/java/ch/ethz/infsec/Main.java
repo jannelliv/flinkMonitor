@@ -57,7 +57,7 @@ public class Main {
         //for the above two, I had to add a maven dependency to flink-monitor
         // TODO: avoid maven dependency and implement this separately
         String formulaFile = p.get("formula");
-        
+
         numberProcessors = p.getInt("processors");
         String jobName = p.get("job");
 
@@ -90,14 +90,14 @@ public class Main {
             BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
             //HashMap<String, OutputTag<Fact>> hashmap = new HashMap<>();
             Set<Pred<VariableID>> atomSet = formula.atoms();
-            writer.write(formula.toString() + "\n");
+            //writer.write(formula.toString() + "\n");
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
             while(iter.hasNext()) {
                 Pred<VariableID> n = iter.next();
                 hashmap.put(n.relation(), new OutputTag<Fact>(n.relation()){});
 
-                writer.write(n.relation() + "\n");
+                //writer.write(n.relation() + "\n");
             }
 
             hashmap.put(TERMINATOR_TAG, new OutputTag<Fact>(TERMINATOR_TAG){});
@@ -133,6 +133,14 @@ public class Main {
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
             // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
             writer.close();
+
+            //TODO: instead of star-neg, have a predicate formula, and then in the output log you should have all of the positions
+            //recompile to avoid printing the formuas and the predicates in the outptu
+            //where the predicate occurs--> final confirmation that things work.
+
+            //also: generate longer logs
+
+            //run tests
         }
 
     }
