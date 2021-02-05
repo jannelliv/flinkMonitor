@@ -52,7 +52,7 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
-    public static Integer checkpointInterval = 10000;
+    public static Integer checkpointInterval = 500;
     public static String checkpointUri = "file:///home/valeriaj/checkpoints";
     public static Integer restarts = 0;
 
@@ -142,8 +142,9 @@ public class Main {
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build());
 
-            writer.write("done."+ "\n");
+
             e.execute(jobName);
+            writer.write("done."+ "\n");
             writer.close();
             //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
             // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
