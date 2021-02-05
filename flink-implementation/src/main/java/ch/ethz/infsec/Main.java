@@ -91,10 +91,10 @@ public class Main {
             //e.setMaxParallelism(1);
             //e.setParallelism(1);
 
-            e.setStateBackend(new RocksDBStateBackend(checkpointUri));
-            e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
-            RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
-            e.setRestartStrategy(restartStrategy);
+            //e.setStateBackend(new RocksDBStateBackend(checkpointUri));
+            //e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
+            //RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
+            //e.setRestartStrategy(restartStrategy);
 
 
             DataStream<String> text = e.addSource(new ParallelSocketTextStreamFunction(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port()))
