@@ -5,6 +5,7 @@ import ch.ethz.infsec.monitor.*;
 import ch.ethz.infsec.monitor.visitor.MformulaVisitorFlink;
 import ch.ethz.infsec.tools.EndPoint;
 import ch.ethz.infsec.tools.FileEndPoint;
+import ch.ethz.infsec.tools.ParallelSocketTextStreamFunction;
 import ch.ethz.infsec.tools.SocketEndpoint;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.util.*;
@@ -87,8 +88,8 @@ public class Main {
             formula.atoms();
             formula.freeVariables();
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
-            e.setMaxParallelism(1);
-            e.setParallelism(1);
+            //e.setMaxParallelism(1);
+            //e.setParallelism(1);
 
             e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
@@ -96,13 +97,18 @@ public class Main {
             e.setRestartStrategy(restartStrategy);
 
 
-
-            DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
+            DataStream<String> text = e.addSource(new ParallelSocketTextStreamFunction(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port()))
+                    .setParallelism(1)
+                    .setMaxParallelism(1)
+                    .name("Socket source")
+                    .uid("socket-source");
+            //DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
 
             DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
-                                         .name(jobName)
                                          .setParallelism(1)
-                                         .setMaxParallelism(1);
+                                         .setMaxParallelism(1)
+                                        .name("parser")
+                                        .uid("parser");
             BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
