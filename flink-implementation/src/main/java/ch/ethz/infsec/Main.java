@@ -146,8 +146,8 @@ public class Main {
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
-            //strOutput.addSink(new BucketingSink<String>(((FileEndPoint)outputFile.get()).file_path())).setParallelism(1).name("File sink").uid("file-sink");
-            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build());
+            strOutput.addSink(new BucketingSink<String>(((FileEndPoint)outputFile.get()).file_path())).setParallelism(1).name("File sink").uid("file-sink");
+            //strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build());
 
 
             e.execute(jobName);
