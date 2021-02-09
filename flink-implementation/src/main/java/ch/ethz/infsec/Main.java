@@ -104,7 +104,7 @@ public class Main {
                     .uid("socket-source");
             //DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
 
-            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
+            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()))
                                          .setParallelism(1)
                                          .setMaxParallelism(1)
                                         .name("parser")
