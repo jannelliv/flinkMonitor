@@ -91,10 +91,10 @@ public class Main {
             //e.setMaxParallelism(1);
             //e.setParallelism(1);
 
-            //e.setStateBackend(new RocksDBStateBackend(checkpointUri));
-            //e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
-            //RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
-            //e.setRestartStrategy(restartStrategy);
+            e.setStateBackend(new RocksDBStateBackend(checkpointUri));
+            e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
+            RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
+            e.setRestartStrategy(restartStrategy);
 
 
             DataStream<String> text = e.addSource(new ParallelSocketTextStreamFunction(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port()))
@@ -146,7 +146,8 @@ public class Main {
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
-            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build());
+            strOutput.addSink(new BucketingSink<String>(((FileEndPoint)outputFile.get()).file_path())).setParallelism(1).name("File sink").uid("file-sink");
+            //strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build());
 
 
             e.execute(jobName);
