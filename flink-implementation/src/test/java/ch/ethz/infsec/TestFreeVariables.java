@@ -271,7 +271,7 @@ public class TestFreeVariables {
         testHarnessEv.open();
     }
 
-    
+
     @Test
     public void testRelTrueFalse() throws Exception{
         testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "163"), 1L);

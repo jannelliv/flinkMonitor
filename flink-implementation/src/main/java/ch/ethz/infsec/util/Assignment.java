@@ -37,13 +37,6 @@ public class Assignment extends LinkedList<Optional<Object>> {
         return new Assignment();
     }
 
-    /*public static Assignment terminator(long timestamp){
-
-        return new Assignment(timestamp, true);
-        //boolean is set to true and the list is empty,
-        // so the appropriate static constructor is used
-
-    }*/
 
     @Override
     public String toString() {

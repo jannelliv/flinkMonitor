@@ -24,6 +24,7 @@ import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
 //import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink;
+import org.apache.flink.streaming.api.functions.source.SocketTextStreamFunction;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import scala.Option;
@@ -57,20 +58,15 @@ public class Main {
 
         ParameterTool p = ParameterTool.fromArgs(args);
 
-        Option<EndPoint> inputSource = MonitoringAids.parseEndpointArg(p.get("in"));
-        Option<EndPoint> outputFile = MonitoringAids.parseEndpointArg(p.get("out"));
+        String[] inputSourceString = p.get("in").split(":");
+        int inputPortNumber = Integer.parseInt(inputSourceString[1]);
+        String outputFile = p.get("out");
         String formulaFile = p.get("formula");
 
         numberProcessors = p.getInt("processors");
         String jobName = p.get("job");
 
-        if(inputSource.isDefined()){
-            if(!(inputSource.get() instanceof SocketEndpoint)){
-                throw new RuntimeException("NOT SUPPORTED!");
-            }
-        }else{
-            throw new RuntimeException("Cannot parse the input argument (white-box main method)");
-        }
+
 
         Either<String, GenFormula<VariableID>> a = Policy.read(Source.fromFile(formulaFile, Codec.fallbackSystemCodec()).mkString());
         if(a.isLeft()){
@@ -88,8 +84,8 @@ public class Main {
             RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
             e.setRestartStrategy(restartStrategy);
 
-
-            DataStream<String> text = e.addSource(new ParallelSocketTextStreamFunction(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port()))
+//(inputSourceString[0], inputPortNumber)
+            DataStream<String> text = e.addSource(new SocketTextStreamFunction(inputSourceString[0], inputPortNumber, "\n", 0))
                     .setParallelism(1)
                     .setMaxParallelism(1)
                     .name("Socket source")
@@ -101,7 +97,7 @@ public class Main {
                                          .setMaxParallelism(1)
                                         .name("parser")
                                         .uid("parser");
-            BufferedWriter writer = new BufferedWriter(new FileWriter(((FileEndPoint)outputFile.get()).file_path(), true));
+            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true));
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
@@ -139,7 +135,7 @@ public class Main {
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             //gstrOutput.addSink(new BucketingSink<String>(((FileEndPoint)outputFile.get()).file_path())).setParallelism(1).name("File sink").uid("file-sink");
-            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build());
+            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(outputFile),new SimpleStringEncoder<String>("UTF-8")).build());
             //strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
 
 
