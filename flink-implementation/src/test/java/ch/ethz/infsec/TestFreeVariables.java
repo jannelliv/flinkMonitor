@@ -271,51 +271,7 @@ public class TestFreeVariables {
         testHarnessEv.open();
     }
 
-    @Test
-    public void testUntil() throws Exception{
-        //TODO: check more extensively that cleanDatastructures() does not mess up the functionality of the algorithm
-        //Persisting issue: datastructures should be cleared at the end to avoid memory leaks
-        //Persisting issues: I don't "start from startEvalTimepoint"
-        //formula being tested: publish(163) UNTIL [0,7d] approve(163)
-        testHarnessPred1Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
-        //testHarnessPred1Until.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
-        testHarnessPred1Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
-        testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
-        //testHarnessPred1Until.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
-        testHarnessPred1Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
-        //////////////////////////////////////////////////////////////////////////////////////////////////
-        //testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307532861,0L, "152"), 1L);
-        testHarnessPred2Until.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
-        testHarnessPred2Until.processElement(Fact.makeTP("approve", 1307955600,1L, "163"), 1L);
-        testHarnessPred2Until.processElement(Fact.makeTP(null, 1307955600,1L, "163"), 1L);
-        //testHarnessPred2Until.processElement(Fact.makeTP("approve", 1308477599,2L, "187"), 1L);
-        testHarnessPred2Until.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
-        List<PipelineEvent> pes1 = testHarnessPred1Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        List<PipelineEvent> pes2 = testHarnessPred2Until.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        int longer = Math.max(pes1.size(), pes2.size());
-        int shorter = Math.min(pes1.size(), pes2.size());
-        for(int i = 0; i < longer; i++){
-            if(i < shorter){
-                testHarnessUntil.processElement1(pes1.get(i), 1L);
-                testHarnessUntil.processElement2(pes2.get(i), 1L);
-            }else if(pes1.size()==longer){
-                testHarnessUntil.processElement1(pes1.get(i), 1L);
-            }else{
-                testHarnessUntil.processElement2(pes2.get(i), 1L);
-            }
-        }
-        List<PipelineEvent> processedUntil = testHarnessUntil.getOutput().stream().map(x -> (PipelineEvent)((StreamRecord) x).getValue()).collect(Collectors.toList());
-        System.out.println("testUntil() output:  " + processedUntil.toString());
-        ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
-                PipelineEvent.terminator(1307532861, 0L),
-                PipelineEvent.event(1307955600, 1L, Assignment.one(Optional.of(163))),
-                PipelineEvent.terminator(1307955600, 1L),
-                //new PipelineEvent(1308477599, 2L, false, Assignment.one(Optional.of(163))),
-                //We will not consider the above event as we are only contemplating infinite traces.
-                PipelineEvent.terminator(1308477599, 2L)
-        ));
-        assertArrayEquals( expectedResults.toArray(), processedUntil.toArray());
-    }
+    
     @Test
     public void testRelTrueFalse() throws Exception{
         testHarnessRel.processElement(Fact.makeTP(null, 1L, 0L, "163"), 1L);
