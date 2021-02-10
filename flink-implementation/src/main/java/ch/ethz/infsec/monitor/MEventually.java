@@ -14,12 +14,12 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
     ch.ethz.infsec.policy.Interval interval;
     public Mformula formula;
 
-    HashMap<Long, HashSet<Assignment>> buckets; //maybe you can make these assignments instead of PipelineEvents!
+    HashMap<Long, HashSet<Assignment>> buckets;
     HashMap<Long, Long> timepointToTimestamp;
     HashMap<Long, Long> terminators;
     Long largestInOrderTP;
     Long largestInOrderTS;
-    HashMap<Long, Assignment> outputted;
+    HashMap<Long, HashSet<Assignment>> outputted;
 
     public MEventually(ch.ethz.infsec.policy.Interval interval, Mformula mform) {
         this.formula = mform;
@@ -72,9 +72,14 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             for(Long term : terminators.keySet()){
                 if(mem(event.getTimestamp() - terminators.get(term) , interval)){
                     out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
-                    outputted.put(term, event.get());
-                    out.collect(PipelineEvent.terminator(terminators.get(term), term));
-                    toRemove.add(term);
+                    if(outputted.containsKey(term)){
+                        outputted.get(term).add(event.get());
+                    }else{
+                        outputted.put(term, new HashSet<>());
+                        outputted.get(term).add(event.get());
+                    }
+                    //out.collect(PipelineEvent.terminator(terminators.get(term), term));
+                    //toRemove.add(term);
                 }
             }
             for(Long tp : toRemove){
@@ -95,10 +100,15 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                 if(mem(timepointToTimestamp.get(tp) - terminators.get(term), interval)){
                     HashSet<Assignment> satisfEvents = buckets.get(tp);
                     for(Assignment pe : satisfEvents){
-                        if(!outputted.containsKey(term) || outputted.containsKey(term) && !(outputted.get(term).equals(pe))){
+                        if(!outputted.containsKey(term) || outputted.containsKey(term) && !(outputted.get(term).contains(pe))){
                             //== returns true if two objects point to the same thing in the memory heap!
                             collector.collect(PipelineEvent.event(terminators.get(term), term, pe));
-                            outputted.put(term, pe);
+                            if(outputted.containsKey(term)){
+                                outputted.get(term).add(pe);
+                            }else{
+                                outputted.put(term, new HashSet<>());
+                                outputted.get(term).add(pe);
+                            }
                         }
                     }
                     //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet

@@ -4,7 +4,6 @@ import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.nio.channels.Pipe;
 import java.util.*;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
@@ -14,12 +13,12 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     ch.ethz.infsec.policy.Interval interval;
     public Mformula formula;
 
-    HashMap<Long, HashSet<Assignment>> buckets; //maybe you can make these assignments instead of PipelineEvents!
+    HashMap<Long, HashSet<Assignment>> buckets; //indexed by timepoints, stores assignments that will be analyzed by future timepoints
     HashMap<Long, Long> timepointToTimestamp;
     HashMap<Long, Long> terminators;
     Long largestInOrderTP;
     Long largestInOrderTS;
-    HashMap<Long, Assignment> outputted;
+    HashMap<Long, HashSet<Assignment>> outputted;
 
     public MOnce(ch.ethz.infsec.policy.Interval interval, Mformula mform) {
         this.formula = mform;
@@ -69,12 +68,18 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         if(event.isPresent()){
 
             HashSet<Long> toRemove = new HashSet<>();
+
             for(Long term : terminators.keySet()){
                 if(mem(terminators.get(term) - event.getTimestamp(), interval)){
                     out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
-                    outputted.put(term, event.get());
-                    out.collect(PipelineEvent.terminator(terminators.get(term), term));
-                    toRemove.add(term);
+                    if(outputted.containsKey(term)){
+                        outputted.get(term).add(event.get());
+                    }else{
+                        outputted.put(term, new HashSet<>());
+                        outputted.get(term).add(event.get());
+                    }
+                    //out.collect(PipelineEvent.terminator(terminators.get(term), term));
+                    //toRemove.add(term);
                 }
             }
             for(Long tp : toRemove){
@@ -94,10 +99,15 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 if(mem(terminators.get(term) - timepointToTimestamp.get(tp), interval)){
                     HashSet<Assignment> satisfEvents = buckets.get(tp);
                     for(Assignment pe : satisfEvents){
-                        if(!outputted.containsKey(term) || outputted.containsKey(term) && !(outputted.get(term).equals(pe))){
+                        if(!outputted.containsKey(term) || outputted.containsKey(term) && !(outputted.get(term).contains(pe))){
                             //== returns true if two objects point to the same thing in the memory heap!
                             collector.collect(PipelineEvent.event(terminators.get(term), term, pe));
-                            outputted.put(term, pe);
+                            if(outputted.containsKey(term)){
+                                outputted.get(term).add(pe);
+                            }else{
+                                outputted.put(term, new HashSet<>());
+                                outputted.get(term).add(pe);
+                            }
                         }
                     }
                     //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
