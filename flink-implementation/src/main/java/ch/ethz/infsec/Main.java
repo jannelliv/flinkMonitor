@@ -91,7 +91,7 @@ public class Main {
             //e.setMaxParallelism(1);
             //e.setParallelism(1);
 
-            e.setStateBackend(new RocksDBStateBackend(checkpointUri));
+            //e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
             RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
             e.setRestartStrategy(restartStrategy);
