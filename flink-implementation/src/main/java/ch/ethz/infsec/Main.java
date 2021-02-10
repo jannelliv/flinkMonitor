@@ -4,10 +4,6 @@ import ch.ethz.infsec.formula.visitor.Init0;
 import ch.ethz.infsec.monitor.*;
 import ch.ethz.infsec.monitor.visitor.MformulaVisitorFlink;
 
-///import ch.ethz.infsec.tools.EndPoint;
-//import ch.ethz.infsec.tools.FileEndPoint;
-//import ch.ethz.infsec.tools.ParallelSocketTextStreamFunction;
-//import ch.ethz.infsec.tools.SocketEndpoint;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.util.*;
 
@@ -32,7 +28,6 @@ import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import scala.Option;
 import scala.collection.Iterator;
-import scala.collection.Seq;
 import scala.collection.Set;
 import scala.io.Codec;
 import scala.io.Source;
