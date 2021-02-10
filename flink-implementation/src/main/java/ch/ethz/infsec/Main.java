@@ -3,10 +3,11 @@ package ch.ethz.infsec;
 import ch.ethz.infsec.formula.visitor.Init0;
 import ch.ethz.infsec.monitor.*;
 import ch.ethz.infsec.monitor.visitor.MformulaVisitorFlink;
-import ch.ethz.infsec.tools.EndPoint;
-import ch.ethz.infsec.tools.FileEndPoint;
-import ch.ethz.infsec.tools.ParallelSocketTextStreamFunction;
-import ch.ethz.infsec.tools.SocketEndpoint;
+
+///import ch.ethz.infsec.tools.EndPoint;
+//import ch.ethz.infsec.tools.FileEndPoint;
+//import ch.ethz.infsec.tools.ParallelSocketTextStreamFunction;
+//import ch.ethz.infsec.tools.SocketEndpoint;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.util.*;
 
@@ -15,11 +16,9 @@ import ch.ethz.infsec.policy.GenFormula;
 import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
-import org.apache.flink.api.common.functions.FilterFunction;
-import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.api.common.serialization.SimpleStringEncoder;
 import org.apache.flink.api.java.utils.ParameterTool;
-import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
+//import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.CheckpointingMode;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
@@ -28,7 +27,7 @@ import org.apache.flink.streaming.api.functions.ProcessFunction;
 import org.apache.flink.streaming.api.functions.sink.SinkFunction;
 import org.apache.flink.streaming.api.functions.sink.filesystem.StreamingFileSink;
 import org.apache.flink.api.common.restartstrategy.RestartStrategies;
-import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink;
+//import org.apache.flink.streaming.connectors.fs.bucketing.BucketingSink;
 import org.apache.flink.util.Collector;
 import org.apache.flink.util.OutputTag;
 import scala.Option;
@@ -63,10 +62,8 @@ public class Main {
 
         ParameterTool p = ParameterTool.fromArgs(args);
 
-        Option<EndPoint> inputSource = StreamMonitoring.parseEndpointArg(p.get("in"));
-        Option<EndPoint> outputFile = StreamMonitoring.parseEndpointArg(p.get("out"));
-        //for the above two, I had to add a maven dependency to flink-monitor
-        // TODO: avoid maven dependency and implement this separately
+        Option<EndPoint> inputSource = MonitoringAids.parseEndpointArg(p.get("in"));
+        Option<EndPoint> outputFile = MonitoringAids.parseEndpointArg(p.get("out"));
         String formulaFile = p.get("formula");
 
         numberProcessors = p.getInt("processors");
@@ -104,7 +101,7 @@ public class Main {
                     .uid("socket-source");
             //DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
 
-            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new Crv2014CsvParser()))
+            DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
                                          .setParallelism(1)
                                          .setMaxParallelism(1)
                                         .name("parser")
@@ -148,17 +145,12 @@ public class Main {
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             //gstrOutput.addSink(new BucketingSink<String>(((FileEndPoint)outputFile.get()).file_path())).setParallelism(1).name("File sink").uid("file-sink");
             strOutput.addSink(StreamingFileSink.forRowFormat(new Path(((FileEndPoint)outputFile.get()).file_path()),new SimpleStringEncoder<String>("UTF-8")).build());
+            //strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
 
 
             e.execute(jobName);
             writer.write("done."+ "\n");
             writer.close();
-            //Currently, PipelineEvent is printed as "@ <timestamp> : <timepoint>" when it is a terminator and as
-            // "@ <timestamp> : <timepoint> (<val>, <val>, ..., <val>)" when it's not.
-
-            //strOutput.writeAsText(((FileEndPoint)outputFile.get()).file_path(), org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
-
-            
         }
 
     }

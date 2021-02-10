@@ -1,13 +1,11 @@
 package ch.ethz.infsec;
 
-import ch.ethz.infsec.tools.FileEndPoint;
 import org.apache.flink.api.common.serialization.SimpleStringEncoder;
 import ch.ethz.infsec.formula.JavaGenFormula;
 import ch.ethz.infsec.formula.visitor.Init0;
 import ch.ethz.infsec.monitor.*;
 import ch.ethz.infsec.monitor.visitor.MformulaVisitorFlink;
 import ch.ethz.infsec.policy.*;
-import ch.ethz.infsec.tools.SocketEndpoint;
 import ch.ethz.infsec.trace.parser.Crv2014CsvParser;
 import ch.ethz.infsec.util.Assignment;
 import ch.ethz.infsec.util.ParsingFunction;
