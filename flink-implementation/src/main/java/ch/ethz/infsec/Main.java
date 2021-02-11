@@ -48,7 +48,7 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
-    public static Integer checkpointInterval = 120000; //was: 500
+    public static Integer checkpointInterval = 120000000; //was: 500
     public static String checkpointUri = "file:///home/valeriaj/checkpoints";
     public static Integer restarts = 0;
 
@@ -84,7 +84,6 @@ public class Main {
             RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
             e.setRestartStrategy(restartStrategy);
 
-//(inputSourceString[0], inputPortNumber)
             DataStream<String> text = e.socketTextStream(inputSourceString[0], inputPortNumber, "\n")
                    .setParallelism(1)
                     .setMaxParallelism(1)
