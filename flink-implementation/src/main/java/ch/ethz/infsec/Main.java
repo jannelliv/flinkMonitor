@@ -53,7 +53,7 @@ public class Main {
 
     public static Integer checkpointInterval = 1200000000; //was: 500, now 20 minutes
     public static String checkpointUri = "file:///home/valeriaj/checkpoints";
-    public static Integer restarts = 0;
+    public static Integer restarts = 1;
 
     public static int numberProcessors = 1;
 
@@ -84,8 +84,8 @@ public class Main {
 
             //e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
-            //RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.fixedDelayRestart(restarts, Time.of(1, TimeUnit.SECONDS));
-            RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
+            RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.fixedDelayRestart(restarts, Time.of(1, TimeUnit.SECONDS));
+            //RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
             e.setRestartStrategy(restartStrategy);
 
             DataStream<String> text = e.socketTextStream(inputSourceString[0], inputPortNumber, "\n")
