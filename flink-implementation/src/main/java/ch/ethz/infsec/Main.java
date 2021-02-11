@@ -135,7 +135,7 @@ public class Main {
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
             //gstrOutput.addSink(new BucketingSink<String>(((FileEndPoint)outputFile.get()).file_path())).setParallelism(1).name("File sink").uid("file-sink");
-            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(outputFile),new SimpleStringEncoder<String>("UTF-8")).build());
+            strOutput.addSink(StreamingFileSink.forRowFormat(new Path(outputFile),new SimpleStringEncoder<String>("UTF-8")).build()).setParallelism(1);
             //strOutput.writeAsText(outputFile, org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
 
 
