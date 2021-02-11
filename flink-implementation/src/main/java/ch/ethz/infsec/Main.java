@@ -97,7 +97,7 @@ public class Main {
                                          .setMaxParallelism(1)
                                         .name("parser")
                                         .uid("parser");
-            BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true));
+            //BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true));
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
@@ -140,8 +140,8 @@ public class Main {
 
 
             e.execute(jobName);
-            writer.write("done."+ "\n");
-            writer.close();
+            //writer.write("done."+ "\n");
+            //writer.close();
         }
 
     }
