@@ -13,6 +13,7 @@ import ch.ethz.infsec.policy.Policy;
 import ch.ethz.infsec.policy.*;
 import ch.ethz.infsec.trace.parser.MonpolyTraceParser;
 import org.apache.flink.api.common.serialization.SimpleStringEncoder;
+import org.apache.flink.api.common.time.Time;
 import org.apache.flink.api.java.utils.ParameterTool;
 //import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.core.fs.Path;
@@ -39,6 +40,8 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
+
 import static ch.ethz.infsec.formula.JavaGenFormula.convert;
 
 
@@ -50,7 +53,7 @@ public class Main {
 
     public static Integer checkpointInterval = 1200000000; //was: 500, now 20 minutes
     public static String checkpointUri = "file:///home/valeriaj/checkpoints";
-    public static Integer restarts = 0;
+    public static Integer restarts = 1;
 
     public static int numberProcessors = 1;
 
@@ -81,7 +84,8 @@ public class Main {
 
             //e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
-            RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
+            RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.fixedDelayRestart(restarts, Time.of(1, TimeUnit.SECONDS));
+            //RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
             e.setRestartStrategy(restartStrategy);
 
             DataStream<String> text = e.socketTextStream(inputSourceString[0], inputPortNumber, "\n")
