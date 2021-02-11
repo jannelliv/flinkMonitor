@@ -85,12 +85,12 @@ public class Main {
             e.setRestartStrategy(restartStrategy);
 
 //(inputSourceString[0], inputPortNumber)
-            DataStream<String> text = e.addSource(new SocketTextStreamFunction(inputSourceString[0], inputPortNumber, "\n", 0))
-                    .setParallelism(1)
+            DataStream<String> text = e.socketTextStream(inputSourceString[0], inputPortNumber, "\n")
+                   .setParallelism(1)
                     .setMaxParallelism(1)
                     .name("Socket source")
                     .uid("socket-source");
-            //DataStream<String> text = e.socketTextStream(((SocketEndpoint) inputSource.get()).socket_addr(), ((SocketEndpoint) inputSource.get()).port());
+            //DataStream<String> text = e.socketTextStream(inputSourceString[0], inputPortNumber, "\n");
 
             DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
                                          .setParallelism(1)
