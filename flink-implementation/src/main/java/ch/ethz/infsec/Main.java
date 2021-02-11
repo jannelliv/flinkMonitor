@@ -48,7 +48,7 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
-    public static Integer checkpointInterval = 500;
+    public static Integer checkpointInterval = 120000; //was: 500
     public static String checkpointUri = "file:///home/valeriaj/checkpoints";
     public static Integer restarts = 0;
 
