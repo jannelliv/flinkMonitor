@@ -67,8 +67,6 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
         if(event.isPresent()){
 
-            HashSet<Long> toRemove = new HashSet<>();
-
             for(Long term : terminators.keySet()){
                 if(mem(terminators.get(term) - event.getTimestamp(), interval)){
                     out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
@@ -78,12 +76,7 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                         outputted.put(term, new HashSet<>());
                         outputted.get(term).add(event.get());
                     }
-                    //out.collect(PipelineEvent.terminator(terminators.get(term), term));
-                    //toRemove.add(term);
                 }
-            }
-            for(Long tp : toRemove){
-                terminators.remove(tp);
             }
         }else{
             //TERMINATOR CASE
@@ -93,7 +86,9 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
     public void handleBuffered(Collector collector){
         HashSet<Long> toRemove = new HashSet<>();
-        HashSet<Long> toRemoveTerm = new HashSet<>();
+        HashSet<Long> toRemoveOutputted = new HashSet<>();
+        HashSet<Long> toRemoveTPTS = new HashSet<>();
+        HashSet<Long> toRemoveBuckets = new HashSet<>();
         for(Long term : terminators.keySet()){
             for(Long tp : buckets.keySet()){
                 if(mem(terminators.get(term) - timepointToTimestamp.get(tp), interval)){
@@ -122,6 +117,9 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     && terminators.get(term).intValue() - (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
                 toRemove.add(term);
+                toRemoveOutputted.add(term);
+                //toRemoveBuckets.add(term);
+                //toRemoveTPTS.add(term);
             }
 
         }
@@ -129,8 +127,24 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             terminators.remove(tp);
         }
 
-        for(Long elem : toRemoveTerm){
-            terminators.remove(elem);
+
+        for(Long tp : toRemoveOutputted){
+            outputted.remove(tp);
+        }
+
+        for(Long buc : buckets.keySet()){
+            if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
+                toRemoveBuckets.add(buc);
+                toRemoveTPTS.add(buc);
+            }
+        }
+
+        for(Long tp : toRemoveBuckets){
+            buckets.remove(tp);
+        }
+
+        for(Long tp : toRemoveTPTS){
+            timepointToTimestamp.remove(tp);
         }
     }
 

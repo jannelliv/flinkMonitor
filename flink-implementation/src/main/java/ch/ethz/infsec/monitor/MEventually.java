@@ -68,7 +68,6 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
 
         if(event.isPresent()){
 
-            HashSet<Long> toRemove = new HashSet<>();
             for(Long term : terminators.keySet()){
                 if(mem(event.getTimestamp() - terminators.get(term) , interval)){
                     out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
@@ -78,12 +77,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                         outputted.put(term, new HashSet<>());
                         outputted.get(term).add(event.get());
                     }
-                    //out.collect(PipelineEvent.terminator(terminators.get(term), term));
-                    //toRemove.add(term);
                 }
-            }
-            for(Long tp : toRemove){
-                terminators.remove(tp);
             }
         }else{
             //TERMINATOR CASE
@@ -93,7 +87,10 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
 
     public void handleBuffered(Collector collector){
         HashSet<Long> toRemove = new HashSet<>();
-        HashSet<Long> toRemoveTerm = new HashSet<>();
+        HashSet<Long> toRemoveOutputted = new HashSet<>();
+        HashSet<Long> toRemoveTPTS = new HashSet<>();
+        HashSet<Long> toRemoveBuckets = new HashSet<>();
+
         for(Long term : terminators.keySet()){
             HashSet<Long> toRemove1 = new HashSet<>();
             for(Long tp : buckets.keySet()){
@@ -123,6 +120,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                     && terminators.get(term).intValue() + (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
                 toRemove.add(term);
+                toRemoveOutputted.add(term);
             }
 
         }
@@ -130,8 +128,23 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             terminators.remove(tp);
         }
 
-        for(Long elem : toRemoveTerm){
-            terminators.remove(elem);
+        for(Long tp : toRemoveOutputted){
+            outputted.remove(tp);
+        }
+
+        for(Long buc : buckets.keySet()){
+            if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
+                toRemoveBuckets.add(buc);
+                toRemoveTPTS.add(buc);
+            }
+        }
+
+        for(Long tp : toRemoveBuckets){
+            buckets.remove(tp);
+        }
+
+        for(Long tp : toRemoveTPTS){
+            timepointToTimestamp.remove(tp);
         }
     }
 
