@@ -55,7 +55,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             this.mbuf2.fst.get(fact.getTimepoint()).add(fact.get());
             if(mbuf2.snd.containsKey(fact.getTimepoint()) &&  !this.mbuf2.snd.get(fact.getTimepoint()).isEmpty()){ //maybe it only contains a terminator :(
                 for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
-                    Optional<Assignment> joinResult = join1(fact.get(), rhs);
+                    Optional<Assignment> joinResult = join1(fact.get(), rhs, 0);
                     if(joinResult.isPresent()){
                         PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
@@ -66,7 +66,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             this.mbuf2.fst.get(fact.getTimepoint()).add(fact.get());
             if(mbuf2.snd.containsKey(fact.getTimepoint()) &&  !this.mbuf2.snd.get(fact.getTimepoint()).isEmpty()){
                 for(Assignment rhs : this.mbuf2.snd.get(fact.getTimepoint())){
-                    Optional<Assignment> joinResult = join1(fact.get(), rhs);
+                    Optional<Assignment> joinResult = join1(fact.get(), rhs, 0);
                     if(joinResult.isPresent()){
                         PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
@@ -96,7 +96,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
 
             if(mbuf2.fst.containsKey(fact.getTimepoint()) && !this.mbuf2.fst.get(fact.getTimepoint()).isEmpty()){ //maybe it only contains a terminator :(
                 for(Assignment lhs : this.mbuf2.fst.get(fact.getTimepoint())){
-                    Optional<Assignment> joinResult = join1(fact.get(), lhs);
+                    Optional<Assignment> joinResult = join1(fact.get(), lhs, 0);
                     if(joinResult.isPresent()){
                         PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
@@ -108,7 +108,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             this.mbuf2.snd.get(fact.getTimepoint()).add(fact.get());
             if(mbuf2.fst.containsKey(fact.getTimepoint()) && !this.mbuf2.fst.get(fact.getTimepoint()).isEmpty()){
                 for(Assignment rhs : this.mbuf2.fst.get(fact.getTimepoint())){
-                    Optional<Assignment> joinResult = join1(fact.get(), rhs);
+                    Optional<Assignment> joinResult = join1(fact.get(), rhs, 0);
                     if(joinResult.isPresent()){
                         PipelineEvent result = PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), joinResult.get());
                         collector.collect(result);
@@ -118,9 +118,9 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
         }
     }
 
-    public static Optional<Assignment> join1(Assignment aOriginal, Assignment bOriginal){
-        Assignment a = Assignment.someAssignment(aOriginal);
-        Assignment b = Assignment.someAssignment(bOriginal);
+    public static Optional<Assignment> join1(Assignment a, Assignment b, int i){
+        //Assignment a = Assignment.someAssignment(aOriginal);
+        //Assignment b = Assignment.someAssignment(bOriginal);
         if(a.size() == 0 && b.size() == 0) {
             Assignment emptyList = new Assignment();
             Optional<Assignment> result = Optional.of(emptyList);
@@ -129,62 +129,72 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             Optional<Assignment> result = Optional.empty();
             return result;
         }else {
-            Optional<Object> x = a.remove(0);
-            Optional<Object> y = b.remove(0);
-            Optional<Assignment> subResult = join1(a, b);
-            if(!x.isPresent() && !y.isPresent()) {
-                if(!subResult.isPresent()) {
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }else {
-                    Assignment consList = new Assignment();
-                    consList.add(Optional.empty());
-                    consList.addAll(subResult.get());
-                    //Problem: get() can only return a value if the wrapped object is not null;
-                    //otherwise, it throws a no such element exception
-                    Optional<Assignment> result = Optional.of(consList);
-                    return result;
-                }
-            }else if(x.isPresent() && !y.isPresent()) {
-                if(!subResult.isPresent()) {
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }else {
-                    Assignment consList = new Assignment();
-                    consList.add(x);
-                    consList.addAll(subResult.get());
-                    Optional<Assignment> result = Optional.of(consList);
-                    return result;
-                }
-            }else if(!x.isPresent() && y.isPresent()) {
-                if(!subResult.isPresent()) {
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }else {
-                    Assignment consList = new Assignment();
-                    consList.add(y);
-                    consList.addAll(subResult.get());
-                    Optional<Assignment> result = Optional.of(consList);
-                    return result;
-                }
-            }else if(x.isPresent() && y.isPresent() || x.get().equals(y.get())) {
-                //is it ok to do things with toString here above?
-                if(!subResult.isPresent()) {
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }else {
-                    if(x.get().equals(y.get())) {
+            if( i < a.size() && i < b.size()){
+                Optional<Object> x = a.get(i);
+                Optional<Object> y = b.get(i);
+                Optional<Assignment> subResult = join1(a, b, i+1);
+                if(!x.isPresent() && !y.isPresent()) {
+                    if(!subResult.isPresent()) {
+                        Optional<Assignment> result = Optional.empty();
+                        return result;
+                    }else {
+                        Assignment consList = new Assignment();
+                        consList.add(Optional.empty());
+                        consList.addAll(subResult.get());
+                        //Problem: get() can only return a value if the wrapped object is not null;
+                        //otherwise, it throws a no such element exception
+                        Optional<Assignment> result = Optional.of(consList);
+                        return result;
+                    }
+                }else if(x.isPresent() && !y.isPresent()) {
+                    if(!subResult.isPresent()) {
+                        Optional<Assignment> result = Optional.empty();
+                        return result;
+                    }else {
                         Assignment consList = new Assignment();
                         consList.add(x);
                         consList.addAll(subResult.get());
                         Optional<Assignment> result = Optional.of(consList);
                         return result;
                     }
+                }else if(!x.isPresent() && y.isPresent()) {
+                    if(!subResult.isPresent()) {
+                        Optional<Assignment> result = Optional.empty();
+                        return result;
+                    }else {
+                        Assignment consList = new Assignment();
+                        consList.add(y);
+                        consList.addAll(subResult.get());
+                        Optional<Assignment> result = Optional.of(consList);
+                        return result;
+                    }
+                }else if(x.isPresent() && y.isPresent() || x.get().equals(y.get())) {
+                    //is it ok to do things with toString here above?
+                    if(!subResult.isPresent()) {
+                        Optional<Assignment> result = Optional.empty();
+                        return result;
+                    }else {
+                        if(x.get().equals(y.get())) {
+                            Assignment consList = new Assignment();
+                            consList.add(x);
+                            consList.addAll(subResult.get());
+                            Optional<Assignment> result = Optional.of(consList);
+                            return result;
+                        }
+                    }
+                }else {
+                    Optional<Assignment> result = Optional.empty();
+                    return result;
                 }
-            }else {
-                Optional<Assignment> result = Optional.empty();
-                return result;
+            }else{
+                if(a.size() != b.size()){
+                    Optional<Assignment> result = Optional.empty();
+                    return result;
+                }else{
+                    return Optional.of(new Assignment()); //not 100% sure about this
+                }
             }
+
         }
 
         Optional<Assignment> result = Optional.empty();
