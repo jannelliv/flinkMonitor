@@ -100,15 +100,7 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
                 }
             }
-            if(terminators.containsKey(termtp) && terminators.get(termtp).intValue() - interval.lower() <= largestInOrderTS.intValue() &&
-                    interval.upper().isDefined()
-                    && terminators.get(termtp).intValue() - (int)interval.upper().get() <= largestInOrderTS.intValue()){
-                out.collect(PipelineEvent.terminator(terminators.get(termtp), termtp));
-                terminators.remove(termtp);
-                outputted.remove(termtp);
-                //toRemove.add(term);
-                //toRemoveOutputted.add(term);
-            }
+
             handleBuffered(out);
 
         }
