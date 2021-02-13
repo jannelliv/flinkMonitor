@@ -78,15 +78,15 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     }
                 }
             }
+
+            handleBufferedBasic(out);
         }else{
-            //TERMINATOR CASE
             Long termtp = event.getTimepoint();
             for(Long tp : buckets.keySet()){
                 if(mem(terminators.get(termtp) - timepointToTimestamp.get(tp), interval)){
                     HashSet<Assignment> satisfEvents = buckets.get(tp);
                     for(Assignment pe : satisfEvents){
                         if(!outputted.containsKey(termtp) || outputted.containsKey(termtp) && !(outputted.get(termtp).contains(pe))){
-                            //== returns true if two objects point to the same thing in the memory heap!
                             out.collect(PipelineEvent.event(terminators.get(termtp), termtp, pe));
                             if(outputted.containsKey(termtp)){
                                 outputted.get(termtp).add(pe);
@@ -100,7 +100,6 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
                 }
             }
-
             handleBuffered(out);
 
         }
@@ -124,9 +123,6 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             }
 
         }
-
-
-
         for(Long tp : toRemove){
             terminators.remove(tp);
         }
@@ -135,6 +131,12 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         for(Long tp : toRemoveOutputted){
             outputted.remove(tp);
         }
+
+    }
+
+    public void handleBufferedBasic(Collector collector){
+        HashSet<Long> toRemoveTPTS = new HashSet<>();
+        HashSet<Long> toRemoveBuckets = new HashSet<>();
 
         for(Long buc : buckets.keySet()){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
@@ -151,6 +153,7 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             timepointToTimestamp.remove(tp);
         }
     }
+
 
     public static boolean mem(Long n, Interval I){
         //not sure of I should use the method isDefined or isEmpty below

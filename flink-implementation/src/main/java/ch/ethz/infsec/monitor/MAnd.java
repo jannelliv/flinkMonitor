@@ -98,8 +98,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
     }
 
     public static Optional<Assignment> join1(Assignment a, Assignment b, int i){
-        //Assignment a = Assignment.someAssignment(aOriginal);
-        //Assignment b = Assignment.someAssignment(bOriginal);
         if(a.size() == 0 && b.size() == 0) {
             return Optional.of(new Assignment());
         }else if(a.size() == 0 || b.size() == 0){
@@ -157,7 +155,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
                 if(a.size() != b.size()){
                     return Optional.empty();
                 }else{
-                    return Optional.of(new Assignment()); //not 100% sure about this
+                    return Optional.of(new Assignment());
                 }
             }
 

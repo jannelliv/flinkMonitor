@@ -79,6 +79,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                     }
                 }
             }
+            handleBufferedBasic(out);
         }else{
             //TERMINATOR CASE
             Long termtp = event.getTimepoint();
@@ -87,7 +88,6 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                     HashSet<Assignment> satisfEvents = buckets.get(tp);
                     for(Assignment pe : satisfEvents){
                         if(!outputted.containsKey(termtp) || outputted.containsKey(termtp) && !(outputted.get(termtp).contains(pe))){
-                            //== returns true if two objects point to the same thing in the memory heap!
                             out.collect(PipelineEvent.event(terminators.get(termtp), termtp, pe));
                             if(outputted.containsKey(termtp)){
                                 outputted.get(termtp).add(pe);
@@ -130,6 +130,26 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         for(Long tp : toRemoveOutputted){
             outputted.remove(tp);
         }
+
+        for(Long buc : buckets.keySet()){
+            if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
+                toRemoveBuckets.add(buc);
+                toRemoveTPTS.add(buc);
+            }
+        }
+
+        for(Long tp : toRemoveBuckets){
+            buckets.remove(tp);
+        }
+
+        for(Long tp : toRemoveTPTS){
+            timepointToTimestamp.remove(tp);
+        }
+    }
+
+    public void handleBufferedBasic(Collector collector){
+        HashSet<Long> toRemoveTPTS = new HashSet<>();
+        HashSet<Long> toRemoveBuckets = new HashSet<>();
 
         for(Long buc : buckets.keySet()){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
