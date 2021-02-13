@@ -131,20 +131,6 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             outputted.remove(tp);
         }
 
-        for(Long buc : buckets.keySet()){
-            if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                toRemoveBuckets.add(buc);
-                toRemoveTPTS.add(buc);
-            }
-        }
-
-        for(Long tp : toRemoveBuckets){
-            buckets.remove(tp);
-        }
-
-        for(Long tp : toRemoveTPTS){
-            timepointToTimestamp.remove(tp);
-        }
     }
 
     public void handleBufferedBasic(Collector collector){
