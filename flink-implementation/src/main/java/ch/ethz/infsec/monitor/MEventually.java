@@ -25,6 +25,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         this.formula = mform;
         this.interval = interval;
         outputted = new HashMap<>();
+
         this.buckets = new HashMap<>();
         this.timepointToTimestamp = new HashMap<>();
         this.terminators = new HashMap<>();
@@ -78,32 +79,10 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                     }
                 }
             }
-            //handleBufferedBasic(out);
         }else{
             //TERMINATOR CASE
-            Long termtp = event.getTimepoint();
-            for(Long tp : buckets.keySet()){
-                if(mem(timepointToTimestamp.get(tp) - terminators.get(termtp), interval)){
-                    HashSet<Assignment> satisfEvents = buckets.get(tp);
-                    for(Assignment pe : satisfEvents){
-                        if(!outputted.containsKey(termtp) || outputted.containsKey(termtp) && !(outputted.get(termtp).contains(pe))){
-                            out.collect(PipelineEvent.event(terminators.get(termtp), termtp, pe));
-                            if(outputted.containsKey(termtp)){
-                                outputted.get(termtp).add(pe);
-                            }else{
-                                outputted.put(termtp, new HashSet<>());
-                                outputted.get(termtp).add(pe);
-                            }
-                        }
-                    }
-                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
-
-                }
-            }
-            //handleBuffered(out);
         }
         handleBuffered(out);
-
     }
 
     public void handleBuffered(Collector collector){
@@ -112,15 +91,34 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
 
-
-        //Set<Long> termsCopy = new HashSet<>(terminators.keySet());
         for(Long term : terminators.keySet()){
+            HashSet<Long> toRemove1 = new HashSet<>();
+            for(Long tp : buckets.keySet()){
+                if(mem(timepointToTimestamp.get(tp) - terminators.get(term), interval)){
+                    HashSet<Assignment> satisfEvents = buckets.get(tp);
+                    for(Assignment pe : satisfEvents){
+                        if(!outputted.containsKey(term) || outputted.containsKey(term) && !(outputted.get(term).contains(pe))){
+                            //== returns true if two objects point to the same thing in the memory heap!
+                            collector.collect(PipelineEvent.event(terminators.get(term), term, pe));
+                            if(outputted.containsKey(term)){
+                                outputted.get(term).add(pe);
+                            }else{
+                                outputted.put(term, new HashSet<>());
+                                outputted.get(term).add(pe);
+                            }
+                        }
+                    }
+                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
+
+                }
+            }
+
+
+            //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
             if(terminators.containsKey(term) && terminators.get(term).intValue() + interval.lower() <= largestInOrderTS.intValue() &&
                     interval.upper().isDefined()
                     && terminators.get(term).intValue() + (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
-                //terminators.remove(term);
-                //outputted.remove(term);
                 toRemove.add(term);
                 toRemoveOutputted.add(term);
             }
@@ -134,11 +132,8 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             outputted.remove(tp);
         }
 
-        //Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
         for(Long buc : buckets.keySet()){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                //timepointToTimestamp.remove(buc);
-                //buckets.remove(buc);
                 toRemoveBuckets.add(buc);
                 toRemoveTPTS.add(buc);
             }
@@ -151,30 +146,6 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
         }
-
-    }
-
-    public void handleBufferedBasic(Collector collector){
-        HashSet<Long> toRemoveTPTS = new HashSet<>();
-        HashSet<Long> toRemoveBuckets = new HashSet<>();
-
-        Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
-        for(Long buc : bucketsCopy){
-            if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                timepointToTimestamp.remove(buc);
-                buckets.remove(buc);
-                //toRemoveBuckets.add(buc);
-                //toRemoveTPTS.add(buc);
-            }
-        }
-
-        /*for(Long tp : toRemoveBuckets){
-            buckets.remove(tp);
-        }
-
-        for(Long tp : toRemoveTPTS){
-            timepointToTimestamp.remove(tp);
-        }*/
     }
 
     public static boolean mem(Long n, Interval I){
@@ -187,4 +158,3 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
     }
 
 }
-
