@@ -81,7 +81,7 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 }
             }
 
-            handleBufferedBasic(out);
+            //handleBufferedBasic(out);
         }else{
             Long termtp = event.getTimepoint();
             for(Long tp : buckets.keySet()){
@@ -101,9 +101,10 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
                 }
             }
-            handleBuffered(out);
+            //handleBuffered(out);
 
         }
+        handleBuffered(out);
 
     }
 

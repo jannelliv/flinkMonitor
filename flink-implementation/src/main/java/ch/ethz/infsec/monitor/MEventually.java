@@ -79,7 +79,7 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                     }
                 }
             }
-            handleBufferedBasic(out);
+            //handleBufferedBasic(out);
         }else{
             //TERMINATOR CASE
             Long termtp = event.getTimepoint();
@@ -101,8 +101,9 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
 
                 }
             }
-            handleBuffered(out);
+            //handleBuffered(out);
         }
+        handleBuffered(out);
 
     }
 
