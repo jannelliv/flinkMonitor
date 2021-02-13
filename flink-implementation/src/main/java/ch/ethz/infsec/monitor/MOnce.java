@@ -72,12 +72,12 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             for(Long term : terminators.keySet()){
                 if(mem(terminators.get(term) - event.getTimestamp(), interval)){
                     out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
-                    if(outputted.containsKey(term)){
+                    /*if(outputted.containsKey(term)){
                         outputted.get(term).add(event.get());
                     }else{
                         outputted.put(term, new HashSet<>());
                         outputted.get(term).add(event.get());
-                    }
+                    }*/
                 }
             }
 
@@ -88,15 +88,15 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 if(mem(terminators.get(termtp) - timepointToTimestamp.get(tp), interval)){
                     HashSet<Assignment> satisfEvents = buckets.get(tp);
                     for(Assignment pe : satisfEvents){
-                        if(!outputted.containsKey(termtp) || outputted.containsKey(termtp) && !(outputted.get(termtp).contains(pe))){
+                        //if(!outputted.containsKey(termtp) || outputted.containsKey(termtp) && !(outputted.get(termtp).contains(pe))){
                             out.collect(PipelineEvent.event(terminators.get(termtp), termtp, pe));
-                            if(outputted.containsKey(termtp)){
+                            /*if(outputted.containsKey(termtp)){
                                 outputted.get(termtp).add(pe);
                             }else{
                                 outputted.put(termtp, new HashSet<>());
                                 outputted.get(termtp).add(pe);
-                            }
-                        }
+                            }*/
+                        //}
                     }
                 }
             }

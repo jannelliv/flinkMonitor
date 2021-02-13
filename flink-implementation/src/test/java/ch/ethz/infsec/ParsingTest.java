@@ -659,13 +659,13 @@ public class ParsingTest {
 
     @Test
     public void testOnce() throws Exception{
-        //formula being tested: ONCE [0,7d] publish(r)
+        //formula being tested: ONCE [0,7d] publish(163)
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        //testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1307955600,1L, "160"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        //testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1308477599,2L, "152"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1308978000,3L, "152"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
@@ -692,8 +692,8 @@ public class ParsingTest {
     @Test
     public void testOnce2() throws Exception{
         //formula being tested: ONCE [0,7d] publish(r)
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        //testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        //testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1307532861,0L, "152"), 1L);
@@ -724,8 +724,8 @@ public class ParsingTest {
     @Test
     public void testOnce3() throws Exception{
         //formula being tested: ONCE [0,7d] publish(r)
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        //testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "160"), 1L);
+        //testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
@@ -758,7 +758,7 @@ public class ParsingTest {
         //formula being tested: ONCE [0,7d] publish(r)
         //change with respect to testOnce3 is only in the below line. timepoint 1 has publish(163)
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307955600,1L, "163"), 1L);
-        testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
+        //testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "152"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1308477599,2L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP("publish", 1307532861,0L, "163"), 1L);
         testHarnessPredOnce.processElement(Fact.makeTP(null, 1309478000,4L, "152"), 1L);
@@ -776,7 +776,9 @@ public class ParsingTest {
                 PipelineEvent.event(1307532861, 0L,  Assignment.one()),
                 PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.event(1308477599, 2L,  Assignment.one()),
                 PipelineEvent.event(1308978000, 3L,  Assignment.one()),
+                PipelineEvent.event(1307955600, 1L,  Assignment.one()),
                 PipelineEvent.event(1307955600, 1L,  Assignment.one()),
                 PipelineEvent.terminator(1307955600, 1L),
                 PipelineEvent.terminator(1308477599, 2L),
