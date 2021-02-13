@@ -80,8 +80,39 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             }
         }else{
             //TERMINATOR CASE
+            Long termtp = event.getTimepoint();
+            for(Long tp : buckets.keySet()){
+                if(mem(terminators.get(termtp) - timepointToTimestamp.get(tp), interval)){
+                    HashSet<Assignment> satisfEvents = buckets.get(tp);
+                    for(Assignment pe : satisfEvents){
+                        if(!outputted.containsKey(termtp) || outputted.containsKey(termtp) && !(outputted.get(termtp).contains(pe))){
+                            //== returns true if two objects point to the same thing in the memory heap!
+                            out.collect(PipelineEvent.event(terminators.get(termtp), termtp, pe));
+                            if(outputted.containsKey(termtp)){
+                                outputted.get(termtp).add(pe);
+                            }else{
+                                outputted.put(termtp, new HashSet<>());
+                                outputted.get(termtp).add(pe);
+                            }
+                        }
+                    }
+                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
+
+                }
+            }
+            if(terminators.containsKey(termtp) && terminators.get(termtp).intValue() - interval.lower() <= largestInOrderTS.intValue() &&
+                    interval.upper().isDefined()
+                    && terminators.get(termtp).intValue() - (int)interval.upper().get() <= largestInOrderTS.intValue()){
+                out.collect(PipelineEvent.terminator(terminators.get(termtp), termtp));
+                terminators.remove(termtp);
+                outputted.remove(termtp);
+                //toRemove.add(term);
+                //toRemoveOutputted.add(term);
+            }
+            handleBuffered(out);
+
         }
-        handleBuffered(out);
+
     }
 
     public void handleBuffered(Collector collector){
@@ -90,26 +121,6 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
         for(Long term : terminators.keySet()){
-            for(Long tp : buckets.keySet()){
-                if(mem(terminators.get(term) - timepointToTimestamp.get(tp), interval)){
-                    HashSet<Assignment> satisfEvents = buckets.get(tp);
-                    for(Assignment pe : satisfEvents){
-                        if(!outputted.containsKey(term) || outputted.containsKey(term) && !(outputted.get(term).contains(pe))){
-                            //== returns true if two objects point to the same thing in the memory heap!
-                            collector.collect(PipelineEvent.event(terminators.get(term), term, pe));
-                            if(outputted.containsKey(term)){
-                                outputted.get(term).add(pe);
-                            }else{
-                                outputted.put(term, new HashSet<>());
-                                outputted.get(term).add(pe);
-                            }
-                        }
-                    }
-                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
-
-                }
-            }
-
 
             //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
             if(terminators.containsKey(term) && terminators.get(term).intValue() - interval.lower() <= largestInOrderTS.intValue() &&
@@ -118,11 +129,12 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
                 toRemove.add(term);
                 toRemoveOutputted.add(term);
-                //toRemoveBuckets.add(term);
-                //toRemoveTPTS.add(term);
             }
 
         }
+
+
+
         for(Long tp : toRemove){
             terminators.remove(tp);
         }

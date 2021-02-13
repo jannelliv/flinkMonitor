@@ -805,8 +805,8 @@ public class ParsingTest {
         System.out.println("testEventually() output:  " + processedPES.toString());
         ArrayList<PipelineEvent> expectedResults = new ArrayList<>(Arrays.asList(
                 PipelineEvent.event(1307955600, 1L,  Assignment.one()),
-                PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.event(1308477599, 2L,  Assignment.one()),
+                PipelineEvent.terminator(1307532861, 0L),
                 PipelineEvent.terminator(1307955600, 1L),
                 PipelineEvent.terminator(1308477599, 2L)
 
