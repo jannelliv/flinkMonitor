@@ -112,39 +112,45 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
 
-        for(Long term : terminators.keySet()){
-            //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
+
+        Set<Long> termsCopy = new HashSet<>(terminators.keySet());
+        for(Long term : termsCopy){
             if(terminators.containsKey(term) && terminators.get(term).intValue() + interval.lower() <= largestInOrderTS.intValue() &&
                     interval.upper().isDefined()
                     && terminators.get(term).intValue() + (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
-                toRemove.add(term);
-                toRemoveOutputted.add(term);
+                terminators.remove(term);
+                outputted.remove(term);
+                //toRemove.add(term);
+                //toRemoveOutputted.add(term);
             }
 
         }
-        for(Long tp : toRemove){
+        /*for(Long tp : toRemove){
             terminators.remove(tp);
         }
 
         for(Long tp : toRemoveOutputted){
             outputted.remove(tp);
-        }
+        }*/
 
-        for(Long buc : buckets.keySet()){
+        Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
+        for(Long buc : bucketsCopy){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                toRemoveBuckets.add(buc);
-                toRemoveTPTS.add(buc);
+                timepointToTimestamp.remove(buc);
+                buckets.remove(buc);
+                //toRemoveBuckets.add(buc);
+                //toRemoveTPTS.add(buc);
             }
         }
 
-        for(Long tp : toRemoveBuckets){
+        /*for(Long tp : toRemoveBuckets){
             buckets.remove(tp);
         }
 
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
-        }
+        }*/
 
     }
 
@@ -152,20 +158,23 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
 
-        for(Long buc : buckets.keySet()){
+        Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
+        for(Long buc : bucketsCopy){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                toRemoveBuckets.add(buc);
-                toRemoveTPTS.add(buc);
+                timepointToTimestamp.remove(buc);
+                buckets.remove(buc);
+                //toRemoveBuckets.add(buc);
+                //toRemoveTPTS.add(buc);
             }
         }
 
-        for(Long tp : toRemoveBuckets){
+        /*for(Long tp : toRemoveBuckets){
             buckets.remove(tp);
         }
 
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
-        }
+        }*/
     }
 
     public static boolean mem(Long n, Interval I){

@@ -5,6 +5,8 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
 
@@ -96,7 +98,6 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                             }
                         }
                     }
-                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
 
                 }
             }
@@ -111,41 +112,46 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         HashSet<Long> toRemoveOutputted = new HashSet<>();
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
-        for(Long term : terminators.keySet()){
+
+        Set<Long> termsCopy = new HashSet<>(terminators.keySet());
+        for(Long term : termsCopy){
 
             //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
             if(terminators.containsKey(term) && terminators.get(term).intValue() - interval.lower() <= largestInOrderTS.intValue() &&
                     interval.upper().isDefined()
                     && terminators.get(term).intValue() - (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
-                toRemove.add(term);
-                toRemoveOutputted.add(term);
+                terminators.remove(term);
+                outputted.remove(term);
+                //toRemove.add(term);
+                //toRemoveOutputted.add(term);
             }
 
         }
-        for(Long tp : toRemove){
+        /*for(Long tp : toRemove){
             terminators.remove(tp);
         }
-
-
         for(Long tp : toRemoveOutputted){
             outputted.remove(tp);
-        }
+        }*/
 
-        for(Long buc : buckets.keySet()){
+        Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
+        for(Long buc : bucketsCopy){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                toRemoveBuckets.add(buc);
-                toRemoveTPTS.add(buc);
+                timepointToTimestamp.remove(buc);
+                buckets.remove(buc);
+                //toRemoveBuckets.add(buc);
+                //toRemoveTPTS.add(buc);
             }
         }
 
-        for(Long tp : toRemoveBuckets){
+        /*for(Long tp : toRemoveBuckets){
             buckets.remove(tp);
         }
 
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
-        }
+        }*/
 
     }
 
@@ -153,20 +159,23 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
 
-        for(Long buc : buckets.keySet()){
+        Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
+        for(Long buc : bucketsCopy){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                toRemoveBuckets.add(buc);
-                toRemoveTPTS.add(buc);
+                timepointToTimestamp.remove(buc);
+                buckets.remove(buc);
+                //toRemoveBuckets.add(buc);
+                //toRemoveTPTS.add(buc);
             }
         }
 
-        for(Long tp : toRemoveBuckets){
+        /*for(Long tp : toRemoveBuckets){
             buckets.remove(tp);
         }
 
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
-        }
+        }*/
     }
 
 
