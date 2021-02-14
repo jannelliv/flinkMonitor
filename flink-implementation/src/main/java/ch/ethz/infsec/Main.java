@@ -18,6 +18,7 @@ import org.apache.flink.api.java.utils.ParameterTool;
 //import org.apache.flink.contrib.streaming.state.RocksDBStateBackend;
 import org.apache.flink.core.fs.Path;
 import org.apache.flink.streaming.api.CheckpointingMode;
+import org.apache.flink.streaming.api.environment.LocalStreamEnvironment;
 import org.apache.flink.streaming.api.environment.StreamExecutionEnvironment;
 import org.apache.flink.streaming.api.datastream.*;
 import org.apache.flink.streaming.api.functions.ProcessFunction;
@@ -79,8 +80,7 @@ public class Main {
             formula.atoms();
             formula.freeVariables();
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
-            //e.setMaxParallelism(1);
-            //e.setParallelism(1);
+            //LocalStreamEnvironment eLocal = StreamExecutionEnvironment.createLocalEnvironment(new Configur);
 
             //e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);

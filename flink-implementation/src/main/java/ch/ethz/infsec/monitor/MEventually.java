@@ -85,18 +85,8 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                 if(mem(timepointToTimestamp.get(tp) - terminators.get(termtp), interval)){
                     HashSet<Assignment> satisfEvents = buckets.get(tp);
                     for(Assignment pe : satisfEvents){
-                        //if(!outputted.containsKey(termtp) || outputted.containsKey(termtp) && !(outputted.get(termtp).contains(pe))){
                             out.collect(PipelineEvent.event(terminators.get(termtp), termtp, pe));
-                            /*if(outputted.containsKey(termtp)){
-                                outputted.get(termtp).add(pe);
-                            }else{
-                                outputted.put(termtp, new HashSet<>());
-                                outputted.get(termtp).add(pe);
-                            }*/
-                        //}
                     }
-                    //after this, you cannot automatically do buckets.remove(tp) because you don't know if you have all events yet
-
                 }
             }
 
