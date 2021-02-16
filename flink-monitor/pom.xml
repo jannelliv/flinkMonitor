@@ -130,6 +130,11 @@
                     <scope>runtime</scope>
                 </dependency>
 
+                <dependency>
+                    <groupId>org.apache.flink</groupId>
+                    <artifactId>flink-hadoop-fs</artifactId>
+                    <version>1.7.2</version>
+                </dependency>
 
 
 
