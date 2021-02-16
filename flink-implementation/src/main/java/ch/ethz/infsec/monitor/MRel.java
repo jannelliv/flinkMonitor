@@ -24,10 +24,8 @@ public class MRel implements Mformula, FlatMapFunction<Fact, PipelineEvent> {
         //The stream of Terminators coming from Test.java should contain only Terminators
         assert(value.isTerminator());
         //no matter what i put above the size of none is always zero because freeVariablesInOrder has size zero for T&F
-        if(!table.isEmpty()){
-            for(Assignment as : table){
-                out.collect(PipelineEvent.event(value.getTimestamp(), value.getTimepoint(), as));
-            }
+        for(Assignment as : table){
+            out.collect(PipelineEvent.event(value.getTimestamp(), value.getTimepoint(), as));
         }
         out.collect(PipelineEvent.terminator(value.getTimestamp(), value.getTimepoint()));
     }

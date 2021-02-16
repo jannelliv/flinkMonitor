@@ -46,12 +46,12 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             if(T.keySet().contains(value.getTimepoint() + 1) || TT.containsKey(value.getTimepoint() + 1)){
                 //added second condition on top
                 if(T.keySet().contains(value.getTimepoint() + 1)){
-                    if(mem(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
+                    if(IntervalCondition.mem2(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
                         out.collect(PipelineEvent.event(T.get(value.getTimepoint() + 1),
                                 value.getTimepoint() + 1, value.get()));
                     }
                 }else{
-                    if(mem(TT.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
+                    if(IntervalCondition.mem2(TT.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
                         out.collect(PipelineEvent.event(TT.get(value.getTimepoint() + 1),
                                 value.getTimepoint() + 1, value.get()));
                     }
@@ -96,7 +96,7 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         if(A.containsKey(value.getTimepoint() - 1)){ //checks previous values
             HashSet<PipelineEvent> eventsAtPrev = A.get(value.getTimepoint() - 1);
             for (PipelineEvent buffAss : eventsAtPrev){
-                if(mem((value.getTimestamp() - buffAss.getTimestamp()), interval)){
+                if(IntervalCondition.mem2((value.getTimestamp() - buffAss.getTimestamp()), interval)){
                     out.collect(PipelineEvent.event(value.getTimestamp(), value.getTimepoint(), buffAss.get()));
                 }
             }
@@ -111,15 +111,6 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             TT.remove(value.getTimepoint() - 1);
             T.remove(value.getTimepoint());
         }
-    }
-
-    public static boolean mem(Long n, Interval I){
-        //not sure of I should use the method isDefined or isEmpty below
-        //and I am not sure if it's ok to do the cast (int)I.upper().get()
-        if(I.lower() <= n.intValue() && (!I.upper().isDefined() || (I.upper().isDefined() && n.intValue() <= ((int)I.upper().get())))){
-            return true;
-        }
-        return false;
     }
 
 }

@@ -238,15 +238,15 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             Table firstTable;
             if(this.pos){
                 assert(rel1.containsKey(timepointToIndexRels));
-                firstTable = join(tables.fst(), true, rel1.get(timepointToIndexRels));
+                firstTable = Table.join(tables.fst(), true, rel1.get(timepointToIndexRels));
             }else{
                 firstTable = Table.fromTable(tables.fst());
                 assert(rel1.containsKey(timepointToIndexRels));
                 firstTable.addAll(rel1.get(timepointToIndexRels));
             }
-            if(mem(currentTimestamp - timepointToTimestamp.get(timepointMuaux), interval)){
+            if(IntervalCondition.mem2(currentTimestamp - timepointToTimestamp.get(timepointMuaux), interval)){
                 assert(rel2.containsKey(timepointToIndexRels));
-                Table rel2a1Join = join(rel2.get(timepointToIndexRels), pos, tables.fst());
+                Table rel2a1Join = Table.join(rel2.get(timepointToIndexRels), pos, tables.fst());
                 a2UnionAfter = Table.fromTable(tables.snd());
                 a2UnionAfter.addAll(rel2a1Join);
             }
@@ -307,121 +307,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             tp++; //gets incremented and method is called recursively until one of the two HashMaps in
             //mbuf2 becomes empty.
             mbuf2t_take(func, tp);
-        }
-    }
-
-    public static boolean mem(Long n, Interval I){
-        //not sure of I should use the method isDefined or isEmpty below
-        //and I am not sure if it's ok to do the cast (int)I.upper().get()
-        if(I.lower() <= n.intValue() && (!I.upper().isDefined() || (I.upper().isDefined() && n.intValue() <= ((int)I.upper().get())))){
-            return true;
-        }
-        return false;
-    }
-
-
-    public static Optional<Assignment> join1(Assignment a, Assignment b, int i){
-        //Assignment a = Assignment.someAssignment(aOriginal);
-        //Assignment b = Assignment.someAssignment(bOriginal);
-        if(a.size() == 0 && b.size() == 0) {
-            Assignment emptyList = new Assignment();
-            Optional<Assignment> result = Optional.of(emptyList);
-            return result;
-        }else if(a.size() == 0 || b.size() == 0){
-            Optional<Assignment> result = Optional.empty();
-            return result;
-        }else {
-            if( i < a.size() && i < b.size()){
-                Optional<Object> x = a.get(i);
-                Optional<Object> y = b.get(i);
-                Optional<Assignment> subResult = join1(a, b, i+1);
-                if(!x.isPresent() && !y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(Optional.empty());
-                        consList.addAll(subResult.get());
-                        //Problem: get() can only return a value if the wrapped object is not null;
-                        //otherwise, it throws a no such element exception
-                        Optional<Assignment> result = Optional.of(consList);
-                        return result;
-                    }
-                }else if(x.isPresent() && !y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(x);
-                        consList.addAll(subResult.get());
-                        Optional<Assignment> result = Optional.of(consList);
-                        return result;
-                    }
-                }else if(!x.isPresent() && y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(y);
-                        consList.addAll(subResult.get());
-                        Optional<Assignment> result = Optional.of(consList);
-                        return result;
-                    }
-                }else if(x.isPresent() && y.isPresent() || x.get().equals(y.get())) {
-                    //is it ok to do things with toString here above?
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        if(x.get().equals(y.get())) {
-                            Assignment consList = new Assignment();
-                            consList.add(x);
-                            consList.addAll(subResult.get());
-                            Optional<Assignment> result = Optional.of(consList);
-                            return result;
-                        }
-                    }
-                }else {
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }
-            }else{
-                if(a.size() != b.size()){
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }else{
-                    return Optional.of(new Assignment()); //not 100% sure about this
-                }
-            }
-
-        }
-
-        Optional<Assignment> result = Optional.empty();
-        return result;
-    }
-
-
-    public static Table join(java.util.HashSet<Assignment> table, boolean pos, java.util.HashSet<Assignment> table2){
-
-        java.util.HashSet<Assignment> result = new java.util.HashSet<>();
-        assert(table != null && table2 != null);
-        for(Assignment op1 : table){
-            for (Assignment optionals : table2) {
-                Optional<Assignment> tupleRes = join1(op1, optionals, 0);
-                if (tupleRes.isPresent()) {
-                    Assignment tuple = tupleRes.get();
-                    result.add(tuple);
-                }
-            }
-        }
-        if(pos) {
-            return Table.fromSet(result);
-        }else {
-            table.removeAll(result);
-            return Table.fromSet(table);
         }
     }
 

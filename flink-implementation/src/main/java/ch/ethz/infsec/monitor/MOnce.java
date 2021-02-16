@@ -10,6 +10,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
 
+//import static ch.ethz.infsec.util.Interval.mem2;
+
 public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
 
     ch.ethz.infsec.policy.Interval interval;
@@ -70,7 +72,7 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         if(event.isPresent()){
 
             for(Long term : terminators.keySet()){
-                if(mem(terminators.get(term) - event.getTimestamp(), interval)){
+                if(IntervalCondition.mem2(terminators.get(term) - event.getTimestamp(), interval)){
                     out.collect(PipelineEvent.event(terminators.get(term), term, event.get()));
                 }
             }
@@ -78,11 +80,10 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         }else{
             Long termtp = event.getTimepoint();
             for(Long tp : buckets.keySet()){
-                if(mem(terminators.get(termtp) - timepointToTimestamp.get(tp), interval)){
+                if(IntervalCondition.mem2(terminators.get(termtp) - timepointToTimestamp.get(tp), interval)){
                     HashSet<Assignment> satisfEvents = buckets.get(tp);
                     for(Assignment pe : satisfEvents){
                         out.collect(PipelineEvent.event(terminators.get(termtp), termtp, pe));
-
                     }
                 }
             }
@@ -154,16 +155,6 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
         }*/
-    }
-
-
-    public static boolean mem(Long n, Interval I){
-        //not sure of I should use the method isDefined or isEmpty below
-        //and I am not sure if it's ok to do the cast (int)I.upper().get()
-        if(I.lower() <= n.intValue() && (!I.upper().isDefined() || (I.upper().isDefined() && n.intValue() <= ((int)I.upper().get())))){
-            return true;
-        }
-        return false;
     }
 
 }

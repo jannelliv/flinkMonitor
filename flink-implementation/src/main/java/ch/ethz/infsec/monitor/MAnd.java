@@ -8,6 +8,7 @@ import org.apache.flink.util.Collector;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
 
+import static ch.ethz.infsec.util.Table.join1;
 
 
 public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, PipelineEvent, PipelineEvent> {
@@ -97,71 +98,5 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
         }
     }
 
-    public static Optional<Assignment> join1(Assignment a, Assignment b, int i){
-        if(a.size() == 0 && b.size() == 0) {
-            return Optional.of(new Assignment());
-        }else if(a.size() == 0 || b.size() == 0){
-            return Optional.empty();
-        }else {
-            if( i < a.size() && i < b.size()){
-                Optional<Object> x = a.get(i);
-                Optional<Object> y = b.get(i);
-                Optional<Assignment> subResult = join1(a, b, i+1);
-                if(!x.isPresent() && !y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        return Optional.empty();
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(Optional.empty());
-                        consList.addAll(subResult.get());
-                        //Problem: get() can only return a value if the wrapped object is not null;
-                        //otherwise, it throws a no such element exception
-                        return Optional.of(consList);
-                    }
-                }else if(x.isPresent() && !y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        return Optional.empty();
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(x);
-                        consList.addAll(subResult.get());
-                        return Optional.of(consList);
-                    }
-                }else if(!x.isPresent() && y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        return Optional.empty();
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(y);
-                        consList.addAll(subResult.get());
-                        return Optional.of(consList);
-                    }
-                }else if(x.isPresent() && y.isPresent() || x.get().equals(y.get())) {
-                    //is it ok to do things with toString here above?
-                    if(!subResult.isPresent()) {
-                        return Optional.empty();
-                    }else {
-                        if(x.get().equals(y.get())) {
-                            Assignment consList = new Assignment();
-                            consList.add(x);
-                            consList.addAll(subResult.get());
-                            return Optional.of(consList);
-                        }
-                    }
-                }else {
-                    return Optional.empty();
-                }
-            }else{
-                if(a.size() != b.size()){
-                    return Optional.empty();
-                }else{
-                    return Optional.of(new Assignment());
-                }
-            }
-
-        }
-
-        return Optional.empty();
-    }
 
 }

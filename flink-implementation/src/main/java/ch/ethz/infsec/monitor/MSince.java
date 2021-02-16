@@ -186,7 +186,7 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             Table rel = msaux.get(t);
             Long subtr = nt - t;
             if(!interval.upper().isDefined() || (interval.upper().isDefined() && (subtr.intValue() <= ((int) interval.upper().get())))){
-                auxIntervalList.put(t, join(rel, pos, rel1));
+                auxIntervalList.put(t, Table.join(rel, pos, rel1));
             }
         }
         HashMap<Long, Table> auxIntervalList2 = new HashMap<>(auxIntervalList);
@@ -237,113 +237,6 @@ public class MSince implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }
     }
 
-    public static Optional<Assignment> join1(Assignment a, Assignment b, int i){
-        //Assignment a = Assignment.someAssignment(aOriginal);
-        //Assignment b = Assignment.someAssignment(bOriginal);
-        if(a.size() == 0 && b.size() == 0) {
-            Assignment emptyList = new Assignment();
-            Optional<Assignment> result = Optional.of(emptyList);
-            return result;
-        }else if(a.size() == 0 || b.size() == 0){
-            Optional<Assignment> result = Optional.empty();
-            return result;
-        }else {
-            if( i < a.size() && i < b.size()){
-                Optional<Object> x = a.get(i);
-                Optional<Object> y = b.get(i);
-                Optional<Assignment> subResult = join1(a, b, i+1);
-                if(!x.isPresent() && !y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(Optional.empty());
-                        consList.addAll(subResult.get());
-                        //Problem: get() can only return a value if the wrapped object is not null;
-                        //otherwise, it throws a no such element exception
-                        Optional<Assignment> result = Optional.of(consList);
-                        return result;
-                    }
-                }else if(x.isPresent() && !y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(x);
-                        consList.addAll(subResult.get());
-                        Optional<Assignment> result = Optional.of(consList);
-                        return result;
-                    }
-                }else if(!x.isPresent() && y.isPresent()) {
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        Assignment consList = new Assignment();
-                        consList.add(y);
-                        consList.addAll(subResult.get());
-                        Optional<Assignment> result = Optional.of(consList);
-                        return result;
-                    }
-                }else if(x.isPresent() && y.isPresent() || x.get().equals(y.get())) {
-                    //is it ok to do things with toString here above?
-                    if(!subResult.isPresent()) {
-                        Optional<Assignment> result = Optional.empty();
-                        return result;
-                    }else {
-                        if(x.get().equals(y.get())) {
-                            Assignment consList = new Assignment();
-                            consList.add(x);
-                            consList.addAll(subResult.get());
-                            Optional<Assignment> result = Optional.of(consList);
-                            return result;
-                        }
-                    }
-                }else {
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }
-            }else{
-                if(a.size() != b.size()){
-                    Optional<Assignment> result = Optional.empty();
-                    return result;
-                }else{
-                    return Optional.of(new Assignment()); //not 100% sure about this
-                }
-            }
-
-        }
-
-        Optional<Assignment> result = Optional.empty();
-        return result;
-    }
-
-
-
-
-    public static Table join(java.util.HashSet<Assignment> table, boolean pos, java.util.HashSet<Assignment> table2){
-
-        java.util.HashSet<Assignment> result = new java.util.HashSet<>();
-        for(Assignment op1 : table) {
-            for (Assignment optional2 : table2) {
-                Optional<Assignment> tupleRes = join1(op1, optional2, 0);
-                if (tupleRes.isPresent()) {
-                    Assignment tuple = tupleRes.get();
-                    result.add(tuple);
-                }
-            }
-        }
-        if(pos) {
-            return Table.fromSet(result);
-        }else {
-            table.removeAll(result);
-            return Table.fromSet(table);
-
-        }
-
-    }
     public void cleanUpDatastructures(){
         mbuf2.fst.keySet().removeIf(tp -> tp < startEvalTimepoint);
         mbuf2.snd.keySet().removeIf(tp -> tp < startEvalTimepoint);
