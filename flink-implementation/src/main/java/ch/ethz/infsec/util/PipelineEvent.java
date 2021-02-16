@@ -1,7 +1,9 @@
 package ch.ethz.infsec.util;
 
 
-public class PipelineEvent  {
+import java.io.Serializable;
+
+public class PipelineEvent implements Serializable {
 
     private final long timestamp;
     private final long timepoint;
