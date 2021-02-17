@@ -99,38 +99,37 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         HashSet<Long> toRemoveBuckets = new HashSet<>();
 
         Set<Long> termsCopy = new HashSet<>(terminators.keySet());
-        for(Long term : terminators.keySet()){
+        for(Long term : termsCopy){
 
             //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
-            if(terminators.containsKey(term) && terminators.get(term).intValue() - interval.lower() <= largestInOrderTS.intValue() &&
-                    interval.upper().isDefined()
-                    && terminators.get(term).intValue() - (int)interval.upper().get() <= largestInOrderTS.intValue()){
+            if(terminators.containsKey(term) && terminators.get(term).intValue() - interval.lower() <= largestInOrderTS.intValue() ){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
-                toRemove.add(term);
+                //toRemove.add(term);
+                terminators.remove(term);
             }
 
         }
-        for(Long tp : toRemove){
+        /*for(Long tp : toRemove){
             terminators.remove(tp);
-        }
+        }*/
 
         Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
-        for(Long buc : buckets.keySet()){
+        for(Long buc : bucketsCopy){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                //timepointToTimestamp.remove(buc);
-                //buckets.remove(buc);
-                toRemoveBuckets.add(buc);
-                toRemoveTPTS.add(buc);
+                timepointToTimestamp.remove(buc);
+                buckets.remove(buc);
+                //toRemoveBuckets.add(buc);
+                //toRemoveTPTS.add(buc);
             }
         }
 
-        for(Long tp : toRemoveBuckets){
+        /*for(Long tp : toRemoveBuckets){
             buckets.remove(tp);
         }
 
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
-        }
+        }*/
 
     }
 

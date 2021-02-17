@@ -815,5 +815,5 @@ public class ParsingTest {
         ));
         assertArrayEquals(expectedResults.toArray(), processedPES.toArray());
     }
-    
+
 }
