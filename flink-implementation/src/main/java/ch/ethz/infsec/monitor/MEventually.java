@@ -98,7 +98,6 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
 
     public void handleBuffered(Collector collector){
         HashSet<Long> toRemove = new HashSet<>();
-        HashSet<Long> toRemoveOutputted = new HashSet<>();
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
 
@@ -115,7 +114,6 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                 //terminators.remove(term);
                 //outputted.remove(term);
                 toRemove.add(term);
-                toRemoveOutputted.add(term);
             }
 
         }
@@ -123,13 +121,9 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
             terminators.remove(tp);
         }
 
-        for(Long tp : toRemoveOutputted){
-            outputted.remove(tp);
-        }
-
         //Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
         for(Long buc : buckets.keySet()){
-            if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
+            if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() -interval.lower() < largestInOrderTS.intValue()){
                 //timepointToTimestamp.remove(buc);
                 //buckets.remove(buc);
                 toRemoveBuckets.add(buc);
