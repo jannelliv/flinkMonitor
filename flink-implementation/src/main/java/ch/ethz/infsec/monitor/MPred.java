@@ -51,15 +51,6 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
             Optional<HashMap<VariableID, Optional<Object>>> result = matchFV(argsFormula, argsEvent);
             if(result.isPresent()){
 
-                /*Assignment list = new Assignment();
-                for (JavaTerm<VariableID> argument : this.args) {
-                    //remember to iterate over the arguments, not the free variables
-                    if(result.get().get(argument.toString()).isPresent()){
-                        list.add(0, result.get().get(argument.toString()));
-                    }
-                }*/
-
-
                 Assignment list = new Assignment();
                   for (VariableID formulaVariable : this.freeVariablesInOrder) {
                     if(!result.get().containsKey(formulaVariable) || !result.get().get(formulaVariable).isPresent()){
