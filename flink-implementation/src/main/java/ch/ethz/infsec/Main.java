@@ -54,7 +54,7 @@ public class Main {
 
     public static Integer checkpointInterval = 1200000000; //was: 500, now 20 minutes
     public static String checkpointUri = "file:///home/valeriaj/checkpoints";
-    public static Integer restarts = 3;
+    public static Integer restarts = 1;
 
     public static int numberProcessors = 1;
 
