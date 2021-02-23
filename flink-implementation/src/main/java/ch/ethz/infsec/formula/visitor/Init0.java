@@ -15,8 +15,6 @@ public class Init0 implements FormulaVisitor<Mformula> {
 
     public Init0(Seq<VariableID> fvio){
         ArrayList<VariableID> temp = new ArrayList<>(JavaConverters.seqAsJavaList(fvio));
-        //If you would use List<VariableID> there, you could avoid the two conversions steps
-        // (one before the recursive call and the other in the Init0 constructor).
         this.freeVariablesInOrder = temp;
         this.fvio = fvio;
     }
@@ -28,10 +26,7 @@ public class Init0 implements FormulaVisitor<Mformula> {
 
     public Mformula visit(JavaNot<VariableID> f) {
         if(f.arg() instanceof JavaOr){
-            //don't know how to handle Eq
             if(((JavaOr<VariableID>) f.arg()).arg1() instanceof JavaNot){
-                //check if arg2 is a safe_formula
-                //make sure it's correct that you have
                 ArrayList<Object> freeVarsInOrder1 = new ArrayList<>(JavaConverters.seqAsJavaList(f.freeVariablesInOrder()));
                 ArrayList<Object> freeVarsInOrder2 = new ArrayList<>(JavaConverters.seqAsJavaList(f.freeVariablesInOrder()));
                 boolean isSubset = freeVarsInOrder1.containsAll(freeVarsInOrder2);
@@ -47,10 +42,10 @@ public class Init0 implements FormulaVisitor<Mformula> {
                     }
                 }
             }else{
-                return null;  //"undefined" in Isabelle
+                return null;
             }
         }else{
-            return null; //"undefined" in Isabelle
+            return null;
         }
 
 
@@ -82,18 +77,14 @@ public class Init0 implements FormulaVisitor<Mformula> {
     public Mformula visit(JavaEx<VariableID> f) {
         VariableID variable = f.variable();
         List<VariableID> freeVariablesInOrderCopy = new ArrayList<>(this.freeVariablesInOrder);
-        //we make a copy because Java is pass-by-reference.
-        //It should also be a copy every time you pass this.freeVariablesInOrder! You have to
-        //check this!
         freeVariablesInOrderCopy.add(0,variable);
-        //the visitor for MExists has to extend the list of free variables by 1
         Seq<VariableID> fvios = JavaConverters.asScalaBufferConverter(freeVariablesInOrderCopy).asScala().toSeq();
         JavaGenFormula<VariableID> subformula = f.arg();
         return new MExists(subformula.accept(new Init0(fvios)), variable);
     }
 
     public Mformula visit(JavaFalse<VariableID> f) {
-        return new MRel(Table.empty()); // aka empty table
+        return new MRel(Table.empty());
     }
 
     public Mformula visit(JavaTrue<VariableID> f) {
@@ -157,13 +148,11 @@ public class Init0 implements FormulaVisitor<Mformula> {
 
     @Override
     public Mformula visit(JavaOnce<VariableID> f) {
-        //should we check with safe_formula?
         return new MOnce(f.interval(), (f.arg()).accept(new Init0(f.freeVariablesInOrder())));
     }
 
     @Override
     public Mformula visit(JavaEventually<VariableID> f) {
-        //should we check with safe_formula?
         return new MEventually(f.interval(), (f.arg()).accept(new Init0(f.freeVariablesInOrder())));
     }
 
@@ -192,9 +181,9 @@ public class Init0 implements FormulaVisitor<Mformula> {
         }else if(form instanceof JavaNext){
             return safe_formula(((JavaNext<VariableID>) form).arg());
         }else if(form instanceof JavaOnce){
-            return safe_formula(((JavaOnce<VariableID>) form).arg());
+            return true;
         }else if(form instanceof JavaEventually){
-            return safe_formula(((JavaEventually<VariableID>) form).arg());
+            return true;
         }else if(form instanceof JavaSince){
             ArrayList<Object> freeVarsInOrder1 = new ArrayList<>(JavaConverters.seqAsJavaList(((JavaSince<VariableID>) form).arg1().freeVariablesInOrder()));
             ArrayList<Object> freeVarsInOrder2 = new ArrayList<>(JavaConverters.seqAsJavaList(((JavaSince<VariableID>) form).arg2().freeVariablesInOrder()));
@@ -223,19 +212,6 @@ public class Init0 implements FormulaVisitor<Mformula> {
             return false;
         }
 
-    }
-
-    /**
-     * WARNING: this method doesn’t check the list size, so you better
-     * be sure it contains at least one element.
-     */
-    public static List<VariableID> tail(List<VariableID> xs)
-            throws IndexOutOfBoundsException, IllegalArgumentException {
-        if(xs.size() < 1){
-            return new LinkedList<>();
-        }
-        return new ArrayList<VariableID>(xs.subList(1, xs.size()));
-        //sublist not serializable, so we have to use an arrayList
     }
 
 
