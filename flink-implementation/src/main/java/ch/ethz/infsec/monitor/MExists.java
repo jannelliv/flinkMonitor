@@ -23,7 +23,6 @@ public class MExists implements Mformula, FlatMapFunction<PipelineEvent, Pipelin
     @Override
     public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
         return (DataStream<PipelineEvent>) v.visit(this);
-        //Is it ok that I did the cast here above?
     }
 
 
@@ -36,7 +35,7 @@ public class MExists implements Mformula, FlatMapFunction<PipelineEvent, Pipelin
             out.collect(value);
         }else{
             Assignment satList = value.get();
-            satList.remove(0); //here we are taking the front of the list
+            satList.remove(0); //aking the front of the list
             Optional<Assignment> output = Optional.of(satList);
             if(output.isPresent()){
                 PipelineEvent result = PipelineEvent.event(value.getTimestamp(),value.getTimepoint(), output.get());

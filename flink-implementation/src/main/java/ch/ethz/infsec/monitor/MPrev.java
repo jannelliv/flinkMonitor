@@ -38,13 +38,9 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
     public void flatMap(PipelineEvent value, Collector<PipelineEvent> out) throws Exception {
 
 
-        //ADD ASSERT: forall i. T.keys().contains(i+1) ==> ! A.keys().contains(i)
         if(value.isPresent()){
 
-            //i.e. the event we are receiving is NOT a terminator
-            //1)
             if(T.keySet().contains(value.getTimepoint() + 1) || TT.containsKey(value.getTimepoint() + 1)){
-                //added second condition on top
                 if(T.keySet().contains(value.getTimepoint() + 1)){
                     if(IntervalCondition.mem2(T.get(value.getTimepoint() + 1) - value.getTimestamp(), interval)){
                         out.collect(PipelineEvent.event(T.get(value.getTimepoint() + 1),
@@ -67,18 +63,15 @@ public class MPrev implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     A.put(value.getTimepoint(), hspe);
                 }
             }
-            //2
-            //as soon as you have received the timestamp, you can process the stored/buffered assignments.
 
         }else{
 
             if(TT.containsKey(value.getTimepoint() + 1)){
                 out.collect(PipelineEvent.terminator( TT.get(value.getTimepoint() + 1),value.getTimepoint()+ 1));
-                TT.remove(value.getTimepoint() + 1); //double check
+                TT.remove(value.getTimepoint() + 1);
             }
             TT.put(value.getTimepoint(), value.getTimestamp());
 
-            //2
 
         }
         handleBuffered(value, out);

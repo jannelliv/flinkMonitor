@@ -2,17 +2,13 @@ package ch.ethz.infsec.util;
 
 import java.util.*;
 import java.util.stream.Collectors;
-//this and the toString method make the assignment readable in the output
 
-// We need to distinguish btw pure assignments and assignments which we use to encode the trace
 public class Assignment extends LinkedList<Optional<Object>> {
 
-    //now we have a non-static terminator for checking
     public static Assignment nones(int n){
         Assignment el = new Assignment();
 
         for(int i = 0; i < n; i++){
-            //not sure if this is efficient
             el.add(Optional.empty());
         }
         return el;

@@ -8,7 +8,7 @@ public interface JavaGenFormula<T> extends JavaGenFormulaUnsealed<T> {
 
     static <T> JavaGenFormula<T> convert(GenFormula<T> gf){
 
-        if(gf instanceof Ex){ //if I included the generic type in the if, I got an error message
+        if(gf instanceof Ex){
             return new JavaEx<>(((Ex<T>) gf).variable(), ((Ex<T>) gf).arg());
         }else if(gf instanceof All){
             return new JavaAll<>(((All<T>) gf).variable(), ((All<T>) gf).arg());

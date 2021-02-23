@@ -5,12 +5,10 @@ import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
 
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
 
-//import static ch.ethz.infsec.util.Interval.mem2;
 
 public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
 
@@ -94,18 +92,15 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
 
     public void handleBuffered(Collector collector){
         HashSet<Long> toRemove = new HashSet<>();
-        HashSet<Long> toRemoveOutputted = new HashSet<>();
         HashSet<Long> toRemoveTPTS = new HashSet<>();
         HashSet<Long> toRemoveBuckets = new HashSet<>();
 
-        //Set<Long> termsCopy = new HashSet<>(terminators.keySet());
         for(Long term : terminators.keySet()){
 
             //we only consider terminators and not buckets because we evaluate wrt largestInOrderTP
             if(terminators.containsKey(term) && terminators.get(term).intValue() - interval.lower() <= largestInOrderTS.intValue() ){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
                 toRemove.add(term);
-                //terminators.remove(term);
             }
 
         }
@@ -113,11 +108,8 @@ public class MOnce implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             terminators.remove(tp);
         }
 
-        //Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
         for(Long buc : buckets.keySet()){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() + (int)interval.upper().get() < largestInOrderTS.intValue()){
-                //timepointToTimestamp.remove(buc);
-                //buckets.remove(buc);
                 toRemoveBuckets.add(buc);
                 toRemoveTPTS.add(buc);
             }

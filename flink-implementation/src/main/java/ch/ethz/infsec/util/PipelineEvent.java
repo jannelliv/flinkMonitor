@@ -9,11 +9,8 @@ public class PipelineEvent implements Serializable {
     private final long timepoint;
     private final boolean isTerminator;
     private final Assignment assignment;
-    //now we have a non-static terminator for checking
 
 
-    //TODO: make private and use only static factory methods below
-    //Once you do that you can uncomment the assertions in the contructor
     private PipelineEvent(long timestamp, long timepoint, boolean isTerminator, Assignment assignment) {
         assert(!isTerminator || assignment==null);
         assert(isTerminator || assignment!=null);
@@ -85,28 +82,5 @@ public class PipelineEvent implements Serializable {
         return isTerminator;
     }
 
-    /*public static PipelineEvent nones(int n, long timestamp){
-        PipelineEvent el = new PipelineEvent(timestamp, false);
-        el.timestamp = timestamp;
-        for(int i = 0; i < n; i++){
-            //not sure if this is efficient
-            el.add(Optional.empty());
-        }
-        return el;
-    }*/
-
-    /*public static Assignment someAssignment(long timestamp, List<Optional<Object>> list){
-        assert(list != null);
-        Assignment el = new Assignment(timestamp, false, list);
-        return el;
-    }
-
-    public static Assignment terminator(long timestamp){
-
-        return new Assignment(timestamp, true);
-        //boolean is set to true and the list is empty,
-        // so the appropriate static constructor is used
-
-    }*/
 
 }

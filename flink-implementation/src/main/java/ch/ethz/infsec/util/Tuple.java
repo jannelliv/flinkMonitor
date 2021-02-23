@@ -2,7 +2,6 @@ package ch.ethz.infsec.util;
 
 
 import java.io.Serializable;
-//I used to have just my own Tuple objects, but that didn't work because they were not serializable
 public class Tuple<T, U> implements Serializable {
     public T fst;
     public U snd;

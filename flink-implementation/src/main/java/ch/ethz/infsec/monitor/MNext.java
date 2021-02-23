@@ -7,35 +7,21 @@ import java.util.*;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
 
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//NOT AT ALL SURE ABOUT THIS IMPLEMENTATION
-//!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-//NB: In a streaming context you don't really have timepoints. You might get something at timepoint i
-//and then something at timepoint a. In a streaming context, timepoints are present, they are attached to
-//the pipelineEvent, but they don't come in order. SO I just have to take the events in the order in which they come.
-
 public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineEvent> {
-    //Next tells you the satisfying assignments of the formula for the next position.
-    //The principle is that you want to anticipate the assignments that you receive by 1.
-    // So you simply discard the first assignment that you receive
+    //Next tells us the satisfying assignments of the formula for the next position.
+    //It anticipate the assignments that we receive by 1.
+    // So we simply discard the first assignment that you receive
 
-
-    //The alternative (less creative) is to wait for the Terminator, build the table and invoke
-    //meval with a table (db) --> just like Verimon.
     ch.ethz.infsec.policy.Interval interval;
     public Mformula formula;
     boolean bool;
-    LinkedList<Long> tsList; //nts --> name used in Verimon
+    LinkedList<Long> tsList;
     HashMap<Long, HashSet<PipelineEvent>> A; //mapping from timepoint to set of assignments (set of PEs)
     HashMap<Long, Long> T; //mapping from timepoint to timestamps for non-terminator events
     HashMap<Long, Long> TT;//mapping from timepoint to timestamps for terminator events
 
     public MNext(ch.ethz.infsec.policy.Interval interval, Mformula mform, boolean bool, LinkedList<Long> tsList) {
-        //the P.E. value is the satisfaction of the subformula!
         this.interval = interval;
-        //The interval is attached to the formula; it is a property of the formula.
-        //Is it a problem that the interval extremes are expressed as integers, whereas I express timepoints
-        // and timestamps as longs?
         this.formula = mform;
         this.bool = bool;
         this.tsList = tsList;
@@ -60,16 +46,6 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
         //the first point. Then you set the flag to false. But while you are passing the first, you check
         //the boolean and return nothing.
 
-        //ADD ASSERT: forall i. T.keys().contains(i-1) ==> ! A.keys().contains(i)
-        //Understand the above assertion and if it makes sense!
-
-        //special case for timepoint 0:
-        //if(value.getTimepoint() == 0){
-            //exit if condition to store timestamp for 0 in handleBuffered
-            //but you don't need to output or store anything for timepoint 0
-            //we ignore both the assignments at zero and the terminators, but then
-            //the handleBuffered still has to take place, because we still need to
-            //save the timestamp at zero.
 
 
         if(value.isPresent()){
@@ -90,11 +66,7 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     }
                 }
 
-            }else{ //CHECK WHEN TO UPDATE T
-                //It might be that you don't know the timestamp, e.g. assuming that you have not
-                //received any tuple from the current timepoint. You will only know the timestamp
-                //when you receive the first PipelineEvent for our current timepoint. SO if we don't have the
-                //timestamp, then we have to buffer the pipeline event
+            }else{
                 if(A.keySet().contains(value.getTimepoint())){
                     A.get(value.getTimepoint()).add(PipelineEvent.event(value.getTimepoint(),
                             value.getTimestamp(), value.get()));
@@ -104,14 +76,11 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
                     A.put(value.getTimepoint(), hspe);
                 }
             }
-            //2
-            //as soon as you have received the timestamp, you can process the stored/buffered assignments.
-
         }else{
             if(TT.keySet().contains(value.getTimepoint() - 1)){
                 out.collect(PipelineEvent.terminator(TT.get(value.getTimepoint() - 1), value.getTimepoint()- 1));
                 TT.put(value.getTimepoint(), value.getTimestamp());
-                TT.remove(value.getTimepoint() - 1); //double check
+                TT.remove(value.getTimepoint() - 1);
             }else{
                 TT.put(value.getTimepoint(), value.getTimestamp());
             }
@@ -128,8 +97,6 @@ public class MNext implements Mformula, FlatMapFunction<PipelineEvent, PipelineE
             HashSet<PipelineEvent> eventsAtPrev = A.get(value.getTimepoint() + 1);
             for (PipelineEvent buffAss : eventsAtPrev){
                 if(IntervalCondition.mem2( buffAss.getTimestamp() - value.getTimestamp(), interval)){
-                    //Above, we are checking the interval constraint, i.e. that
-                    //the difference between the timestamps is within the interval.
                     assert(buffAss.getTimestamp() - value.getTimestamp() >= 0);
 
                     out.collect(PipelineEvent.event(value.getTimepoint(),

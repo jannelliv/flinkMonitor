@@ -4,7 +4,6 @@ import org.apache.flink.api.common.functions.FlatMapFunction;
 import org.apache.flink.streaming.api.datastream.DataStream;
 import org.apache.flink.util.Collector;
 
-import java.nio.channels.Pipe;
 import java.util.*;
 import ch.ethz.infsec.util.*;
 import ch.ethz.infsec.monitor.visitor.*;
@@ -75,7 +74,6 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
                 }
             }
         }else{
-            //TERMINATOR CASE
             Long termtp = event.getTimepoint();
             for(Long tp : buckets.keySet()){
                 if(IntervalCondition.mem2(timepointToTimestamp.get(tp) - terminators.get(termtp), interval)){
@@ -100,38 +98,36 @@ public class MEventually implements Mformula, FlatMapFunction<PipelineEvent, Pip
         Set<Long> termsCopy = new HashSet<>(terminators.keySet());
         for(Long term : termsCopy){
 
-            ///....
-
             if(terminators.containsKey(term) && terminators.get(term).intValue() + interval.lower() <= largestInOrderTS.intValue() &&
                     interval.upper().isDefined()
                     && terminators.get(term).intValue() + (int)interval.upper().get() <= largestInOrderTS.intValue()){
                 collector.collect(PipelineEvent.terminator(terminators.get(term), term));
-                terminators.remove(term);
-                //toRemove.add(term);
+                //terminators.remove(term);
+                toRemove.add(term);
             }
 
         }
-        /*for(Long tp : toRemove){
+        for(Long tp : toRemove){
             terminators.remove(tp);
-        }*/
+        }
 
         Set<Long> bucketsCopy = new HashSet<>(buckets.keySet());
         for(Long buc : bucketsCopy){
             if(interval.upper().isDefined() && timepointToTimestamp.get(buc).intValue() -interval.lower() < largestInOrderTS.intValue()){
-                timepointToTimestamp.remove(buc);
-                buckets.remove(buc);
-                //toRemoveBuckets.add(buc);
-                //toRemoveTPTS.add(buc);
+                //timepointToTimestamp.remove(buc);
+                //buckets.remove(buc);
+                toRemoveBuckets.add(buc);
+                toRemoveTPTS.add(buc);
             }
         }
 
-        /*for(Long tp : toRemoveBuckets){
+        for(Long tp : toRemoveBuckets){
             buckets.remove(tp);
         }
 
         for(Long tp : toRemoveTPTS){
             timepointToTimestamp.remove(tp);
-        }*/
+        }
 
     }
 

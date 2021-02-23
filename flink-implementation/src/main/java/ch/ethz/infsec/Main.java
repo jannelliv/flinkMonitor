@@ -52,7 +52,7 @@ public class Main {
 
     private static final String TERMINATOR_TAG = "0Terminator";
 
-    public static Integer checkpointInterval = 1200000000; //was: 500, now 20 minutes
+    public static Integer checkpointInterval = 1200000000;
     public static String checkpointUri = "file:///home/valeriaj/checkpoints";
     public static Integer restarts = 1;
 
@@ -80,12 +80,9 @@ public class Main {
             formula.atoms();
             formula.freeVariables();
             StreamExecutionEnvironment e = StreamExecutionEnvironment.getExecutionEnvironment();
-            //LocalStreamEnvironment eLocal = StreamExecutionEnvironment.createLocalEnvironment(new Configur);
 
-            //e.setStateBackend(new RocksDBStateBackend(checkpointUri));
             e.enableCheckpointing(checkpointInterval, CheckpointingMode.EXACTLY_ONCE);
             RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.fixedDelayRestart(restarts, Time.of(1, TimeUnit.SECONDS));
-            //RestartStrategies.RestartStrategyConfiguration restartStrategy = RestartStrategies.noRestart();
             e.setRestartStrategy(restartStrategy);
 
             DataStream<String> text = e.socketTextStream(inputSourceString[0], inputPortNumber, "\n")
@@ -93,14 +90,12 @@ public class Main {
                     .setMaxParallelism(1)
                     .name("Socket source")
                     .uid("socket-source");
-            //DataStream<String> text = e.socketTextStream(inputSourceString[0], inputPortNumber, "\n");
 
             DataStream<Fact> facts = text.flatMap(new ParsingFunction(new MonpolyTraceParser()))
                                          .setParallelism(1)
                                          .setMaxParallelism(1)
                                         .name("parser")
                                         .uid("parser");
-            //BufferedWriter writer = new BufferedWriter(new FileWriter(outputFile, true));
             Set<Pred<VariableID>> atomSet = formula.atoms();
             Iterator<Pred<VariableID>> iter = atomSet.iterator();
 
@@ -137,14 +132,10 @@ public class Main {
             DataStream<PipelineEvent> sink = mformula.accept(new MformulaVisitorFlink(hashmap, mainDataStream));
 
             DataStream<String> strOutput = sink.map(PipelineEvent::toString);
-            //gstrOutput.addSink(new BucketingSink<String>(((FileEndPoint)outputFile.get()).file_path())).setParallelism(1).name("File sink").uid("file-sink");
             strOutput.addSink(StreamingFileSink.forRowFormat(new Path(outputFile),new SimpleStringEncoder<String>("UTF-8")).build()).setParallelism(1);
-            //strOutput.writeAsText(outputFile, org.apache.flink.core.fs.FileSystem.WriteMode.OVERWRITE);
 
 
             e.execute(jobName);
-            //writer.write("done."+ "\n");
-            //writer.close();
         }
 
     }

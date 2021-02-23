@@ -10,7 +10,6 @@ import org.apache.flink.streaming.api.checkpoint.ListCheckpointed;
 import org.apache.flink.util.Collector;
 
 public class ParsingFunction implements FlatMapFunction<String, Fact>, ListCheckpointed<TraceParser> {
-    //not sure what to do about the "deprecated" above
         TraceParser parser;
     public ParsingFunction(TraceParser tp){
         this.parser = tp;
@@ -18,7 +17,6 @@ public class ParsingFunction implements FlatMapFunction<String, Fact>, ListCheck
 
     @Override
     public void flatMap(String line, Collector<Fact> collector) throws Exception {
-            //init parser!
         this.parser.parseLine(collector::collect, line);
     }
 

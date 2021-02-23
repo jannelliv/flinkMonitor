@@ -68,7 +68,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
 
     @Override
     public void flatMap2(PipelineEvent fact, Collector<PipelineEvent> collector) throws Exception {
-        //one terminator fact has to be sent out once it is received on both incoming streams!!
+        //one terminator fact has to be sent out once it is received on both incoming streams
         if(!fact.isPresent()){
             terminatorRHS.add(fact.getTimepoint());
             if(terminatorLHS.contains(fact.getTimepoint())){

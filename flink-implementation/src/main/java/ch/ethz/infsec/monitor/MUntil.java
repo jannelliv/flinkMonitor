@@ -24,19 +24,15 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     Long largestInOrderTPsub1;
     Long largestInOrderTPsub2;
-    //startEvalTimepoint is the timepoint that corresponds to smallestFullTimestamp!
+    //startEvalTimepoint is the timepoint that corresponds to smallestFullTimestamp
     Long startEvalTimepoint; //this gives us the timepoint from which to retrieve the timestamp and corresponding entries
     //in mbuf2 and muaux, in order to process these datastructures from the last entry which was not evaluated, and hence
     //was also not "taken" from the buffer.
     //Long smallestFullTimestamp;
 
-    //At the end of the flatMap functions, remember to remove the necessary entries from timepointToTimestamp. Otw there
-    //may be a memory leak/stack overflow.
-
     HashMap<Long, Long> timepointToTimestamp;
     HashSet<Long> terminSub1;
     HashSet<Long> terminSub2;
-    Boolean fromFlatMap2;
 
     public MUntil(boolean b, Mformula accept, ch.ethz.infsec.policy.Interval interval,
                   Mformula accept1) {
@@ -66,13 +62,9 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
 
     @Override
     public void flatMap1(PipelineEvent event, Collector<PipelineEvent> collector) throws Exception {
-        //this.fromFlatMap2 = false;
         if(!timepointToTimestamp.containsKey(event.getTimepoint())){
             timepointToTimestamp.put(event.getTimepoint(), event.getTimestamp());
         }
-        //NB: I think I don't actually need tsList,
-        //because we store the timestamps in msaux, the timepoints in mbuf2, and we have
-        //a specific datastructure which maps timepoints to timestamps
 
         if(event.isPresent()){
             if(mbuf2.fst().containsKey(event.getTimepoint())){
@@ -99,7 +91,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 mbuf2.fst().put(event.getTimepoint(), Table.empty());
             }
             if(!muaux.containsKey(event.getTimepoint())){
-                //not 100% sure
                 muaux.put(event.getTimepoint(), new Tuple<>(Table.empty(), Table.empty()));
                 if(startEvalMuauxTP == -1L || event.getTimepoint() < startEvalMuauxTP){
                     startEvalMuauxTP = event.getTimepoint();
@@ -118,34 +109,26 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     !(largestInOrderTPsub2 == -1 || largestInOrderTPsub1 == -1)){
                 Mbuf2take_function_Until func = this::update_until;
                 mbuf2t_take(func, startEvalTimepoint);
-                //update_until accepts a timepoint, but then within the method, we retrieve the timestamp
-                //and work with that!
 
                 HashMap<Long, Table> evalUntilResult;
 
-                if(muaux.isEmpty()){ //was !muaux.containsKey(startEvalTimepoint)
+                if(muaux.isEmpty()){
                     evalUntilResult = eval_until(timepointToTimestamp.get(largestInOrderTPsub1), startEvalMuauxTP);
                 }else{
                     evalUntilResult = eval_until(timepointToTimestamp.get(largestInOrderTPsub1), startEvalMuauxTP);
-                    //was:evalUntilResult = eval_until(timepointToTimestamp.get(startEvalTimepoint), startEvalMuauxTP);
                 }
 
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
-                for(Long timepoint : muaux_zs.keySet()){    //I'm not starting from "startEvalTimepoint"
+                for(Long timepoint : muaux_zs.keySet()){
                     Table evalSet = muaux_zs.get(timepoint);
                     for(Assignment oa : evalSet){
                         collector.collect(PipelineEvent.event(timepointToTimestamp.get(timepoint), timepoint, oa));
                     }
-                    //at the end, we output the terminator! --> for each of the timepoints in zs
-                    //The terminators are not output as soon as we get them, but only when we are sure that
-                    //we have output all of the satisfying assignments for that timepoint.
-                    //Since Until is a future formula, we can produce assignments for a timepoint even after we have
-                    //received the terminator for that timepoint.
                     collector.collect(PipelineEvent.terminator(timepointToTimestamp.get(timepoint), timepoint));
 
                 }
                 startEvalTimepoint = startEvalTimepoint + muaux_zs.keySet().size();
-                startEvalMuauxTP = startEvalMuauxTP + muaux_zs.keySet().size(); //not sure about this
+                startEvalMuauxTP = startEvalMuauxTP + muaux_zs.keySet().size();
                 //cleanUpDatastructures();
             }
 
@@ -182,7 +165,6 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                 mbuf2.snd().put(event.getTimepoint(), Table.empty());
             }
             if(!muaux.containsKey(event.getTimepoint())){
-                //not 100% sure
                 muaux.put(event.getTimepoint(), new Tuple<>(Table.empty(), Table.empty()));
                 if(startEvalMuauxTP == -1L || event.getTimepoint() < startEvalMuauxTP){
                     startEvalMuauxTP = event.getTimepoint();
@@ -198,18 +180,16 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
             }
             if(largestInOrderTPsub2 >= startEvalTimepoint && largestInOrderTPsub1>= startEvalTimepoint &&
                     !(largestInOrderTPsub2 == -1 || largestInOrderTPsub1 == -1)){
-                //not 100% sure about above condition
                 Mbuf2take_function_Until func = this::update_until;
                 mbuf2t_take(func, startEvalTimepoint);
                 HashMap<Long, Table> evalUntilResult;
 
-                if(muaux.isEmpty()){ //was !muaux.containsKey(startEvalTimepoint)
+                if(muaux.isEmpty()){
                     evalUntilResult = eval_until(timepointToTimestamp.get(largestInOrderTPsub2), startEvalMuauxTP);
                 }else{
                     evalUntilResult = eval_until(timepointToTimestamp.get(largestInOrderTPsub2), startEvalMuauxTP);
                 }
-                //eval_until will only output something if we are considering a full timepoint. ---> MAKE SURE THIS IS ENFORCED
-                //So we don't need to check anything here.
+
                 HashMap<Long, Table> muaux_zs = evalUntilResult;
                 for(Long timepoint : muaux_zs.keySet()){
                     Table evalSet = muaux_zs.get(timepoint);
@@ -229,9 +209,8 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
     public void update_until(Long timepointToIndexRels, HashMap<Long, Table> rel1, HashMap<Long, Table> rel2){
-        //in Verimon, nt is the current timestamp
-        //this method updates muaux, based on the timestamp
-        Long currentTimestamp = timepointToTimestamp.get(timepointToIndexRels); //OR IS IT:  startEvalTimepoint
+
+        Long currentTimestamp = timepointToTimestamp.get(timepointToIndexRels);
         for(Long timepointMuaux : muaux.keySet()){
             Tuple<Table, Table> tables = muaux.get(timepointMuaux);
             Table a2UnionAfter;
@@ -261,13 +240,10 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
         }else{
             addedTableForZeroLHS = Table.empty();
         }
-        muaux.put(timepointToIndexRels, new Tuple<>(rel1.get(timepointToIndexRels), addedTableForZeroLHS));  //OR: startEvalTimepoint
+        muaux.put(timepointToIndexRels, new Tuple<>(rel1.get(timepointToIndexRels), addedTableForZeroLHS));
     }
 
     public HashMap<Long, Table> eval_until(long currentTimestamp, long startEvalMuaux){
-        //In Verimon, the table built below (xs), is per timepoint, not per timestamp!
-        //In the Verimon code on afp it holds that:
-        //current timestamp: nt;   smallest full timestamp: t
         if(muaux.isEmpty()){
             return new HashMap<>();
         }else{
@@ -281,14 +257,12 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
                     }
                 }
                 if(nextSmallest != Long.MAX_VALUE){
-                    //startEvalMuauxTP = nextSmallest;         //not sure about this
-                    //muaux.remove(startEvalMuaux);        //Question: I think I can remove this entry after I have evaluated it
                     HashMap<Long, Table> xs = eval_until(currentTimestamp, nextSmallest);
                     xs.put(startEvalMuaux, a1a2.snd());
                     return xs;
                 }else{
                     HashMap<Long, Table> xs = new HashMap<>();
-                    xs.put(startEvalMuaux, a1a2.snd()); //first argument used to be startEvalTImepoint
+                    xs.put(startEvalMuaux, a1a2.snd());
                     return xs;
                 }
             }else{
@@ -298,14 +272,11 @@ public class MUntil implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeli
     }
 
     public void mbuf2t_take(Mbuf2take_function_Until func, Long tp){
-        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) && //unnecessary conditions!!!
-        terminSub1.contains(tp) && terminSub2.contains(tp)){            ///PROBLEM -> SEE TEST
+        if(mbuf2.fst().containsKey(tp) && mbuf2.snd().containsKey(tp) &&
+        terminSub1.contains(tp) && terminSub2.contains(tp)){
 
             func.run(tp, mbuf2.fst(),mbuf2.snd());
-            //mbuf2.fst().remove(tp);
-            //mbuf2.snd().remove(tp);
-            tp++; //gets incremented and method is called recursively until one of the two HashMaps in
-            //mbuf2 becomes empty.
+            tp++;
             mbuf2t_take(func, tp);
         }
     }

@@ -63,7 +63,7 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
 
                 out.collect(PipelineEvent.event(fact.getTimestamp(),fact.getTimepoint(), list));
             }
-            //if there are no satisfactions, we simply don't put anything in the collector.
+            //if there are no satisfactions, we simply don't put anything to the collector.
         }
     }
 
@@ -75,8 +75,6 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
     public static Optional<HashMap<VariableID, Optional<Object>>> matchFV(List<JavaTerm<VariableID>> ts, ArrayList<Object> ys){
         //ts: arguments of the formula
         //ys: arguments of the incoming fact
-        //I am using a HashMap instead of a Function, which is what is used in Verimon
-        //I added the below if condition, which is not present in the Verimon implementation
         if(ts.size() != ys.size()){
             return Optional.empty();
         }else if(ts.size() == 0 && ys.size() == 0) {
@@ -90,7 +88,6 @@ public final class MPred implements Mformula, FlatMapFunction<Fact, PipelineEven
                     JavaTerm<VariableID> t = ts.remove(0); //from formula
                     Object y = ys.remove(0); //from fact
                     Optional<HashMap<VariableID, Optional<Object>>> partialResult =  matchFV(ts, ys);
-                    //partialResult.get().put(t, Optional.of(y)); --> doesn't have to be added if it's a constant!
                     return partialResult;
                 }else {
                     return Optional.empty();

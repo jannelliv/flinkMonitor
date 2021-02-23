@@ -53,8 +53,6 @@ public class Table extends HashSet<Assignment> {
                         Assignment consList = new Assignment();
                         consList.add(Optional.empty());
                         consList.addAll(subResult.get());
-                        //Problem: get() can only return a value if the wrapped object is not null;
-                        //otherwise, it throws a no such element exception
                         return Optional.of(consList);
                     }
                 }else if(x.isPresent() && !y.isPresent()) {
