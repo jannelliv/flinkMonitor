@@ -33,7 +33,6 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
     @Override
     public <T> DataStream<PipelineEvent> accept(MformulaVisitor<T> v) {
         return (DataStream<PipelineEvent>) v.visit(this);
-        //Is it ok that I did the cast here above?
     }
 
     @Override
@@ -85,7 +84,7 @@ public class MAnd implements Mformula, CoFlatMapFunction<PipelineEvent, Pipeline
             }
             this.mbuf2.snd.get(fact.getTimepoint()).add(fact.get());
 
-            if(mbuf2.fst.containsKey(fact.getTimepoint()) && !this.mbuf2.fst.get(fact.getTimepoint()).isEmpty()){ //maybe it only contains a terminator :(
+            if(mbuf2.fst.containsKey(fact.getTimepoint()) && !this.mbuf2.fst.get(fact.getTimepoint()).isEmpty()){
                 for(Assignment lhs : this.mbuf2.fst.get(fact.getTimepoint())){
                     Optional<Assignment> joinResult = join1(fact.get(), lhs, 0);
                     if(joinResult.isPresent()){
