@@ -1,15 +1,19 @@
 The Scalable Online Monitoring Project
 ======================================
 
-A scalable online monitor implemented on the Apache Flink® distributed stream
-processing engine.
-
-Copyright © 2017-2020 Information Security Group, Department of Computer
-Science, ETH Zürich, Switzerland. Authors in alphabetical order: Frederik Brix,
-Matthieu Gras, Srđan Krstić, Joshua Schneider, Dmitriy Traytel.
-
-This program is distributed under the terms of the GNU Lesser General Public
-License, version 3 or later.
+Performing online monitoring on large quantities of data is a difficult task, as it
+requires reporting violations speedily while receiving large amounts of events
+incrementally and applying the semantics of a feature-rich specification language.
+In this thesis we develop a task-parallel monitor for Metric First-Order Temporal
+Logic (MFOTL). We start from an existing monitoring algorithm implemented
+in the VeriMon tool, which we extend and apply to a context where events
+are streamed individually, and not grouped in databases. We achieve this by
+providing separate streaming algorithms which implement the semantics for
+different operators of the metric first-order temporal logic specification language.
+We use the Apache Flink framework to implement our monitor and to allow
+it to monitor large and continuous data streams. We evaluate our monitor and
+compare its performance with respect to the black-box MonPoly monitoring
+tool.
 
 
 Arguments for ch.eth.inf.infsec.StreamMonitoring
